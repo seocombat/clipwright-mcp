@@ -1,0 +1,60 @@
+{
+  "name": "@clipwright/core",
+  "version": "0.20.0",
+  "description": "Zod schemas and the shared request/response contract of the Clipwright UGC video API",
+  "license": "MIT",
+  "author": "Dimantika Sp. z o.o.",
+  "homepage": "https://clipwright.io",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    "./media-timebase": {
+      "types": "./dist/media-timebase.d.ts",
+      "default": "./dist/media-timebase.js"
+    },
+    "./long-form-profile": {
+      "types": "./dist/long-form-profile.d.ts",
+      "default": "./dist/long-form-profile.js"
+    },
+    "./semantic-inserts": {
+      "types": "./dist/semantic-inserts.d.ts",
+      "default": "./dist/semantic-inserts.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./idempotency": {
+      "types": "./dist/idempotency.d.ts",
+      "default": "./dist/idempotency.js"
+    },
+    "./voice-admission": {
+      "types": "./dist/voice-admission.d.ts",
+      "default": "./dist/voice-admission.js"
+    },
+    "./voice-listing": {
+      "types": "./dist/voice-listing.d.ts",
+      "default": "./dist/voice-listing.js"
+    }
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1"
+  }
+}

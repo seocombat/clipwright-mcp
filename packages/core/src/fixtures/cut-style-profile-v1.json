@@ -1,0 +1,61 @@
+{
+  "schema": "cut_style_profile_v1",
+  "fps": 25,
+  "style_id": "synthetic-style",
+  "sources": [
+    {
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reviewed_shots": 52,
+      "image_shots": 51,
+      "aligned_cuts": 0
+    }
+  ],
+  "speech_rules_available": false,
+  "pacing": {
+    "global_image_frames": {
+      "p25": 43,
+      "p50": 60,
+      "p75": 75,
+      "n": 51
+    },
+    "by_phase": {},
+    "short_bursts": {
+      "shot_count": 6,
+      "n": 1
+    }
+  },
+  "motion": {
+    "pan_flip_probability": 1.0,
+    "pan_transition_n": 50,
+    "pan_travel_fraction": 0.06850007299266185,
+    "pan_travel_n": 51
+  },
+  "opening_video": {
+    "share": 1.0,
+    "n": 1,
+    "duration_frames": {
+      "p25": 93,
+      "p50": 93,
+      "p75": 93,
+      "n": 1
+    }
+  },
+  "captions": {
+    "n": 1,
+    "style": "PHRASE",
+    "style_n": 1,
+    "position_fraction": 0.683,
+    "position_fraction_n": 1,
+    "color": "white",
+    "color_n": 1,
+    "accent": "yellow",
+    "accent_n": 1,
+    "changes_per_sec": {
+      "p25": 1.091,
+      "p50": 1.091,
+      "p75": 1.091,
+      "n": 1
+    }
+  },
+  "speech": null
+}

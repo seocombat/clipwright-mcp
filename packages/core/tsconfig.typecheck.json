@@ -1,0 +1,8 @@
+{
+  // `rootDir: "../.."` — по тому же доводу, что в `packages/service-core`: тесты
+  // берут чтение корпуса из `scripts/`, а он выше корня пакета. `noEmit` — всё.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "rootDir": "../.." },
+  "include": ["src"],
+  "exclude": []
+}

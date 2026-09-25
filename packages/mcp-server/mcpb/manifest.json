@@ -1,0 +1,57 @@
+{
+  "manifest_version": "0.3",
+  "name": "clipwright",
+  "display_name": "Clipwright",
+  "version": "0.20.0",
+  "description": "Short talking-actor UGC videos from your agent, with a free price quote before each render.",
+  "long_description": "Clipwright turns a script into a short vertical video of an actor speaking it. Ask for a quote first: it is free and names the price, the duration and anything the API will not honor. Then start the render; it returns a run id at once, and the video URL arrives when the run succeeds. Output is 1080×1920 by default. Anything the API cannot deliver comes back in `warnings[]` instead of being dropped silently. You can also create a personal actor from a description. Rendering spends credits from your Clipwright account; quotes, voices, the actor catalog and the balance are free. Clipwright does not publish videos anywhere.",
+  "author": {
+    "name": "Dimantika Sp. z o.o.",
+    "url": "https://clipwright.io"
+  },
+  "homepage": "https://clipwright.io",
+  "documentation": "https://clipwright.io/docs",
+  "support": "https://clipwright.io/docs",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "CLIPWRIGHT_API_KEY": "${user_config.api_key}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "quote_ugc", "description": "Estimate the credit cost of a video without spending credits." },
+    { "name": "make_ugc", "description": "Start a paid render of a talking-actor video; returns a run id at once." },
+    { "name": "get_run", "description": "Check a run's status until it succeeds with a video URL or fails." },
+    { "name": "list_voices", "description": "List voices with filters and short audio samples." },
+    { "name": "list_actors", "description": "List ready-made and personal actors with stable ids." },
+    { "name": "upload_image", "description": "Upload a local PNG or JPEG to use as the actor image." },
+    { "name": "quote_actor", "description": "Estimate the credit cost of a personal actor without spending credits." },
+    { "name": "create_actor", "description": "Create a personal actor from a description; each format is a charged image." },
+    { "name": "delete_actor", "description": "Delete a personal actor of this account." },
+    { "name": "get_actor_defaults", "description": "Read an actor's saved B-roll default." },
+    { "name": "set_actor_defaults", "description": "Save an actor's B-roll default without spending credits." },
+    { "name": "get_account", "description": "Read the account's balance, debt and holds." }
+  ],
+  "keywords": ["ugc", "video", "video-generation", "ai-avatar", "talking-head"],
+  "license": "MIT",
+  "privacy_policies": ["https://clipwright.io/privacy"],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=20.0.0" }
+  },
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "Clipwright API key",
+      "description": "Your cw_... key from https://app.clipwright.io/api-keys",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}

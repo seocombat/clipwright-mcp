@@ -1,0 +1,8 @@
+{
+  // `rootDir: "../.."` — по тому же доводу, что в `packages/service-core`: тесты
+  // импортируют общий рекордер запросов из `scripts/`, лежащий выше корня пакета.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "rootDir": "../.." },
+  "include": ["src"],
+  "exclude": []
+}

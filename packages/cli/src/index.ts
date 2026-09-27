@@ -327,7 +327,7 @@ withFacelessOptions(
 });
 
 withFacelessOptions(
-  program.command("make-faceless").description("start a 30-90 second faceless video (paid); prints the run"),
+  program.command("make-faceless").description("start a faceless video (paid); ends with its narration, 25 s to duration + 5 s; prints the run"),
 )
   .option("--retry <n>", "retry attempt number (forces a fresh run)", parseRetry)
   .action(async (opts: FacelessOptions & { retry?: number }) => {

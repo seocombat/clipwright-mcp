@@ -75,7 +75,8 @@ export const MAKE_UGC_AGENT_PROTOCOL =
   "deliberately start a NEW run for the same input (retry after a failure).";
 
 export const MAKE_FACELESS_DESCRIPTION =
-  "Start a paid 30–90 second finished faceless video from a script or brief. " +
+  "Start a paid finished faceless video from a script or brief. You select 30–90 seconds; " +
+  "the video ends with its narration, runs at least 25 seconds and at most 5 seconds past the selection, never beyond 90. " +
   "The video has an opening animated clip and image scenes. Captions are on by default and can be turned off.";
 
 /** How to call `make_faceless` over MCP, kept apart from the REST description. */

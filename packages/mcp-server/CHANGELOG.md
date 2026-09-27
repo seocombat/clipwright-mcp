@@ -16,6 +16,23 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
+## [0.21.1] - 2026-09-27
+
+A wording patch: the clients now describe the faceless length the way the API delivers it.
+
+### Fixed
+
+- The `make_faceless` tool description, the `make-faceless` CLI help, the `.mcpb` manifest, `SKILL.md` and the
+  package READMEs no longer call a faceless video a fixed 30–90 seconds. You select `duration_seconds` from 30 to 90;
+  the video ends with its narration and runs from 25 seconds to 5 seconds past the selection, never past 90. The
+  behavior is unchanged from 0.21.0; only the text was wrong.
+
+### Changed
+
+- *Dashboard:* The Acceptable Use Policy allows a faceless video to show a recognisable public figure when the story
+  is about that person (news, history, biography, commentary). It still may not make them appear to say, do or
+  endorse anything they did not. Showing a real person speaking your script still requires that person's consent.
+
 ## [0.21.0] - 2026-09-27
 
 Faceless videos: an agent can now make a video of up to 90 seconds without an on-camera presenter, from a script or

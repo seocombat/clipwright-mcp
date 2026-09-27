@@ -2,8 +2,9 @@
 
 Open-source clients for [Clipwright](https://clipwright.io): an API that turns a
 script into a short video of an actor speaking it, or a script or a short brief
-into a 30–90 second faceless video without an on-camera presenter: narration over
-an opening animated clip and image scenes. Your agent quotes the price for free,
+into a faceless video without an on-camera presenter: narration over an opening
+animated clip and image scenes, ending with the narration (select 30–90 seconds;
+it runs 25 seconds or more and up to 5 seconds past the selection). Your agent quotes the price for free,
 starts the render, and gets a video URL back. Clipwright returns the
 file; it does not publish anywhere.
 

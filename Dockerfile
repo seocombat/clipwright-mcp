@@ -2,7 +2,7 @@
 # The version is filled in by the sync from packages/mcp-server/package.json.
 FROM node:24-slim
 
-ARG MCP_SERVER_VERSION=0.21.0
+ARG MCP_SERVER_VERSION=0.21.1
 RUN npm install -g "@clipwright/mcp-server@${MCP_SERVER_VERSION}" && npm cache clean --force
 
 USER node

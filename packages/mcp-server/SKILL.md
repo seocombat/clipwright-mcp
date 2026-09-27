@@ -565,7 +565,7 @@ behind such a warning.
 ### `quote_faceless` — free, and `make_faceless` — paid, creates a run
 
 A faceless video is 30 to 90 seconds of narration over an opening animated clip
-and image scenes, with no actor on screen. Captions are on by default; pass
+and image scenes, without an on-camera presenter. Captions are on by default; pass
 `captions: false` to turn them off.
 
 Give the narration one of two ways, and name which with `input_mode`:

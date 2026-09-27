@@ -1,6 +1,7 @@
 # @clipwright/sdk
 
-TypeScript client for the [Clipwright](https://clipwright.io) UGC video API.
+TypeScript client for the [Clipwright](https://clipwright.io) UGC and faceless
+video API.
 
 ```ts
 import { ClipwrightClient } from "@clipwright/sdk";
@@ -16,7 +17,9 @@ carries an idempotency key derived from the input and from this installation's
 id, so a retried request returns the original run instead of paying twice. Pass
 `idempotencyKey` explicitly when you deliberately want a fresh run.
 
-`quoteFaceless(input)` prices a 30–90 second faceless video, and
+`quoteFaceless(input)` prices a faceless video for a `duration_seconds` of 30 to 90
+(the delivered video runs from 25 seconds to 5 seconds past it, never past 90, and
+never costs more than the quote), and
 `startFaceless(input, { attempt })` starts it and returns the run at once; poll
 `getRun` until it succeeds. The input names its source with `input_mode`:
 `{ input_mode: "script", script, duration_seconds }` reads your text as written,

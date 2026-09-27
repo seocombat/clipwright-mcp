@@ -40,7 +40,7 @@
     { "name": "set_actor_defaults", "description": "Save an actor's B-roll default without spending credits." },
     { "name": "get_account", "description": "Read the account's balance, debt and holds." }
   ],
-  "keywords": ["ugc", "video", "video-generation", "ai-avatar", "talking-head"],
+  "keywords": ["ugc", "video", "video-generation", "ai-avatar", "talking-head", "faceless-video", "narration"],
   "license": "MIT",
   "privacy_policies": ["https://clipwright.io/privacy"],
   "compatibility": {

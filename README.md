@@ -1,8 +1,10 @@
 # Clipwright clients
 
 Open-source clients for [Clipwright](https://clipwright.io): an API that turns a
-script into a short video of an actor speaking it. Your agent quotes the price
-for free, starts the render, and gets a video URL back. Clipwright returns the
+script into a short video of an actor speaking it, or a script or a short brief
+into a 30–90 second faceless video without an on-camera presenter: narration over
+an opening animated clip and image scenes. Your agent quotes the price for free,
+starts the render, and gets a video URL back. Clipwright returns the
 file; it does not publish anywhere.
 
 | Package | What it is |

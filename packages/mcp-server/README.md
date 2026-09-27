@@ -1,7 +1,9 @@
 # @clipwright/mcp-server
 
 Your coding agent writes the script; [Clipwright](https://clipwright.io) renders
-a short vertical video of an actor speaking it, 1080×1920 by default. The agent
+a short vertical video of an actor speaking it, 1080×1920 by default. It also
+makes faceless videos of up to 90 seconds from a script or a short brief: narration
+over an opening animated clip and image scenes, with no on-camera presenter. The agent
 asks for a free quote before it spends anything, and whatever the API cannot
 honor comes back in `warnings[]` instead of being dropped silently.
 
@@ -51,8 +53,10 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
   immediately; poll `get_run` until `succeeded`, then pass `created_actor.actor_id`
   to `make_ugc` as `actor_id`.
 - `quote_faceless` — price of a faceless video before making one. Free.
-- `make_faceless` — **makes a 30–90 second faceless video from your script or
-  from a short brief; this costs money.** Narration plays over an opening
+- `make_faceless` — **makes a faceless video from your script or from a short
+  brief; this costs money.** You pick 30 to 90 seconds; the video ends with its
+  narration, from 25 seconds to 5 seconds past your pick (never past 90), and
+  costs at most the quote. Narration plays over an opening
   animated clip and image scenes, with captions on by default. Returns a
   `run_id` immediately; poll `get_run` until `succeeded`.
 - `delete_actor` — removes a personal actor of this account. Videos already made
@@ -73,7 +77,7 @@ a failed run on purpose, not a free refresh.
 
 ## Privacy
 
-The server sends your script, chosen options and any uploaded image to the
+The server sends your script or brief, chosen options and any uploaded image to the
 Clipwright API to quote and render the video. How that data is handled:
 [clipwright.io/privacy](https://clipwright.io/privacy). Documentation:
 [clipwright.io/docs](https://clipwright.io/docs).

@@ -23,6 +23,6 @@
 4. Check the install by calling `get_account`: it is free and returns the balance.
 
 Rendering spends credits, and an account opened by signing up starts with none.
-Before `make_ugc` or `create_actor`, call `quote_ugc` or `quote_actor` and show
-the user the price. `CLIPWRIGHT_CLIENT_ID` is optional; set it only where the
+Before `make_ugc`, `create_actor` or `make_faceless`, call `quote_ugc`,
+`quote_actor` or `quote_faceless` and show the user the price. `CLIPWRIGHT_CLIENT_ID` is optional; set it only where the
 home directory is shared, cloned or read-only (containers, CI).

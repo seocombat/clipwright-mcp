@@ -25,6 +25,8 @@ above name the package with `-p`, so they resolve here either way.
 | `actors` | Lists the actors this account can use: the Clipwright catalog and your own. Free. |
 | `quote-actor` | Estimates the cost of a personal actor. Spends nothing. |
 | `create-actor` | Creates a personal actor from a description. **Costs credits** — one charge per requested format. Prints the run; follow it with `runs <id>`. |
+| `quote-faceless` | Estimates the cost of a faceless video. Spends nothing. |
+| `make-faceless` | Starts a faceless video: narration over an opening animated clip and image scenes. **Costs credits.** Prints the run; follow it with `runs <id>`. |
 | `delete-actor <id>` | Deletes a personal actor of this account. Videos already made with it stay as they are. Free. |
 
 `quote` and `make` take the actor's photo as `--image <url>` or `--image-file <path>`
@@ -46,6 +48,18 @@ language.
 Every preset and catalog voice speaks `eleven_v3`. `--tts-model` overrides it with
 `eleven_flash_v2_5` or `eleven_turbo_v2_5`, which cost less but misread Russian stress
 marks. In a Russian script, mark stress with a capital vowel inside the word: `потОм`.
+
+`quote-faceless` and `make-faceless` take the narration as `--script <text>`,
+`--script-file <path>` or `--brief <text>` (a short description the narration is
+written from), plus a required `--duration <seconds>` from 30 to 90. The video
+ends with the narration, runs at least 25 seconds and may exceed the selection
+by up to 5 seconds, never beyond 90 seconds. A script must fit this output
+range. The charge follows the delivered duration and never exceeds the quote;
+the minimum remains 200 base credits plus 150 for the opening clip.
+Captions are on; `--no-captions`
+turns them off. `--style-reference <url>` and `--character-reference <url>` take
+public https images. Quote first: both commands take the same flags, so the
+quote prices exactly the request `make-faceless` would send.
 
 `make` retries are explicit: `--retry 2` deliberately starts a *new* run for the
 same script. Without it a repeated call returns the run you already paid for,

@@ -48,7 +48,7 @@ export function resolveResolution(
 export const MAX_URL_LENGTH = 2048;
 
 /** Skills in the shared run namespace. `runs.skill` is text, so it is read through `parseSkill`. */
-export const SKILLS = ["make_ugc", "create_actor"] as const;
+export const SKILLS = ["make_ugc", "create_actor", "make_faceless"] as const;
 export type Skill = (typeof SKILLS)[number];
 
 export function parseSkill(value: unknown): Skill | null {
@@ -73,6 +73,17 @@ export const MAKE_UGC_AGENT_PROTOCOL =
   "vendor job we still hold can go back to 'queued' and reach 'succeeded' later; whenever that " +
   "happens it is named in warnings[]. Pass attempt=2,3,… to " +
   "deliberately start a NEW run for the same input (retry after a failure).";
+
+export const MAKE_FACELESS_DESCRIPTION =
+  "Start a paid 30–90 second finished faceless video from a script or brief. " +
+  "The video has an opening animated clip and image scenes. Captions are on by default and can be turned off.";
+
+/** How to call `make_faceless` over MCP, kept apart from the REST description. */
+export const MAKE_FACELESS_AGENT_PROTOCOL =
+  "Call quote_faceless first and show the user the price. This does NOT wait for the video: it " +
+  "starts the run and returns a run_id IMMEDIATELY. Then poll get_run with that run_id until the " +
+  "state is 'succeeded' (video_url) or 'failed'. Pass attempt=2,3,… to deliberately start a NEW " +
+  "run for the same input.";
 
 
 /** One clip segment. `segments` makes `script` optional, changing `required[]` in `tools/list`, */

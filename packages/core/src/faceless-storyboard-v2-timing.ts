@@ -31,6 +31,15 @@ const CUT_COST = 2;
 const OUTPUT_FRAMES = 1522;
 const FPS = 25;
 
+/** Shared semantic objective; duration feasibility belongs to each profile. */
+export function facelessCutScore(reason: keyof typeof semantic | null, duration: number, range: { p25: number | null; p75: number | null }): Score {
+  const value = reason === null ? 0 : semantic[reason];
+  const cost = reason === null ? 0 : CUT_COST;
+  const distance = duration < range.p25! ? range.p25! - duration : duration > range.p75! ? duration - range.p75! : 0;
+  const penalty = 0.25 * distance / FPS;
+  return { semanticValue: value, cutCost: cost, pacePenalty: penalty, net: value - cost - penalty };
+}
+
 function better(a: State, b: State | undefined): boolean {
   if (!b) return true;
   if (Math.abs(a.total - b.total) > 1e-9) return a.total > b.total;
@@ -84,8 +93,7 @@ export function planStoryboardV2(
     const phaseRange = style.pacing.by_phase[phase];
     const range = phaseRange && phaseRange.n > 0 ? phaseRange : style.pacing.global_image_frames;
     const duration = nodes[end]!.frame - nodes[start]!.frame;
-    const distance = duration < range.p25! ? range.p25! - duration : duration > range.p75! ? duration - range.p75! : 0;
-    return 0.25 * distance / 25;
+    return facelessCutScore(null, duration, range).pacePenalty;
   }
 
   for (let end = 1; end <= final; end++) {

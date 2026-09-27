@@ -269,7 +269,7 @@
       "accent": "prague",
       "gender_raw": "female",
       "age_raw": "young",
-      "use_case_raw": "narrative_story",
+      "use_case_raw": "advertisement",
       "descriptive_raw": "calm",
       "name": "Jana - Warm, Confident Czech Female",
       "description": "A warm, confident female voice with clear articulation and a friendly, engaging delivery. Versatile for commercials, corporate videos, e-learning, and storytelling. Ideal for projects that require trustworthiness, professionalism, and a personal touch.",
@@ -281,7 +281,7 @@
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "cs_female_kami",
@@ -469,8 +469,8 @@
       ],
       "notice_period_days": 4015,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 9,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "da_female_astrid",
@@ -490,8 +490,8 @@
       ],
       "notice_period_days": 4015,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "da_female_freja",
@@ -909,8 +909,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "el_female_sophia",
@@ -993,8 +993,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "el_male_iordanis",
@@ -1075,10 +1075,10 @@
         "eleven_flash_v2_5",
         "eleven_turbo_v2_5"
       ],
-      "notice_period_days": 730,
+      "notice_period_days": 4015,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "en_female_hope",
@@ -1264,8 +1264,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "es_female_mauro",
@@ -1285,8 +1285,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "es_female_sara_martin",
@@ -1306,8 +1306,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "es_female_sara_martin_2",
@@ -1327,8 +1327,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "es_female_tatiana_martin",
@@ -1348,8 +1348,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 9,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "es_male_alberto_rodriguez",
@@ -1390,8 +1390,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 10,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "es_male_dan",
@@ -1452,8 +1452,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 4,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "fi_female_kaisa",
@@ -1513,10 +1513,10 @@
         "eleven_flash_v2_5",
         "eleven_turbo_v2_5"
       ],
-      "notice_period_days": 365,
+      "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "fi_male_jussi",
@@ -1662,8 +1662,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "fil_female_tiya_maria",
@@ -1746,8 +1746,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "fil_male_kuya_manny",
@@ -2076,12 +2076,13 @@
       "description": "Kanika is the pen name of one of the best voice-over artists you will ever hear. Everyone who regularly consumes content has definitely heard her voice. Give this voice a try, and you will find it very professional and soothing. It's the perfect voice to use for social media, ads, bots, and audiobooks.",
       "category": "high_quality",
       "verified_models": [
+        "eleven_flash_v2_5",
         "eleven_turbo_v2_5"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "hi_female_monika_sogam",
@@ -2116,12 +2117,13 @@
       "description": "This voice is of a veteran Indian actress (of course, name changed). This voice has good emotions and will be very good for social media, audiobooks, and for conversational use cases.",
       "category": "high_quality",
       "verified_models": [
+        "eleven_flash_v2_5",
         "eleven_turbo_v2_5"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "hi_male_bunty",
@@ -2749,8 +2751,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 4,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "id_male_ahmad",
@@ -2833,8 +2835,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "id_male_putra",
@@ -3631,8 +3633,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 9,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "ms_male_rizq_khalid",
@@ -3673,8 +3675,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 10,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "ms_male_zain_2",
@@ -3694,8 +3696,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "nl_female_emma",
@@ -4491,8 +4493,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "pt_male_victor_power",
@@ -4512,8 +4514,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "pt_male_will",
@@ -4882,7 +4884,7 @@
       "descriptive_raw": "deep",
       "name": "Alexandr Vlasov - Vibrant and Energetic",
       "description": "A unique Russian male voice: rich, calm and versatile, perfect for YouTube, audiobooks, ads, and lectures. Combining emotional depth with clarity, it adapts seamlessly to various projects—from engaging advertisements and immersive audiobooks to compelling educational content and professional lectures.",
-      "category": "professional",
+      "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
         "eleven_turbo_v2_5"
@@ -4890,7 +4892,7 @@
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "ru_male_artem_lebedev",
@@ -5959,8 +5961,8 @@
       ],
       "notice_period_days": 365,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "vi_female_mai",
@@ -6106,8 +6108,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
       "slug": "vi_male_ninh_don",

@@ -77,6 +77,8 @@ export function derivedRunWarnings(
       return ugcRunWarnings(storedInput, preflight, voiceGenderOf);
     case "create_actor":
       return storedCreateActorInput.safeParse(storedInput).success ? [] : [UNREADABLE_CREATE_ACTOR_INPUT_WARNING];
+    case "make_faceless":
+      return [];
     case null:
       return [UNREADABLE_RUN_INPUT_WARNING];
     default:

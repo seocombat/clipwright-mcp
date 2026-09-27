@@ -2,8 +2,14 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.clipwright/mcp",
   "title": "Clipwright",
-  "description": "Short talking-actor UGC videos from your coding agent, with a free price quote before each render",
-  "version": "0.20.0",
+  "description": "Talking-actor and faceless short videos from your AI agent, with a free quote before each render",
+  "repository": {
+    "url": "https://github.com/seocombat/clipwright-mcp",
+    "source": "github",
+    "id": "1387452325",
+    "subfolder": "packages/mcp-server"
+  },
+  "version": "0.21.0",
   "websiteUrl": "https://clipwright.io",
   "icons": [
     { "src": "https://clipwright.io/brand/clipwright-512.png", "mimeType": "image/png", "sizes": ["512x512"] },
@@ -14,7 +20,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@clipwright/mcp-server",
-      "version": "0.20.0",
+      "version": "0.21.0",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {

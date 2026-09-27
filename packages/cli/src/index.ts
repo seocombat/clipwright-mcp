@@ -10,6 +10,7 @@ import {
   apiBaseUrlFromEnv,
   ASPECT_RATIOS,
   type CreateActorInputArgs,
+  type MakeFacelessInputArgs,
   CATALOG_GENDERS,
   CATALOG_LANGUAGES,
   PUBLIC_APP_BASE_URL,
@@ -110,6 +111,19 @@ function withSourceOptions(command: Command): Command {
     .addOption(new Option("--resolution <size>", "output resolution").choices(RESOLUTIONS));
 }
 
+/** --retry is an attempt NUMBER, parsed strictly: the value enters the */
+/** idempotency key, so a lenient parse could buy a second render. */
+function parseRetry(raw: string): number {
+  // Same bound as the SDK's `attemptSuffix`: a leading `[1-9]` rejects zero,
+  // `isSafeInteger` rejects values too large to stay distinct.
+  const parsed = Number.parseInt(raw, 10);
+  if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(parsed)) {
+    console.error(`--retry expects a whole number of 1 or more, got ${raw}`);
+    process.exit(1);
+  }
+  return parsed;
+}
+
 program
   .command("upload <path>")
   .description("upload a local PNG/JPEG and print the https url to pass as --image")
@@ -171,18 +185,7 @@ withSourceOptions(
       TTS_MODELS,
     ),
   )
-  // --retry is an attempt NUMBER, parsed strictly: the value enters the
-  // idempotency key, so a lenient parse could buy a second render.
-  .option("--retry <n>", "retry attempt number (forces a fresh run)", (raw) => {
-    // Same bound as the SDK's `attemptSuffix`: a leading `[1-9]` rejects zero,
-    // `isSafeInteger` rejects values too large to stay distinct.
-    const parsed = Number.parseInt(raw, 10);
-    if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(parsed)) {
-      console.error(`--retry expects a whole number of 1 or more, got ${raw}`);
-      process.exit(1);
-    }
-    return parsed;
-  })
+  .option("--retry <n>", "retry attempt number (forces a fresh run)", parseRetry)
   .action(
     async (
       opts: {
@@ -279,6 +282,58 @@ withActorOptions(
 ).action(async (opts: ActorOptions) => {
   console.log(JSON.stringify(await client().createActor(actorInput(opts)), null, 2));
 });
+
+interface FacelessOptions {
+  script?: string;
+  scriptFile?: string;
+  brief?: string;
+  duration: string;
+  captions: boolean;
+  styleReference?: string;
+  characterReference?: string;
+}
+
+/** Faceless options shared by quote and make, so the quote prices what gets made. */
+const withFacelessOptions = (command: Command): Command =>
+  command
+    .addOption(new Option("--script <text>", "narration, read as written").conflicts(["scriptFile", "brief"]))
+    .addOption(new Option("--script-file <path>", "read the narration from a file").conflicts("brief"))
+    .option("--brief <text>", "what the video is about; the narration is written from it")
+    .requiredOption("--duration <seconds>", "target length, 30 to 90 seconds")
+    .option("--no-captions", "turn off burned-in captions (on by default)")
+    .option("--style-reference <url>", "public https image whose visual style the scenes follow")
+    .option("--character-reference <url>", "public https image of a person or figure to keep across scenes");
+
+function facelessInput(opts: FacelessOptions): MakeFacelessInputArgs {
+  const common = {
+    duration_seconds: Number(opts.duration),
+    captions: opts.captions,
+    ...(opts.styleReference === undefined ? {} : { style_reference: opts.styleReference }),
+    ...(opts.characterReference === undefined ? {} : { character_reference: opts.characterReference }),
+  };
+  if (opts.brief !== undefined) return { ...common, input_mode: "brief", brief: opts.brief };
+  const script = opts.scriptFile === undefined ? opts.script : readFileSync(opts.scriptFile, "utf8");
+  if (script === undefined) {
+    console.error("pass one of --script, --script-file or --brief");
+    process.exit(1);
+  }
+  return { ...common, input_mode: "script", script };
+}
+
+withFacelessOptions(
+  program.command("quote-faceless").description("estimate credits for a faceless video without spending them"),
+).action(async (opts: FacelessOptions) => {
+  console.log(JSON.stringify(await client().quoteFaceless(facelessInput(opts)), null, 2));
+});
+
+withFacelessOptions(
+  program.command("make-faceless").description("start a 30-90 second faceless video (paid); prints the run"),
+)
+  .option("--retry <n>", "retry attempt number (forces a fresh run)", parseRetry)
+  .action(async (opts: FacelessOptions & { retry?: number }) => {
+    const run = await client().startFaceless(facelessInput(opts), { attempt: opts.retry });
+    console.log(JSON.stringify(run, null, 2));
+  });
 
 program
   .command("delete-actor <id>")

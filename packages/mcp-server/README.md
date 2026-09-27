@@ -50,6 +50,11 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
   money.** Each requested format is a separate charged image. Returns a `run_id`
   immediately; poll `get_run` until `succeeded`, then pass `created_actor.actor_id`
   to `make_ugc` as `actor_id`.
+- `quote_faceless` — price of a faceless video before making one. Free.
+- `make_faceless` — **makes a 30–90 second faceless video from your script or
+  from a short brief; this costs money.** Narration plays over an opening
+  animated clip and image scenes, with captions on by default. Returns a
+  `run_id` immediately; poll `get_run` until `succeeded`.
 - `delete_actor` — removes a personal actor of this account. Videos already made
   with it stay as they are. Free.
 - `get_actor_defaults`, `set_actor_defaults` — read and save an actor's B-roll

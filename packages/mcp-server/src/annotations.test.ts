@@ -10,6 +10,8 @@ import { createServer } from "./server.js";
 const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean }> = {
   make_ugc: { readOnlyHint: false, destructiveHint: false },
   create_actor: { readOnlyHint: false, destructiveHint: false },
+  make_faceless: { readOnlyHint: false, destructiveHint: false },
+  quote_faceless: { readOnlyHint: true, destructiveHint: false },
   upload_image: { readOnlyHint: false, destructiveHint: false },
   set_actor_defaults: { readOnlyHint: false, destructiveHint: false },
   delete_actor: { readOnlyHint: false, destructiveHint: true },

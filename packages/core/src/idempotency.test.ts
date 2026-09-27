@@ -1,6 +1,33 @@
 import { describe, expect, it } from "vitest";
 
-import { idempotencyKeyFor, requestHash } from "./idempotency.js";
+import { actorIdempotencyKeyFor, facelessIdempotencyKeyFor, idempotencyKeyFor, requestHash } from "./idempotency.js";
+
+/** Every paid-run key: a new key builder must join this table, not get its own ad hoc test. */
+const keyBuilders = [
+  { name: "make_ugc", key: idempotencyKeyFor, input: { script: "hello world" },
+    explicit: { script: "hello world", captions: false, caption_style: "hormozi", look: "natural" },
+    other: { script: "hello there" } },
+  { name: "create_actor", key: actorIdempotencyKeyFor,
+    input: { name: "Ada", description: "A calm lighthouse keeper with grey hair", gender: "female", approximate_age: 55 },
+    explicit: { name: "Ada", description: "A calm lighthouse keeper with grey hair", gender: "female", approximate_age: 55, quality: "medium" },
+    other: { name: "Ada", description: "A cheerful baker with flour on her apron", gender: "female", approximate_age: 55 } },
+  { name: "make_faceless", key: facelessIdempotencyKeyFor,
+    input: { input_mode: "script", script: "Mira reached the harbor.", duration_seconds: 30 },
+    explicit: { input_mode: "script", script: "Mira reached the harbor.", duration_seconds: 30, captions: true },
+    other: { input_mode: "brief", brief: "Mira reached the harbor.", duration_seconds: 30 } },
+] as const;
+
+describe.each(keyBuilders)("$name idempotency key", ({ key, input, explicit, other }) => {
+  it("differs between clients on one input", () => {
+    expect(key(input, "client-aaaa")).not.toBe(key(input, "client-bbbb"));
+  });
+  it("is one key for raw input and explicit defaults", () => {
+    expect(key(input, "client-aaaa")).toBe(key(explicit, "client-aaaa"));
+  });
+  it("differs for a different request", () => {
+    expect(key(input, "client-aaaa")).not.toBe(key(other, "client-aaaa"));
+  });
+});
 
 // The hash arbitrates the 409 branch of run creation: sensitivity to key order would turn an
 // agent's rebuilt retry into a false key conflict. Order stability is a money-path requirement.

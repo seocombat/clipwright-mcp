@@ -14,6 +14,12 @@ import {
   createActorQuote,
   type CreateActorInputArgs,
   type CreateActorQuote,
+  FACELESS_QUOTE_PATH,
+  FACELESS_RUN_PATH,
+  facelessQuoteResponse,
+  type FacelessQuoteResponse,
+  makeFacelessInput,
+  type MakeFacelessInputArgs,
   agentFailureReport,
   isRetryableFailure,
   parseApiFailure,
@@ -40,7 +46,7 @@ import {
   type Run,
   type RunRead,
 } from "@clipwright/core";
-import { actorIdempotencyKeyFor, idempotencyKeyFor } from "@clipwright/core/idempotency";
+import { actorIdempotencyKeyFor, facelessIdempotencyKeyFor, idempotencyKeyFor } from "@clipwright/core/idempotency";
 
 import { resolveClientId } from "./client-id.js";
 
@@ -432,6 +438,31 @@ export class ClipwrightClient {
     return parseResponse(runSchema, body, CREATE_ACTOR_RUN_PATH, true);
   }
 
+  /** `make_faceless` estimate; spends no credits. Mismatched script/brief is refused before sending. */
+  async quoteFaceless(input: MakeFacelessInputArgs): Promise<FacelessQuoteResponse> {
+    const parsed = makeFacelessInput.parse(input);
+    const body = await this.#request(FACELESS_QUOTE_PATH, false, {
+      method: "POST",
+      body: JSON.stringify(parsed),
+    });
+    return parseResponse(facelessQuoteResponse, body, FACELESS_QUOTE_PATH, false);
+  }
+
+  /** Starts `make_faceless`; returns the run at once (state=queued), keyed like `createActor`. */
+  async startFaceless(input: MakeFacelessInputArgs, opts?: StartUgcOptions): Promise<Run> {
+    const parsed = makeFacelessInput.parse(input);
+    const key =
+      opts?.idempotencyKey ??
+      `${facelessIdempotencyKeyFor(parsed, this.#getClientId())}:${attemptSuffix(opts?.attempt)}`;
+    // `true`: once sent, the run may have been created and charged.
+    const body = await this.#request(FACELESS_RUN_PATH, true, {
+      method: "POST",
+      body: JSON.stringify(parsed),
+      headers: { "Idempotency-Key": key },
+    });
+    return parseResponse(runSchema, body, FACELESS_RUN_PATH, true);
+  }
+
   /** Deletes a personal actor. The answer is 204 with no body. */
   async deleteActor(id: string): Promise<void> {
     await this.#request(actorItemPath(id), true, { method: "DELETE" });
@@ -521,3 +552,4 @@ export { resolveClientId } from "./client-id.js";
 // without depending on core.
 export type { AgentFailureReport, ApiFailure };
 export type { MakeUgcInput, MakeUgcInputArgs, QuoteResponse, Run, RunRead };
+export type { FacelessQuoteResponse, MakeFacelessInputArgs };

@@ -16,6 +16,14 @@ carries an idempotency key derived from the input and from this installation's
 id, so a retried request returns the original run instead of paying twice. Pass
 `idempotencyKey` explicitly when you deliberately want a fresh run.
 
+`quoteFaceless(input)` prices a 30–90 second faceless video, and
+`startFaceless(input, { attempt })` starts it and returns the run at once; poll
+`getRun` until it succeeds. The input names its source with `input_mode`:
+`{ input_mode: "script", script, duration_seconds }` reads your text as written,
+`{ input_mode: "brief", brief, duration_seconds }` writes the narration from a
+short description. Captions are on unless `captions: false`. Both methods
+refuse a mismatched `script`/`brief` before sending anything.
+
 `listVoices({ language, gender, age, use_case, model })` returns the voices for
 `voice`, each filter optional. It is free. A voice with a sample carries a
 `preview_url` that expires in an hour. Pass a voice's `name` as `voice`;

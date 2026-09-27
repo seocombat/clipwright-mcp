@@ -1,4 +1,6 @@
 export * from "./skills.js";
+export * from "./faceless-public.js";
+export * from "./faceless-price.js";
 export * from "./actors.js";
 // Personal actors of an account: input and result of the `create_actor` skill.
 export * from "./account-actors.js";
@@ -53,3 +55,4 @@ export * from "./billing-terms.js";
 
 export * from "./voice-preview-approval.js";
 export * from "./face-delivery.js";
+export * from "./faceless-public-plan.js";

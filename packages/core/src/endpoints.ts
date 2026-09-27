@@ -15,6 +15,8 @@ export interface ApiEndpoint {
 }
 
 export const API_ENDPOINTS: readonly ApiEndpoint[] = [
+  { method: "POST", path: "/v1/skills/make_faceless/quote", billed: false, onQuickstart: false, jsonBody: true },
+  { method: "POST", path: "/v1/skills/make_faceless/run", billed: true, onQuickstart: false, jsonBody: true },
   { method: "GET", path: "/health", billed: false, onQuickstart: true, jsonBody: false },
   { method: "GET", path: "/v1/voices", billed: false, onQuickstart: true, jsonBody: false },
   { method: "GET", path: "/v1/account", billed: false, onQuickstart: true, jsonBody: false },

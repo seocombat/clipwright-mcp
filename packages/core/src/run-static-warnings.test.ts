@@ -41,6 +41,9 @@ const stored = (extra: Record<string, unknown> = {}) =>
 const NO_FACTS = {};
 
 describe("derivedRunWarnings", () => {
+  it("does not route faceless input through UGC warning derivation", () => {
+    expect(derivedRunWarnings({ input_mode: "brief", brief: "A story", duration_seconds: 30 }, NO_FACTS, "make_faceless")).toEqual([]);
+  });
   it("names an accepted but unhonored field", () => {
     expect(derivedRunWarnings(stored({ person: "a barista" }), NO_FACTS, "make_ugc")).toContain(
       "person is not honored yet: this request uses the default actor; choose actor_id from list_actors or provide image to select a different face",

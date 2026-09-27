@@ -164,8 +164,9 @@ Environment variables:
 | `CLIPWRIGHT_CLIENT_ID` | YES (see section 2) | Unique identifier of this INSTALLATION. |
 
 After connecting, restart or reopen the MCP host and confirm that `tools/list`
-returns ten tools: `make_ugc`, `get_run`, `quote_ugc`, `list_actors`, `list_voices`, `upload_image`, `get_account`,
-`create_actor`, `quote_actor`, `delete_actor`.
+returns fourteen tools: `make_ugc`, `get_run`, `quote_ugc`, `list_actors`, `list_voices`, `upload_image`, `get_account`,
+`create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`, `set_actor_defaults`, `quote_faceless`,
+`make_faceless`.
 
 ## 2. `CLIPWRIGHT_CLIENT_ID` — required, and WHY
 
@@ -305,7 +306,7 @@ frame could only come from the vendor's centre crop, which we do not do silently
 To get `1:1`, select an actor with a verified square variant or pass an `image`
 with a square public https source. An unavailable actor format is refused before payment.
 
-## 4. The seven tools
+## 4. The tools
 
 Schemas come from the single source of truth `@clipwright/core`
 (`packages/core/src/skills.ts`, barrel `packages/core/src/index.ts`); MCP does not
@@ -560,6 +561,41 @@ Returns the body of `GET /v1/account`: `balance_credits`, `debt_credits`,
 would be refused for money or access, so a render rarely needs this call first.
 Call it when the user asks how many credits are left, or to show the numbers
 behind such a warning.
+
+### `quote_faceless` — free, and `make_faceless` — paid, creates a run
+
+A faceless video is 30 to 90 seconds of narration over an opening animated clip
+and image scenes, with no actor on screen. Captions are on by default; pass
+`captions: false` to turn them off.
+
+Give the narration one of two ways, and name which with `input_mode`:
+
+- `input_mode: "script"` with `script` — your exact text is read as written.
+  The video ends with the narration, runs at least 25 seconds and may exceed
+  `duration_seconds` by up to 5 seconds, never beyond 90 seconds. A script must
+  fit this output range. The charge follows the delivered duration and never
+  exceeds the quote; the minimum is 200 base credits plus 150 for the opener.
+- `input_mode: "brief"` with `brief` — a short description; the narration is
+  written from it.
+
+Send exactly one of `script` and `brief`, the one that matches `input_mode`. The
+tool schema lists both as optional because MCP cannot express "one or the
+other"; the server and this client both refuse a mismatch, and the client
+refuses it before any request is sent.
+
+`duration_seconds` (30 to 90, on a 1/25 s frame boundary) is required. Optional:
+`style_reference` (a public https image the scenes follow in style),
+`character_reference` (a public https image of a person or figure to keep
+consistent) and `scene_images` (your own images, each anchored to a word range
+or a quote of the narration). An uploaded image must belong to this account.
+
+Call `quote_faceless` first and show the user the price: it spends nothing and
+warns when `make_faceless` would be refused for money or access. `make_faceless`
+returns a `run_id` at once; poll `get_run` until `succeeded` (with `video_url`)
+or `failed`. As with `make_ugc`, a repeated call with the same input returns the
+same run, and `attempt` 2, 3, … deliberately starts a new paid one. When
+faceless generation is switched off on the server, both tools answer
+`paid_render_disabled` and nothing is charged.
 
 ## 5. Retrying a failed run is NOT a permanent refusal
 

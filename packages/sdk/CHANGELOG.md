@@ -16,6 +16,47 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
+## [0.21.0] - 2026-09-27
+
+Faceless videos: an agent can now make a video of up to 90 seconds without an on-camera presenter, from a script or
+from a short brief, and see the price before anything is made.
+
+### Added
+
+- `quote_faceless` and `make_faceless` MCP tools, `quoteFaceless` and `startFaceless` in the SDK, and the
+  `quote-faceless` and `make-faceless` CLI commands. The video is narration over an opening animated clip and image
+  scenes, with captions on by default. `duration_seconds` (30 to 90) is a target: the video ends with its narration
+  and runs from 25 seconds to 5 seconds past `duration_seconds`, never past 90. `quote_faceless` is free;
+  `make_faceless` returns a `run_id`, and `get_run` reports progress. The MCP server now lists fourteen tools.
+
+### Server-side
+
+- A faceless run is charged for the video it delivers, by its actual length, and never more than its quote: seconds
+  past `duration_seconds` are free. A failed
+  run is charged nothing, including one we stop ourselves because a step did not meet our checks. A run held for
+  review keeps its credit hold until it is resolved.
+- Captions drop surrounding punctuation, keep accents and other diacritics, and show numbers as written (`$3.50`,
+  `10:30`, `1,000`, `50%`, `-20`).
+- With captions on, the script is checked against the caption font before speech is generated; a character the font
+  cannot draw fails the run without a customer charge.
+- Narration uses automatic language detection.
+- Pictures change about every three seconds, between spoken words.
+
+### Changed
+
+- *Server-side* Voice catalog: `cs_female_jana` is now listed with use case `advertisement` (was `narrative_story`);
+  the notice period is 4015 days for `en_female_cassidy` (was 730) and 730 days for `fi_male_jaakko` (was 365).
+  `es_male_benjamin` is unchanged and remains available.
+
+### Known limits
+
+- The voice reads some abbreviations literally: write "1.5 million" rather than "1.5M".
+- A generated picture can come out as a collage of two or three panels, and small character details (glasses,
+  for instance) can change between pictures.
+- Narration is not loudness-normalized yet, so a video can play quieter than other clips in the same feed.
+- *Server-side* A faceless run can fail when the opening clip shows a pattern our text check mistakes for lettering
+  (a chain, for instance). The run is charged nothing; running it again produces a new video.
+
 ## [0.20.0] - 2026-09-25
 
 The MCP server is ready for directories: it has a name in the official MCP

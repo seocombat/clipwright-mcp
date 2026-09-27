@@ -19,6 +19,10 @@ import {
   runId,
   MAKE_UGC_DESCRIPTION,
   MAKE_UGC_AGENT_PROTOCOL,
+  MAKE_FACELESS_DESCRIPTION,
+  MAKE_FACELESS_AGENT_PROTOCOL,
+  makeFacelessInput,
+  offeredFacelessInputShape,
   UPLOAD_IMAGE_DESCRIPTION,
   UPLOAD_MAX_BYTES,
   sniffUploadMediaType,
@@ -63,7 +67,7 @@ export function createServer(client: ClipwrightClient): McpServer {
       title: "Get run status",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "Check the status of a video generation started by make_ugc. Pass the run_id. While the run " +
+        "Check the status of a video generation started by make_ugc or make_faceless. Pass the run_id. While the run " +
         "is still working it returns status IN_PROGRESS with a next_action telling you to poll again; " +
         "repeat every ~5 seconds until it reaches a terminal state — SUCCEEDED (with video_url) or FAILED.",
       inputSchema: { run_id: runId },
@@ -222,6 +226,39 @@ export function createServer(client: ClipwrightClient): McpServer {
     async (args) =>
       withFailureReport(async () => ({
         content: [{ type: "text", text: JSON.stringify(await client.quoteActor(args)) }],
+      })),
+  );
+
+  // Flat shape for tools/list; the union parse refuses a script/brief mismatch before the SDK call.
+  server.registerTool(
+    "make_faceless",
+    {
+      title: "Make a faceless video",
+      annotations: { readOnlyHint: false, destructiveHint: false },
+      description: `${MAKE_FACELESS_DESCRIPTION} ${MAKE_FACELESS_AGENT_PROTOCOL}`,
+      inputSchema: { ...offeredFacelessInputShape, ...agentRetryShape },
+    },
+    async (args) =>
+      withFailureReport(async () => {
+        const { attempt, ...input } = args;
+        const run = await client.startFaceless(makeFacelessInput.parse(input), { attempt });
+        return formatGetRun(run);
+      }),
+  );
+
+  server.registerTool(
+    "quote_faceless",
+    {
+      title: "Quote a faceless video",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "Estimate the credit cost of make_faceless WITHOUT spending credits. " +
+        "Always call this first and show the user the price before make_faceless.",
+      inputSchema: offeredFacelessInputShape,
+    },
+    async (args) =>
+      withFailureReport(async () => ({
+        content: [{ type: "text", text: JSON.stringify(await client.quoteFaceless(makeFacelessInput.parse(args))) }],
       })),
   );
 

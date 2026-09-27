@@ -5,8 +5,9 @@ import { actorSelection } from "./actors.js";
 import { createdActor } from "./account-actors.js";
 import { faceBillingAdmissionTermsSchema } from "./billing-terms.js";
 import { brollPolicy } from "./broll-policy.js";
+import { facelessQuote } from "./faceless-price.js";
 
-/** Run stages of both skills: make_ugc and create_actor (`generating`). */
+/** Shared run stages; skill-specific workers use the stages they need. */
 export const RUN_STATES = [
   "queued",
   "generating",
@@ -63,6 +64,7 @@ export const run = z.object({
   credits_reserved: z.number().int().nonnegative(),
   credits_charged: z.number().int().nonnegative().nullable(),
   billing_terms: faceBillingAdmissionTermsSchema.optional(),
+  faceless_billing: facelessQuote.optional(),
   resolved_broll_policy: brollPolicy.optional(),
   warnings: z.array(z.string()).default([]),
   /** The reason. A non-empty `error` does NOT imply `state: "failed"`: on a non-terminal */

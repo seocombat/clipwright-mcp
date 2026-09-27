@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "clipwright",
   "display_name": "Clipwright",
-  "version": "0.20.0",
-  "description": "Short talking-actor UGC videos from your agent, with a free price quote before each render.",
-  "long_description": "Clipwright turns a script into a short vertical video of an actor speaking it. Ask for a quote first: it is free and names the price, the duration and anything the API will not honor. Then start the render; it returns a run id at once, and the video URL arrives when the run succeeds. Output is 1080×1920 by default. Anything the API cannot deliver comes back in `warnings[]` instead of being dropped silently. You can also create a personal actor from a description. Rendering spends credits from your Clipwright account; quotes, voices, the actor catalog and the balance are free. Clipwright does not publish videos anywhere.",
+  "version": "0.21.0",
+  "description": "Talking-actor and faceless short videos from your agent, with a free quote before each render.",
+  "long_description": "Clipwright turns a script into a short vertical video of an actor speaking it, or into a 30 to 90 second faceless video: narration over an opening animated clip and image scenes, with captions. Ask for a quote first: it is free and names the price, the duration and anything the API will not honor. Then start the render; it returns a run id at once, and the video URL arrives when the run succeeds. Output is 1080×1920 by default. Anything the API cannot deliver comes back in `warnings[]` instead of being dropped silently. You can also create a personal actor from a description. Rendering spends credits from your Clipwright account; quotes, voices, the actor catalog and the balance are free. Clipwright does not publish videos anywhere.",
   "author": {
     "name": "Dimantika Sp. z o.o.",
     "url": "https://clipwright.io"
@@ -33,6 +33,8 @@
     { "name": "upload_image", "description": "Upload a local PNG or JPEG to use as the actor image." },
     { "name": "quote_actor", "description": "Estimate the credit cost of a personal actor without spending credits." },
     { "name": "create_actor", "description": "Create a personal actor from a description; each format is a charged image." },
+    { "name": "quote_faceless", "description": "Estimate the credit cost of a faceless video without spending credits." },
+    { "name": "make_faceless", "description": "Start a paid 30-90 second faceless video from a script or brief; returns a run id at once." },
     { "name": "delete_actor", "description": "Delete a personal actor of this account." },
     { "name": "get_actor_defaults", "description": "Read an actor's saved B-roll default." },
     { "name": "set_actor_defaults", "description": "Save an actor's B-roll default without spending credits." },

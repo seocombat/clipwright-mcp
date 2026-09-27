@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { createActorInput } from "./account-actors.js";
+import { makeFacelessInput } from "./faceless-public.js";
 import { makeUgcInput } from "./skills.js";
 
 // Request fingerprint and per-client idempotency key. A subpath export, not the barrel:
@@ -48,6 +49,14 @@ export function idempotencyKeyFor(input: unknown, clientId: string): string {
 /** parse would strip every actor field. */
 export function actorIdempotencyKeyFor(input: unknown, clientId: string): string {
   const parsed = createActorInput.parse(input);
+  return createHash("sha256")
+    .update(clientId + JSON.stringify(canonicalize(parsed)))
+    .digest("hex");
+}
+
+/** The same key for `make_faceless`, parsed by its own union schema. */
+export function facelessIdempotencyKeyFor(input: unknown, clientId: string): string {
+  const parsed = makeFacelessInput.parse(input);
   return createHash("sha256")
     .update(clientId + JSON.stringify(canonicalize(parsed)))
     .digest("hex");

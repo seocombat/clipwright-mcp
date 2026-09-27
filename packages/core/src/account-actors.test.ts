@@ -560,10 +560,11 @@ describe("dispositions and admission warnings", () => {
 });
 
 describe("run skills", () => {
-  it("the registry names both skills; an unfamiliar value is null", () => {
-    expect([...SKILLS]).toEqual(["make_ugc", "create_actor"]);
+  it("the registry names the shared run skills; an unfamiliar value is null", () => {
+    expect([...SKILLS]).toEqual(["make_ugc", "create_actor", "make_faceless"]);
     expect(parseSkill("make_ugc")).toBe("make_ugc");
     expect(parseSkill("create_actor")).toBe("create_actor");
+    expect(parseSkill("make_faceless")).toBe("make_faceless");
     for (const value of ["x", "", null, undefined, 1, "MAKE_UGC"]) {
       expect(parseSkill(value), String(value)).toBeNull();
     }

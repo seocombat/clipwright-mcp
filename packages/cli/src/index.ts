@@ -13,6 +13,7 @@ import {
   type MakeFacelessInputArgs,
   CATALOG_GENDERS,
   CATALOG_LANGUAGES,
+  MODEL_VOICE_MODEL,
   PUBLIC_APP_BASE_URL,
   RESOLUTIONS,
   TTS_MODELS,
@@ -181,7 +182,7 @@ withSourceOptions(
     ).conflicts("voice"),
   )
   .addOption(
-    new Option("--tts-model <model>", "speech model; omitted = the preset's model").choices(
+    new Option("--tts-model <model>", "speech model; omitted = the voice's default model").choices(
       TTS_MODELS,
     ),
   )
@@ -360,17 +361,21 @@ interface VoicesOptions {
 
 program
   .command("voices")
-  .description("list voices for --voice on make: presets, then the catalog")
+  .description(`list voices for --voice on make: presets, the voices of ${MODEL_VOICE_MODEL}, then the catalog`)
   .addOption(
-    new Option("--language <code>", "native language of the voice (a filter, not a limit)").choices(
-      CATALOG_LANGUAGES,
-    ),
+    new Option(
+      "--language <code>",
+      `native language of the voice (a filter, not a limit); a ${MODEL_VOICE_MODEL} voice has none: en and ru find it and pick its sample`,
+    ).choices(CATALOG_LANGUAGES),
   )
   .addOption(new Option("--gender <gender>", "gender label of the voice").choices(CATALOG_GENDERS))
   .option("--age <label>", "age label as voices prints it, e.g. young")
   .option("--use-case <label>", "use case label as voices prints it, e.g. narrative_story")
   .addOption(
-    new Option("--model <model>", "only voices whose language this speech model supports").choices(TTS_MODELS),
+    new Option(
+      "--model <model>",
+      "only voices this speech model speaks: presets and catalog voices whose language it supports, or its own voices",
+    ).choices(TTS_MODELS),
   )
   .action(async (opts: VoicesOptions) => {
     const voices = await client().listVoices({

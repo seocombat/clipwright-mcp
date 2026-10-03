@@ -32,11 +32,19 @@ refuse a mismatched `script`/`brief` before sending anything.
 `preview_url` that expires in an hour. Pass a voice's `name` as `voice`;
 `language` is a filter only, since any voice speaks any supported language.
 
+The list holds the presets, the thirty voices of the speech model
+`gemini-3.8-flash-tts` (`kind: "model_voice"`) and the catalog. A `model_voice`
+voice has no language of its own: `language: "en"` and `language: "ru"` find it,
+and its sample is in English unless you ask for `language: "ru"`. Naming such a
+voice makes the run speak `gemini-3.8-flash-tts` without `tts_model`. That model
+speaks only its own voices and refuses `captions: true` before any charge.
+
 Without `voice` or `voice_id`, the voice follows the actor's gender: `sarah` for
 a woman, `george` for a man. `actor_id` brings its catalog gender; with `image`,
 pass `actor_gender` (`"female"` or `"male"`). An `image` without `actor_gender`
 gets `george` and a warning. `actor_gender` next to `actor_id` or without
-`image` is refused before any charge.
+`image` is refused before any charge. With `tts_model: "gemini-3.8-flash-tts"`
+the defaults are `kore` for a woman and `charon` otherwise.
 
 Requires `CLIPWRIGHT_CLIENT_ID`, or a writable `~/.clipwright/` for the SDK to
 create one on first use. It fails loudly rather than generating a throwaway id,

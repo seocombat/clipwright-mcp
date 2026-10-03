@@ -3,16 +3,24 @@ import type { Gender } from "./default-actor.js";
 import { normalizeVoiceLabel, type CatalogFileVoice } from "./voice-catalog.js";
 import { VOICE_CATALOG } from "./voice-catalog-data.js";
 import { vendorVerifiedModels } from "./voice-listing.js";
-import { isVoicePresetName, resolveTtsModel, VOICE_PRESETS, type TtsModelId } from "./voices.js";
+import {
+  isModelVoiceName,
+  isVoicePresetName,
+  MODEL_VOICES,
+  resolveTtsModel,
+  VOICE_PRESETS,
+  type ModelVoice,
+  type TtsModelId,
+} from "./voices.js";
 
 // A subpath, not the barrel: the catalog weighs hundreds of kilobytes and SDK clients do not need it.
 
-/** Why the API refuses a voice name; `undefined` for a preset or a live catalog voice. */
+/** Why the API refuses a voice name; `undefined` for a preset, a model's own voice or a live catalog voice. */
 export function catalogVoiceRefusal(
   voice: string,
   voices: readonly CatalogFileVoice[] = VOICE_CATALOG.voices,
 ): string | undefined {
-  if (isVoicePresetName(voice)) return undefined;
+  if (isVoicePresetName(voice) || isModelVoiceName(voice)) return undefined;
   const entry = voices.find((item) => item.slug === voice);
   if (entry === undefined) {
     return `unknown voice "${voice}": call list_voices for the voice names this API accepts`;
@@ -35,6 +43,10 @@ export function voiceGenderOf(
   voices: readonly CatalogFileVoice[] = VOICE_CATALOG.voices,
 ): Gender | undefined {
   if (isVoicePresetName(voice)) return VOICE_PRESETS[voice].gender;
+  if (isModelVoiceName(voice)) {
+    const own: ModelVoice = MODEL_VOICES[voice];
+    return own.gender;
+  }
   const entry = voices.find((item) => item.slug === voice && item.retired_at === undefined);
   const label = normalizeVoiceLabel(entry?.gender_raw);
   return label === "female" || label === "male" ? label : undefined;
@@ -43,7 +55,7 @@ export function voiceGenderOf(
 /** Warns only where MISSING verification means something: for `eleven_v3` no voice */
 /** has it at all. */
 export function buildVoiceVerificationWarnings(
-  input: { voice?: string | undefined; voice_id?: string | undefined; tts_model?: TtsModelId | undefined },
+  input: { voice?: string | undefined; voice_id?: string | undefined; tts_model?: TtsModelId | undefined; script: string },
   gender?: Gender | undefined,
   voices: readonly CatalogFileVoice[] = VOICE_CATALOG.voices,
 ): string[] {

@@ -308,7 +308,7 @@ describe("identity contract", () => {
 
 describe("CONTRACT_VERSION", () => {
   it("is declared and non-empty", () => {
-    expect(CONTRACT_VERSION).toBe("2026-09-14");
+    expect(CONTRACT_VERSION).toBe("2026-10-02");
   });
 });
 

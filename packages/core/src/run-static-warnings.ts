@@ -105,7 +105,7 @@ function ugcRunWarnings(
   }
   const { tts_model: storedModel, actor_snapshot: pin, ...rest } = parsed.data;
   const ttsModel = TTS_MODELS.find((model) => model === storedModel);
-  // A removed model (`eleven_multilingual_v2`) reads as the default, which stays silent about models.
+  // A removed model (`eleven_multilingual_v2`) reads as no model named: the voice's own one.
   const input: MakeUgcInput = { ...rest, tts_model: ttsModel };
   // The same ORDER as `quote`: dispositions, format, voice, so the two surfaces are
   // equal, not merely the same set.

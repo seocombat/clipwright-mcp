@@ -398,6 +398,33 @@ describe("ClipwrightClient.listVoices", () => {
     expect(voices[2]?.kind).toBe("not_invented_yet");
   });
 
+  it("a speech model this client does not know breaks neither the catalog nor the quote", async () => {
+    // Mutant: restore `z.enum(TTS_MODELS)` on `voiceCatalogEntry.model` or `quoteResponse.tts_model`.
+    const client = new ClipwrightClient({ apiKey: "cw_test", baseUrl: "http://x" });
+    globalThis.fetch = vi.fn(async () =>
+      jsonResponse({
+        voices: [{ name: "owner_ru_clone", kind: "preset", language: "ru", description: "d", model: "eleven_v9_future" }],
+        models: [{ id: "eleven_v9_future", char_limit: 5000, languages: ["ru"] }],
+      }),
+    ) as unknown as typeof fetch;
+    expect((await client.listVoices())[0]?.model).toBe("eleven_v9_future");
+
+    globalThis.fetch = vi.fn(async () =>
+      jsonResponse({
+        skill: "make_ugc",
+        credits_estimate: 8,
+        duration_estimate_sec: 7.4,
+        warnings: [],
+        contract_version: "v1",
+        source: null,
+        actor: { gender: "male" },
+        resolved_aspect_ratio: "9:16",
+        tts_model: "eleven_v9_future",
+      }),
+    ) as unknown as typeof fetch;
+    expect((await client.quoteUgc({ script: "привет" })).tts_model).toBe("eleven_v9_future");
+  });
+
   it("filters go in the query string; an unset one is omitted", async () => {
     const requested: string[] = [];
     globalThis.fetch = vi.fn(async (url: unknown) => {

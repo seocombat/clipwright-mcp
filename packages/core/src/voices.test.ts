@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildVoiceActorMatchWarnings,
   buildVoiceWarnings,
   DEFAULT_ACTOR_GENDER,
   DEFAULT_VOICE_BY_GENDER,
@@ -11,11 +12,15 @@ import {
   detectScriptFamily,
   makeUgcInput,
   makeUgcInputShape,
+  MODEL_DEFAULT_VOICE_BY_GENDER,
+  MODEL_VOICE_MODEL,
+  MODEL_VOICE_NAMES,
   RAW_VOICE_ID_VALIDATION_WARNING,
   resolveVoiceSelection,
   VOICE_ID_PATTERN,
   VOICE_PRESET_NAMES,
   VOICE_PRESETS,
+  voiceActorGenderWarning,
   voicesResponse,
   type VoicePresetName,
 } from "@clipwright/core";
@@ -23,6 +28,7 @@ import {
   buildVoiceVerificationWarnings,
   catalogVoiceRefusal,
   serverUgcInput,
+  voiceGenderOf,
 } from "@clipwright/core/voice-admission";
 
 import { VOICE_CATALOG } from "./voice-catalog-data.js";
@@ -135,6 +141,39 @@ describe("makeUgcInput — voice selection validation", () => {
 
   it("resolveVoiceSelection returns a non-preset as a catalog slug instead of inventing a preset", () => {
     expect(resolveVoiceSelection({ voice: "es_female_lucia" })).toEqual({ kind: "catalog", slug: "es_female_lucia" });
+  });
+
+  // Mutants: the server calling a model's own voice unknown; a preset accepted on that model; that voice on eleven_v3.
+  it("the server admits a model's own voice by name, with its model or without, and refuses it on another model (#453)", () => {
+    const script = "hello world";
+    for (const voice of MODEL_VOICE_NAMES) {
+      expect(catalogVoiceRefusal(voice), voice).toBeUndefined();
+      expect(serverUgcInput.safeParse({ script, voice }).success, voice).toBe(true);
+      expect(serverUgcInput.safeParse({ script, voice, tts_model: MODEL_VOICE_MODEL }).success, voice).toBe(true);
+    }
+    const onOther = serverUgcInput.safeParse({ script, voice: "kore", tts_model: "eleven_v3" });
+    expect(onOther.error?.issues).toMatchObject([
+      { path: ["voice"], message: expect.stringMatching(/^voice "kore" is a voice of gemini-3\.8-flash-tts and is not spoken by eleven_v3/) },
+    ]);
+    const preset = serverUgcInput.safeParse({ script, voice: "george", tts_model: MODEL_VOICE_MODEL });
+    expect(preset.error?.issues).toMatchObject([
+      { path: ["voice"], message: expect.stringMatching(/^voice "george" is not spoken by gemini-3\.8-flash-tts: choose one of its voices from list_voices/) },
+    ]);
+    expect(serverUgcInput.safeParse({ script, voice: "Kore" }).error?.issues).toMatchObject([
+      { path: ["voice"], message: 'unknown voice "Kore": call list_voices for the voice names this API accepts' },
+    ]);
+  });
+
+  it("a model's own voice has a gender only where it is known, and a known one is matched against the actor", () => {
+    expect(voiceGenderOf("kore")).toBe("female");
+    expect(voiceGenderOf("charon")).toBe("male");
+    for (const [gender, voice] of Object.entries(MODEL_DEFAULT_VOICE_BY_GENDER)) expect(voiceGenderOf(voice)).toBe(gender);
+    expect(MODEL_VOICE_NAMES.filter((voice) => voiceGenderOf(voice) !== undefined)).toEqual(["charon", "kore"]);
+    expect(buildVoiceActorMatchWarnings({ voice: "kore" }, voiceGenderOf)).toEqual([voiceActorGenderWarning("kore", "female", "male")]);
+    expect(buildVoiceActorMatchWarnings({ voice: "charon" }, voiceGenderOf)).toEqual([]);
+    expect(buildVoiceActorMatchWarnings({ voice: "puck" }, voiceGenderOf)).toEqual([]);
+    expect(buildVoiceWarnings({ voice: "kore", script: "Привет, это проверка" })).toEqual([]);
+    expect(buildVoiceVerificationWarnings({ voice: "kore", script: "hello world" })).toEqual([]);
   });
 
   it("an 8-character voice_id: format error", () => {
@@ -484,15 +523,17 @@ describe("buildVoiceVerificationWarnings", () => {
     voice("ru_female_both", ["eleven_flash_v2_5", "eleven_turbo_v2_5"]),
     voice("ru_female_flash_only", ["eleven_flash_v2_5"]),
   ];
+  const script = "Привет, это проверка голоса";
 
-  it("a model verified for NOBODY stays silent, as the eleven_v3 default does", () => {
+  it("a model verified for NOBODY stays silent, as the voice's own model and eleven_v3 do", () => {
     // Removing the `vendorVerifiedModels` check turns this red.
-    expect(buildVoiceVerificationWarnings({ voice: "ru_female_both" }, undefined, catalog)).toEqual([]);
+    expect(buildVoiceVerificationWarnings({ voice: "ru_female_both", script }, undefined, catalog)).toEqual([]);
+    expect(buildVoiceVerificationWarnings({ voice: "ru_female_both", tts_model: "eleven_v3", script }, undefined, catalog)).toEqual([]);
   });
 
   it("a model verified for a neighbor but not this voice: a warning", () => {
     const warnings = buildVoiceVerificationWarnings(
-      { voice: "ru_female_flash_only", tts_model: "eleven_turbo_v2_5" },
+      { voice: "ru_female_flash_only", tts_model: "eleven_turbo_v2_5", script },
       undefined,
       catalog,
     );
@@ -504,9 +545,9 @@ describe("buildVoiceVerificationWarnings", () => {
   });
 
   it("a match is silent, and so are a preset and a raw voice_id", () => {
-    const asked = { voice: "ru_female_flash_only", tts_model: "eleven_flash_v2_5" } as const;
+    const asked = { voice: "ru_female_flash_only", tts_model: "eleven_flash_v2_5", script } as const;
     expect(buildVoiceVerificationWarnings(asked, undefined, catalog)).toEqual([]);
-    expect(buildVoiceVerificationWarnings({ voice: "george" }, undefined, catalog)).toEqual([]);
-    expect(buildVoiceVerificationWarnings({ voice_id: "abcdefghijklmnop" }, undefined, catalog)).toEqual([]);
+    expect(buildVoiceVerificationWarnings({ voice: "george", script }, undefined, catalog)).toEqual([]);
+    expect(buildVoiceVerificationWarnings({ voice_id: "abcdefghijklmnop", script }, undefined, catalog)).toEqual([]);
   });
 });

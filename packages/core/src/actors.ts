@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { actorId, ASPECT_RATIOS } from "./skills.js";
-import { DEFAULT_VOICE_PRESET, VOICE_PRESETS } from "./voices.js";
+import { defaultVoiceOf, DEFAULT_VOICE_PRESET, speaksOwnVoices, VOICE_PRESETS } from "./voices.js";
 
 export const ACTORS_PATH = "/v1/actors";
 
@@ -41,6 +41,7 @@ export interface VoiceGenderInput {
   actor_gender?: Gender | undefined;
   voice?: string | undefined;
   voice_id?: string | undefined;
+  tts_model?: string | undefined;
 }
 
 /** Gender for the default voice: `actor_id` → pin; `image` → `actor_gender`; else the default actor. */
@@ -61,6 +62,16 @@ export function voiceGenderFor(
 export const IMAGE_DEFAULT_VOICE_WARNING =
   `no voice was chosen for the face in image: the default ${VOICE_PRESETS[DEFAULT_VOICE_PRESET].gender} ` +
   `voice "${DEFAULT_VOICE_PRESET}" is used; pass voice (from list_voices) or actor_gender to match the face`;
+
+/** The same warning for the run's model: a model with its own voices names its default and where its voices are listed. */
+export function imageDefaultVoiceWarning(ttsModel: string | undefined): string {
+  if (!speaksOwnVoices(ttsModel)) return IMAGE_DEFAULT_VOICE_WARNING;
+  const voice = defaultVoiceOf(ttsModel, undefined);
+  return (
+    `no voice was chosen for the face in image: the default ${voice.gender} voice "${voice.name}" of ${ttsModel} ` +
+    `is used; pass voice (from list_voices with model=${ttsModel}) or actor_gender to match the face`
+  );
+}
 
 export function actorGenderIgnoredWarning(field: "voice" | "voice_id"): string {
   return `actor_gender did not change the voice: the explicit ${field} is used as requested`;
@@ -100,7 +111,7 @@ export function buildActorGenderWarnings(input: VoiceGenderInput): string[] {
   if (input.actor_gender !== undefined) {
     return explicit === undefined ? [] : [actorGenderIgnoredWarning(explicit)];
   }
-  return input.image !== undefined && explicit === undefined ? [IMAGE_DEFAULT_VOICE_WARNING] : [];
+  return input.image !== undefined && explicit === undefined ? [imageDefaultVoiceWarning(input.tts_model)] : [];
 }
 
 export const actorSelection = z.object({

@@ -10,7 +10,14 @@ import {
   normalizeVoiceLabel,
 } from "./voice-catalog.js";
 import { vendorVerifiedModels } from "./voice-listing.js";
-import { VOICE_PRESET_NAMES } from "./voices.js";
+import {
+  DEFAULT_TTS_MODEL,
+  MODEL_VOICE_NAMES,
+  resolveTtsModel,
+  RUSSIAN_TTS_MODEL,
+  VOICE_NAME_PATTERN,
+  VOICE_PRESET_NAMES,
+} from "./voices.js";
 
 // Guards on the generated voice catalog, without network access.
 
@@ -53,9 +60,34 @@ describe("generated voice catalog — slugs", () => {
     expect(VOICE_CATALOG.voices.filter((entry) => presets.has(entry.slug)).map((entry) => entry.slug)).toEqual([]);
   });
 
+  // A name means one voice: a model's own voice sharing a name with a preset or a slug would be two.
+  it("a model's own voice names overlap neither preset names nor catalog slugs, tombstones included (B5)", () => {
+    const taken = new Set<string>([...VOICE_PRESET_NAMES, ...VOICE_CATALOG.voices.map((entry) => entry.slug)]);
+    expect(MODEL_VOICE_NAMES.length).toBe(30);
+    expect(new Set(MODEL_VOICE_NAMES).size).toBe(MODEL_VOICE_NAMES.length);
+    expect(MODEL_VOICE_NAMES.filter((name) => taken.has(name))).toEqual([]);
+    expect(MODEL_VOICE_NAMES.filter((name) => !VOICE_NAME_PATTERN.test(name) || name !== name.toLowerCase())).toEqual([]);
+    // A catalog slug is `language_gender_name`, and no model voice name carries an underscore.
+    expect(MODEL_VOICE_NAMES.filter((name) => name.includes("_"))).toEqual([]);
+  });
+
   it("a live voice's slug names its language and gender", () => {
     const wrong = live.filter((entry) => !entry.slug.startsWith(`${entry.language}_${entry.gender_raw}_`));
     expect(wrong.map((entry) => entry.slug)).toEqual([]);
+  });
+
+  // `resolveTtsModel` reads the language off the slug: the two must say the same for every live voice.
+  it("a live voice's slug starts with ru_ exactly when its language is ru", () => {
+    const russian = live.filter((entry) => entry.language === "ru");
+    expect(russian.length).toBeGreaterThan(0);
+    expect(live.filter((entry) => entry.slug.startsWith("ru_")).map((entry) => entry.slug)).toEqual(
+      russian.map((entry) => entry.slug),
+    );
+    for (const entry of live) {
+      const model = resolveTtsModel({ voice: entry.slug, script: "" });
+      expect(model, entry.slug).toBe(entry.language === "ru" ? RUSSIAN_TTS_MODEL : DEFAULT_TTS_MODEL);
+      expect(TTS_MODEL_LANGUAGES.models.find((row) => row.id === model)?.languages, entry.slug).toContain(entry.language);
+    }
   });
 });
 

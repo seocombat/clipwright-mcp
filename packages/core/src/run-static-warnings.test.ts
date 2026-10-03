@@ -94,6 +94,20 @@ describe("derivedRunWarnings", () => {
     expect(buildActorGenderWarnings(input)).toEqual([actorGenderIgnoredWarning("voice")]);
   });
 
+  // Mutant: a reader that resolves the model from `script` alone finds no Cyrillic in segmented input.
+  it("a run derives the model the worker speaks: a raw voice_id on segments reads the joined lines", () => {
+    const cut = "break tags in the script are not sent to eleven_v4: the model gives no pause for them, so they are cut from the text";
+    const tagged = 'Первая часть фразы. <break time="2.0s" /> Вторая часть фразы.';
+    const segments = [{ kind: "actor", script: tagged }, { kind: "actor", script: "Clipwright" }];
+    const bySegments = makeUgcInput.parse({ segments, voice_id: "abcdefghij123456" });
+    expect(derivedRunWarnings(bySegments, NO_FACTS, "make_ugc")).toEqual([cut]);
+    expect(derivedRunWarnings(stored({ script: tagged, voice: "owner_ru_clone" }), NO_FACTS, "make_ugc")).toEqual([cut]);
+    expect(derivedRunWarnings(stored({ script: tagged, voice: "owner_ru_clone", tts_model: "eleven_v3" }), NO_FACTS, "make_ugc"))
+      .toEqual([]);
+    expect(derivedRunWarnings(stored({ script: 'First part. <break time="2.0s" /> Second part.', voice_id: "abcdefghij123456" }), NO_FACTS, "make_ugc"))
+      .toEqual([]);
+  });
+
   it("a voice/face gender mismatch reaches the run, including via the actor snapshot", () => {
     // Removing `actor_snapshot` from `storedUgcInput` turns the pinned branch red.
     const byDefaultActor = derivedRunWarnings(stored({ voice: "daria_ru_female" }), NO_FACTS, "make_ugc");

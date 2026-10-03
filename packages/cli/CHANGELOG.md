@@ -16,6 +16,107 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
+## [0.24.0] - 2026-10-03
+
+A second speech model, `gemini-3.8-flash-tts`, with thirty voices of its own and a sample of each in English and
+Russian. Nothing changes unless you name the model or one of its voices. The CLI and the MCP server accept the new
+`tts_model` value from this release on.
+
+### Added
+
+- `tts_model` accepts `gemini-3.8-flash-tts`, a speech model of a second vendor. Nothing changes unless you name it:
+  every default stays as it was, and Russian speech without `tts_model` still uses `eleven_v4`. The model speaks only
+  its own voices: without `voice`, `kore` for a female actor and `charon` otherwise. It reads Russian stress marks,
+  and it gets the text with `<break time="…" />` tags cut, which the response names in a warning. Its script limit is
+  5,000 characters. The price per finished second is the same as on every other model. (clipwright#453)
+- `voice` accepts the thirty voices of `gemini-3.8-flash-tts` by name: `kore`, `puck`, `zephyr` and the rest, as
+  `list_voices` returns them. Naming one selects that model without `tts_model`, and the quote names the model.
+  `clipwright voices` prints the model on the line of such a voice. (clipwright#453)
+- *Server-side:* `list_voices` returns those thirty voices after the presets as entries of kind `model_voice`. Each
+  names one model in `model` and `supported_models`, has no `language`, and carries `gender` only where it is known:
+  `kore` is female and `charon` is male. The filters `model=gemini-3.8-flash-tts`, `language=ru` and `language=en`
+  find them; any other language does not. (clipwright#453)
+- *Server-side:* each of those thirty voices carries `preview_url`, a short sample spoken by that voice on its model.
+  The sample is in English; a request filtered by `language=ru` gets the Russian one. `clipwright voices` prints the
+  link under the voice, as it does for every other voice with a sample. (clipwright#453)
+- *Server-side:* with `gemini-3.8-flash-tts` the API refuses a preset or catalog `voice`, `voice_id`, `captions=true`,
+  `segments` and `inserts` before any charge: the model does not speak the preset and catalog voices and returns no
+  word timings. It refuses the same when a voice names the model instead of `tts_model`, and it refuses one of the
+  model's voices next to any other `tts_model`. Each refusal names what to pass instead. `list_voices` lists the
+  model in `models[]` with the languages `en` and `ru`; no preset or catalog voice names it in `supported_models`.
+  (clipwright#453)
+- *Server-side:* a warning about stress marks on `eleven_flash_v2_5` or `eleven_turbo_v2_5` names only the models
+  that speak the voice of the run: with an explicit `voice` or `voice_id` these are `eleven_v3` and `eleven_v4`.
+  (clipwright#453)
+- *Server-side:* the quote and the reserve for a Russian script on `gemini-3.8-flash-tts` assume 2.2 words per second,
+  the pace measured on its two default voices: 153 Russian words are quoted at 70 seconds and 2,100 credits. A script
+  in Latin letters on this model is quoted at 2.6 words per second, as on every other model. The charge follows the
+  measured duration. (clipwright#453)
+- *Dashboard:* the Privacy Policy, the Cookie Policy and the AI disclosure page name the speech provider of a run
+  that chooses this model. (clipwright#453)
+
+## [0.23.0] - 2026-10-02
+
+Russian speech moves to `eleven_v4`: the server names it by default, and the client texts say which voices speak it.
+Clients older than 0.22.0 fail on the new model name.
+
+### Changed
+
+- **Breaking:** *Server-side:* Russian speech uses `eleven_v4` when you name no `tts_model`. That covers the presets
+  `owner_ru_clone` and `daria_ru_female`, the catalog voices named `ru_*`, and a raw `voice_id` whose script is mostly
+  Cyrillic. Every other voice stays on `eleven_v3`, and an explicit `tts_model` always wins. Clients older than 0.22.0
+  read the model as one of three fixed values and fail on a response that names `eleven_v4`: `list_voices` fails
+  whenever the listing holds a Russian voice, as the unfiltered one always does, and `quote` fails for those Russian
+  voices. Upgrade to 0.22.0 or later. The contract version is `2026-10-02`. (clipwright#452)
+- **Breaking:** `resolveTtsModel` in `@clipwright/core` requires `script`, the whole spoken text of the run: a raw
+  `voice_id` takes its model from it. (clipwright#452)
+- *Server-side:* a script, or the line of one actor segment, that holds nothing but `<break time="…" />` tags is
+  refused before any charge on `eleven_v4`. The model gets the text with those tags cut, and nothing would be left
+  to say. (clipwright#452)
+- *Server-side:* the warnings for a model that misreads stress marks name both models that read them, `eleven_v4`
+  and `eleven_v3`, instead of advising `eleven_v3` alone. (clipwright#452)
+- *Server-side:* the quote and the reserve for a Russian script on `eleven_v4` assume 2.18 words per second, the
+  measured pace, instead of 2.3. `duration_estimate_sec` and `credits_estimate` come out about 5% higher: 153 Russian
+  words are quoted at 70 seconds and 2,100 credits instead of 67 seconds and 2,010. The charge still follows the
+  measured duration. A Russian script on an explicit `eleven_v3` and every other language are quoted as before.
+  (clipwright#452)
+- *Server-side:* the long-form qualification ceiling (`segments` or `inserts`) moves from 300 to 327 seconds of
+  estimated output, for every run. A Russian script on an `eleven_v4` voice passes up to 713 words, against the 691
+  that passed while Russian voices spoke `eleven_v3`. A Russian script on an explicit `eleven_v3` passes up to 753
+  words and an English one up to 851. A longer script is refused before any charge. (clipwright#452)
+- The `tts_model` and `script` descriptions say which voices speak `eleven_v4` by default, name both models that read
+  stress marks, and say that break tags are not counted toward the `eleven_v4` script limit. (clipwright#452)
+
+### Fixed
+
+- `SKILL.md` and the CLI README no longer say that every preset and catalog voice speaks `eleven_v3`, and no longer
+  advise keeping Russian scripts on `eleven_v3`. They name the voices that speak `eleven_v4` when you name no model:
+  the presets `owner_ru_clone` and `daria_ru_female`, the catalog voices named `ru_*`, and a raw `voice_id` with a
+  mostly Cyrillic script. They name both models that read stress marks, `eleven_v4` and `eleven_v3`, and say that
+  `eleven_v4` gives no pause for a `<break time="…" />` tag and gets the text with the tag cut. `SKILL.md` lists the
+  5,000-character script limit of `eleven_v4`. The behavior is the one the entries above describe; only these texts
+  were out of date. (clipwright#452)
+- The `--tts-model` help of `clipwright make` says that an omitted flag means the voice's default model. It said
+  "the preset's model", which was wrong for a catalog voice and for `--voice-id`. (clipwright#452)
+
+## [0.22.0] - 2026-10-01
+
+A new speech model: `tts_model` accepts `eleven_v4`, and the clients no longer fail on a model they do not know.
+
+### Added
+
+- *Server-side:* a new sign-up gets a one-time trial of 420 credits, enough for one 90-second faceless video. An
+  account gets one trial at most. (clipwright#58)
+- `tts_model` accepts `eleven_v4`, with a script limit of 5,000 characters. No voice speaks it by default: presets,
+  catalog voices and a raw `voice_id` stay on `eleven_v3` until you name it. It reads stress marks as `eleven_v3`
+  does. It gives no pause for a `<break time="…" />` tag, so the tag is cut from the text and `warnings[]` says so
+  in the quote and on the run. `list_voices` reports its languages. (clipwright#452)
+
+### Changed
+
+- The clients read `tts_model` in a quote and `model` in `list_voices` as text, not as one of a fixed list. A client
+  released before a new speech model no longer fails on a response that names it. (clipwright#452)
+
 ## [0.21.1] - 2026-09-27
 
 A wording patch: the clients now describe the faceless length the way the API delivers it.

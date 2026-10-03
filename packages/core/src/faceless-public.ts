@@ -28,6 +28,7 @@ const common = {
     "duration_seconds must align to a 25 fps frame boundary"),
   style_reference: qualifiedImageUrl.optional(),
   character_reference: qualifiedImageUrl.optional(),
+  character_details: z.string().trim().min(1).max(400).optional(),
   scene_images: z.array(facelessCustomerSceneImage).max(30).optional(),
   captions: z.boolean().default(true),
 };
@@ -64,6 +65,8 @@ export const offeredFacelessInputShape = {
     .describe("Optional public https image whose visual style the scenes follow."),
   character_reference: common.character_reference
     .describe("Optional public https image of a person or figure to keep consistent across scenes."),
+  character_details: common.character_details
+    .describe("Optional fixed visual details for the referenced person or figure, such as hairstyle, clothing and absent accessories; applied to every generated scene."),
   scene_images: common.scene_images
     .describe("Optional images of your own, each placed at a word range or quote of the narration."),
   captions: common.captions.describe("Burned-in captions; on by default."),

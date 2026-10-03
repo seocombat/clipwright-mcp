@@ -279,6 +279,35 @@ describe("tools/list (US-516)", () => {
     }
   });
 
+  it("list_voices relays a model's own voice, which has no language, and names such voices in its description (#453)", async () => {
+    const savedFetch = globalThis.fetch;
+    const urls: string[] = [];
+    const kore = {
+      name: "kore", kind: "model_voice", gender: "female", description: "Firm",
+      model: "gemini-3.8-flash-tts", supported_models: ["gemini-3.8-flash-tts"],
+    };
+    globalThis.fetch = vi.fn(async (url: unknown) => {
+      urls.push(String(url));
+      return new Response(JSON.stringify({ voices: [kore] }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as typeof fetch;
+    const { client, close } = await connectedClient();
+    try {
+      const { tools } = await client.listTools();
+      const tool = tools.find((entry) => entry.name === "list_voices")!;
+      expect(tool.description).toContain("then the 30 voices of gemini-3.8-flash-tts (kind model_voice), then catalog voices");
+      expect(tool.description).toContain("A model_voice voice is spoken only by its `model`: naming it selects that model");
+      expect((tool.inputSchema.properties?.model as { enum?: string[] } | undefined)?.enum).toContain("gemini-3.8-flash-tts");
+
+      const result = await client.callTool({ name: "list_voices", arguments: { model: "gemini-3.8-flash-tts", language: "ru" } });
+      expect(result.isError ?? false).toBe(false);
+      expect(urls).toEqual(["http://unused.invalid/v1/voices?language=ru&model=gemini-3.8-flash-tts"]);
+      expect(JSON.parse((result.content as { text: string }[])[0]?.text ?? "")).toEqual({ voices: [kore] });
+    } finally {
+      await close();
+      globalThis.fetch = savedFetch;
+    }
+  });
+
   it("make_ugc passes an unknown voice name to the API: the server decides", async () => {
     vi.stubEnv("CLIPWRIGHT_CLIENT_ID", "mcp0000000000000000000000000test");
     const savedFetch = globalThis.fetch;

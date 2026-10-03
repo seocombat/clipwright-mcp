@@ -319,11 +319,16 @@ is, the contract MINUS the rejected fields: they simply are not there, and listi
 them here would mean offering what the server punishes you for (section 3).
 
 `script` (required while `segments` is rejected; length is limited by the resolved
-TTS model, as reported by `tools/list`: `eleven_v3` allows 5000 characters,
-`eleven_flash_v2_5` and `eleven_turbo_v2_5` allow 10000. Spaces, audio tags and stress
+TTS model, as reported by `tools/list`: `eleven_v3`, `eleven_v4` and `gemini-3.8-flash-tts`
+allow 5000 characters, `eleven_flash_v2_5` and `eleven_turbo_v2_5` allow 10000. Spaces, audio tags and stress
 marks count; emoji may count as two characters. There is no word-count limit or fixed
-duration implied by it), `tts_model` (every preset and catalog voice speaks `eleven_v3`, the most
-expressive model; `eleven_flash_v2_5` and `eleven_turbo_v2_5` cost less and suit
+duration implied by it), `tts_model` (omit it and the voice decides: the Russian presets
+`owner_ru_clone` and `daria_ru_female` and the catalog voices named `ru_*` speak
+`eleven_v4`, a voice of kind `model_voice` speaks its own model `gemini-3.8-flash-tts`,
+every other preset and catalog voice speaks `eleven_v3`; a raw `voice_id`
+speaks `eleven_v4` when at least 60% of the script's Cyrillic and Latin letters are
+Cyrillic, and `eleven_v3` otherwise; an explicit `tts_model` always wins;
+`eleven_flash_v2_5` and `eleven_turbo_v2_5` cost less and suit
 languages other than Russian), optionally `person` OR
 `image` (a public `https` URL) with `actor_gender` (`female`/`male`, only next to
 `image`), plus `name`, `captions` (defaults to `false` —
@@ -334,12 +339,23 @@ differ), `resolution` (`720p`/`1080p`/`4k`), `voice`/`voice_id`.
 
 **Russian stress marks.** Tell a user who writes in Russian that they can fix stress:
 write the stressed vowel as a capital inside a lowercase word — `потОм`, `зАмок` — and
-Clipwright sends `eleven_v3` the stress mark U+0301 (`пото́м`). A capital that starts a
+Clipwright sends `eleven_v4`, `eleven_v3` and `gemini-3.8-flash-tts` the stress mark U+0301
+(`пото́м`). A capital that starts a
 word stays a capital, a word with a second capital or an inner capital consonant
 (`ВУЗы`, all caps) stays as written, and a U+0301 typed directly is kept. A single
-inner capital vowel always reads as stress, so `ЯндексЕда` needs a space. Keep Russian scripts on `eleven_v3`: the 2.5 models misread the mark, so a script
-carrying it draws a warning there, and so does any Cyrillic script. Retrying never
+inner capital vowel always reads as stress, so `ЯндексЕда` needs a space. Keep Russian
+scripts on one of those three models: the 2.5 models misread the mark, so a script
+carrying it draws a warning there, and so does any Cyrillic script. With a preset, a
+catalog voice or `voice_id` the choice is `eleven_v4` or `eleven_v3`, because
+`gemini-3.8-flash-tts` speaks only its own voices. Retrying never
 fixes stress; only the text does.
+
+**Break tags on `eleven_v4` and `gemini-3.8-flash-tts`.** These two models give no pause
+for `<break time="1.5s" />`.
+Clipwright cuts every tag of that form (`time` in `s` or `ms`) from the text it sends to
+them, leaves it out of the character count, and names the cut in `warnings[]` of
+the quote and the run. A script that holds nothing but break tags is refused before any
+charge. The other models get the tag as written.
 
 The exact list is always available from the tool schema itself: `tools/list` is
 generated from the same shape, and fields that are not honoured carry
@@ -395,10 +411,19 @@ reaches a terminal state. Do not tell the user the video is ready until you have
 Two mutually exclusive optional fields in the `make_ugc` input:
 
 - `voice` — the `name` of a voice from the free `list_voices` tool: one of the
-  presets (`owner_ru_clone`, `sarah`, `george`, `eric`, `daria_ru_female`) or a
+  presets (`owner_ru_clone`, `sarah`, `george`, `eric`, `daria_ru_female`), one of
+  the thirty voices of `gemini-3.8-flash-tts` (kind `model_voice`), or a
   catalog voice. **The recommended path.** Validated at the boundary: an unknown
   or retired name returns 400 immediately and no paid call is made. The two
   refusals differ: a retired voice's message names the date it left the catalog.
+- **A `model_voice` voice belongs to its model.** Naming one (`kore`, `puck`, …)
+  makes the run speak `gemini-3.8-flash-tts` with no `tts_model`, and the quote
+  names that model in `tts_model`. A voice and a `tts_model` that does not speak
+  it return 400 before any charge, and the message names the way out: for a
+  `model_voice` voice with an `eleven_*` model, omit `tts_model`; for a preset, a
+  catalog voice or `voice_id` with `tts_model: "gemini-3.8-flash-tts"`, take a
+  voice from `list_voices` with `model: "gemini-3.8-flash-tts"`. That model
+  returns no word timings, so `captions: true` is refused with it too.
 - `voice_id` — a **raw ElevenLabs id** (20 characters), an escape hatch for voices
   OUTSIDE the catalog, cloned ones included. It is checked for free against the
   account at the start of the run (not during `quote`): a non-existent id fails the
@@ -406,7 +431,8 @@ Two mutually exclusive optional fields in the `make_ugc` input:
 - **The default voice follows the actor's gender.** Without `voice` or `voice_id`,
   a woman speaks `sarah` and a man speaks `george`. The gender comes from the
   `actor_id` catalog entry, or from `actor_gender` next to `image`. The default
-  actor speaks `george`. An explicit voice always wins.
+  actor speaks `george`. With `tts_model: "gemini-3.8-flash-tts"` and no voice, a
+  woman speaks `kore` and everyone else `charon`. An explicit voice always wins.
 - **With `image`, pass `actor_gender` or a `voice`.** Clipwright does not detect
   gender from the photo. Without either, the voice is `george` and `warnings[]`
   says so. `actor_gender` next to `actor_id`, or without `image`, returns 400
@@ -422,15 +448,18 @@ Two mutually exclusive optional fields in the `make_ugc` input:
    `age`, `use_case`. Language is a filter only: any voice speaks any supported
    language, so a Spanish script can use an English voice.
 2. Play the `preview_url` of two or three candidates to the user. A catalog
-   voice's sample is in its native language.
+   voice's sample is in its native language. A `model_voice` voice's sample is in
+   English; call `list_voices` with `language: "ru"` to get it in Russian.
 3. Pass the chosen `name` as `voice` to `quote_ugc` and then `make_ugc`.
 4. Next time, reuse that same `name`. A name always means the same voice.
 
 When the user sends a photo and asks for no particular voice, pass the gender of
 the person in it as `actor_gender`. Ask the user only when you cannot tell.
 
-For a Russian script, keep `eleven_v3` and mark stress with a capital vowel
-(see **Russian stress marks** above).
+For a Russian script, leave `tts_model` out or name `eleven_v4` or `eleven_v3` — both
+read stress marks — and mark stress with a capital vowel (see **Russian stress marks**
+above). A Russian voice speaks `eleven_v4` on its own. A `model_voice` voice reads
+stress marks too, on its own model `gemini-3.8-flash-tts`.
 
 ### `get_run` — status polling
 
@@ -503,23 +532,32 @@ version and image hash even if the catalog changes later.
 ### `list_voices` — free, optional filters
 
 Returns the voices for the `voice` field of `make_ugc`: the presets first, then
-the catalog voices, by language and then by rank. Costs nothing and creates no run.
+the thirty voices of `gemini-3.8-flash-tts`, then the catalog voices, by language
+and then by rank. Costs nothing and creates no run.
 
 All filters are optional:
 
 - `language` — the voice's native language. It is a filter, not a limit: any
-  voice speaks any supported language.
+  voice speaks any supported language. A `model_voice` voice has no language of
+  its own and matches the languages measured on its model, `en` and `ru`; the
+  filter also picks the language of its sample.
 - `gender` — `female` or `male`.
 - `age` and `use_case` — labels as the entries print them, such as `young` or
   `narrative_story`.
-- `model` — keeps the voices whose language that speech model supports.
+- `model` — keeps the voices that speech model speaks: the presets and catalog
+  voices whose language it supports, or the model's own voices.
+  `model: "gemini-3.8-flash-tts"` returns its thirty voices.
 
-A voice without a label matches no value of that filter. An unknown value is
+A voice without a label matches no value of that filter; `language` on a
+`model_voice` voice is the one exception above. An unknown value is
 refused with the allowed values, and an unknown filter name with
 `unknown_field`; neither returns an empty list.
 
-Each entry carries `name`, `kind` (`preset` or `catalog`), `language`,
-`description`, `model` (its default speech model) and `supported_models`. A
+Each entry carries `name`, `kind` (`preset`, `model_voice` or `catalog`),
+`language`, `description`, `model` (its default speech model) and
+`supported_models`. A `model_voice` entry has no `language`, names one model in
+both `model` and `supported_models` and carries `gender` only where it is known
+(`kore` is female, `charon` is male). A
 catalog voice also carries `verified_models` and whichever of `locale`,
 `accent`, `gender`, `age` and `use_case` the catalog has. The tool returns
 `{ "voices": [...] }` only. REST `GET /v1/voices` also returns `models`, and the
@@ -537,7 +575,8 @@ vendor and an identifier does not.
 **Let the user HEAR the voice before paying for it.** Every voice with a recorded
 sample carries `preview_url`: a short clip spoken by that voice with its own
 model, so it matches what the render will sound like. A catalog voice speaks its
-sample in its native language. Descriptions convey neither
+sample in its native language. A `model_voice` voice has two samples: the English
+one comes by default and the Russian one with `language: "ru"`. Descriptions convey neither
 diction nor accent nor pace; the owner caught a voice-face mismatch by ear, on a
 finished clip. Offer the sample whenever the user asks for a different voice.
 

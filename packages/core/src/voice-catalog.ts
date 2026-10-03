@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { TTS_MODELS, VOICE_NAME_PATTERN } from "./voices.js";
+import { ELEVENLABS_TTS_MODELS, TTS_MODELS, VOICE_NAME_PATTERN } from "./voices.js";
 
 /** Voice catalog languages: the ONLY list; everything else is derived from it. */
 export const CATALOG_LANGUAGES = [
@@ -50,7 +50,7 @@ export const voiceCatalogFile = z.strictObject({
 export type VoiceCatalogFile = z.infer<typeof voiceCatalogFile>;
 
 export const ttsModelLanguagesFile = z.strictObject({
-  models: z.array(z.strictObject({ id: z.enum(TTS_MODELS), languages: z.array(z.string().min(1)) })),
+  models: z.array(z.strictObject({ id: z.enum(ELEVENLABS_TTS_MODELS), languages: z.array(z.string().min(1)) })),
 });
 export type TtsModelLanguagesFile = z.infer<typeof ttsModelLanguagesFile>;
 
@@ -60,7 +60,10 @@ export const voicesQueryShape = {
   language: z
     .enum(CATALOG_LANGUAGES)
     .optional()
-    .describe("Native language of the voice. A filter, not a limit: any voice speaks any supported language"),
+    .describe(
+      "Native language of the voice. A filter, not a limit: any voice speaks any supported language. " +
+        "A voice with no language of its own (kind model_voice) matches the languages measured on its model",
+    ),
   gender: z.enum(CATALOG_GENDERS).optional().describe("Gender label of the voice"),
   age: z
     .string()
@@ -75,7 +78,10 @@ export const voicesQueryShape = {
   model: z
     .enum(TTS_MODELS)
     .optional()
-    .describe("Only voices whose language this speech model supports"),
+    .describe(
+      "Only voices this speech model speaks: presets and catalog voices whose language it supports, " +
+        "or the model's own voices (kind model_voice)",
+    ),
 };
 export const voicesQuery = z.object(voicesQueryShape);
 export type VoicesQuery = z.infer<typeof voicesQuery>;

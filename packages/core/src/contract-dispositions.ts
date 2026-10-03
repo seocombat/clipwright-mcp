@@ -7,7 +7,7 @@ import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
 
 /** Public contract version, sent as the `X-Clipwright-Contract` header and as `contract_version` */
 /** in the quote response. Every breaking change must bump it. */
-export const CONTRACT_VERSION = "2026-09-14";
+export const CONTRACT_VERSION = "2026-10-02";
 export const CONTRACT_VERSION_HEADER = "X-Clipwright-Contract";
 
 /** `implemented`: reaches the vendor or the composition tree; `rejected`: 400 before any run or reserve; */

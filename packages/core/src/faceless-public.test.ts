@@ -21,9 +21,11 @@ describe("makeFacelessInput", () => {
     const parsed = makeFacelessInput.parse({ ...script,
       style_reference: "https://example.com/style.png",
       character_reference: "https://example.com/character.jpg",
+      character_details: "Mira: no glasses, a black bob haircut, and a red scarf.",
       scene_images: [{ image_url: "https://example.com/scene.png", anchor: { quote: "clear story" } }],
     });
     expect(parsed.scene_images?.[0]?.anchor).toEqual({ quote: "clear story" });
+    expect(parsed.character_details).toContain("no glasses");
   });
 
   it.each([
@@ -33,6 +35,7 @@ describe("makeFacelessInput", () => {
     { ...script, duration_seconds: 29.96 }, { ...script, duration_seconds: 90.04 },
     { ...script, duration_seconds: 30.001 },
     { ...script, style_reference: "http://example.com/style.png" },
+    { ...script, character_details: "x".repeat(401) },
     { ...script, scene_images: [{ image_url: "https://localhost/photo.png", anchor: { quote: "clear" } }] },
     { ...script, scene_images: [{ image_url: "https://example.com/scene.png" }] },
     { ...script, unknown_field: true },
@@ -64,6 +67,7 @@ describe("offeredFacelessInputShape (flat MCP form)", () => {
     { ...script,
       style_reference: "https://example.com/style.png",
       character_reference: "https://example.com/character.jpg",
+      character_details: "Mira: no glasses, black bob, red scarf",
       scene_images: [{ image_url: "https://example.com/scene.png", anchor: { startWord: 0, endWord: 2 } }] },
   ])("passes valid input unchanged into the union: %j", (input) => {
     const result = viaFlat(input);

@@ -70,6 +70,10 @@ export function parseFacelessPublicStory(input: unknown, expectedScript?: string
   return story;
 }
 type Score = ReturnType<typeof facelessCutScore>;
+/** The opening VIDEO lasts 3–5 s at 25 fps; rationale in docs/70 (clipwright#442). */
+export const FACELESS_OPENER_MIN_FRAMES = 75, FACELESS_OPENER_MAX_FRAMES = 125;
+export const FACELESS_OPENER_BOUNDS_ERROR =
+  `mandatory opening VIDEO requires ${FACELESS_OPENER_MIN_FRAMES}–${FACELESS_OPENER_MAX_FRAMES} frames`;
 export type FacelessPublicPlan = {
   version: "faceless_public_v1";
   outputFrames: number;
@@ -83,9 +87,14 @@ export type FacelessPublicPlan = {
     motion?: "PAN_UP" | "PAN_DOWN"; cutAfterWord?: number; score: Score;
   }>;
 };
+/** `keepBeats`: beat indices (1 and up) the opener may not absorb, such as beats a customer image is anchored to. */
+export type FacelessPublicPlanOptions = { keepBeats?: ReadonlySet<number>;
+  /** With no beat boundary inside the opener bounds, end the opener at a word gap inside beat 1 (docs/70, clipwright#449). */
+  openerWordGap?: boolean };
 
 export function planPublicFacelessStory(
   input: FacelessPublicStory, words: readonly WordTiming[], inputStyle: CutStyleProfile, outputFrames: number,
+  options: FacelessPublicPlanOptions = {},
 ): FacelessPublicPlan {
   if (!Number.isSafeInteger(outputFrames) || outputFrames < FACELESS_MIN_OUTPUT_FRAMES || outputFrames > 2250) {
     throw new Error("public faceless output must be 625–2250 frames");
@@ -117,18 +126,32 @@ export function planPublicFacelessStory(
   }
   if (nextWord !== words.length) throw new Error("caption phrases must cover all words");
 
-  const nodes = story.beats.slice(1).map((beat, i) => {
-    const afterWord = beat.wordStart - 1;
-    const frame = story.narrationStartFrame + Math.round((words[afterWord]!.endSec + words[afterWord + 1]!.startSec) / 2 * 25);
-    return { beatIndex: i + 1, afterWord, frame };
-  });
-  if (nodes[0]!.frame < 50 || nodes[0]!.frame > 125) throw new Error("mandatory opening VIDEO requires 50–125 frames");
+  const cutAfter = (afterWord: number) => ({ afterWord,
+    frame: story.narrationStartFrame + Math.round((words[afterWord]!.endSec + words[afterWord + 1]!.startSec) / 2 * 25) });
+  const inOpenerBounds = (frame: number) => frame >= FACELESS_OPENER_MIN_FRAMES && frame <= FACELESS_OPENER_MAX_FRAMES;
+  const nodes = story.beats.slice(1).map((beat, i) => ({ beatIndex: i + 1, ...cutAfter(beat.wordStart - 1) }));
+  type State = { total: number; path: number[]; scores: Score[] };
+  const states: Array<State | undefined> = Array(nodes.length + 1);
+  const seedOpener = (k: number) => {
+    const openerScore = facelessCutScore(story.beats[nodes[k]!.beatIndex]!.reason, 0, { p25: 0, p75: 0 });
+    states[k] = { total: openerScore.net, path: [k], scores: [openerScore] };
+  };
+  // The opener may end at any beat boundary inside its bounds, absorbing the beats before it.
+  for (const [k, node] of nodes.entries()) {
+    if (k > 0 && options.keepBeats?.has(k)) break;
+    if (inOpenerBounds(node.frame)) seedOpener(k);
+  }
+  if (!states.some(Boolean)) {
+    // Word-gap opener: beat 0 alone, cut at beat 1's first in-bounds gap that leaves beat 1 an IMAGE shot's minimum.
+    const next = story.beats[1]!, nextEndFrame = nodes[1]?.frame ?? outputFrames;
+    const gap = options.openerWordGap ? Array.from({ length: next.wordEnd - next.wordStart - 1 }, (_, i) => cutAfter(next.wordStart + i))
+      .find(cut => inOpenerBounds(cut.frame)) : undefined;
+    if (!gap || nextEndFrame - gap.frame < 25) throw new Error(FACELESS_OPENER_BOUNDS_ERROR);
+    nodes[0] = { beatIndex: 1, ...gap };
+    seedOpener(0);
+  }
   nodes.push({ beatIndex: story.beats.length, afterWord: words.length - 1, frame: outputFrames });
   const final = nodes.length - 1;
-  type State = { total: number; path: number[]; scores: Score[] };
-  const states: Array<State | undefined> = Array(nodes.length);
-  const openerScore = facelessCutScore(story.beats[1]!.reason, 0, { p25: 0, p75: 0 });
-  states[0] = { total: openerScore.net, path: [0], scores: [openerScore] };
   for (let end = 1; end <= final; end++) {
     for (let start = 0; start < end; start++) {
       const prior = states[start];
@@ -155,7 +178,8 @@ export function planPublicFacelessStory(
     const hold = style.motion.pan_transition_n > 0 && style.motion.pan_flip_probability !== null && style.motion.pan_flip_probability < .5;
     const shot: FacelessPublicPlan["shots"][number] = {
       id: included[0]!.id, mediaType: i ? "image" : "video", startFrame, endFrame: node.frame,
-      beatIds: included.map(b => b.id), visualPrompts: included.map(b => b.visualPrompt), phase: included[0]!.phase,
+      // Absorbed beats carry IMAGE prompts, so the opener keeps only its own beat's prompt.
+      beatIds: included.map(b => b.id), visualPrompts: (i ? included : included.slice(0, 1)).map(b => b.visualPrompt), phase: included[0]!.phase,
       ...(i ? { motion: hold || i % 2 === 1 ? "PAN_UP" as const : "PAN_DOWN" as const } : {}),
       ...(nodeIndex < final ? { cutAfterWord: node.afterWord } : {}), score: selected.scores[i]!,
     };

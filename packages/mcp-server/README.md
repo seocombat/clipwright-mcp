@@ -10,8 +10,8 @@ honor comes back in `warnings[]` instead of being dropped silently.
 The agent gets a `run_id` at once and polls until the video URL is ready.
 Clipwright returns the file; it does not publish anywhere. Quotes, voices,
 actors and the account balance are free. Renders spend credits: an account opened
-by signing up starts with none, so buy a pack at [clipwright.io/pricing](https://clipwright.io/pricing)
-before the first one.
+by signing up starts with 420 trial credits, enough for one 90-second faceless video. Buy more at
+[clipwright.io/pricing](https://clipwright.io/pricing).
 
 ## Install
 
@@ -35,9 +35,10 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
 
 ## Tools
 
-- `list_voices` — voices for `voice`: the presets and the catalog, with
-  filters by language, gender, age, use case and model, and a short audio
-  sample where the voice has one. Free, spends no credits.
+- `list_voices` — voices for `voice`: the presets, the thirty voices of the
+  speech model `gemini-3.8-flash-tts` and the catalog, with filters by language,
+  gender, age, use case and model, and a short audio sample where the voice has
+  one. Free, spends no credits.
 - `list_actors` — ready-made faces with stable ids and verified formats. Free.
 - `quote_ugc` — estimated duration and price, plus a warning when `make_ugc`
   with the same input would be refused for money or access. Free.

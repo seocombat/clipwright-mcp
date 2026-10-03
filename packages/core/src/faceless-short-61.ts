@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { brollPolicy } from "./broll-policy.js";
 import { CANVAS_FPS } from "./media-timebase.js";
-import { speechTextFor, TTS_MODEL_CHAR_CAP, TTS_MODELS } from "./voices.js";
+import { ELEVENLABS_TTS_MODELS, speechTextFor, TTS_MODEL_CHAR_CAP } from "./voices.js";
 
 export const SHORT61_BOUNDARIES = [
   0, 93, 162, 309, 412, 472, 562, 643, 753, 822, 902, 948,
@@ -44,7 +44,7 @@ const plan = z.strictObject({
   resolution: z.literal("1080p"),
   brollPolicy,
   script: z.string().trim().min(1),
-  voice: z.strictObject({ model: z.enum(TTS_MODELS), voiceId: id }),
+  voice: z.strictObject({ model: z.enum(ELEVENLABS_TTS_MODELS), voiceId: id }),
   styleAssetId: id,
   characterAssetId: id,
   imageAssets: z.array(imageAsset),

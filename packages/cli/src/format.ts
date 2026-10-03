@@ -53,7 +53,10 @@ const VOICE_DESCRIPTION_WIDTH = 100;
 export function formatVoices(voices: VoiceCatalogEntry[]): string {
   return voices
     .map((v) => {
-      const labels = [v.language, v.gender, v.age, v.use_case].filter(Boolean).join(", ");
+      // A model's own voice has no language: its line names the model that naming it selects.
+      const labels = [v.language ?? (v.kind === "model_voice" ? v.model : undefined), v.gender, v.age, v.use_case]
+        .filter(Boolean)
+        .join(", ");
       const description =
         v.description.length > VOICE_DESCRIPTION_WIDTH
           ? `${v.description.slice(0, VOICE_DESCRIPTION_WIDTH - 1)}…`

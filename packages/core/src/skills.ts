@@ -4,9 +4,17 @@ import { RESOLVED_TIMELINE_MAX_SLOTS } from "./long-form-profile.js";
 import { brollPolicy } from "./broll-policy.js";
 import { countWords } from "./pacing.js";
 import {
+  cutToNothingError,
+  DEFAULT_TTS_MODEL,
+  GOOGLE_TTS_MODEL,
+  isModelVoiceName,
+  MODEL_DEFAULT_VOICE_BY_GENDER,
+  MODEL_VOICE_MODEL,
   resolveTtsModel,
+  RUSSIAN_TTS_MODEL,
   MAX_SCRIPT_CHARS,
   SCRIPT_LENGTH_DESCRIPTION,
+  speaksOwnVoices,
   STRESS_MARKING_DESCRIPTION,
   ttsScriptLimitError,
   TTS_MODELS,
@@ -197,7 +205,8 @@ export const makeUgcInputShape = {
     .optional()
     .describe(
       "Gender of the face in image: female | male. Only with image: picks the default voice of that " +
-        "gender (female: sarah, male: george). Refused with actor_id (its gender is known) and without " +
+        `gender (female: sarah, male: george; on ${GOOGLE_TTS_MODEL}: ${MODEL_DEFAULT_VOICE_BY_GENDER.female} and ` +
+        `${MODEL_DEFAULT_VOICE_BY_GENDER.male}). Refused with actor_id (its gender is known) and without ` +
         "image. An explicit voice or voice_id wins and the response warns that actor_gender changed nothing.",
     ),
   character: z.string().regex(/^char_[a-zA-Z0-9]+$/).optional(),
@@ -237,6 +246,9 @@ export const makeUgcInputShape = {
         "return, before any charge. Omitted means the default voice for the actor's gender: the " +
         "gender of actor_id, actor_gender with image, or george for the default actor and for image " +
         "without actor_gender. " +
+        `${MODEL_VOICE_MODEL} speaks only its own voices (kind model_voice in list_voices, such as ` +
+        `${MODEL_DEFAULT_VOICE_BY_GENDER.female}): naming one selects that model, and a voice is refused with a ` +
+        "tts_model that does not speak it, before any charge. " +
         "Mutually exclusive with voice_id.",
     ),
   voice_id: z
@@ -245,18 +257,26 @@ export const makeUgcInputShape = {
     .optional()
     .describe(
       "Raw vendor voice id (16–32 letters and digits) for a voice outside the catalog. Checked " +
-        "lazily: an unknown id fails the run, not the request. Mutually exclusive with voice.",
+        `lazily: an unknown id fails the run, not the request. Refused with tts_model=${GOOGLE_TTS_MODEL}. ` +
+        "Mutually exclusive with voice.",
     ),
   tts_model: z
     .enum(TTS_MODELS)
     .optional()
     .describe(
-      `Speech model: ${TTS_MODELS.join(" | ")}. Omitted means the model of the chosen preset ` +
-        "(list_voices shows it; every preset speaks eleven_v3) or eleven_v3 for a raw voice_id. " +
-        "eleven_v3 is the most expressive and the only one that reads stress marks " +
+      `Speech model: ${TTS_MODELS.join(" | ")}. Omitted means the model of the chosen voice ` +
+        `(list_voices shows it): ${RUSSIAN_TTS_MODEL} for the Russian presets and for catalog voices named ru_*, ` +
+        `${MODEL_VOICE_MODEL} for its own voices, ` +
+        `${DEFAULT_TTS_MODEL} for every other preset and catalog voice. A raw voice_id speaks ${RUSSIAN_TTS_MODEL} ` +
+        `when the script is mostly Cyrillic and ${DEFAULT_TTS_MODEL} otherwise. An explicit tts_model always wins. ` +
+        `eleven_v4, eleven_v3 and ${GOOGLE_TTS_MODEL} read stress marks ` +
         "(a capital vowel inside a Russian word, \"потОм\", becomes one; see script); " +
         "eleven_flash_v2_5 and eleven_turbo_v2_5 are cheaper alternatives for languages other than " +
-        "Russian. " + SCRIPT_LENGTH_DESCRIPTION,
+        `Russian. ${GOOGLE_TTS_MODEL} speaks only its own voices (list_voices with model=${GOOGLE_TTS_MODEL}; without ` +
+        `voice, ${MODEL_DEFAULT_VOICE_BY_GENDER.female} for a female actor and ${MODEL_DEFAULT_VOICE_BY_GENDER.male} otherwise) ` +
+        "and returns no word timings: a preset or catalog voice, voice_id, captions=true, " +
+        "segments and inserts are refused with it before any charge. Audio tags in square brackets are an " +
+        "eleven_v3 and eleven_v4 convention and are not measured on it. " + SCRIPT_LENGTH_DESCRIPTION,
     ),
   webhook_url: z.string().url().max(MAX_URL_LENGTH).optional(),
   /** Visible "made with AI" overlay, OPT-IN: disclosure rests on contract fields and file */
@@ -283,19 +303,19 @@ export const makeUgcInput = z
   .refine(v => v.inserts === undefined || (v.script !== undefined && v.segments === undefined), {
     path: ["inserts"], message: "inserts requires script and cannot be combined with segments",
   })
+  .superRefine((v, context) => {
+    for (const refusal of speechModelRefusals(v)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: [refusal.field], message: refusal.message });
+    }
+  })
   // The character cap depends on the model; refused here, before any reserve or vendor call.
   // Only the server knows the model of a voice unknown to the client, and checks it there.
   .refine(
     // The client does not know an `actor_id`'s gender; today's preset models do not depend on it.
-    (v) =>
-      modelUnknownToClient(v) ||
-      ttsScriptLimitError(spokenTextOf(v), resolveTtsModel(v, v.actor_gender)) === undefined,
+    (v) => modelUnknownToClient(v) || speechTextRefusal(v) === undefined,
     {
     path: ["script"],
-    error: (issue) => {
-      const input = issue.input as SpokenTextInput & ModelInput;
-      return ttsScriptLimitError(spokenTextOf(input), resolveTtsModel(input, input.actor_gender))!;
-    },
+    error: (issue) => speechTextRefusal(issue.input as SpeechTextInput)!,
   })
   .refine(
     (v) => [v.actor_id, v.person, v.image].filter(Boolean).length <= 1,
@@ -353,10 +373,65 @@ export const makeUgcInput = z
     message: "script has 0 speakable words",
   });
 
-type ModelInput = Parameters<typeof resolveTtsModel>[0] & { actor_gender?: "female" | "male" | undefined };
+type SpeechTextInput = SpokenTextInput &
+  Omit<Parameters<typeof resolveTtsModel>[0], "script"> & { actor_gender?: "female" | "male" | undefined };
+
+/** Why the run's model refuses the text: the cap on the whole of it, then each spoken unit */
+/** left with no words. The model is read from the joined text, as the worker reads it. */
+function speechTextRefusal(input: SpeechTextInput): string | undefined {
+  const text = spokenTextOf(input);
+  const model = resolveTtsModel({ ...input, script: text }, input.actor_gender);
+  return ttsScriptLimitError(text, model) ?? spokenUnitsOf(input).map((unit) => cutToNothingError(unit, model)).find(Boolean);
+}
 
 function modelUnknownToClient(v: { voice?: string | undefined; tts_model?: string | undefined }): boolean {
-  return v.tts_model === undefined && v.voice !== undefined && !isVoicePresetName(v.voice);
+  return v.tts_model === undefined && v.voice !== undefined && !isVoicePresetName(v.voice) && !isModelVoiceName(v.voice);
+}
+
+export interface SpeechModelRefusal {
+  field: "voice" | "voice_id" | "captions" | "segments" | "inserts";
+  message: string;
+}
+
+/** What a model with its own voices and no word timings refuses, each line naming what to pass instead. */
+/** One list for the input schema and for the worker's check before its first paid step. */
+export function speechModelRefusals(input: {
+  tts_model?: string | undefined;
+  voice?: string | undefined;
+  voice_id?: string | undefined;
+  captions?: boolean | undefined;
+  segments?: unknown;
+  inserts?: unknown;
+}): SpeechModelRefusal[] {
+  // The model the voice name selects, by the function quote and the worker call; a script never decides it.
+  const model = input.tts_model ?? resolveTtsModel({ voice: input.voice, script: "" });
+  const ownVoice = input.voice !== undefined && isModelVoiceName(input.voice);
+  if (!speaksOwnVoices(model)) {
+    if (!ownVoice) return [];
+    return [{
+      field: "voice",
+      message: `voice "${input.voice}" is a voice of ${MODEL_VOICE_MODEL} and is not spoken by ${model}: omit tts_model to speak it ` +
+        `with ${MODEL_VOICE_MODEL}, or choose a voice from list_voices with model=${model}`,
+    }];
+  }
+  const ownVoices = `from list_voices with model=${model}`;
+  const defaultVoice = "to get the model's default voice for the actor's gender";
+  // With tts_model named too, a voice of another model alone would be refused against that tts_model.
+  const dropModel = input.tts_model === undefined ? "" : " and omit tts_model";
+  const otherModel = ownVoice ? `or choose a voice of another speech model from list_voices${dropModel}` : "or choose another tts_model";
+  const candidates: [SpeechModelRefusal["field"], boolean, string][] = [
+    ["voice", input.voice !== undefined && !ownVoice,
+      `voice "${input.voice}" is not spoken by ${model}: choose one of its voices ${ownVoices}, omit voice ${defaultVoice}, ${otherModel}`],
+    ["voice_id", input.voice_id !== undefined,
+      `voice_id is not accepted with ${model}: pass voice with a name ${ownVoices}, omit voice_id ${defaultVoice}, ${otherModel}`],
+    ["captions", input.captions === true,
+      `captions are not available with ${model}: it returns no word timings; pass captions=false`],
+    ["segments", input.segments !== undefined,
+      `segments are not available with ${model}: pass script for a single take, ${otherModel}`],
+    ["inserts", input.inserts !== undefined,
+      `inserts are not available with ${model}: it returns no word timings to anchor them; omit inserts, ${otherModel}`],
+  ];
+  return candidates.filter(([, refused]) => refused).map(([field, , message]) => ({ field, message }));
 }
 
 /** API input: the server's `voiceRefusal` checks the voice name. The catalog is not imported */
@@ -372,13 +447,10 @@ export function serverUgcInputWith(voiceRefusal: (voice: string) => string | und
       (v) =>
         !modelUnknownToClient(v) ||
         voiceRefusal(v.voice!) !== undefined ||
-        ttsScriptLimitError(spokenTextOf(v), resolveTtsModel(v, v.actor_gender)) === undefined,
+        speechTextRefusal(v) === undefined,
       {
         path: ["script"],
-        error: (issue) => {
-          const input = issue.input as SpokenTextInput & ModelInput;
-          return ttsScriptLimitError(spokenTextOf(input), resolveTtsModel(input, input.actor_gender))!;
-        },
+        error: (issue) => speechTextRefusal(issue.input as SpeechTextInput)!,
       },
     );
 }
@@ -397,13 +469,17 @@ export interface SpokenTextInput {
   segments?: readonly UgcSegment[] | undefined;
 }
 
-/** Joins the spoken text without checks: the shared base for gates and the helper. */
-function spokenTextOf(input: SpokenTextInput): string {
-  if (input.script !== undefined) return input.script;
+/** What the worker voices apart: the script, or each actor segment's line. */
+function spokenUnitsOf(input: SpokenTextInput): string[] {
+  if (input.script !== undefined) return [input.script];
   return (input.segments ?? [])
     .filter((segment) => segment.kind === "actor")
-    .map((segment) => segment.script ?? "")
-    .join(" ");
+    .map((segment) => segment.script ?? "");
+}
+
+/** Joins the spoken text without checks: the shared base for gates and the helper. */
+function spokenTextOf(input: SpokenTextInput): string {
+  return spokenUnitsOf(input).join(" ");
 }
 
 /** The ONLY place where "script or joined segments" becomes a `string`. The non-empty */
@@ -450,6 +526,7 @@ export const quoteResponse = z.object({
     .nullable(),
   /** The format that will actually be rendered for this input. */
   resolved_aspect_ratio: z.enum(ASPECT_RATIOS),
-  tts_model: z.enum(TTS_MODELS),
+  /** A string, not an enum: a model the client does not know yet must not break `quote`. */
+  tts_model: z.string().min(1),
 });
 export type QuoteResponse = z.infer<typeof quoteResponse>;

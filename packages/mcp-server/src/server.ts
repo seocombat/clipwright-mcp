@@ -13,6 +13,8 @@ import {
   CATALOG_LANGUAGES,
   CREATE_ACTOR_DESCRIPTION,
   createActorInputShape,
+  MODEL_VOICE_MODEL,
+  MODEL_VOICE_NAMES,
   SCRIPT_LENGTH_DESCRIPTION,
   voicesQueryShape,
   agentRetryShape,
@@ -144,17 +146,21 @@ export function createServer(client: ClipwrightClient): McpServer {
       title: "List voices",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "List the voices for make_ugc's `voice` field: the presets first, then catalog voices in " +
+        "List the voices for make_ugc's `voice` field: the presets first, then the " +
+        `${MODEL_VOICE_NAMES.length} voices of ${MODEL_VOICE_MODEL} (kind model_voice), then catalog voices in ` +
         `${CATALOG_LANGUAGES.length} languages. Filter by \`language\` (the voice's native language; any voice ` +
         "speaks any supported language), `gender`, `age`, `use_case` and `model`; an unknown filter value is " +
         "refused with the allowed values. Pick a voice by `name` (e.g. voice=\"george\"); a name always means " +
-        "the same voice. `voice_id` is an escape hatch for a raw vendor voice id that is not listed, such as a " +
+        "the same voice. A model_voice voice is spoken only by its `model`: naming it selects that model, " +
+        "it has no language of its own and matches the languages measured on the model, and its gender is " +
+        "listed only where it is known. `voice_id` is an escape hatch for a raw vendor voice id that is not listed, such as a " +
         "cloned voice. Without voice or voice_id the default voice follows the actor's gender: sarah for a " +
         "woman, george for a man, taken from actor_id or from actor_gender next to image. With image and no " +
         "actor_gender the voice is george and a warning says so: pass the gender of the person in the photo as " +
         "actor_gender (ask the user only when you cannot tell), or pick a voice here. Keep any voice the user chose. A voice with `preview_url` has a short-lived audio sample " +
         "spoken by that voice with that model; play it to the user before a paid render instead of judging a " +
-        "voice by its description. It expires at `preview_expires_at`: call this tool again for a fresh link, " +
+        "voice by its description. A model_voice sample is in English, or in the language you filter by. " +
+        "It expires at `preview_expires_at`: call this tool again for a fresh link, " +
         "never store it. A voice without `preview_url` has no sample yet. Free. " + SCRIPT_LENGTH_DESCRIPTION,
       inputSchema: voicesQueryShape,
     },

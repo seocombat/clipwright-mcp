@@ -27,6 +27,9 @@ export interface SpeechResult {
   /** Word timings, even when the vendor gives per-character ones: aggregating is the */
   /** adapter's job. `null` means the backend gives none, visible in the type. */
   words: WordTiming[] | null;
+  /** What the request named and the vendor was not asked to do. Required: a backend that */
+  /** forgot the field would read as "everything was honoured". */
+  warnings: string[];
 }
 
 export interface TtsCapabilities {

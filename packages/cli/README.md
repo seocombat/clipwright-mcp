@@ -22,7 +22,7 @@ above name the package with `-p`, so they resolve here either way.
 | `make --script <text>` | Renders a clip and waits for it. **Costs credits.** Prints the video URL to stdout, progress and warnings to stderr. |
 | `upload <path>` | Uploads a local PNG/JPEG and prints the https url to pass as `--image`. Free. |
 | `runs <id>` | Prints the state of one run. |
-| `voices` | Lists voices for `--voice`: the presets, then the catalog. Narrow it with `--language`, `--gender`, `--age`, `--use-case` and `--model`. Free. |
+| `voices` | Lists voices for `--voice`: the presets, the voices of `gemini-3.8-flash-tts`, then the catalog. Narrow it with `--language`, `--gender`, `--age`, `--use-case` and `--model`. Free. |
 | `actors` | Lists the actors this account can use: the Clipwright catalog and your own. Free. |
 | `quote-actor` | Estimates the cost of a personal actor. Spends nothing. |
 | `create-actor` | Creates a personal actor from a description. **Costs credits** — one charge per requested format. Prints the run; follow it with `runs <id>`. |
@@ -46,9 +46,22 @@ each voice: play it before you pay for a render, and reuse the same name next ti
 `--language` filters by a voice's native language; any voice speaks any supported
 language.
 
-Every preset and catalog voice speaks `eleven_v3`. `--tts-model` overrides it with
-`eleven_flash_v2_5` or `eleven_turbo_v2_5`, which cost less but misread Russian stress
+The voice decides the speech model. The Russian presets `owner_ru_clone` and
+`daria_ru_female` and the catalog voices named `ru_*` speak `eleven_v4`; every other
+preset and catalog voice speaks `eleven_v3`. A `--voice-id` voice speaks `eleven_v4` when
+the script is mostly Cyrillic and `eleven_v3` otherwise. `--tts-model` overrides the
+choice: `eleven_flash_v2_5` and `eleven_turbo_v2_5` cost less but misread Russian stress
 marks. In a Russian script, mark stress with a capital vowel inside the word: `потОм`.
+`eleven_v4`, `eleven_v3` and `gemini-3.8-flash-tts` read it as stress. `eleven_v4` and
+`gemini-3.8-flash-tts` give no pause for a `<break time="…" />` tag: the tag is cut from
+the text, and the response warns about it.
+
+`gemini-3.8-flash-tts` speaks only its own thirty voices: `voices --model
+gemini-3.8-flash-tts` lists them. Naming one (`--voice kore`) selects that model without
+`--tts-model`; `--tts-model gemini-3.8-flash-tts` without `--voice` speaks `kore` for a
+woman and `charon` otherwise. A preset, a catalog voice, `--voice-id` and `--captions`
+are refused with it before any charge. Its voices have a sample in English, and
+`voices --language ru` links the Russian one.
 
 `quote-faceless` and `make-faceless` take the narration as `--script <text>`,
 `--script-file <path>` or `--brief <text>` (a short description the narration is

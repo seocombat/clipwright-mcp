@@ -1,6 +1,6 @@
 # @clipwright/cli
 
-Command-line client for the [Clipwright](https://clipwright.io) UGC and faceless
+Command-line client for the [Clipwright](https://clipwright.io/?ref=npm) UGC and faceless
 video API.
 
 ```bash

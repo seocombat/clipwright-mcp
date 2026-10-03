@@ -1,7 +1,7 @@
 # @clipwright/core
 
 Zod schemas and the shared request/response contract of the
-[Clipwright](https://clipwright.io) UGC and faceless video API. Published because
+[Clipwright](https://clipwright.io/?ref=npm) UGC and faceless video API. Published because
 the SDK and the MCP server depend on it; the API validates against these same
 schemas, so they are the contract rather than a copy of it.
 

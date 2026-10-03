@@ -1,6 +1,6 @@
 # Clipwright clients
 
-Open-source clients for [Clipwright](https://clipwright.io): an API that turns a
+Open-source clients for [Clipwright](https://clipwright.io/?ref=github): an API that turns a
 script into a short video of an actor speaking it, or a script or a short brief
 into a faceless video without an on-camera presenter: narration over an opening
 animated clip and image scenes, ending with the narration (select 30–90 seconds;
@@ -25,9 +25,10 @@ Put your own key from [app.clipwright.io/api-keys](https://app.clipwright.io/api
 in place of `cw_...`. It needs Node.js 20 or newer. Other hosts, the tool list and
 the environment variables: [`packages/mcp-server/README.md`](packages/mcp-server/README.md).
 
-Quotes, voices, actors and the balance are free. Renders spend credits, and an
-account opened by signing up starts with none: buy a pack at
-[clipwright.io/pricing](https://clipwright.io/pricing) before the first render.
+Quotes, voices, actors and the balance are free. Renders spend credits: an
+account opened by signing up starts with 420 trial credits, enough for one
+90-second faceless video. Buy more at
+[clipwright.io/pricing](https://clipwright.io/pricing?ref=github).
 
 ## Build from source
 
@@ -37,7 +38,7 @@ pnpm -r build
 ```
 
 This repository mirrors the client packages of the Clipwright monorepo; each
-release is synced here from there. Documentation: [clipwright.io/docs](https://clipwright.io/docs).
+release is synced here from there. Documentation: [clipwright.io/docs](https://clipwright.io/docs?ref=github).
 Privacy: [clipwright.io/privacy](https://clipwright.io/privacy).
 
 MIT License — see [LICENSE](LICENSE).

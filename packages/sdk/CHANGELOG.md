@@ -16,6 +16,14 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
+## [Unreleased]
+
+### Changed
+
+- *Dashboard:* The Privacy Policy says that we keep the site that referred you and any marker in the link that
+  brought you to sign-up, and that a notification of each sign-up, with the email address, reaches us through
+  Telegram. (clipwright#482)
+
 ## [0.24.0] - 2026-10-03
 
 A second speech model, `gemini-3.8-flash-tts`, with thirty voices of its own and a sample of each in English and

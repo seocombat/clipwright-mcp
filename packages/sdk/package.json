@@ -4,7 +4,7 @@
   "description": "TypeScript client for the Clipwright UGC video API",
   "license": "MIT",
   "author": "Dimantika Sp. z o.o.",
-  "homepage": "https://clipwright.io",
+  "homepage": "https://clipwright.io/?ref=npm",
   "type": "module",
   "publishConfig": {
     "access": "public"

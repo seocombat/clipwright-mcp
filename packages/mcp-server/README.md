@@ -1,6 +1,6 @@
 # @clipwright/mcp-server
 
-Your coding agent writes the script; [Clipwright](https://clipwright.io) renders
+Your coding agent writes the script; [Clipwright](https://clipwright.io/?ref=npm) renders
 a short vertical video of an actor speaking it, 1080×1920 by default. It also
 makes faceless videos of up to 90 seconds from a script or a short brief: narration
 over an opening animated clip and image scenes, with no on-camera presenter. The agent
@@ -11,7 +11,7 @@ The agent gets a `run_id` at once and polls until the video URL is ready.
 Clipwright returns the file; it does not publish anywhere. Quotes, voices,
 actors and the account balance are free. Renders spend credits: an account opened
 by signing up starts with 420 trial credits, enough for one 90-second faceless video. Buy more at
-[clipwright.io/pricing](https://clipwright.io/pricing).
+[clipwright.io/pricing](https://clipwright.io/pricing?ref=npm).
 
 ## Install
 
@@ -81,4 +81,4 @@ a failed run on purpose, not a free refresh.
 The server sends your script or brief, chosen options and any uploaded image to the
 Clipwright API to quote and render the video. How that data is handled:
 [clipwright.io/privacy](https://clipwright.io/privacy). Documentation:
-[clipwright.io/docs](https://clipwright.io/docs).
+[clipwright.io/docs](https://clipwright.io/docs?ref=npm).

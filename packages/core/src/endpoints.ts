@@ -18,6 +18,8 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "POST", path: "/v1/skills/make_faceless/quote", billed: false, onQuickstart: false, jsonBody: true },
   { method: "POST", path: "/v1/skills/make_faceless/run", billed: true, onQuickstart: false, jsonBody: true },
   { method: "GET", path: "/health", billed: false, onQuickstart: true, jsonBody: false },
+  { method: "GET", path: "/", billed: false, onQuickstart: false, jsonBody: false },
+  { method: "GET", path: "/robots.txt", billed: false, onQuickstart: false, jsonBody: false },
   { method: "GET", path: "/v1/voices", billed: false, onQuickstart: true, jsonBody: false },
   { method: "GET", path: "/v1/account", billed: false, onQuickstart: true, jsonBody: false },
   { method: "POST", path: "/v1/skills/make_ugc/quote", billed: false, onQuickstart: true, jsonBody: true },

@@ -10,7 +10,7 @@
     "subfolder": "packages/mcp-server"
   },
   "version": "0.24.0",
-  "websiteUrl": "https://clipwright.io",
+  "websiteUrl": "https://clipwright.io/?ref=mcp-registry",
   "icons": [
     { "src": "https://clipwright.io/brand/clipwright-512.png", "mimeType": "image/png", "sizes": ["512x512"] },
     { "src": "https://clipwright.io/brand/clipwright-400.png", "mimeType": "image/png", "sizes": ["400x400"] }

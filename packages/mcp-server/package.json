@@ -15,7 +15,7 @@
   ],
   "license": "MIT",
   "author": "Dimantika Sp. z o.o.",
-  "homepage": "https://clipwright.io",
+  "homepage": "https://clipwright.io/?ref=npm",
   "type": "module",
   "publishConfig": {
     "access": "public"

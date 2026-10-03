@@ -1,6 +1,6 @@
 # @clipwright/sdk
 
-TypeScript client for the [Clipwright](https://clipwright.io) UGC and faceless
+TypeScript client for the [Clipwright](https://clipwright.io/?ref=npm) UGC and faceless
 video API.
 
 ```ts

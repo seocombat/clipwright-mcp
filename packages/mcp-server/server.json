@@ -9,7 +9,7 @@
     "id": "1387452325",
     "subfolder": "packages/mcp-server"
   },
-  "version": "0.24.0",
+  "version": "0.25.0",
   "websiteUrl": "https://clipwright.io/?ref=mcp-registry",
   "icons": [
     { "src": "https://clipwright.io/brand/clipwright-512.png", "mimeType": "image/png", "sizes": ["512x512"] },
@@ -20,7 +20,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@clipwright/mcp-server",
-      "version": "0.24.0",
+      "version": "0.25.0",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {

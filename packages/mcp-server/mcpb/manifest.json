@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "clipwright",
   "display_name": "Clipwright",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Talking-actor and faceless short videos from your agent, with a free quote before each render.",
   "long_description": "Clipwright turns a script into a short vertical video of an actor speaking it, or into a faceless video: narration over an opening animated clip and image scenes, with captions. You select 30 to 90 seconds; the video ends with its narration, runs at least 25 seconds and at most 5 seconds past the selection, never beyond 90. Ask for a quote first: it is free and names the price, the duration and anything the API will not honor. Then start the render; it returns a run id at once, and the video URL arrives when the run succeeds. Output is 1080×1920 by default. Anything the API cannot deliver comes back in `warnings[]` instead of being dropped silently. You can also create a personal actor from a description. Rendering spends credits from your Clipwright account; quotes, voices, the actor catalog and the balance are free. Clipwright does not publish videos anywhere.",
   "author": {

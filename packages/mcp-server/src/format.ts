@@ -66,6 +66,7 @@ export function formatGetRun(run: RunRead): McpToolResponse {
             video_url: run.final_output?.video_url ?? null,
             video_url_check: VIDEO_URL_CHECK,
             duration_seconds: run.final_output?.duration_seconds ?? null,
+            ...(run.final_output?.ai_disclosure === undefined ? {} : { ai_disclosure: run.final_output.ai_disclosure }),
             ...(run.final_output?.long_form_billing === undefined ? {} : { long_form_billing: run.final_output.long_form_billing }),
             ...(run.final_output?.speech_timing_gaps === undefined ? {} : { speech_timing_gaps: run.final_output.speech_timing_gaps }),
             warnings: run.warnings,

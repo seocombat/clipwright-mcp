@@ -16,13 +16,39 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
-## [Unreleased]
+## [0.25.0] - 2026-10-04
+
+The AI disclosure names what each video holds, and the clients show it: `get_run` of the MCP server and
+`clipwright runs <id>` carry `ai_disclosure`. The visible "AI-generated" label is gone, and the clients no longer
+offer `disclosure_overlay`.
+
+### Removed
+
+- **Breaking:** *Server-side:* `disclosure_overlay` is gone: no video carries the visible "AI-generated" label. Quote
+  and run refuse the field with 400 `rejected_field` before any charge, and the refusal says where the disclosure is:
+  the run response and the file metadata. Clients up to 0.24.0 still list the field in their input schema; stop
+  passing it. Label the publication with the platform's own control. The contract version is `2026-10-04`.
+  (clipwright#488)
 
 ### Changed
 
 - *Dashboard:* The Privacy Policy says that we keep the site that referred you and any marker in the link that
   brought you to sign-up, and that a notification of each sign-up, with the email address, reaches us through
   Telegram. (clipwright#482)
+- *Server-side:* `ai_disclosure` of a faceless run names what that video holds: "This video was generated with AI:
+  the voice, the opening clip and the images are synthetic." A faceless run with `scene_images` says instead that the
+  voice and the opening clip are synthetic, and so is every image its author did not supply. Until now a faceless run
+  carried the sentence of a video with a presenter, about an actor and lip sync it does not have. A run with a
+  presenter keeps its sentence. (clipwright#488)
+- `get_run` of the MCP server returns `ai_disclosure` with a finished video, and `clipwright runs <id>` prints it
+  under the video link. Until now neither showed the statement. (clipwright#488)
+- *Server-side:* a run accepted with `disclosure_overlay: true` before the label was removed and composed after it
+  says so in `warnings[]`. (clipwright#488)
+- `@clipwright/core` exports `aiDisclosureText(skill, input)` and the two faceless sentences,
+  `FACELESS_AI_DISCLOSURE_TEXT` and `FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT`. `AI_DISCLOSURE_TEXT` stays the sentence
+  of a video with a presenter. (clipwright#488)
+- *Dashboard:* The AI Disclosure page gives the three wordings of the statement, says that a faceless file carries a
+  storage flag alone, and no longer describes a visible label. (clipwright#488)
 
 ## [0.24.0] - 2026-10-03
 

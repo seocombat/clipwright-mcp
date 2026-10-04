@@ -47,7 +47,7 @@ describe("formatGetRun — terminal shape", () => {
             // Disclosure fields are required by the schema; without them the
             // test would check a shape production never allows.
             ai_generated: true as const,
-            ai_disclosure: AI_DISCLOSURE_TEXT,
+            ai_disclosure: "a sentence of this run alone",
           },
         }),
       ),
@@ -56,6 +56,8 @@ describe("formatGetRun — terminal shape", () => {
     expect(out.status).toBe("SUCCEEDED");
     expect(out.state).toBe("succeeded");
     expect(out.video_url).toBe("https://cdn.example/v.mp4");
+    // clipwright#488: the statement of THIS run passes through; no constant holds this text.
+    expect(out.ai_disclosure).toBe("a sentence of this run alone");
   });
 
   /** The URL is signed for GET, so `curl -I` gets 403 and looks dead; the */

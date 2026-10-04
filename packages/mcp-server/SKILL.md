@@ -297,7 +297,7 @@ schema, and the server answers 400 `rejected_field` before a run is even created
 | `character` | `actor_id` from `list_actors`, an `image`, or nothing (default actor); `person` does not select a face |
 | `webhook_url` | poll `get_run` — webhooks are not delivered at all |
 | `segments`, `broll_url` | a single `script`; segmented clips are not available yet |
-| `disclosure_overlay` | nothing: the AI disclosure is already in the run response and in the file |
+| `disclosure_overlay` | nothing: no video carries a visible label, and the AI disclosure is in `ai_disclosure` of the finished run |
 | `image` and `actor_gender` with the killswitch off | omit both — the render runs on the default actor |
 
 **The aspect ratio can be refused.** Requesting `aspect_ratio: "1:1"` without an
@@ -489,9 +489,13 @@ in `state`, with `status` always `"IN_PROGRESS"`:
   "run_id": "run_...",
   "state": "succeeded",
   "video_url": "https://...",
-  "duration_seconds": 13.08
+  "duration_seconds": 13.08,
+  "ai_disclosure": "This video was generated with AI: ..."
 }
 ```
+
+`ai_disclosure` names what is synthetic in that video: a faceless video and a video with a presenter carry
+different sentences. Pass it to the user as written when they ask how to label the publication.
 
 **Terminal failure** carries BOTH `status: "FAILED"` AND `state: "failed"`:
 

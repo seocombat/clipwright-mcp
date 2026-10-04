@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AI_DISCLOSURE_OBJECT_METADATA,
   AI_DISCLOSURE_TEXT,
+  aiDisclosureText,
+  FACELESS_AI_DISCLOSURE_TEXT,
+  FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT,
   annotatedUgcInputShape,
   COMPOSITION_PROVEN_FIELDS,
   CONTRACT_VERSION,
@@ -108,9 +111,9 @@ describe("resolveDispositions — remoteFetch kill switch", () => {
     }
   });
 
-  it("the compose flag touches ONLY background and disclosure_overlay", () => {
-    // Both are burned in by composition, so both follow its kill switch, and nothing else does.
-    const composeGated = new Set(["background", "disclosure_overlay"]);
+  it("the compose flag touches ONLY background", () => {
+    // It is applied by composition, so it follows its kill switch, and nothing else does.
+    const composeGated = new Set(["background"]);
     const on = resolveDispositions({ remoteFetch: true, compose: true });
     const off = resolveDispositions({ remoteFetch: true, compose: false });
     for (const field of FIELDS) {
@@ -308,7 +311,7 @@ describe("identity contract", () => {
 
 describe("CONTRACT_VERSION", () => {
   it("is declared and non-empty", () => {
-    expect(CONTRACT_VERSION).toBe("2026-10-02");
+    expect(CONTRACT_VERSION).toBe("2026-10-04");
   });
 });
 
@@ -491,14 +494,38 @@ describe("AI output marking", () => {
     expect(AI_DISCLOSURE_OBJECT_METADATA["ai-generated"]).toBe("true");
   });
 
-  it("with composition off, disclosure_overlay is rejected with an honest text", () => {
-    // EFFECTIVE_DISPOSITIONS freezes at import, and CLIPWRIGHT_COMPOSE is unset in tests.
+  it("disclosure_overlay is rejected with an honest text", () => {
     const [hit] = rejectedFields({ script: "x", disclosure_overlay: true });
     expect(hit).toBeDefined();
     if (!hit) return;
     expect(hit.field).toBe("disclosure_overlay");
     // The refusal must say the disclosure exists in another form.
     expect(hit.message).toContain("marked");
+  });
+
+  it("a run with a presenter keeps the actor and lip sync wording", () => {
+    expect(aiDisclosureText("make_ugc", { script: "x" })).toBe(AI_DISCLOSURE_TEXT);
+    expect(AI_DISCLOSURE_TEXT).toMatch(/actor.*lip sync/);
+  });
+
+  it("a faceless run names neither an actor nor lip sync (clipwright#488)", () => {
+    const plain = aiDisclosureText("make_faceless", { input_mode: "script", script: "x" });
+    const ownImages = aiDisclosureText("make_faceless", { scene_images: [{ image_url: "https://e.com/a.png" }] });
+    for (const text of [plain, ownImages]) {
+      expect(text).not.toMatch(/actor|lip sync/);
+      expect(text).toMatch(/voice.*opening clip/);
+    }
+    expect(plain).toBe(FACELESS_AI_DISCLOSURE_TEXT);
+    expect(ownImages).toBe(FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT);
+  });
+
+  it("only a run with images of its author excepts them, and it counts none", () => {
+    expect(FACELESS_AI_DISCLOSURE_TEXT).not.toContain("supply");
+    // An opening image is animated and every shot may be supplied: the sentence must hold for both.
+    expect(FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT).toContain("every image its author did not supply");
+    expect(FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT).not.toMatch(/generated images|were supplied|the images are/);
+    expect(aiDisclosureText("make_faceless", { scene_images: [] })).toBe(FACELESS_AI_DISCLOSURE_TEXT);
+    expect(aiDisclosureText("make_faceless", null)).toBe(FACELESS_AI_DISCLOSURE_TEXT);
   });
 });
 
@@ -566,22 +593,12 @@ describe("resolveDispositions — composition kill switch", () => {
     expect(resolved.background.message).toContain("aspect_ratio");
   });
 
-  it("composition on: disclosure_overlay works", () => {
-    const resolved = resolveDispositions({ remoteFetch: true, compose: true });
-    expect(resolved.disclosure_overlay.kind).toBe("implemented");
-  });
-
-  it("composition off: disclosure_overlay is REJECTED, not silently accepted", () => {
-    const resolved = resolveDispositions({ remoteFetch: true, compose: false });
-    expect(resolved.disclosure_overlay.kind).toBe("rejected");
-  });
-
-  it("the disclosure_overlay refusal notes that disclosure still exists", () => {
-    const resolved = resolveDispositions({ remoteFetch: true, compose: false });
-    if (resolved.disclosure_overlay.kind !== "rejected") {
-      throw new Error("expected rejection");
+  it("disclosure_overlay is REJECTED with composition on and off (clipwright#488)", () => {
+    for (const compose of [true, false]) {
+      const resolved = resolveDispositions({ remoteFetch: true, compose });
+      if (resolved.disclosure_overlay.kind !== "rejected") throw new Error("expected rejection");
+      expect(resolved.disclosure_overlay.message).toContain("metadata");
     }
-    expect(resolved.disclosure_overlay.message).toContain("metadata");
   });
 });
 

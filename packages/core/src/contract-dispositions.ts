@@ -7,7 +7,7 @@ import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
 
 /** Public contract version, sent as the `X-Clipwright-Contract` header and as `contract_version` */
 /** in the quote response. Every breaking change must bump it. */
-export const CONTRACT_VERSION = "2026-10-02";
+export const CONTRACT_VERSION = "2026-10-04";
 export const CONTRACT_VERSION_HEADER = "X-Clipwright-Contract";
 
 /** `implemented`: reaches the vendor or the composition tree; `rejected`: 400 before any run or reserve; */
@@ -83,9 +83,12 @@ export const FIELD_DISPOSITIONS = {
     message:
       "broll_url is not supported yet: b-roll requires segmented composition. Omit it",
   },
-  // Burned in by composition; gated by `CLIPWRIGHT_COMPOSE`, so with composition off
-  // the field is rejected rather than silently ignored.
-  disclosure_overlay: { kind: "implemented", provenBy: "composition" },
+  // The visible label is gone (clipwright#488); the refusal says where the disclosure lives.
+  disclosure_overlay: {
+    kind: "rejected",
+    message:
+      "disclosure_overlay is not supported: the visible label was removed. The output is still marked in the run contract and in the file metadata; label the publication with the platform's own control",
+  },
   // Applied by composition and gated by `CLIPWRIGHT_COMPOSE`, like `image` is gated
   // by `CLIPWRIGHT_REMOTE_FETCH`.
   background: { kind: "implemented", provenBy: "composition" },
@@ -161,13 +164,6 @@ const COMPOSE_DISABLED: Disposition = {
     "background is not available: composition is disabled on this deployment. Request an aspect_ratio close to your image instead",
 };
 
-/** Refusal for `disclosure_overlay` when the composition stage is off. */
-const DISCLOSURE_OVERLAY_DISABLED: Disposition = {
-  kind: "rejected",
-  message:
-    "disclosure_overlay is not available: composition is disabled on this deployment. The output is still marked in the run contract and in the file metadata",
-};
-
 /** Long-form prerequisites in ONE expression for all its fields: two copies could */
 /** open `segments` while `inserts` stay closed. */
 function longFormReady(flags: ContractFlags): boolean {
@@ -197,10 +193,6 @@ export function resolveDispositions(
     },
     // With composition off nothing can apply a background, so the field is rejected.
     background: flags.compose ? FIELD_DISPOSITIONS.background : COMPOSE_DISABLED,
-    // Same gating as `background`: the visible overlay is burned in by composition.
-    disclosure_overlay: flags.compose
-      ? FIELD_DISPOSITIONS.disclosure_overlay
-      : DISCLOSURE_OVERLAY_DISABLED,
   };
 }
 

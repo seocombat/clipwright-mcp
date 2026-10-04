@@ -13,6 +13,7 @@ export function formatRun(run: RunRead): string {
   }
   if (run.final_output?.video_url) {
     lines.push(`video_url: ${run.final_output.video_url}`);
+    lines.push(`ai_disclosure: ${run.final_output.ai_disclosure}`);
   }
   if (run.warnings.length > 0) {
     lines.push(`warnings: ${run.warnings.join(", ")}`);

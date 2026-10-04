@@ -279,8 +279,8 @@ export const makeUgcInputShape = {
         "eleven_v3 and eleven_v4 convention and are not measured on it. " + SCRIPT_LENGTH_DESCRIPTION,
     ),
   webhook_url: z.string().url().max(MAX_URL_LENGTH).optional(),
-  /** Visible "made with AI" overlay, OPT-IN: disclosure rests on contract fields and file */
-  /** metadata. Burning it in needs composition (gated by `CLIPWRIGHT_COMPOSE`). */
+  /** Removed visible label (clipwright#488). The key stays in the shape so that the refusal */
+  /** names its reason instead of answering `unknown_field`. */
   disclosure_overlay: z.boolean().optional(),
   /** How to fill a frame the clip does not cover. No `.default()`: absence means no layout */
   /** is needed. `contain` fits whole, `white` pads white, `blur` fills with the blurred frame. */

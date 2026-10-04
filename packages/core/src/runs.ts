@@ -39,10 +39,28 @@ export const runStep = z.object({
     .default([]),
 });
 
-/** AI output disclosure, one constant for every surface: a fully synthetic clip says so */
-/** itself, the same way whichever client downloaded it. Not a claim of legal compliance. */
+/** AI output disclosure of a video with a presenter, the same on every surface: a fully */
+/** synthetic clip says so itself. Not a claim of legal compliance. */
 export const AI_DISCLOSURE_TEXT =
   "This video was generated with AI: the actor, the voice and the lip sync are synthetic.";
+
+/** A faceless video has no actor and no lip sync, so it names what it does hold (clipwright#488). */
+export const FACELESS_AI_DISCLOSURE_TEXT =
+  "This video was generated with AI: the voice, the opening clip and the images are synthetic.";
+
+/** A run with `scene_images` cannot call every image synthetic. One at the opening is animated */
+/** into the clip, and every shot may be the author's, so the sentence counts neither. */
+export const FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT =
+  "This video was generated with AI: the voice and the opening clip are synthetic, " +
+  "and so is every image its author did not supply.";
+
+/** The disclosure of one run, from its skill and stored input: every writer and the API */
+/** response call this, so the sentence names what that video holds. */
+export function aiDisclosureText(skill: string, input: unknown): string {
+  if (skill !== "make_faceless") return AI_DISCLOSURE_TEXT;
+  const images = typeof input === "object" && input !== null ? (input as { scene_images?: unknown }).scene_images : undefined;
+  return Array.isArray(images) && images.length > 0 ? FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT : FACELESS_AI_DISCLOSURE_TEXT;
+}
 
 /** Storage object metadata, one constant so writer and readers share keys. Weaker than an */
 /** embedded tag (lost on re-save), but always set, without parsing MP4 boxes. */

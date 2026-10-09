@@ -535,12 +535,19 @@ version and image hash even if the catalog changes later.
 
 ### `list_voices` — free, optional filters
 
-Returns the voices for the `voice` field of `make_ugc`: the presets first, then
-the thirty voices of `gemini-3.8-flash-tts`, then the catalog voices, by language
-and then by rank. Costs nothing and creates no run.
+Returns the voices for the `voice` field of `make_ugc`, or of `make_faceless`
+when called with `skill: "make_faceless"`. Each voice names the one skill that
+speaks it in `skill`, and the other skill refuses it before any charge. The
+`make_ugc` voices are the presets, the thirty voices of `gemini-3.8-flash-tts`
+and the catalog voices, by language and then by rank. The seventeen
+`make_faceless` voices are a list of their own. Costs nothing and creates no
+run.
 
 All filters are optional:
 
+- `skill` — `make_ugc` or `make_faceless`: the skill whose voices to list.
+  Without it the list holds the `make_ugc` voices only, so call it with
+  `skill: "make_faceless"` before a faceless video.
 - `language` — the voice's native language. It is a filter, not a limit: any
   voice speaks any supported language. A `model_voice` voice has no language of
   its own and matches the languages measured on its model, `en` and `ru`; the
@@ -557,11 +564,13 @@ A voice without a label matches no value of that filter; `language` on a
 refused with the allowed values, and an unknown filter name with
 `unknown_field`; neither returns an empty list.
 
-Each entry carries `name`, `kind` (`preset`, `model_voice` or `catalog`),
-`language`, `description`, `model` (its default speech model) and
-`supported_models`. A `model_voice` entry has no `language`, names one model in
+Each entry carries `name`, `kind` (`preset`, `model_voice`, `faceless_voice` or
+`catalog`), `skill`, `language`, `description`, `model` (its default speech
+model) and `supported_models`. A `model_voice` entry has no `language`, names one model in
 both `model` and `supported_models` and carries `gender` only where it is known
-(`kore` is female, `charon` is male). A
+(`kore` is female, `charon` is male). A `faceless_voice` entry carries its
+`language` and `gender` and the model label `narrator-v1`, which is not a
+`tts_model`: the `model` filter never returns it. A
 catalog voice also carries `verified_models` and whichever of `locale`,
 `accent`, `gender`, `age` and `use_case` the catalog has. The tool returns
 `{ "voices": [...] }` only. REST `GET /v1/voices` also returns `models`, and the
@@ -609,7 +618,7 @@ behind such a warning.
 
 A faceless video is narration over an opening animated clip and image scenes,
 without an on-camera presenter. You select 30 to 90 seconds; the video ends with
-its narration, runs at least 25 seconds and at most 5 seconds past the selection,
+its narration, runs at least 25 seconds and at most a quarter past the selection,
 never beyond 90. Captions are on by default; pass
 `captions: false` to turn them off.
 
@@ -617,8 +626,9 @@ Give the narration one of two ways, and name which with `input_mode`:
 
 - `input_mode: "script"` with `script` — your exact text is read as written.
   The video ends with the narration, runs at least 25 seconds and may exceed
-  `duration_seconds` by up to 5 seconds, never beyond 90 seconds. A script must
-  fit this output range. The charge follows the delivered duration and never
+  `duration_seconds` by up to a quarter, never beyond 90 seconds; a video more
+  than 5 seconds longer says so in `warnings[]`. A script is accepted when its
+  estimated length is 21 seconds to `duration_seconds` plus 5, at most 90. The charge follows the delivered duration and never
   exceeds the quote; the minimum is 200 base credits plus 150 for the opener.
 - `input_mode: "brief"` with `brief` — a short description; the narration is
   written from it.
@@ -634,13 +644,38 @@ refuses it before any request is sent.
 consistent) and `scene_images` (your own images, each anchored to a word range
 or a quote of the narration). An uploaded image must belong to this account.
 
+`voice` picks the narration voice: a `name` from `list_voices` with
+`skill: "make_faceless"`. There are seventeen, in English, Russian, Spanish,
+Portuguese, French and Italian; each entry has a `language` and a `gender`.
+Without `voice` the narration is read by `narrator_en_wise_lady`, an English
+voice, whatever the language of the text, so pick a voice in the language of
+the narration. A voice reads any language with its own accent; when the
+language of a voice you named is written in another alphabet than the script,
+the quote and the run say so in `warnings[]`: the voice may mispronounce the
+text, and the video may come out longer than its length limit and fail. A
+brief draws that line, worded as a condition, only when it is written in the
+other alphabet and holds no letter of the voice's: the narration is written in the language of the brief
+unless the brief asks for another, so name the narration's language in the
+brief when it differs from the brief's own. An unknown name and a `make_ugc`
+voice such as `george` are refused before any charge. `voice_id` is not
+accepted: `make_faceless` speaks only the voices listed for it. Both faceless
+tools refuse `voice_id` and any other key they do not declare before any
+request is sent. These voices have no `preview_url` yet.
+
 Call `quote_faceless` first and show the user the price: it spends nothing and
 warns when `make_faceless` would be refused for money or access. `make_faceless`
 returns a `run_id` at once; poll `get_run` until `succeeded` (with `video_url`)
 or `failed`. As with `make_ugc`, a repeated call with the same input returns the
-same run, and `attempt` 2, 3, … deliberately starts a new paid one. When
-faceless generation is switched off on the server, both tools answer
+same run, and `attempt` 2, 3, … deliberately starts a new paid one. `attempt`
+belongs to `make_faceless`: a quote takes none, and `quote_faceless` refuses
+it. When faceless generation is switched off on the server, both tools answer
 `paid_render_disabled` and nothing is charged.
+
+A `succeeded` faceless run can carry a remark from our own delivery check in
+`warnings[]`: that the check could not confirm the captions or a scene change at
+a given second, or that it did not run. The video is delivered and charged as
+any other. Read the warning to the user and let them watch the video before
+they publish it.
 
 ## 5. Retrying a failed run is NOT a permanent refusal
 

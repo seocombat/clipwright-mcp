@@ -1,0 +1,32 @@
+{
+  "source": "run_929e3c321d744bc9ad16ed4c232ebfcc, 2026-10-07: measured word timings (ms) and the story the 2026-10-07 contract returned for the same script",
+  "script": "In 1945, five Navy bombers vanished over the Atlantic, and the Bermuda Triangle was born. But here's what the legend leaves out. Insurers don't charge more to sail through it. The US Coast Guard doesn't treat it as a special zone. More ships cross this patch of ocean than almost anywhere else, so more of them get lost. Add sudden storms, the Gulf Stream and some of the busiest shipping lanes on Earth, and the mystery starts to look like math. The Triangle isn't cursed. It's crowded. Follow for more myths that fall apart when you check the numbers.",
+  "narrationStartFrame": 0,
+  "outputFrames": 1041,
+  "words": [
+    ["In",43,171], ["1945,",213,1493], ["five",1536,1920], ["Navy",2005,2645], ["bombers",2688,2987], ["vanished",3029,3499],
+    ["over",3541,3755], ["the",3797,4011], ["Atlantic,",4053,4693], ["and",4736,4864], ["the",5077,5248], ["Bermuda",5291,5675],
+    ["Triangle",5717,6144], ["was",6187,6357], ["born.",6400,6869], ["But",6912,7808], ["here's",7851,8277], ["what",8320,8363],
+    ["the",8405,8576], ["legend",8619,8917], ["leaves",8960,9131], ["out.",9173,9643], ["Insurers",9685,11093], ["don't",11136,11477],
+    ["charge",11520,11648], ["more",11691,12075], ["to",12117,12373], ["sail",12416,12672], ["through",12715,12928], ["it.",12971,13355],
+    ["The",13750,13878], ["US",13920,14134], ["Coast",14176,14774], ["Guard",14816,15072], ["doesn't",15115,15840], ["treat",15883,16054],
+    ["it",16096,16395], ["as",16438,16694], ["a",16736,16864], ["special",16907,17120], ["zone.",17163,17931], ["More",18259,18472],
+    ["ships",18515,18728], ["cross",18771,19155], ["this",19197,19411], ["patch",19453,19837], ["of",19880,19965], ["ocean",20008,20264],
+    ["than",20307,20477], ["almost",20520,20733], ["anywhere",20776,21160], ["else,",21245,21885], ["so",21928,22227], ["more",22611,22824],
+    ["of",22867,23037], ["them",23080,23165], ["get",23208,23336], ["lost.",23379,23976], ["Add",24373,24586], ["sudden",24629,24799],
+    ["storms,",24842,25567], ["the",25610,26122], ["Gulf",26165,26463], ["Stream",26506,26719], ["and",26762,27146], ["some",27487,27615],
+    ["of",27658,27786], ["the",27829,27957], ["busiest",27999,28426], ["shipping",28469,28810], ["lanes",28853,29151], ["on",29194,29365],
+    ["Earth,",29407,29919], ["and",29962,30175], ["the",30389,30517], ["mystery",30559,30901], ["starts",30943,31242], ["to",31498,32010],
+    ["look",32053,32223], ["like",32266,32437], ["math.",32479,32991], ["The",33034,33674], ["Triangle",33717,34101], ["isn't",34143,34741],
+    ["cursed.",34783,35423], ["It's",35719,35975], ["crowded.",36017,36572], ["Follow",36615,37767], ["for",37809,38023], ["more",38065,38193],
+    ["myths",38236,38748], ["that",38791,38961], ["fall",39004,39175], ["apart",39217,39473], ["when",39516,40028], ["you",40113,40241],
+    ["check",40284,40412], ["the",40455,40668], ["numbers.",40711,41265]
+  ],
+  "beats": [
+    [0,6,"place","setup"], [6,15,"reveal","setup"], [15,22,"reveal","development"], [22,30,"reveal","development"],
+    [30,37,"reveal","development"], [37,41,"emphasis","development"], [41,48,"action","development"], [48,52,"emphasis","development"],
+    [52,58,"reveal","climax"], [58,61,"action","climax"], [61,64,"place","climax"], [64,73,"place","climax"],
+    [73,81,"reveal","climax"], [81,85,"emphasis","resolution"], [85,87,"emphasis","resolution"], [87,94,"action","resolution"],
+    [94,99,"emphasis","resolution"]
+  ]
+}

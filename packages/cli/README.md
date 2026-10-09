@@ -22,7 +22,7 @@ above name the package with `-p`, so they resolve here either way.
 | `make --script <text>` | Renders a clip and waits for it. **Costs credits.** Prints the video URL to stdout, progress and warnings to stderr. |
 | `upload <path>` | Uploads a local PNG/JPEG and prints the https url to pass as `--image`. Free. |
 | `runs <id>` | Prints the state of one run. |
-| `voices` | Lists voices for `--voice`: the presets, the voices of `gemini-3.8-flash-tts`, then the catalog. Narrow it with `--language`, `--gender`, `--age`, `--use-case` and `--model`. Free. |
+| `voices` | Lists voices for `--voice` on `make`: the presets, the voices of `gemini-3.8-flash-tts`, then the catalog. `--skill make_faceless` lists the narration voices for `make-faceless` instead. Narrow it with `--language`, `--gender`, `--age`, `--use-case` and `--model`. Free. |
 | `actors` | Lists the actors this account can use: the Clipwright catalog and your own. Free. |
 | `quote-actor` | Estimates the cost of a personal actor. Spends nothing. |
 | `create-actor` | Creates a personal actor from a description. **Costs credits** — one charge per requested format. Prints the run; follow it with `runs <id>`. |
@@ -67,12 +67,17 @@ are refused with it before any charge. Its voices have a sample in English, and
 `--script-file <path>` or `--brief <text>` (a short description the narration is
 written from), plus a required `--duration <seconds>` from 30 to 90. The video
 ends with the narration, runs at least 25 seconds and may exceed the selection
-by up to 5 seconds, never beyond 90 seconds. A script must fit this output
-range. The charge follows the delivered duration and never exceeds the quote;
+by up to a quarter, never beyond 90 seconds; a video more than 5 seconds longer
+says so in `warnings[]`. A script is accepted when its estimated length is 21
+seconds to the selection plus 5, at most 90. The charge follows the delivered duration and never exceeds the quote;
 the minimum remains 200 base credits plus 150 for the opening clip.
 Captions are on; `--no-captions`
 turns them off. `--style-reference <url>` and `--character-reference <url>` take
-public https images. Quote first: both commands take the same flags, so the
+public https images. `--voice <name>` picks the narration voice: take a name
+from `voices --skill make_faceless`, where each line shows the voice's language
+and gender. Without it the narration is read by `narrator_en_wise_lady`. A
+`make` voice such as `george` and an unknown name are refused before any
+charge. Quote first: both commands take the same flags, so the
 quote prices exactly the request `make-faceless` would send.
 
 `make` retries are explicit: `--retry 2` deliberately starts a *new* run for the

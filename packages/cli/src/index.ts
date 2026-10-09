@@ -13,6 +13,7 @@ import {
   type MakeFacelessInputArgs,
   CATALOG_GENDERS,
   CATALOG_LANGUAGES,
+  DEFAULT_FACELESS_VOICE,
   MODEL_VOICE_MODEL,
   PUBLIC_APP_BASE_URL,
   RESOLUTIONS,
@@ -20,12 +21,14 @@ import {
   UPLOAD_MAX_BYTES,
   VOICE_NAME_PATTERN,
   VOICE_PRESET_NAMES,
+  VOICE_SKILLS,
   sniffUploadMediaType,
   type AspectRatio,
   type CatalogGender,
   type CatalogLanguage,
   type Resolution,
   type TtsModelId,
+  type VoiceSkill,
 } from "@clipwright/core";
 import { ClipwrightApiError, ClipwrightClient, ClipwrightResponseError } from "@clipwright/sdk";
 
@@ -292,6 +295,7 @@ interface FacelessOptions {
   captions: boolean;
   styleReference?: string;
   characterReference?: string;
+  voice?: string;
 }
 
 /** Faceless options shared by quote and make, so the quote prices what gets made. */
@@ -302,6 +306,8 @@ const withFacelessOptions = (command: Command): Command =>
     .option("--brief <text>", "what the video is about; the narration is written from it")
     .requiredOption("--duration <seconds>", "target length, 30 to 90 seconds")
     .option("--no-captions", "turn off burned-in captions (on by default)")
+    .option("--voice <name>",
+      `narration voice from "clipwright voices --skill make_faceless"; omitted = ${DEFAULT_FACELESS_VOICE}`)
     .option("--style-reference <url>", "public https image whose visual style the scenes follow")
     .option("--character-reference <url>", "public https image of a person or figure to keep across scenes");
 
@@ -309,6 +315,7 @@ function facelessInput(opts: FacelessOptions): MakeFacelessInputArgs {
   const common = {
     duration_seconds: Number(opts.duration),
     captions: opts.captions,
+    ...(opts.voice === undefined ? {} : { voice: opts.voice }),
     ...(opts.styleReference === undefined ? {} : { style_reference: opts.styleReference }),
     ...(opts.characterReference === undefined ? {} : { character_reference: opts.characterReference }),
   };
@@ -328,7 +335,7 @@ withFacelessOptions(
 });
 
 withFacelessOptions(
-  program.command("make-faceless").description("start a faceless video (paid); ends with its narration, 25 s to duration + 5 s; prints the run"),
+  program.command("make-faceless").description("start a faceless video (paid); ends with its narration, 25 s to duration + 25%; prints the run"),
 )
   .option("--retry <n>", "retry attempt number (forces a fresh run)", parseRetry)
   .action(async (opts: FacelessOptions & { retry?: number }) => {
@@ -357,11 +364,15 @@ interface VoicesOptions {
   age?: string;
   useCase?: string;
   model?: TtsModelId;
+  skill?: VoiceSkill;
 }
 
 program
   .command("voices")
-  .description(`list voices for --voice on make: presets, the voices of ${MODEL_VOICE_MODEL}, then the catalog`)
+  .description(
+    `list voices for --voice on make: presets, the voices of ${MODEL_VOICE_MODEL}, then the catalog; ` +
+      "--skill make_faceless lists the narration voices for make-faceless instead",
+  )
   .addOption(
     new Option(
       "--language <code>",
@@ -377,6 +388,10 @@ program
       "only voices this speech model speaks: presets and catalog voices whose language it supports, or its own voices",
     ).choices(TTS_MODELS),
   )
+  .addOption(
+    new Option("--skill <skill>", "the skill whose voices to list: make_ugc for make (the default), make_faceless for make-faceless")
+      .choices(VOICE_SKILLS),
+  )
   .action(async (opts: VoicesOptions) => {
     const voices = await client().listVoices({
       language: opts.language,
@@ -384,6 +399,7 @@ program
       age: opts.age,
       use_case: opts.useCase,
       model: opts.model,
+      skill: opts.skill,
     });
     console.log(formatVoices(voices));
   });

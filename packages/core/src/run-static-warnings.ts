@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { buildFacelessVoiceWarnings } from "./faceless-voices.js";
 import { parseSkill, resolvedScript, storedUgcInput, type MakeUgcInput } from "./skills.js";
 import { storedCreateActorInput } from "./account-actors.js";
 import { dispositionWarnings } from "./contract-dispositions.js";
@@ -78,12 +80,24 @@ export function derivedRunWarnings(
     case "create_actor":
       return storedCreateActorInput.safeParse(storedInput).success ? [] : [UNREADABLE_CREATE_ACTOR_INPUT_WARNING];
     case "make_faceless":
-      return [];
+      return facelessRunWarnings(storedInput);
     case null:
       return [UNREADABLE_RUN_INPUT_WARNING];
     default:
       return parsed satisfies never;
   }
+}
+
+const storedFacelessVoice = z.object({
+  voice: z.string().optional(),
+  script: z.string().optional(),
+  brief: z.string().optional(),
+});
+
+/** The one derived line of a faceless run: its chosen voice against its script or brief, as `quote` names it. */
+function facelessRunWarnings(storedInput: unknown): string[] {
+  const parsed = storedFacelessVoice.safeParse(storedInput);
+  return parsed.success ? buildFacelessVoiceWarnings(parsed.data) : [];
 }
 
 // The disposition registry and the preset language warning; the raw `voice_id` warning

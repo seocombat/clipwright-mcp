@@ -1,7 +1,7 @@
 {
   "name": "@clipwright/mcp-server",
-  "version": "0.25.0",
-  "description": "MCP server for Clipwright: generate UGC videos from your coding agent",
+  "version": "0.26.0",
+  "description": "MCP server for Clipwright: generate UGC videos from your coding agent. mcprush.com-claim-clipwright-mcp-8787583d9d471dff4c750c02",
   "mcpName": "io.clipwright/mcp",
   "keywords": [
     "mcp",
@@ -38,7 +38,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@clipwright/core": "workspace:*",
     "@clipwright/sdk": "workspace:*",
     "zod": "^4.4.3"

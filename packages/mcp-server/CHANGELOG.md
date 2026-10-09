@@ -16,6 +16,157 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
+## [0.26.0] - 2026-10-09
+
+`make_faceless` takes a narration voice by name: `list_voices` with `skill=make_faceless` lists seventeen voices in
+six languages. The MCP tools `make_faceless` and `quote_faceless` refuse a key they do not declare, and the MCP
+server requires a patched `@modelcontextprotocol/sdk`.
+
+### Changed
+
+- *Dashboard:* a guide at `/guides/ai-ugc-ads` says what UGC ads and AI UGC ads are, and what the rules of the
+  United States, the European Union and the large platforms ask of them. Every source is listed with its date.
+  (clipwright#569)
+- *Server-side:* a faceless video file carries its AI disclosure: the statement is embedded in the MP4 and stored in
+  the object metadata beside `ai-generated: true` and `generator: clipwright`. When the tag cannot be embedded, the
+  video is still delivered and the run says so, with the cause, in `warnings[]`. Faceless files delivered on or before
+  2026-10-04 may carry the storage flag alone. (clipwright#489)
+- `@clipwright/core` exports `aiDisclosureObjectMetadata(text, embedded?)`, the builder of that object metadata, and
+  `AI_DISCLOSURE_EMBEDDED_METADATA_KEY`. `AI_DISCLOSURE_OBJECT_METADATA` stays the metadata of a video with a
+  presenter. (clipwright#489)
+- *Dashboard:* The AI Disclosure page describes one marking for both kinds of video and names the date before which
+  a faceless file may carry less. (clipwright#489)
+- *Server-side:* a finished faceless video is delivered even when our own check of the picture objects. The run ends
+  `succeeded`, is charged by the delivered duration, and says in `warnings[]` what the check could not confirm and at
+  which second: the captions, a scene change, text in the caption area with captions off, or that the check did not
+  run. Such a run used to wait for an operator, and the customer got no video. A file that is not the video we
+  rendered (wrong length, size or sound) is still refused without a charge. (clipwright#498)
+- *Server-side:* the narration of a faceless video is levelled to -16 LUFS, and quiet and loud phrases are brought
+  closer together. It used to keep the level of the speech vendor: about 4 LU quieter, with phrases up to 5 dB apart,
+  so a later phrase could sound much louder than the opening. Timing is unchanged. (clipwright#333)
+- *Server-side:* pictures in a faceless video change faster and less evenly: about every two and a half seconds on
+  average, where they used to hold for three to four, and a short phrase gets a short shot of its own. A video uses
+  more generated pictures, so it takes longer to make; the price is unchanged. (clipwright#519)
+- *Server-side:* a faceless shot that covers two phrases shows one scene. It used to ask for both scenes in one
+  picture, which could come back as two pictures stacked in one frame. (clipwright#517)
+- *Server-side:* the step that writes the scene descriptions of a faceless video is told to ask for readable words
+  and figures only when the script says them. It used to invent some, such as figures on a blackboard that
+  contradicted the narration. This makes invented writing rarer, not impossible; the writing in a finished picture
+  is compared with the script by the check of generated pictures described further down. (clipwright#516)
+- *Server-side:* a faceless video file is smaller and closer to the rendered picture. A local render of one
+  43-second video with the new settings came to 29 MB at about 5 Mbit/s, where the old settings gave 75 MB at 14.
+  Resolution, frame rate, colour and audio are unchanged. (clipwright#518)
+- *Server-side:* a faceless video whose opening clip shows text is delivered, with a `warnings[]` line saying so. It
+  used to fail with `opening_clip_rejected: the generated opening clip shows text`, or wait for an operator when the
+  frame held a lot of text, so a scene set in a shop or a café often could not be made: the image model draws signs
+  and price tags on its own. An opening clip that ends on a fade or is one flat colour still fails without a charge.
+  (clipwright#524)
+- *Server-side:* a faceless video may run up to a quarter past `duration_seconds`, never past 90 seconds. It used to
+  fail with `voice_outside_selected_duration` when its narration ran more than 5 seconds over, and one script is
+  spoken at a different length from run to run, so a script that fitted once could fail the next time. A video more
+  than 5 seconds longer than selected says so in `warnings[]`, with both lengths. The price is unchanged: seconds
+  past the selection are free. A script is still accepted when its estimated length is 21 seconds to
+  `duration_seconds` plus 5, at most 90. (clipwright#529)
+- `@clipwright/core`: `facelessMaxOutputFrames(selected)` returns a quarter past the selection, and the new
+  `facelessMaxEstimateFrames(selected)` returns the selection plus 5 seconds, the bound a script estimate must fit.
+  (clipwright#529)
+- *Server-side:* a faceless video is ready sooner. After the first picture the others are generated three at a time,
+  beside the opening clip, where they used to be made one after another. The price and the result are unchanged.
+  (clipwright#520)
+- *Server-side:* at most two faceless videos of one account are made at once; a third waits its turn and is not
+  refused. Faceless runs had no such limit. Each line also has a limit across all accounts now, so when many accounts
+  render at once a run may wait behind theirs instead of failing at a vendor. Three videos with a presenter per
+  account, as before. (clipwright#534)
+- `@clipwright/core` exports `MAX_CONCURRENT_FACELESS_PER_ACCOUNT`. (clipwright#534)
+- *Server-side:* captions of a faceless video break at the script's punctuation. A caption line used to be filled to
+  the width of the frame, so it could end one word into the next sentence: "NEXT MORNING A SIGN SOLD", then "OUT BY
+  NOON". A line now ends at a sentence mark, crosses a comma only with whole clauses, and a clause too long for one
+  line is split into parts of similar width instead of a full line and a leftover word. An abbreviation written with a
+  full stop before a capital or a figure ("Dr. Smith", "No. 1") still reads as a sentence end and can leave a one-word
+  line. (clipwright#535)
+- *Server-side:* a video with a presenter (`make_ugc` or long-form) comes in a smaller file that is closer to the
+  rendered picture. A local render of one 69-second long-form video with the new settings came to 45 MB, where the
+  old settings gave 54 MB. Resolution, frame rate, colour and audio are unchanged. (clipwright#526)
+- *Server-side:* a character who appears in several scenes of a faceless video is now described the same way in every
+  scene that shows them. The step that writes the scenes fixes one description of every recurring person or animal
+  (apparent age, build, hair, clothing), and the picture of each such scene is asked for with it. A secondary character
+  used to be a different person in every scene; only the main character, shown in the first picture, stayed the same.
+  Faces can still differ a little between scenes. (clipwright#532)
+- `make_faceless` takes `voice`, the narration voice by name: `voice` on `quote_faceless` and `make_faceless`,
+  `--voice` on `quote-faceless` and `make-faceless`. `list_voices` with `skill=make_faceless` (`--skill
+  make_faceless` on `voices`) lists seventeen narration voices for it, in English, Russian, Spanish, Portuguese,
+  French and Italian, each with a language and a gender. Every listed voice now names the one skill that speaks it
+  in `skill`. Without `voice` the narration is read as before, by `narrator_en_wise_lady`. An unknown name,
+  a `make_ugc` voice and `voice_id` are refused before any charge, and `make_ugc` refuses a faceless voice the same
+  way, naming the skill that speaks it. A named voice whose language is written in another alphabet than the
+  script adds a line to `warnings[]` of the quote and of the run: the voice may mispronounce the text, and the
+  video may come out longer than its length limit and fail. A brief written in the other alphabet, with no letter
+  of the voice's, adds that line as a condition, since a brief may ask for the narration's language in words. The faceless voices have
+  no audio sample yet. (clipwright#530)
+- **Breaking:** `@clipwright/mcp-server`: `make_faceless` and `quote_faceless` refuse a key they do not declare,
+  `voice_id` first of all, before any request is sent. Such a key used to be dropped silently. (clipwright#530)
+- *Server-side:* `GET /v1/voices` without `skill` returns the `make_ugc` voices only, the same list as before, to
+  every client version; `skill=make_ugc` returns it too. The faceless voices come only with `skill=make_faceless`,
+  as `kind: "faceless_voice"`. (clipwright#530)
+- `@clipwright/core` exports `FACELESS_VOICES`, `FACELESS_VOICE_NAMES`, `DEFAULT_FACELESS_VOICE`,
+  `FACELESS_SPEECH_MODEL`, `isFacelessVoiceName`, `buildFacelessVoiceWarnings`, `VOICE_SKILLS`,
+  `FACELESS_REJECTED_FIELDS` and `offeredFacelessInput`; `@clipwright/core/voice-admission` exports
+  `serverFacelessInput` and `facelessVoiceRefusal`. (clipwright#530)
+- *Server-side:* a generated picture of a faceless video can be checked before the video is assembled: for writing that
+  neither the script nor the run's `character_details` contain, and for a frame cut into several pictures. The check
+  sits behind a server switch, which was turned on after its first production run had been read; that run, of eighteen
+  pictures, took a minute and a half longer than the same video unchecked. A picture
+  with either is drawn once more when the run has time and budget for it, and the cleaner of the two is used. What
+  remains is named in `warnings[]` with the seconds it is on screen, one line for each thing found; a finding by itself
+  does not fail the run. A picture whose check cannot run in its time or within the run's budget is used as it is, and
+  one `warnings[]` line says how many pictures went unchecked. The check is a paid step like the others: when its cost
+  cannot be established, the run waits for an operator. Scene pictures are also asked for no writing unless the scene
+  quotes the script, which removed invented signs and figures from 10 of 10 test pictures. A customer's own image is
+  not checked. Writing on a `character_reference` picture is not known to the check: a generated picture that repeats
+  it is reported when the writing has a figure or more than two words. (clipwright#516, clipwright#517)
+- *Server-side:* the narration of a faceless video is delivered in two identical channels instead of one. It sounds the
+  same, and a loudness meter now reads the -16 LUFS the narration is levelled to; a meter that measured the single
+  channel read 3 LU lower. The file grows by about 1 %. (clipwright#526)
+
+### Security
+
+- `@clipwright/mcp-server` requires `@modelcontextprotocol/sdk` 1.31.0 or newer. Earlier versions let an OAuth client
+  send credentials to an authorization server chosen by the MCP server (GHSA-6qxp-vccf-f47h). The server speaks stdio
+  and uses no OAuth; a fresh install of 0.25.0 already resolves to a patched version. (clipwright#510)
+
+### Fixed
+
+- *Server-side:* a faceless video whose opening clip has to end in the middle of a phrase keeps the words a
+  `scene_images` picture is anchored to on that picture: the narration starts later, by under three seconds, so the
+  clip ends before those words. When no such start exists, the video is still delivered, and `warnings[]` names the image and
+  the anchored words spoken while the opening clip was on screen. It used to say nothing. (clipwright#521)
+- *Server-side:* a faceless narration that comes out longer than the video may run is spoken once more, a little
+  faster. The run used to fail with `voice_outside_selected_duration` after the story and the speech were made, and
+  one script is spoken at a different length from run to run, so a script that fitted once could fail the next time.
+  A script that would not fit even at the fastest speech still fails, without a charge. (clipwright#529)
+- *Server-side:* a faceless run no longer stops for review when one picture takes the image service about two minutes.
+  Such a picture is rare, about two in a hundred, but a video has eighteen or more, and since the pictures are made
+  three at a time (clipwright#520) one slow picture was enough to hold the whole run for an operator. A picture now has
+  four minutes before the run gives up on it. (clipwright#544)
+- *Server-side:* two faceless videos made at the same time are much less likely to stop for review. To record what a
+  picture cost we ask the image service, which answers only a few such questions a minute; with two videos in work it
+  refused some, and a picture with no recorded cost held the whole run for an operator. A refused question now waits
+  as long as the service asks and is put again. Under load a video can take a few minutes longer; the limit itself
+  stays, so several videos at once can still meet it. (clipwright#553)
+- *Server-side:* at most two faceless videos are made at once across all accounts; a third waits in the queue and
+  starts when one of them is done. Three at once asked the image service for more cost records than it answers, and
+  two of the three stopped for review. The limit per account stays at two, so one account's two videos can hold the
+  line while another account's video waits. (clipwright#553)
+- *Server-side:* the voice preset `owner_ru_clone` speaks again. The cloned voice behind it was replaced at the
+  vendor, and a run that named the preset was refused before any charge. The preset now maps to the new voice, still
+  on `eleven_v4`, and `list_voices` links a sample spoken by it. (clipwright#497)
+- *Server-side:* the delivery check of a faceless video no longer mistakes a yellow or amber picture for a caption
+  fault. It refused a correct video whose picture glowed behind the captions: a lamp, a sunset, fire, gold. The check
+  now compares neighbouring frames, so only yellow that moves with the spoken word counts. (clipwright#496)
+- *Server-side:* a video file keeps one metadata box. The AI disclosure used to be added as a second box next to the
+  encoder's own, so a reader that takes the first box saw the encoder's comment and no disclosure. The disclosure now
+  replaces that comment in the one box, and the encoder tag stays. (clipwright#493)
+
 ## [0.25.0] - 2026-10-04
 
 The AI disclosure names what each video holds, and the clients show it: `get_run` of the MCP server and

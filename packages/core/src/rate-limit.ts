@@ -26,9 +26,12 @@ export const RATE_LIMIT_PAID_PER_MINUTE = 60;
 /** runs at once) never starves paid calls. A ceiling: a looping client hits it in seconds. */
 export const RATE_LIMIT_FREE_PER_MINUTE = 300;
 
-/** Concurrent renders per account: 3. Excess runs are queued (202), not refused, so agents */
-/** need no scheduler of their own. It sits under the Trigger.dev plan limit, not instead of it. */
+/** Concurrent presenter renders per account: 3. Excess runs are queued (202), not refused, so agents */
+/** need no scheduler of their own. A run may also wait behind other accounts: the worker caps each line as a whole. */
 export const MAX_CONCURRENT_RENDERS_PER_ACCOUNT = 3;
+
+/** Concurrent faceless videos per account: 2, queued the same way. */
+export const MAX_CONCURRENT_FACELESS_PER_ACCOUNT = 2;
 
 /** The bucket: also the counter axis in the DB and the `bucket` column value. It lives here */
 /** because the client-facing message names it. */

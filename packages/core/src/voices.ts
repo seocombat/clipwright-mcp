@@ -269,6 +269,8 @@ export const voiceCatalogEntry = z.object({
   // Strings, not enums: an unfamiliar name or label does not break `listVoices`.
   name: z.string().min(1),
   kind: z.string().optional(),
+  /** The skill whose `voice` field takes this name; no other skill speaks the voice. */
+  skill: z.string().optional(),
   language: z.string().min(1).optional(),
   locale: z.string().optional(),
   accent: z.string().optional(),

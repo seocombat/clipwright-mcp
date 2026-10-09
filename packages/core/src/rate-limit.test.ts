@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { apiError } from "./errors.js";
 import {
+  MAX_CONCURRENT_FACELESS_PER_ACCOUNT,
   MAX_CONCURRENT_RENDERS_PER_ACCOUNT,
   RATE_LIMIT_FREE_PER_MINUTE,
   RATE_LIMIT_PAID_PER_MINUTE,
@@ -149,12 +150,13 @@ describe("limit numbers", () => {
   });
 
   it("the free bucket fits the normal loop at full concurrency", () => {
-    // The floor is computed: 12 polls per minute for each of three concurrent runs,
-    // plus a `quote` before each start.
+    // The floor is computed: 12 polls per minute for each run an account may have in flight,
+    // three with a presenter and two faceless, plus a `quote` before each start.
     const pollsPerRunPerMinute = Math.floor(RATE_LIMIT_WINDOW_SECONDS / 5);
-    const floorRps = pollsPerRunPerMinute * MAX_CONCURRENT_RENDERS_PER_ACCOUNT;
+    const floorRps = pollsPerRunPerMinute * (MAX_CONCURRENT_RENDERS_PER_ACCOUNT + MAX_CONCURRENT_FACELESS_PER_ACCOUNT);
 
-    expect(floorRps).toBe(36);
+    expect(MAX_CONCURRENT_FACELESS_PER_ACCOUNT).toBe(2);
+    expect(floorRps).toBe(60);
     expect(RATE_LIMIT_FREE_PER_MINUTE).toBeGreaterThan(floorRps * 2);
   });
 });

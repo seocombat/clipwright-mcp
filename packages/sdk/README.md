@@ -18,21 +18,29 @@ id, so a retried request returns the original run instead of paying twice. Pass
 `idempotencyKey` explicitly when you deliberately want a fresh run.
 
 `quoteFaceless(input)` prices a faceless video for a `duration_seconds` of 30 to 90
-(the delivered video runs from 25 seconds to 5 seconds past it, never past 90, and
+(the delivered video runs from 25 seconds to a quarter past it, never past 90, and
 never costs more than the quote), and
 `startFaceless(input, { attempt })` starts it and returns the run at once; poll
 `getRun` until it succeeds. The input names its source with `input_mode`:
 `{ input_mode: "script", script, duration_seconds }` reads your text as written,
 `{ input_mode: "brief", brief, duration_seconds }` writes the narration from a
 short description. Captions are on unless `captions: false`. Both methods
-refuse a mismatched `script`/`brief` before sending anything.
+refuse a mismatched `script`/`brief` before sending anything. `voice` picks the
+narration voice: a name from `listVoices({ skill: "make_faceless" })`, in English,
+Russian, Spanish, Portuguese, French or Italian. Without it the narration is
+read by `narrator_en_wise_lady`. The API refuses an unknown name and a
+`make_ugc` voice before any charge; `voice_id` is refused before sending.
 
-`listVoices({ language, gender, age, use_case, model })` returns the voices for
+`listVoices({ language, gender, age, use_case, model, skill })` returns the voices for
 `voice`, each filter optional. It is free. A voice with a sample carries a
 `preview_url` that expires in an hour. Pass a voice's `name` as `voice`;
 `language` is a filter only, since any voice speaks any supported language.
+Each voice names the one skill that speaks it in `skill`: `make_ugc` or
+`make_faceless`. The other skill refuses it before any charge. Without `skill`
+the list holds the `make_ugc` voices only; the narration voices of
+`make_faceless` are listed with `skill: "make_faceless"`.
 
-The list holds the presets, the thirty voices of the speech model
+For `make_ugc` the list holds the presets, the thirty voices of the speech model
 `gemini-3.8-flash-tts` (`kind: "model_voice"`) and the catalog. A `model_voice`
 voice has no language of its own: `language: "en"` and `language: "ru"` find it,
 and its sample is in English unless you ask for `language: "ru"`. Naming such a

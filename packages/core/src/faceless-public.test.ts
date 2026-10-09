@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
 import { API_ENDPOINTS } from "./endpoints.js";
 import {
   FACELESS_QUOTE_PATH, FACELESS_RUN_PATH, makeFacelessInput, facelessPlannerInput, facelessQuoteResponse,
-  offeredFacelessInputShape,
+  offeredFacelessInput, offeredFacelessInputShape,
 } from "./faceless-public.js";
 import { run } from "./runs.js";
 import { parseSkill } from "./skills.js";
@@ -51,19 +52,25 @@ it("the faceless client paths are declared in the endpoint registry", () => {
 });
 
 describe("offeredFacelessInputShape (flat MCP form)", () => {
-  const flat = z.object(offeredFacelessInputShape).strict();
+  const flat = offeredFacelessInput;
   const viaFlat = (input: unknown) => {
     const offered = flat.safeParse(input);
     return offered.success ? makeFacelessInput.safeParse(offered.data) : offered;
   };
 
-  it("offers exactly the fields of both union branches", () => {
+  it("offers exactly the fields of both union branches, less the ones refused by name", () => {
     const branchKeys = makeFacelessInput.options.flatMap((option) => Object.keys(option.shape));
-    expect(Object.keys(offeredFacelessInputShape).sort()).toEqual([...new Set(branchKeys)].sort());
+    const refused = Object.keys(FACELESS_REJECTED_FIELDS);
+    expect(refused).toEqual(["voice_id"]);
+    expect(branchKeys).toEqual(expect.arrayContaining(refused));
+    expect(Object.keys(offeredFacelessInputShape).sort()).toEqual(
+      [...new Set(branchKeys)].filter((key) => !refused.includes(key)).sort(),
+    );
   });
 
   it.each([
     script, brief, { ...script, captions: false }, { ...brief, duration_seconds: 45.04 },
+    { ...script, voice: "narrator_en_wise_lady" },
     { ...script,
       style_reference: "https://example.com/style.png",
       character_reference: "https://example.com/character.jpg",
@@ -81,9 +88,24 @@ describe("offeredFacelessInputShape (flat MCP form)", () => {
     { input_mode: "brief", script: "only a script", duration_seconds: 30 },
     { input_mode: "story", script: "x", duration_seconds: 30 },
     { ...script, duration_seconds: 30.001 }, { ...script, unknown_field: true },
+    { ...script, voice_id: "JBFqnCBsd6RMkjVDRZzb" }, { ...script, voice: "two words" },
   ])("rejects what the union rejects: %j", (input) => {
     expect(makeFacelessInput.safeParse(input).success).toBe(false);
     expect(viaFlat(input).success).toBe(false);
+  });
+
+  // Mutant: a plain object strips an undeclared key, and the union after it never sees `voice_id`.
+  it("the tool form refuses an undeclared key itself: a field refused by name with its reason, another by name", () => {
+    const messages = (input: unknown) => flat.safeParse(input).error?.issues.map((issue) => issue.message);
+    expect(messages({ ...script, voice_id: "JBFqnCBsd6RMkjVDRZzb" })).toEqual([FACELESS_REJECTED_FIELDS.voice_id.message]);
+    expect(messages({ ...brief, aspectRatio: "16:9" })).toEqual(['"aspectRatio" is not a field of this tool']);
+    expect(messages({ ...script, aspectRatio: "16:9", voice_id: 1 })).toEqual([
+      `"aspectRatio" is not a field of this tool; ${FACELESS_REJECTED_FIELDS.voice_id.message}`,
+    ]);
+    const extended = flat.extend({ attempt: z.number().optional() });
+    expect(extended.safeParse({ ...script, attempt: 2 }).success).toBe(true);
+    expect(extended.safeParse({ ...script, voice_id: "x" }).error?.issues[0]?.message).toBe(FACELESS_REJECTED_FIELDS.voice_id.message);
+    expect(z.toJSONSchema(flat, { io: "input" }).additionalProperties).toBe(false);
   });
 });
 

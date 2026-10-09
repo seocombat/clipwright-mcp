@@ -147,6 +147,30 @@ describe("public faceless speech planner", () => {
       expect(plan.shots[0]).toMatchObject({ endFrame: 75, cutAfterWord: 5, beatIds: ["beat-0"], visualPrompts: ["Scene 0"] });
       expect(plan.shots[1]).toMatchObject({ id: "beat-1", mediaType: "image", startFrame: 75, endFrame: 100, beatIds: ["beat-1"] });
     });
+    it("ends the opener before a word range kept in beat 1, and past its first words only when the caller accepts that", () => {
+      // The same plan: beat 1 is words 3–7 and its one gap inside the bounds, at frame 75, comes after word 5.
+      const { story, words, outputFrames } = paced([3, 5, 8, 8, 8, 8, 8, 8], 12.5);
+      const cut = (first: number, end: number, openerGapPastKept = false) => planPublicFacelessStory(story, words, style, outputFrames,
+        { keepBeats: new Set([1]), openerWordGap: true, keepTogether: [{ first, end }], openerGapPastKept }).shots[0]!.cutAfterWord;
+      expect(cut(6, 8)).toBe(5);
+      // The caller's acceptance lifts the rule and adds none: a gap that passes no range is still taken.
+      expect(cut(6, 8, true)).toBe(5);
+      // A range that ends where beat 1 starts has no word in it.
+      expect(cut(1, 3)).toBe(5);
+      for (const [first, end] of [[5, 7], [4, 7], [3, 5], [2, 4]] as const) {
+        expect(() => cut(first, end), `${first}–${end}`).toThrow(FACELESS_OPENER_BOUNDS_ERROR);
+        expect(cut(first, end, true)).toBe(5);
+      }
+      // Every range is asked, wherever it stands in the list: here the other one lies in a later beat.
+      const among = (keepTogether: Array<{ first: number; end: number }>) => planPublicFacelessStory(story, words, style, outputFrames,
+        { keepBeats: new Set([1]), openerWordGap: true, keepTogether }).shots[0]!.cutAfterWord;
+      const later = { first: 20, end: 22 }, inBeatOne = { first: 5, end: 7 };
+      expect(among([later, { first: 6, end: 8 }])).toBe(5);
+      const last = { first: 30, end: 32 };
+      for (const keepTogether of [[later, inBeatOne], [inBeatOne, later], [later, inBeatOne, last], [later, last, inBeatOne]]) {
+        expect(() => among(keepTogether)).toThrow(FACELESS_OPENER_BOUNDS_ERROR);
+      }
+    });
     it.each([
       { name: "beat 1 is one word", beats: [[15, 15, 15, 15], [80], ...filler] },
       { name: "beat 1's only gap lies past frame 125", beats: [[15, 15, 15, 15], [70, 20], ...filler] },
@@ -181,12 +205,87 @@ describe("public faceless speech planner", () => {
     }
     expect(planPublicFacelessStory(story, words, style, frames)).toEqual(plan);
   });
-  it("derives variable image counts and drops weak semantic cuts", () => {
+  it("derives variable image counts", () => {
     const short = publicFixture(); const long = publicFixture(2250);
     const a = planPublicFacelessStory(short.story, short.words, style, 750);
     expect(planPublicFacelessStory(long.story, long.words, style, 2250).shots.length).toBeGreaterThan(a.shots.length);
-    short.story.beats[3]!.reason = "emphasis";
-    expect(planPublicFacelessStory(short.story, short.words, style, 750).shots.some(s => s.cutAfterWord === short.story.beats[3]!.wordStart - 1)).toBe(false);
+  });
+  it.each([[43, false], [44, true]])("drops an emphasis cut only while the merged shot stays within half a second of the band: %i + 44 frames", (first, kept) => {
+    // A 100-frame opener, two in-band halves, then 60-frame beats. Half a second over the 75-frame top is 87.5 frames: 87 merges, 88 stays cut.
+    const { story, words, outputFrames } = timed([[25, 25, 25, 25], [first], [44], ...Array.from({ length: 8 }, () => [60])]);
+    story.beats[2]!.reason = "emphasis";
+    const plan = planPublicFacelessStory(story, words, style, outputFrames);
+    expect(plan.shots.some(s => s.cutAfterWord === story.beats[2]!.wordStart - 1)).toBe(kept);
+    expect(plan.shots.find(s => s.beatIds.includes("beat-1"))!.endFrame - 100).toBe(kept ? first : first + 44);
+  });
+  it.each([[43, 44, "Scene 2"], [44, 43, "Scene 1"], [43, 43, "Scene 1"]])(
+    "gives a merged shot one scene, the prompt of the beat on screen longest: %i + %i frames", (first, second, prompt) => {
+      const { story, words, outputFrames } = timed([[25, 25, 25, 25], [first], [second], ...Array.from({ length: 8 }, () => [60])]);
+      story.beats[2]!.reason = "emphasis";
+      const merged = planPublicFacelessStory(story, words, style, outputFrames).shots.find(s => s.beatIds.includes("beat-1"))!;
+      expect(merged.beatIds).toEqual(["beat-1", "beat-2"]);
+      expect(merged.visualPrompts).toEqual([prompt]);
+    });
+  it("picks the longest of three merged beats, and of the story's last two", () => {
+    // Beats of 20, 25 and 42 frames merge into one 87-frame shot: the 20-frame beat cannot stand alone and both cuts are weak.
+    const three = timed([[25, 25, 25, 25], [20], [25], [42], ...Array.from({ length: 8 }, () => [60])]);
+    three.story.beats[2]!.reason = "emphasis"; three.story.beats[3]!.reason = "emphasis";
+    expect(planPublicFacelessStory(three.story, three.words, style, three.outputFrames).shots[1])
+      .toMatchObject({ beatIds: ["beat-1", "beat-2", "beat-3"], visualPrompts: ["Scene 3"] });
+    // The last beat ends at the output's end, not at a cut.
+    const last = timed([[25, 25, 25, 25], ...Array.from({ length: 8 }, () => [60]), [43], [44]]);
+    last.story.beats[10]!.reason = "emphasis";
+    expect(planPublicFacelessStory(last.story, last.words, style, last.outputFrames).shots.at(-1))
+      .toMatchObject({ beatIds: ["beat-9", "beat-10"], visualPrompts: ["Scene 10"] });
+  });
+  it("keeps the opener's own prompt when it absorbs a longer beat", () => {
+    // Beat 0 ends at frame 30, outside the opener bounds, so the opener runs to 90 and takes in the 60-frame beat 1.
+    const { story, words, outputFrames } = timed([[30], [60], ...Array.from({ length: 9 }, () => [60])]);
+    const opener = planPublicFacelessStory(story, words, style, outputFrames).shots[0]!;
+    expect(opener).toMatchObject({ endFrame: 90, beatIds: ["beat-0", "beat-1"], visualPrompts: ["Scene 0"] });
+  });
+  it("counts only the part of a beat that is on screen in the shot", () => {
+    // The opener ends at a word gap, frame 110, inside the 100-frame beat 1; its last 30 frames share a shot with the 40-frame beat 2.
+    const { story, words, outputFrames } = timed([[20, 20], [70, 30], [40], ...Array.from({ length: 8 }, () => [60])]);
+    story.beats[2]!.reason = "emphasis";
+    const plan = planPublicFacelessStory(story, words, style, outputFrames, { openerWordGap: true });
+    expect(plan.shots[0]).toMatchObject({ endFrame: 110, beatIds: ["beat-0"] });
+    expect(plan.shots[1]).toMatchObject({ startFrame: 110, endFrame: 180, beatIds: ["beat-1", "beat-2"], visualPrompts: ["Scene 2"] });
+  });
+  it("never cuts inside a word range that must stay together", () => {
+    // 5 frames a word: the cut between the 60-frame beats 2 and 3 is a strong one, and the held range straddles it.
+    const { story, words, outputFrames } = paced([20, ...Array<number>(10).fill(12)], 5);
+    const boundary = story.beats[3]!.wordStart;
+    const cut = (keepTogether: Array<{ first: number; end: number }> = []) => planPublicFacelessStory(story, words, style, outputFrames, { keepTogether })
+      .shots.some(s => s.cutAfterWord === boundary - 1);
+    expect(cut()).toBe(true);
+    expect(cut([{ first: boundary - 1, end: boundary + 1 }])).toBe(false);
+    // A range that only touches the boundary from either side holds nothing.
+    expect(cut([{ first: boundary - 4, end: boundary }, { first: boundary, end: boundary + 4 }])).toBe(true);
+  });
+  it("ends the opener after a word range that must stay together", () => {
+    // 5 frames a word: the opener may end at frame 75 or, absorbing beat 1, at 115; words 14–15 straddle the first.
+    const { story, words, outputFrames } = paced([15, 8, ...Array<number>(10).fill(12)], 5);
+    const openerEnd = (keepTogether: Array<{ first: number; end: number }> = []) =>
+      planPublicFacelessStory(story, words, style, outputFrames, { keepTogether }).shots[0]!.endFrame;
+    expect(openerEnd()).toBe(75);
+    expect(openerEnd([{ first: 14, end: 16 }])).toBe(115);
+  });
+  it("plans a delivered run's measured speech at the reference pace", () => {
+    const run = JSON.parse(readFileSync(new URL("./fixtures/faceless-pace-run-929e3c32.json", import.meta.url), "utf8")) as {
+      script: string; narrationStartFrame: number; outputFrames: number; words: [string, number, number][]; beats: [number, number, string, string][] };
+    const words = run.words.map(([word, start, end]) => ({ word, startSec: start / 1000, endSec: end / 1000 }));
+    const story = parseFacelessPublicStory({ script: run.script, narrationStartFrame: run.narrationStartFrame,
+      beats: run.beats.map(([wordStart, wordEnd, reason, phase], i) => ({ id: `beat-${i + 1}`, wordStart, wordEnd,
+        mediaType: i ? "image" : "video", reason, phase, visualPrompt: `Scene ${i}` })) });
+    const plan = planPublicFacelessStory(story, words, style, run.outputFrames);
+    const images = plan.shots.slice(1).map(s => s.endFrame - s.startFrame).sort((a, b) => a - b);
+    // The band is 43–75 frames; under the 0.25 penalty this story planned 13 shots with an 84-frame median (clipwright#519).
+    expect(plan.shots).toHaveLength(17);
+    expect(images[images.length >> 1]).toBeGreaterThanOrEqual(43);
+    expect(images[images.length >> 1]).toBeLessThanOrEqual(75);
+    expect(images[0]).toBeLessThan(50);
+    expect(images.at(-1)).toBeLessThanOrEqual(100);
   });
   it("refuses missing, mismatched, overlapping or overlong speech and long silence", () => {
     const { story, words } = publicFixture();

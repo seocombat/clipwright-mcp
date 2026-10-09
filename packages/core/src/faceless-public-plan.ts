@@ -70,6 +70,8 @@ export function parseFacelessPublicStory(input: unknown, expectedScript?: string
   return story;
 }
 type Score = ReturnType<typeof facelessCutScore>;
+/** Per second above the pace band: an emphasis cut is dropped only while the merged shot stays within 0.5 s of the band's top (docs/70, clipwright#519). */
+const PACE_OVER_PENALTY = 2;
 /** The opening VIDEO lasts 3–5 s at 25 fps; rationale in docs/70 (clipwright#442). */
 export const FACELESS_OPENER_MIN_FRAMES = 75, FACELESS_OPENER_MAX_FRAMES = 125;
 export const FACELESS_OPENER_BOUNDS_ERROR =
@@ -90,7 +92,11 @@ export type FacelessPublicPlan = {
 /** `keepBeats`: beat indices (1 and up) the opener may not absorb, such as beats a customer image is anchored to. */
 export type FacelessPublicPlanOptions = { keepBeats?: ReadonlySet<number>;
   /** With no beat boundary inside the opener bounds, end the opener at a word gap inside beat 1 (docs/70, clipwright#449). */
-  openerWordGap?: boolean };
+  openerWordGap?: boolean;
+  /** Word ranges [first, end) no cut may fall inside, such as the words a customer image is anchored to. */
+  keepTogether?: ReadonlyArray<{ first: number; end: number }>;
+  /** Lets the word gap fall after words of a kept range, which the opener then covers; the caller warns about them. */
+  openerGapPastKept?: boolean };
 
 export function planPublicFacelessStory(
   input: FacelessPublicStory, words: readonly WordTiming[], inputStyle: CutStyleProfile, outputFrames: number,
@@ -129,6 +135,8 @@ export function planPublicFacelessStory(
   const cutAfter = (afterWord: number) => ({ afterWord,
     frame: story.narrationStartFrame + Math.round((words[afterWord]!.endSec + words[afterWord + 1]!.startSec) / 2 * 25) });
   const inOpenerBounds = (frame: number) => frame >= FACELESS_OPENER_MIN_FRAMES && frame <= FACELESS_OPENER_MAX_FRAMES;
+  const held = (cut: { afterWord: number }) =>
+    options.keepTogether?.some(range => range.first <= cut.afterWord && cut.afterWord + 1 < range.end) ?? false;
   const nodes = story.beats.slice(1).map((beat, i) => ({ beatIndex: i + 1, ...cutAfter(beat.wordStart - 1) }));
   type State = { total: number; path: number[]; scores: Score[] };
   const states: Array<State | undefined> = Array(nodes.length + 1);
@@ -139,13 +147,16 @@ export function planPublicFacelessStory(
   // The opener may end at any beat boundary inside its bounds, absorbing the beats before it.
   for (const [k, node] of nodes.entries()) {
     if (k > 0 && options.keepBeats?.has(k)) break;
-    if (inOpenerBounds(node.frame)) seedOpener(k);
+    if (inOpenerBounds(node.frame) && !held(node)) seedOpener(k);
   }
   if (!states.some(Boolean)) {
     // Word-gap opener: beat 0 alone, cut at beat 1's first in-bounds gap that leaves beat 1 an IMAGE shot's minimum.
     const next = story.beats[1]!, nextEndFrame = nodes[1]?.frame ?? outputFrames;
+    // A kept range reaching into beat 1 belongs to that beat's picture, so the gap falls before its first word.
+    const pastKept = (cut: { afterWord: number }) =>
+      options.keepTogether?.some(range => range.end > next.wordStart && range.first <= cut.afterWord) ?? false;
     const gap = options.openerWordGap ? Array.from({ length: next.wordEnd - next.wordStart - 1 }, (_, i) => cutAfter(next.wordStart + i))
-      .find(cut => inOpenerBounds(cut.frame)) : undefined;
+      .find(cut => inOpenerBounds(cut.frame) && (options.openerGapPastKept || !pastKept(cut))) : undefined;
     if (!gap || nextEndFrame - gap.frame < 25) throw new Error(FACELESS_OPENER_BOUNDS_ERROR);
     nodes[0] = { beatIndex: 1, ...gap };
     seedOpener(0);
@@ -153,6 +164,7 @@ export function planPublicFacelessStory(
   nodes.push({ beatIndex: story.beats.length, afterWord: words.length - 1, frame: outputFrames });
   const final = nodes.length - 1;
   for (let end = 1; end <= final; end++) {
+    if (end < final && held(nodes[end]!)) continue;
     for (let start = 0; start < end; start++) {
       const prior = states[start];
       const duration = nodes[end]!.frame - nodes[start]!.frame;
@@ -160,7 +172,7 @@ export function planPublicFacelessStory(
       const phase = story.beats[nodes[start]!.beatIndex]!.phase;
       const phaseRange = style.pacing.by_phase[phase];
       const range = phaseRange && phaseRange.n > 0 ? phaseRange : style.pacing.global_image_frames;
-      const score = facelessCutScore(end === final ? null : story.beats[nodes[end]!.beatIndex]!.reason, duration, range);
+      const score = facelessCutScore(end === final ? null : story.beats[nodes[end]!.beatIndex]!.reason, duration, range, PACE_OVER_PENALTY);
       const candidate = { total: prior.total + score.net, path: [...prior.path, end], scores: [...prior.scores, score] };
       const best = states[end];
       const firstDifference = best ? candidate.path.findIndex((v, i) => v !== best.path[i]) : -1;
@@ -172,14 +184,18 @@ export function planPublicFacelessStory(
   const selected = states[final];
   if (!selected) throw new Error("no feasible public storyboard within IMAGE duration bounds");
   let startFrame = 0; let beatStart = 0;
+  const beatFrame = (beat: number) => beat === 0 ? 0 : beat < story.beats.length ? cutAfter(story.beats[beat]!.wordStart - 1).frame : outputFrames;
   const shots = selected.path.map((nodeIndex, i): FacelessPublicPlan["shots"][number] => {
     const node = nodes[nodeIndex]!;
     const included = story.beats.slice(beatStart, node.beatIndex);
     const hold = style.motion.pan_transition_n > 0 && style.motion.pan_flip_probability !== null && style.motion.pan_flip_probability < .5;
+    // One picture shows one scene: a shot of several beats takes the prompt of the beat on screen longest, the earlier on a tie.
+    const onScreen = included.map((_, k) => Math.min(node.frame, beatFrame(beatStart + k + 1)) - Math.max(startFrame, beatFrame(beatStart + k)));
+    const lead = onScreen.indexOf(Math.max(...onScreen));
     const shot: FacelessPublicPlan["shots"][number] = {
       id: included[0]!.id, mediaType: i ? "image" : "video", startFrame, endFrame: node.frame,
       // Absorbed beats carry IMAGE prompts, so the opener keeps only its own beat's prompt.
-      beatIds: included.map(b => b.id), visualPrompts: (i ? included : included.slice(0, 1)).map(b => b.visualPrompt), phase: included[0]!.phase,
+      beatIds: included.map(b => b.id), visualPrompts: [included[i ? lead : 0]!.visualPrompt], phase: included[0]!.phase,
       ...(i ? { motion: hold || i % 2 === 1 ? "PAN_UP" as const : "PAN_DOWN" as const } : {}),
       ...(nodeIndex < final ? { cutAfterWord: node.afterWord } : {}), score: selected.scores[i]!,
     };

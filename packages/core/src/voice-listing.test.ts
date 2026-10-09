@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { TTS_MODEL_LANGUAGES, VOICE_CATALOG } from "./voice-catalog-data.js";
+import { FACELESS_SPEECH_MODEL, FACELESS_VOICE_NAMES, FACELESS_VOICES, type FacelessVoiceName } from "./faceless-voices.js";
 import {
   CATALOG_GENDERS,
   CATALOG_LANGUAGES,
@@ -125,16 +126,16 @@ describe("listVoices — contents and order", () => {
     const own = all.voices.filter((entry) => entry.kind === "model_voice");
     expect(own).toHaveLength(30);
     expect(own.find((entry) => entry.name === "puck")).toEqual({
-      name: "puck", kind: "model_voice", description: "Upbeat", model: GOOGLE_TTS_MODEL, supported_models: [GOOGLE_TTS_MODEL],
+      name: "puck", kind: "model_voice", skill: "make_ugc", description: "Upbeat", model: GOOGLE_TTS_MODEL, supported_models: [GOOGLE_TTS_MODEL],
     });
     expect(own.find((entry) => entry.name === "kore")).toEqual({
-      name: "kore", kind: "model_voice", description: "Firm", gender: "female", model: GOOGLE_TTS_MODEL, supported_models: [GOOGLE_TTS_MODEL],
+      name: "kore", kind: "model_voice", skill: "make_ugc", description: "Firm", gender: "female", model: GOOGLE_TTS_MODEL, supported_models: [GOOGLE_TTS_MODEL],
     });
     expect(own.filter((entry) => entry.gender !== undefined).map((entry) => [entry.name, entry.gender])).toEqual([
       ["charon", "male"], ["kore", "female"],
     ]);
     for (const entry of own) {
-      expect(entry, entry.name).toEqual({ name: entry.name, kind: "model_voice", ...MODEL_VOICES[entry.name as ModelVoiceName],
+      expect(entry, entry.name).toEqual({ name: entry.name, kind: "model_voice", skill: "make_ugc", ...MODEL_VOICES[entry.name as ModelVoiceName],
         model: GOOGLE_TTS_MODEL, supported_models: [GOOGLE_TTS_MODEL] });
       expect(voiceCatalogEntry.safeParse(entry).success, entry.name).toBe(true);
     }
@@ -179,6 +180,52 @@ describe("listVoices — filters", () => {
     const filtered = listVoices({ model: "eleven_flash_v2_5" }, VOICE_CATALOG, models).voices;
     expect(filtered.some((entry) => entry.language === "bg")).toBe(false);
     expect(filtered.length).toBe(all.voices.filter((entry) => entry.kind !== "model_voice" && entry.language !== "bg").length);
+  });
+
+  // Mutant: a listing that shows every voice without `skill` puts a faceless voice at the head of `language=es`.
+  it.each([{}, { language: "es" }, { language: "ru", gender: "male" }] as const)(
+    "without skill the list of %j is the make_ugc list, in its order, with no faceless voice",
+    (filters) => {
+      const unnamed = listVoices(filters).voices;
+      expect(unnamed).toEqual(listVoices({ ...filters, skill: "make_ugc" }).voices);
+      expect(unnamed.length).toBeGreaterThan(0);
+      expect(unnamed.filter((entry) => entry.skill !== "make_ugc" || entry.kind === "faceless_voice")).toEqual([]);
+      const faceless = listVoices({ ...filters, skill: "make_faceless" }).voices;
+      expect(faceless.length).toBeGreaterThan(0);
+      expect(unnamed.filter((entry) => faceless.some((voice) => voice.name === entry.name))).toEqual([]);
+    },
+  );
+
+  it("skill=make_faceless lists exactly the faceless voices; an unknown skill is refused", () => {
+    const faceless = listVoices({ skill: "make_faceless" }).voices;
+    expect(faceless.map((entry) => entry.name)).toEqual(FACELESS_VOICE_NAMES);
+    expect(all.voices.map((entry) => entry.kind)).not.toContain("faceless_voice");
+    expect(voicesQuery.safeParse({ skill: "create_actor" }).success).toBe(false);
+    expect(serverVoicesQuery.safeParse({ skill: "create_actor" }).success).toBe(false);
+  });
+
+  it("a faceless voice carries its skill, language, gender and our one model label, which no tts_model filter finds", () => {
+    const faceless = listVoices({ skill: "make_faceless" }).voices;
+    expect(faceless).toHaveLength(FACELESS_VOICE_NAMES.length);
+    expect(FACELESS_SPEECH_MODEL).toBe("narrator-v1");
+    for (const entry of faceless) {
+      expect(entry, entry.name).toEqual({ name: entry.name, kind: "faceless_voice", skill: "make_faceless",
+        ...FACELESS_VOICES[entry.name as FacelessVoiceName], model: FACELESS_SPEECH_MODEL, supported_models: [FACELESS_SPEECH_MODEL] });
+      expect(voiceCatalogEntry.safeParse(entry).success, entry.name).toBe(true);
+    }
+    for (const model of TTS_MODELS) {
+      expect(listVoices({ model, skill: "make_faceless" }).voices, model).toEqual([]);
+    }
+    expect(all.models.map((model) => model.id)).not.toContain(FACELESS_SPEECH_MODEL);
+  });
+
+  it("the skill filter combines with language and gender", () => {
+    const russianWomen = listVoices({ skill: "make_faceless", language: "ru", gender: "female" }).voices;
+    expect(russianWomen.length).toBeGreaterThan(0);
+    expect(russianWomen.map((entry) => entry.name)).toEqual(
+      FACELESS_VOICE_NAMES.filter((name) => FACELESS_VOICES[name].language === "ru" && FACELESS_VOICES[name].gender === "female"),
+    );
+    expect(listVoices({ skill: "make_faceless", language: "ja" }).voices).toEqual([]);
   });
 
   it("model=gemini-3.8-flash-tts lists exactly the model's own voices; an ElevenLabs model lists none of them (B6)", () => {

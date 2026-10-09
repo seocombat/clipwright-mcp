@@ -1,5 +1,7 @@
 import { serverUgcInputWith } from "./skills.js";
 import type { Gender } from "./default-actor.js";
+import { makeFacelessInput } from "./faceless-public.js";
+import { isFacelessVoiceName } from "./faceless-voices.js";
 import { normalizeVoiceLabel, type CatalogFileVoice } from "./voice-catalog.js";
 import { VOICE_CATALOG } from "./voice-catalog-data.js";
 import { vendorVerifiedModels } from "./voice-listing.js";
@@ -21,6 +23,12 @@ export function catalogVoiceRefusal(
   voices: readonly CatalogFileVoice[] = VOICE_CATALOG.voices,
 ): string | undefined {
   if (isVoicePresetName(voice) || isModelVoiceName(voice)) return undefined;
+  if (isFacelessVoiceName(voice)) {
+    return (
+      `voice "${voice}" is a make_faceless voice and make_ugc does not speak it: ` +
+      "choose a voice from list_voices with skill=make_ugc, or omit voice for the default voice"
+    );
+  }
   const entry = voices.find((item) => item.slug === voice);
   if (entry === undefined) {
     return `unknown voice "${voice}": call list_voices for the voice names this API accepts`;
@@ -35,6 +43,28 @@ export function catalogVoiceRefusal(
 }
 
 export const serverUgcInput = serverUgcInputWith((voice) => catalogVoiceRefusal(voice));
+
+/** Why `make_faceless` refuses a voice name; `undefined` for one of its own voices. */
+/** A retired catalog slug still reads as a `make_ugc` voice: the name was never a faceless one. */
+export function facelessVoiceRefusal(
+  voice: string,
+  voices: readonly CatalogFileVoice[] = VOICE_CATALOG.voices,
+): string | undefined {
+  if (isFacelessVoiceName(voice)) return undefined;
+  if (isVoicePresetName(voice) || isModelVoiceName(voice) || voices.some((item) => item.slug === voice)) {
+    return (
+      `voice "${voice}" is a make_ugc voice and make_faceless does not speak it: ` +
+      "choose a voice from list_voices with skill=make_faceless, or omit voice for the default voice"
+    );
+  }
+  return `unknown voice "${voice}": call list_voices with skill=make_faceless for the voice names make_faceless accepts`;
+}
+
+/** API input of `make_faceless`: the client schema checks the form of `voice`, the server its name. */
+export const serverFacelessInput = makeFacelessInput.refine(
+  (input) => input.voice === undefined || facelessVoiceRefusal(input.voice) === undefined,
+  { path: ["voice"], error: (issue) => facelessVoiceRefusal((issue.input as { voice: string }).voice)! },
+);
 
 /** Voice gender by name: our fact for a preset, the vendor label for a catalog voice. */
 /** A raw `voice_id` has no gender, so `undefined`, not a guess. */

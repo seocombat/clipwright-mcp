@@ -13,6 +13,8 @@ import {
   CATALOG_LANGUAGES,
   CREATE_ACTOR_DESCRIPTION,
   createActorInputShape,
+  DEFAULT_FACELESS_VOICE,
+  FACELESS_VOICE_NAMES,
   MODEL_VOICE_MODEL,
   MODEL_VOICE_NAMES,
   SCRIPT_LENGTH_DESCRIPTION,
@@ -24,7 +26,7 @@ import {
   MAKE_FACELESS_DESCRIPTION,
   MAKE_FACELESS_AGENT_PROTOCOL,
   makeFacelessInput,
-  offeredFacelessInputShape,
+  offeredFacelessInput,
   UPLOAD_IMAGE_DESCRIPTION,
   UPLOAD_MAX_BYTES,
   sniffUploadMediaType,
@@ -146,7 +148,12 @@ export function createServer(client: ClipwrightClient): McpServer {
       title: "List voices",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "List the voices for make_ugc's `voice` field: the presets first, then the " +
+        "List the voices for the `voice` field of make_ugc, or of make_faceless with skill=make_faceless. " +
+        "Without `skill` the list holds the make_ugc voices only. Each voice names the one skill that speaks it " +
+        "in `skill`, and the other skill refuses it before any charge. skill=make_faceless lists " +
+        `the ${FACELESS_VOICE_NAMES.length} narration voices of make_faceless (kind faceless_voice, each with a ` +
+        `language and a gender; without voice it speaks ${DEFAULT_FACELESS_VOICE}; it takes no voice_id). ` +
+        "The rest of this text is about the make_ugc voices: the presets first, then the " +
         `${MODEL_VOICE_NAMES.length} voices of ${MODEL_VOICE_MODEL} (kind model_voice), then catalog voices in ` +
         `${CATALOG_LANGUAGES.length} languages. Filter by \`language\` (the voice's native language; any voice ` +
         "speaks any supported language), `gender`, `age`, `use_case` and `model`; an unknown filter value is " +
@@ -235,14 +242,14 @@ export function createServer(client: ClipwrightClient): McpServer {
       })),
   );
 
-  // Flat shape for tools/list; the union parse refuses a script/brief mismatch before the SDK call.
+  // Flat strict object for tools/list; the union parse refuses a script/brief mismatch before the SDK call.
   server.registerTool(
     "make_faceless",
     {
       title: "Make a faceless video",
       annotations: { readOnlyHint: false, destructiveHint: false },
       description: `${MAKE_FACELESS_DESCRIPTION} ${MAKE_FACELESS_AGENT_PROTOCOL}`,
-      inputSchema: { ...offeredFacelessInputShape, ...agentRetryShape },
+      inputSchema: offeredFacelessInput.extend(agentRetryShape),
     },
     async (args) =>
       withFailureReport(async () => {
@@ -260,7 +267,7 @@ export function createServer(client: ClipwrightClient): McpServer {
       description:
         "Estimate the credit cost of make_faceless WITHOUT spending credits. " +
         "Always call this first and show the user the price before make_faceless.",
-      inputSchema: offeredFacelessInputShape,
+      inputSchema: offeredFacelessInput,
     },
     async (args) =>
       withFailureReport(async () => ({

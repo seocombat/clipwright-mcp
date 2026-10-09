@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseCutStyle } from "./faceless-cut-style.js";
 import { parseStoryboardV2 } from "./faceless-storyboard-v2.js";
 import { parseStoryboardV2Plan } from "./faceless-storyboard-v2-plan.js";
-import { planStoryboardV2 } from "./faceless-storyboard-v2-timing.js";
+import { facelessCutScore, planStoryboardV2 } from "./faceless-storyboard-v2-timing.js";
 
 const style = parseCutStyle(JSON.parse(readFileSync(new URL("./fixtures/cut-style-profile-v1.json", import.meta.url), "utf8")));
 
@@ -31,6 +31,13 @@ function tieFixture(localStarts: number[], localReasons: Array<"action" | "place
     global_image_frames: { p25: 25, p50: 75, p75: 150, n: 1 }, by_phase: {} } });
   return { words, proposal, wideStyle };
 }
+
+it("prices a second above the pace band by the caller's penalty and a second below it by the base penalty", () => {
+  const band = { p25: 43, p75: 75 }, pace = (frames: number, over?: number) => facelessCutScore(null, frames, band, over).pacePenalty;
+  // 25 frames outside the band on either side is one second.
+  expect([pace(100), pace(18), pace(60)]).toEqual([0.25, 0.25, 0]);
+  expect([pace(100, 2), pace(18, 2), pace(60, 2)]).toEqual([2, 0.25, 0]);
+});
 
 describe("planStoryboardV2", () => {
   it("covers exactly 1522 frames with more than 19 distinct images on timed semantic cuts", () => {

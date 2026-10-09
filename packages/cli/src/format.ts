@@ -55,7 +55,9 @@ export function formatVoices(voices: VoiceCatalogEntry[]): string {
   return voices
     .map((v) => {
       // A model's own voice has no language: its line names the model that naming it selects.
-      const labels = [v.language ?? (v.kind === "model_voice" ? v.model : undefined), v.gender, v.age, v.use_case]
+      // A voice of another skill than `make` says so: `make` refuses it.
+      const skill = v.skill === undefined || v.skill === "make_ugc" ? undefined : `for ${v.skill}`;
+      const labels = [v.language ?? (v.kind === "model_voice" ? v.model : undefined), v.gender, v.age, v.use_case, skill]
         .filter(Boolean)
         .join(", ");
       const description =

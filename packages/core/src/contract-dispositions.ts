@@ -102,6 +102,16 @@ export const FIELD_DISPOSITIONS = {
   },
 } as const satisfies Record<keyof typeof makeUgcInputShape, Disposition>;
 
+/** `make_faceless` fields refused by name: its input schema keeps the key and answers with this reason. */
+export const FACELESS_REJECTED_FIELDS = {
+  voice_id: {
+    kind: "rejected",
+    message:
+      "voice_id is not accepted by make_faceless: pass voice with a name from list_voices (skill=make_faceless), " +
+      "or omit both for the default voice",
+  },
+} as const satisfies Record<string, Extract<Disposition, { kind: "rejected" }>>;
+
 export type ContractField = keyof typeof FIELD_DISPOSITIONS;
 
 /** Input fields in shape declaration order: a deterministic walk of the registry. */

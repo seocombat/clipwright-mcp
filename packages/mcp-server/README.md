@@ -36,9 +36,11 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
 ## Tools
 
 - `list_voices` — voices for `voice`: the presets, the thirty voices of the
-  speech model `gemini-3.8-flash-tts` and the catalog, with filters by language,
-  gender, age, use case and model, and a short audio sample where the voice has
-  one. Free, spends no credits.
+  speech model `gemini-3.8-flash-tts` and the catalog for `make_ugc`, with
+  filters by language, gender, age, use case and model, and a short audio
+  sample where the voice has one. The seventeen narration voices of
+  `make_faceless` are listed with `skill: "make_faceless"`. Free, spends no
+  credits.
 - `list_actors` — ready-made faces with stable ids and verified formats. Free.
 - `quote_ugc` — estimated duration and price, plus a warning when `make_ugc`
   with the same input would be refused for money or access. Free.
@@ -56,9 +58,10 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
 - `quote_faceless` — price of a faceless video before making one. Free.
 - `make_faceless` — **makes a faceless video from your script or from a short
   brief; this costs money.** You pick 30 to 90 seconds; the video ends with its
-  narration, from 25 seconds to 5 seconds past your pick (never past 90), and
+  narration, from 25 seconds to a quarter past your pick (never past 90), and
   costs at most the quote. Narration plays over an opening
-  animated clip and image scenes, with captions on by default. Returns a
+  animated clip and image scenes, with captions on by default. `voice` picks
+  the narration voice by name. Returns a
   `run_id` immediately; poll `get_run` until `succeeded`.
 - `delete_actor` — removes a personal actor of this account. Videos already made
   with it stay as they are. Free.
@@ -71,7 +74,8 @@ what it will and will not honor. Anything the API cannot deliver comes back in
 rejected up front instead of being accepted and ignored.
 
 Bumping the `attempt` field starts a **new paid render**. It is the way to retry
-a failed run on purpose, not a free refresh.
+a failed run on purpose, not a free refresh. For faceless videos `attempt`
+belongs to `make_faceless`: a quote takes none, and `quote_faceless` refuses it.
 
 `SKILL.md` ships inside the package with the full operating instructions, and
 `CHANGELOG.md` next to it says what changed in each release and what was removed.

@@ -11,6 +11,7 @@ import {
   type VoicesQuery,
 } from "./voice-catalog.js";
 import { TTS_MODEL_LANGUAGES, VOICE_CATALOG } from "./voice-catalog-data.js";
+import { FACELESS_SPEECH_MODEL, FACELESS_VOICE_NAMES, FACELESS_VOICES } from "./faceless-voices.js";
 import {
   ELEVENLABS_TTS_MODELS,
   GOOGLE_TTS_MODEL,
@@ -61,8 +62,8 @@ export const serverVoicesQuery = serverVoicesQueryFor();
 
 const presentText = (raw: string | null): string | undefined => raw?.trim() || undefined;
 
-/** Presets, a model's own voices, then live catalog voices by language and rank. A field the voice */
-/** lacks matches nothing, except `language`: a voice without one matches the languages of its model. */
+/** The voices of one skill, `make_ugc` unless the query names another: presets, a model's own voices, then live catalog */
+/** voices by language and rank. A field the voice lacks matches nothing, except `language`, which falls back to its model's. */
 export function listVoices(
   query: VoicesQuery,
   catalog: VoiceCatalogFile = VOICE_CATALOG,
@@ -79,14 +80,24 @@ export function listVoices(
   const presets: VoiceCatalogEntry[] = Object.entries(VOICE_PRESETS).map(([name, preset]) => ({
     name,
     kind: "preset",
+    skill: "make_ugc",
     ...preset,
     supported_models: supportedModels(preset.language),
   }));
   // No `language`: the vendor reads it off the text. The model is the one a run with this voice speaks.
   const modelVoices: VoiceCatalogEntry[] = MODEL_VOICE_NAMES.map((name) => {
     const model = resolveTtsModel({ voice: name, script: "" });
-    return { name, kind: "model_voice", ...MODEL_VOICES[name], model, supported_models: [model] };
+    return { name, kind: "model_voice", skill: "make_ugc", ...MODEL_VOICES[name], model, supported_models: [model] };
   });
+  // The narration voices of `make_faceless`: one model of their own, which no `tts_model` names.
+  const facelessVoices: VoiceCatalogEntry[] = FACELESS_VOICE_NAMES.map((name) => ({
+    name,
+    kind: "faceless_voice",
+    skill: "make_faceless",
+    ...FACELESS_VOICES[name],
+    model: FACELESS_SPEECH_MODEL,
+    supported_models: [FACELESS_SPEECH_MODEL],
+  }));
   const languageRank = (voice: CatalogFileVoice) => CATALOG_LANGUAGES.indexOf(voice.language);
   const catalogVoices: VoiceCatalogEntry[] = catalog.voices
     .filter(isLive)
@@ -94,6 +105,7 @@ export function listVoices(
     .map((voice) => ({
       name: voice.slug,
       kind: "catalog",
+      skill: "make_ugc",
       language: voice.language,
       locale: presentText(voice.locale),
       accent: presentText(voice.accent),
@@ -107,9 +119,11 @@ export function listVoices(
       verified_models: voice.verified_models,
     }));
 
+  // Without `skill` the list is the one `make_ugc` clients have always read.
+  const filters: VoicesQuery = { ...query, skill: query.skill ?? "make_ugc" };
   const matches = (entry: VoiceCatalogEntry): boolean =>
     VOICES_QUERY_FIELDS.every((field) => {
-      const wanted = query[field];
+      const wanted = filters[field];
       if (wanted === undefined) return true;
       if (field === "model") return entry.supported_models?.includes(wanted) === true;
       if (field === "language" && entry.language === undefined) return languagesOf(entry.model).includes(wanted);
@@ -117,7 +131,7 @@ export function listVoices(
     });
 
   return {
-    voices: [...presets, ...modelVoices, ...catalogVoices].filter(matches),
+    voices: [...presets, ...modelVoices, ...facelessVoices, ...catalogVoices].filter(matches),
     models: TTS_MODELS.map((id) => ({
       id,
       char_limit: TTS_MODEL_CHAR_CAP[id],

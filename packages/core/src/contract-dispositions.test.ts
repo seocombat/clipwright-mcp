@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AI_DISCLOSURE_OBJECT_METADATA,
   AI_DISCLOSURE_TEXT,
+  aiDisclosureObjectMetadata,
   aiDisclosureText,
   FACELESS_AI_DISCLOSURE_TEXT,
   FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT,
@@ -492,6 +493,15 @@ describe("AI output marking", () => {
     // Otherwise the downloaded file and the API response would disagree about origin.
     expect(AI_DISCLOSURE_OBJECT_METADATA["ai-disclosure"]).toBe(AI_DISCLOSURE_TEXT);
     expect(AI_DISCLOSURE_OBJECT_METADATA["ai-generated"]).toBe("true");
+  });
+
+  it("the metadata builder carries the sentence it is given under the shared keys (clipwright#489)", () => {
+    expect(aiDisclosureObjectMetadata("a sentence of this run alone")).toEqual({
+      "ai-generated": "true", generator: "clipwright", "ai-disclosure": "a sentence of this run alone" });
+    expect(AI_DISCLOSURE_OBJECT_METADATA).toEqual(aiDisclosureObjectMetadata(AI_DISCLOSURE_TEXT));
+    expect(aiDisclosureObjectMetadata("x", true)["ai-disclosure-embedded"]).toBe("true");
+    expect(aiDisclosureObjectMetadata("x", false)["ai-disclosure-embedded"]).toBe("false");
+    expect(Object.keys(aiDisclosureObjectMetadata("x"))).not.toContain("ai-disclosure-embedded");
   });
 
   it("disclosure_overlay is rejected with an honest text", () => {

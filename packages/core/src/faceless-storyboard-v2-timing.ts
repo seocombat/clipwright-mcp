@@ -28,15 +28,18 @@ export type StoryboardV2FramePlan = {
 
 const semantic = { place: 4, reveal: 4, action: 3, emphasis: 1 } as const;
 const CUT_COST = 2;
+const PACE_PENALTY = 0.25;
 const OUTPUT_FRAMES = 1522;
 const FPS = 25;
 
 /** Shared semantic objective; duration feasibility belongs to each profile. */
-export function facelessCutScore(reason: keyof typeof semantic | null, duration: number, range: { p25: number | null; p75: number | null }): Score {
+/** `overPenalty` prices a second above the pace band; a second below it always costs the base penalty. */
+export function facelessCutScore(reason: keyof typeof semantic | null, duration: number, range: { p25: number | null; p75: number | null },
+  overPenalty = PACE_PENALTY): Score {
   const value = reason === null ? 0 : semantic[reason];
   const cost = reason === null ? 0 : CUT_COST;
   const distance = duration < range.p25! ? range.p25! - duration : duration > range.p75! ? duration - range.p75! : 0;
-  const penalty = 0.25 * distance / FPS;
+  const penalty = (duration > range.p75! ? overPenalty : PACE_PENALTY) * distance / FPS;
   return { semanticValue: value, cutCost: cost, pacePenalty: penalty, net: value - cost - penalty };
 }
 

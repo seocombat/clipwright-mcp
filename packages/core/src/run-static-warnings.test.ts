@@ -7,6 +7,7 @@ import {
   derivedRunWarnings as derivedWith,
   type VoiceGenderResolver,
 } from "./run-static-warnings.js";
+import { buildFacelessVoiceWarnings, FACELESS_VOICE_NAMES, FACELESS_VOICES } from "./faceless-voices.js";
 import { makeUgcInput } from "./skills.js";
 import { dispositionWarnings } from "./contract-dispositions.js";
 import { resolveAspectRatio } from "./aspect.js";
@@ -43,6 +44,28 @@ const NO_FACTS = {};
 describe("derivedRunWarnings", () => {
   it("does not route faceless input through UGC warning derivation", () => {
     expect(derivedRunWarnings({ input_mode: "brief", brief: "A story", duration_seconds: 30 }, NO_FACTS, "make_faceless")).toEqual([]);
+  });
+  it("a faceless run names its chosen voice against its script exactly as the quote does, and nothing without a voice", () => {
+    const russian = FACELESS_VOICE_NAMES.find((name) => FACELESS_VOICES[name].language === "ru")!;
+    const input = { input_mode: "script", script: "A clear story with spoken words.", duration_seconds: 30, captions: true };
+    const expected = buildFacelessVoiceWarnings({ voice: russian, script: input.script });
+    expect(expected).toHaveLength(1);
+    expect(derivedRunWarnings({ ...input, voice: russian }, NO_FACTS, "make_faceless")).toEqual(expected);
+    expect(composeRunWarnings(["stored line"], { ...input, voice: russian }, NO_FACTS, "make_faceless")).toEqual([...expected, "stored line"]);
+    expect(derivedRunWarnings(input, NO_FACTS, "make_faceless")).toEqual([]);
+    expect(derivedRunWarnings({ ...input, script: "Каждое утро гавань просыпается." }, NO_FACTS, "make_faceless")).toEqual([]);
+    expect(derivedRunWarnings({ ...input, voice: russian }, NO_FACTS, "make_ugc")).not.toEqual(expected);
+    expect(derivedRunWarnings(null, NO_FACTS, "make_faceless")).toEqual([]);
+  });
+  // Mutant: a stored-input reader without `brief` derives nothing for a brief run.
+  it("a faceless run names its chosen voice against its brief exactly as the quote does", () => {
+    const russian = FACELESS_VOICE_NAMES.find((name) => FACELESS_VOICES[name].language === "ru")!;
+    const input = { input_mode: "brief", brief: "How the tides of a harbor work", duration_seconds: 30, captions: true };
+    const expected = buildFacelessVoiceWarnings({ voice: russian, brief: input.brief });
+    expect(expected).toEqual([expect.stringContaining("but the brief is written in Latin letters")]);
+    expect(derivedRunWarnings({ ...input, voice: russian }, NO_FACTS, "make_faceless")).toEqual(expected);
+    expect(derivedRunWarnings(input, NO_FACTS, "make_faceless")).toEqual([]);
+    expect(derivedRunWarnings({ ...input, brief: "Как устроены приливы", voice: russian }, NO_FACTS, "make_faceless")).toEqual([]);
   });
   it("names an accepted but unhonored field", () => {
     expect(derivedRunWarnings(stored({ person: "a barista" }), NO_FACTS, "make_ugc")).toContain(

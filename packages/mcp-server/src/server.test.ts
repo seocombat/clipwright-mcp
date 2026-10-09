@@ -308,6 +308,31 @@ describe("tools/list (US-516)", () => {
     }
   });
 
+  it("list_voices relays the skill filter and a faceless voice, and its description says how to list them (#530)", async () => {
+    const savedFetch = globalThis.fetch;
+    const urls: string[] = [];
+    const narrator = { name: "narrator_ru_reliable_man", kind: "faceless_voice", skill: "make_faceless", language: "ru", gender: "male",
+      description: "Steady, reliable middle-aged man (Russian)", model: "narrator-v1", supported_models: ["narrator-v1"] };
+    globalThis.fetch = vi.fn(async (url: unknown) => {
+      urls.push(String(url));
+      return new Response(JSON.stringify({ voices: [narrator] }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as typeof fetch;
+    const { client, close } = await connectedClient();
+    try {
+      const tool = (await client.listTools()).tools.find((entry) => entry.name === "list_voices")!;
+      expect(tool.description).toContain("Without `skill` the list holds the make_ugc voices only.");
+      expect(tool.description).toContain("skill=make_faceless lists the 17 narration voices of make_faceless (kind faceless_voice");
+      expect((tool.inputSchema.properties?.skill as { enum?: string[] } | undefined)?.enum).toEqual(["make_ugc", "make_faceless"]);
+      const result = await client.callTool({ name: "list_voices", arguments: { skill: "make_faceless", language: "ru" } });
+      expect(result.isError ?? false).toBe(false);
+      expect(urls).toEqual(["http://unused.invalid/v1/voices?language=ru&skill=make_faceless"]);
+      expect(JSON.parse((result.content as { text: string }[])[0]?.text ?? "")).toEqual({ voices: [narrator] });
+    } finally {
+      await close();
+      globalThis.fetch = savedFetch;
+    }
+  });
+
   it("make_ugc passes an unknown voice name to the API: the server decides", async () => {
     vi.stubEnv("CLIPWRIGHT_CLIENT_ID", "mcp0000000000000000000000000test");
     const savedFetch = globalThis.fetch;

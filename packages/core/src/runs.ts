@@ -62,13 +62,18 @@ export function aiDisclosureText(skill: string, input: unknown): string {
   return Array.isArray(images) && images.length > 0 ? FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT : FACELESS_AI_DISCLOSURE_TEXT;
 }
 
-/** Storage object metadata, one constant so writer and readers share keys. Weaker than an */
-/** embedded tag (lost on re-save), but always set, without parsing MP4 boxes. */
-export const AI_DISCLOSURE_OBJECT_METADATA: Readonly<Record<string, string>> = {
-  "ai-generated": "true",
-  generator: "clipwright",
-  "ai-disclosure": AI_DISCLOSURE_TEXT,
-};
+/** Object metadata key that says whether the tag is in the file: a reader learns it without the bytes. */
+export const AI_DISCLOSURE_EMBEDDED_METADATA_KEY = "ai-disclosure-embedded";
+
+/** Storage object metadata of a delivery, one builder so every writer shares the keys. Weaker */
+/** than an embedded tag (lost on re-save), but always set, without parsing MP4 boxes. */
+export function aiDisclosureObjectMetadata(text: string, embedded?: boolean): Readonly<Record<string, string>> {
+  return { "ai-generated": "true", generator: "clipwright", "ai-disclosure": text,
+    ...(embedded === undefined ? {} : { [AI_DISCLOSURE_EMBEDDED_METADATA_KEY]: String(embedded) }) };
+}
+
+/** The metadata of a video with a presenter. */
+export const AI_DISCLOSURE_OBJECT_METADATA = aiDisclosureObjectMetadata(AI_DISCLOSURE_TEXT);
 
 /** Run id shape, a separate schema because INPUT asks for it too: the MCP `get_run` tool, */
 /** where a bare `z.string()` let garbage reach the network. */

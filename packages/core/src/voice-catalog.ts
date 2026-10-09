@@ -54,6 +54,10 @@ export const ttsModelLanguagesFile = z.strictObject({
 });
 export type TtsModelLanguagesFile = z.infer<typeof ttsModelLanguagesFile>;
 
+/** The skills that take a `voice`; each listed voice is spoken by exactly one of them. */
+export const VOICE_SKILLS = ["make_ugc", "make_faceless"] as const;
+export type VoiceSkill = (typeof VOICE_SKILLS)[number];
+
 /** `/v1/voices` filters: request parsing, the MCP `inputSchema` and SDK parameters. `age` and */
 /** `use_case` labels come from catalog data, so the server knows their allowed set. */
 export const voicesQueryShape = {
@@ -80,7 +84,15 @@ export const voicesQueryShape = {
     .optional()
     .describe(
       "Only voices this speech model speaks: presets and catalog voices whose language it supports, " +
-        "or the model's own voices (kind model_voice)",
+        "or the model's own voices (kind model_voice). These are the models of make_ugc: no make_faceless voice matches",
+    ),
+  skill: z
+    .enum(VOICE_SKILLS)
+    .optional()
+    .describe(
+      "The skill whose voices to list: make_faceless lists the narration voices of make_faceless " +
+        "(kind faceless_voice), make_ugc every other voice. Omitted means make_ugc. " +
+        "A voice is refused by the other skill before any charge",
     ),
 };
 export const voicesQuery = z.object(voicesQueryShape);

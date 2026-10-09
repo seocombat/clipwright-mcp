@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FACELESS_MIN_OUTPUT_FRAMES, facelessQuote, quoteFaceless } from "./faceless-price.js";
+import { FACELESS_MIN_OUTPUT_FRAMES, facelessMaxEstimateFrames, facelessMaxOutputFrames, facelessQuote, quoteFaceless } from "./faceless-price.js";
 import { facelessPlannerInput } from "./faceless-public.js";
 import { run } from "./runs.js";
 
@@ -21,6 +21,15 @@ describe("25-second delivered output", () => {
       created_at: "2026-09-27T10:00:00Z", finished_at: "2026-09-27T10:01:00Z" };
     expect(run.safeParse(finished).success).toBe(true);
     expect(run.safeParse({ ...finished, faceless_billing: { ...quote, outputFrames: 624 } }).success).toBe(false);
+  });
+});
+
+// The output may run a quarter past the selection (owner, 2026-10-07, #529); the script estimate keeps the selection plus 5 s.
+describe("faceless length ceilings", () => {
+  it.each([[750, 937, 875], [751, 938, 876], [1000, 1250, 1125], [1250, 1562, 1375], [1800, 2250, 1925], [2125, 2250, 2250],
+    [2250, 2250, 2250]])("a selection of %i frames delivers up to %i and admits an estimate up to %i", (selected, output, estimate) => {
+    expect(facelessMaxOutputFrames(selected)).toBe(output);
+    expect(facelessMaxEstimateFrames(selected)).toBe(estimate);
   });
 });
 

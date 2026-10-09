@@ -1,7 +1,7 @@
 {
   "name": "@clipwright/mcp-server",
-  "version": "0.26.0",
-  "description": "MCP server for Clipwright: generate UGC videos from your coding agent. mcprush.com-claim-clipwright-mcp-8787583d9d471dff4c750c02",
+  "version": "0.26.1",
+  "description": "MCP server for Clipwright: generate UGC videos from your coding agent",
   "mcpName": "io.clipwright/mcp",
   "keywords": [
     "mcp",

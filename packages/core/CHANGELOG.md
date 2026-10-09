@@ -16,6 +16,16 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
+## [0.26.1] - 2026-10-09
+
+A metadata patch: the npm description of `@clipwright/mcp-server` no longer carries a catalog claim token.
+
+### Changed
+
+- `@clipwright/mcp-server`: the package description on npm returns to its text before 0.26.0. That release appended
+  a one-time token, which a catalog read to confirm who owns its listing of the server. The catalog has confirmed it,
+  so the token is gone. No tool, flag or behavior changed. (clipwright#570)
+
 ## [0.26.0] - 2026-10-09
 
 `make_faceless` takes a narration voice by name: `list_voices` with `skill=make_faceless` lists seventeen voices in

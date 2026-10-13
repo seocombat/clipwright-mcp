@@ -16,6 +16,55 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
+## [0.27.0] - 2026-10-13
+
+The shots of a finished video can be read, and the draft of an edit can be kept: `getRunShots`, `getRunEdit` and
+`saveRunEdit` in the SDK, `shots`, `edit-show` and `edit-save` in the CLI, and the MCP tool `get_run_shots`. A draft
+charges nothing and renders nothing, and no call makes a video from it yet.
+
+### Added
+
+- *Server-side:* the API reads the shots of a run and keeps the draft of an edit. `GET /v1/runs/{id}/shots` returns
+  each shot of a finished video: its span in frames, its kind, the words it covers, its description and a signed link
+  to its source picture or clip. A run with no shots to show answers `planned: false` with the reason, which is an
+  answer and not an error. `GET` and `POST /v1/runs/{id}/edit` read and save a draft: a document of the wanted
+  timeline, stored with a version. A save names the version it was written against and is refused with 409
+  `edit_conflict` when the draft has another. The three calls are free. A draft charges nothing and renders
+  nothing, and no call makes a video from it. (clipwright#604)
+- `@clipwright/sdk`: `getRunShots(runId)`, `getRunEdit(runId)` and `saveRunEdit(runId, { base_version, document })`.
+  The two 409 refusals of a draft arrive as `ClipwrightApiError` with their fields: `failure.version` on
+  `edit_conflict`, `failure.state` and `failure.reason` on `run_not_editable`. `saveRunEdit` sends one request and
+  never repeats it. (clipwright#604)
+- `@clipwright/cli`: `shots <run>` lists the shots of a run, `edit-show <run>` prints the draft as JSON, and
+  `edit-save <run> --file <path>` saves the file `edit-show` printed. A save answered 409 reads the draft once: when
+  the draft already holds the file's document one version later, an earlier send went through and the save is
+  reported as done; otherwise the command reports the conflict and the stored version. (clipwright#604)
+- `@clipwright/mcp-server`: the tool `get_run_shots`, read-only. The MCP server now lists fifteen tools. The draft
+  of an edit has no tool: it is read and saved over REST, the SDK and the CLI. (clipwright#604)
+- `@clipwright/core` exports the contract of these calls, also on the subpath `@clipwright/core/edit`: `runShots`,
+  `runEdit` and `saveRunEdit`, which the API emits and takes, and `runShotsRead` and `runEditRead`, which a client
+  parses a response with. The read schemas take as plain strings the names a later API may add: a kind of shot, an
+  action, a line, the code of an issue. The document of a draft keeps the keys a client does not know.
+  `parseApiFailure` returns the kinds `edit_conflict` and `run_not_editable` for the two 409 bodies, and
+  `agentFailureReport` carries `version`, `state` and `reason`. (clipwright#604)
+
+### Changed
+
+- **Breaking:** `@clipwright/core`, for TypeScript callers: the union `ApiFailure` has two more members,
+  `edit_conflict` and `run_not_editable`. A `switch` over `failure.kind` that is checked for exhaustiveness does not
+  compile until it handles them, and a 409 body with either code no longer parses as `client_error`. Code that
+  does not switch on the kind is not affected. (clipwright#604)
+- `@clipwright/sdk`: a `ClipwrightResponseError` of a call that starts no run now reads "No run was created and no
+  credits were spent, and a retry creates no run and spends none." in place of "Nothing was created; retrying is
+  safe.". The old sentence was false of `setActorDefaults` and would be of `saveRunEdit`: such a call may have
+  stored what it was sent. (clipwright#604)
+- *Dashboard:* the table "When a call fails" of the API docs lists the two refusals of a draft, and its row of
+  ordinary refusals names status 422, which an upload that is not a readable image is answered with.
+  (clipwright#604)
+- *Server-side:* an uploaded image is kept for 30 days instead of 7, as long as the media of a finished run. The
+  link returned by `POST /v1/uploads` is still valid for 24 hours; upload the same file again to get a fresh one.
+  `@clipwright/core` states the period as `UPLOAD_OBJECT_RETENTION_DAYS`, now 30. (clipwright#607)
+
 ## [0.26.1] - 2026-10-09
 
 A metadata patch: the npm description of `@clipwright/mcp-server` no longer carries a catalog claim token.

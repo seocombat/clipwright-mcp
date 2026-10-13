@@ -235,6 +235,54 @@ export function scriptEncodingLostBody(args: {
   });
 }
 
+/** A save of a draft lost to a newer one: `version` is what is stored now, 0 when nothing is. */
+export const editConflictError = z.object({
+  error: z.object({
+    code: z.literal("edit_conflict"),
+    message: z.string().min(1),
+    version: z.number().int().nonnegative(),
+  }),
+});
+export type EditConflictError = z.infer<typeof editConflictError>;
+
+/** Builds the "the draft moved on" body. Nothing was stored. */
+export function editConflictBody(args: { baseVersion: number; version: number }): EditConflictError {
+  return editConflictError.parse({
+    error: {
+      code: "edit_conflict",
+      message:
+        `the draft is at version ${args.version}, this save was written against version ${args.baseVersion}. ` +
+        "Nothing was stored. Read the draft, apply the change to it and save with its version.",
+      version: args.version,
+    },
+  });
+}
+
+/** The run has no draft to read or to save: `state` and `reason` are the ones its shots state. */
+export const runNotEditableError = z.object({
+  error: z.object({
+    code: z.literal("run_not_editable"),
+    message: z.string().min(1),
+    state: z.string().min(1),
+    reason: z.string().min(1).nullable(),
+  }),
+});
+export type RunNotEditableError = z.infer<typeof runNotEditableError>;
+
+/** Builds the "this run cannot be edited" body. Nothing was stored. */
+export function runNotEditableBody(args: { runId: string; state: string; reason: string | null }): RunNotEditableError {
+  return runNotEditableError.parse({
+    error: {
+      code: "run_not_editable",
+      message:
+        `run ${args.runId} cannot be edited (${args.state})${args.reason === null ? "" : `: ${args.reason}`}. ` +
+        "Nothing was stored.",
+      state: args.state,
+      reason: args.reason,
+    },
+  });
+}
+
 /** Keeps the tool description's promise ("refused before any charge"): an unusable */
 /** source is refused, not estimated. */
 export function unusableSourceMessage(errorClass: string, detail: string): string {
@@ -289,6 +337,8 @@ export const API_ERROR_CODES: readonly string[] = [
   insufficientCreditsError.shape.error.shape.code.value,
   debtOutstandingError.shape.error.shape.code.value,
   accountNotAdmittedError.shape.error.shape.code.value,
+  editConflictError.shape.error.shape.code.value,
+  runNotEditableError.shape.error.shape.code.value,
   rateLimitedError.shape.error.shape.code.value,
   actorCreationLimitedError.shape.error.shape.code.value,
 ];

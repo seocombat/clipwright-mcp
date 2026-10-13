@@ -2,7 +2,9 @@ import {
   accountNotAdmittedError,
   apiError,
   debtOutstandingError,
+  editConflictError,
   insufficientCreditsError,
+  runNotEditableError,
 } from "./errors.js";
 import { rateLimitedError } from "./rate-limit.js";
 
@@ -47,6 +49,23 @@ export interface NotAdmittedFailure {
   message: string;
 }
 
+/** A save of a draft lost to another save. Terminal for this body: `version` is what is stored now. */
+export interface EditConflictFailure {
+  kind: "edit_conflict";
+  status: number;
+  message: string;
+  version: number;
+}
+
+/** The run has no draft to read or to save: `state` and `reason` are the ones its shots state. */
+export interface RunNotEditableFailure {
+  kind: "run_not_editable";
+  status: number;
+  message: string;
+  state: string;
+  reason: string | null;
+}
+
 /** 5xx: the server says the fault is its own. Safe to retry. */
 export interface ServerFailure {
   kind: "server_error";
@@ -69,6 +88,8 @@ export type ApiFailure =
   | InsufficientCreditsFailure
   | DebtOutstandingFailure
   | NotAdmittedFailure
+  | EditConflictFailure
+  | RunNotEditableFailure
   | ServerFailure
   | ClientFailure;
 
@@ -237,6 +258,8 @@ const BEHAVIOURAL_CODES = new Set<string>([
   // Recognized only on its own status, like the three above, so a cached body on a
   // 402 cannot tell the agent that buying credits is pointless.
   accountNotAdmittedError.shape.error.shape.code.value,
+  editConflictError.shape.error.shape.code.value,
+  runNotEditableError.shape.error.shape.code.value,
 ]);
 
 export interface ApiFailureInput {
@@ -305,6 +328,19 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
     };
   }
 
+  // The two refusals of a draft are recognized on 409 only, each with the fields the caller acts on.
+  const conflict = status === 409 ? editConflictError.safeParse(body) : undefined;
+  if (conflict?.success === true) {
+    const { error } = conflict.data;
+    return { kind: "edit_conflict", status, message: error.message, version: error.version };
+  }
+
+  const notEditable = status === 409 ? runNotEditableError.safeParse(body) : undefined;
+  if (notEditable?.success === true) {
+    const { error } = notEditable.data;
+    return { kind: "run_not_editable", status, message: error.message, state: error.state, reason: error.reason };
+  }
+
   // From here the body is foreign or unparsed. The generic envelope still gives
   // text and code; otherwise the message is built from the status.
   const generic = apiError.safeParse(body);
@@ -367,6 +403,11 @@ export interface AgentFailureReport {
   balance_credits?: number;
   required_credits?: number;
   debt_credits?: number;
+  /** The stored version of a draft, on `edit_conflict`. */
+  version?: number;
+  /** Why a run has no draft, on `run_not_editable`. */
+  state?: string;
+  reason?: string | null;
 }
 
 export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
@@ -453,6 +494,34 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
           "STOP. The account is not admitted to the beta. Do NOT retry and do NOT offer to buy " +
           "credits: neither changes the answer. Tell the user the account has no beta access and " +
           "to ask the operator about it.",
+      };
+
+    case "edit_conflict":
+      return {
+        ...base,
+        status: "FAILED",
+        code: "edit_conflict",
+        retryable: false,
+        // A save repeated after a lost answer meets its own write here, so the advice starts with a read.
+        next_action:
+          `STOP. Do NOT repeat this save unchanged: the draft is at version ${failure.version}, and this call ` +
+          "stored nothing. Read the draft. If it already holds your document, an earlier save of it went " +
+          "through; otherwise apply your change to the draft you read and save it with that draft's version.",
+        version: failure.version,
+      };
+
+    case "run_not_editable":
+      return {
+        ...base,
+        status: "FAILED",
+        code: "run_not_editable",
+        retryable: false,
+        next_action:
+          `STOP. This run has no draft to read or to save: its state is ${failure.state}` +
+          `${failure.reason === null ? "" : ` (${failure.reason})`}. Nothing was stored, and the same call ` +
+          "gives the same answer while that state stands. The shots of the run state the same state and reason.",
+        state: failure.state,
+        reason: failure.reason,
       };
 
     case "client_error":

@@ -84,6 +84,30 @@ export function createServer(client: ClipwrightClient): McpServer {
       }),
   );
 
+  // The only tool of the editor: the draft of an edit stays on REST, the SDK and the CLI.
+  server.registerTool(
+    "get_run_shots",
+    {
+      title: "Get the shots of a run",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "Read the shots of a video made by make_faceless or make_ugc. Pass the run_id. Free and read-only: " +
+        "it changes nothing and starts nothing. With planned=true the answer holds the frame size, the frame " +
+        "rate, the narration words with their timing, and for each shot its id, its span in frames, its kind, " +
+        "the words it covers, its description and preview_url, a signed link to the shot's source picture or " +
+        "clip. That link is a large file and it expires: read the shots again for a fresh one, never store " +
+        "it. A field named in `withheld` is null on every shot. planned=false is a normal answer, not an " +
+        "error: the run has no shots to show, and editable.state with editable.reason says why. " +
+        "editable.media_available_until is how long the media of the run are stored. paid_edits.enabled " +
+        "says whether a video can be made from an edit; while it is false, none can.",
+      inputSchema: { run_id: runId },
+    },
+    async ({ run_id }) =>
+      withFailureReport(async () => ({
+        content: [{ type: "text", text: JSON.stringify(await client.getRunShots(run_id)) }],
+      })),
+  );
+
   server.registerTool(
     "quote_ugc",
     {

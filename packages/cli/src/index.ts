@@ -2,6 +2,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 import { Command, Option } from "commander";
 import {
@@ -14,6 +15,7 @@ import {
   CATALOG_GENDERS,
   CATALOG_LANGUAGES,
   DEFAULT_FACELESS_VOICE,
+  editDocumentRead,
   MODEL_VOICE_MODEL,
   PUBLIC_APP_BASE_URL,
   RESOLUTIONS,
@@ -30,9 +32,22 @@ import {
   type TtsModelId,
   type VoiceSkill,
 } from "@clipwright/core";
-import { ClipwrightApiError, ClipwrightClient, ClipwrightResponseError } from "@clipwright/sdk";
+import {
+  ClipwrightApiError,
+  ClipwrightClient,
+  ClipwrightResponseError,
+  type RunEditRead,
+  type SaveRunEditArgs,
+} from "@clipwright/sdk";
 
-import { formatApiError, formatRun, formatSchemaError, formatVoices } from "./format.js";
+import {
+  formatApiError,
+  formatDraftNotes,
+  formatRun,
+  formatRunShots,
+  formatSchemaError,
+  formatVoices,
+} from "./format.js";
 
 // Version from the manifest: a literal drifts, and a JSON import breaks `rootDir`.
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -234,6 +249,117 @@ program
   .action(async (id: string) => {
     const run = await client().getRun(id);
     console.log(formatRun(run));
+  });
+
+program
+  .command("shots <run>")
+  .description("list the shots of a run: span, kind, description and preview link of each (free)")
+  .action(async (run: string) => {
+    console.log(formatRunShots(await client().getRunShots(run)));
+  });
+
+/** Only the JSON goes to stdout, so it can be kept in a file and passed to `edit-save`. */
+function printDraft(draft: RunEditRead): void {
+  for (const line of formatDraftNotes(draft)) console.error(line);
+  console.log(JSON.stringify(draft, null, 2));
+}
+
+program
+  .command("edit-show <run>")
+  .description("print the draft of a run's edit as JSON; version 0 means nothing is stored (free)")
+  .action(async (run: string) => {
+    printDraft(await client().getRunEdit(run));
+  });
+
+type DraftFile = { version: number; document: SaveRunEditArgs["document"] };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Reads the file `edit-show` wrote. Anything else is refused here, before any request. */
+function readDraftFile(path: string): DraftFile {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    console.error(`${path} cannot be read as JSON: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+  const file = isRecord(parsed) ? parsed : {};
+  const { version, document } = file;
+  const missing = [
+    ...(typeof version === "number" && Number.isSafeInteger(version) && version >= 0
+      ? []
+      : ["version (a whole number, 0 or more)"]),
+    ...(isRecord(document) ? [] : ["document (an object)"]),
+  ];
+  if (missing.length > 0) {
+    console.error(
+      `${path} is not a draft as "clipwright edit-show" prints it: it lacks ${missing.join(" and ")}. ` +
+        "Nothing was sent.",
+    );
+    process.exit(1);
+  }
+  return { version: version as number, document: document as DraftFile["document"] };
+}
+
+/** Whether the stored document is the sent one. The sent one is read by the schema the stored one came */
+/** through, so a default the server filled in is no difference; past that the comparison is exact, key order aside. */
+function sameDocument(stored: RunEditRead["document"], sent: unknown): boolean {
+  const read = editDocumentRead.safeParse(sent);
+  return read.success && isDeepStrictEqual(stored, read.data);
+}
+
+/** A save answered `edit_conflict`. One read tells a draft that already holds this document, */
+/** stored by an earlier send whose answer was lost, from a draft that moved on. */
+async function settleConflict(
+  sdk: ClipwrightClient,
+  run: string,
+  sent: DraftFile,
+  storedVersion: number,
+): Promise<RunEditRead> {
+  let stored: RunEditRead;
+  try {
+    stored = await sdk.getRunEdit(run);
+  } catch (error) {
+    console.error(
+      `conflict: the draft is at version ${storedVersion}, and the file was written against version ` +
+        `${sent.version}. Whether the draft already holds this document could not be checked: ` +
+        `${error instanceof Error ? error.message : String(error)}. ` +
+        `Run "clipwright edit-show ${run}" and compare.`,
+    );
+    process.exit(1);
+  }
+  if (stored.version === sent.version + 1 && sameDocument(stored.document, sent.document)) {
+    console.error(
+      `saved: the draft already holds this document at version ${stored.version}; ` +
+        "an earlier save of it went through.",
+    );
+    return stored;
+  }
+  console.error(
+    `conflict: the draft is at version ${stored.version}, and the file was written against version ` +
+      `${sent.version}. Nothing was stored. Run "clipwright edit-show ${run}" again, apply your change ` +
+      "to that draft and save it.",
+  );
+  process.exit(1);
+}
+
+program
+  .command("edit-save <run>")
+  .description("save the draft of a run's edit from a file; charges nothing and renders nothing")
+  .requiredOption("--file <path>", "JSON with `version` and `document`, as edit-show prints it")
+  .action(async (run: string, opts: { file: string }) => {
+    const file = readDraftFile(opts.file);
+    const sdk = client();
+    let saved: RunEditRead;
+    try {
+      saved = await sdk.saveRunEdit(run, { base_version: file.version, document: file.document });
+    } catch (error) {
+      if (!(error instanceof ClipwrightApiError) || error.failure.kind !== "edit_conflict") throw error;
+      saved = await settleConflict(sdk, run, file, error.failure.version);
+    }
+    printDraft(saved);
   });
 
 program.command("actors").description("list saved actors and verified formats").action(async () => {

@@ -48,6 +48,9 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
 - `make_ugc` — **renders a clip; this is the call that costs money.** Returns a
   `run_id` immediately instead of blocking, because a render takes minutes.
 - `get_run` — status of a run. Free; poll it every few seconds.
+- `get_run_shots` — the shots of a finished video: the span, kind, description
+  and preview link of each, with the narration words and their timing. Free and
+  read-only. A run with no shots to show answers with the reason instead.
 - `upload_image` — a local PNG/JPEG → signed https url to pass as `image`. Free;
   20 per day, the url lives 24 hours. Set `aspect_ratio` explicitly afterwards.
 - `quote_actor` — price of a personal actor before creating one. Free.

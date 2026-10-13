@@ -29,6 +29,9 @@ above name the package with `-p`, so they resolve here either way.
 | `quote-faceless` | Estimates the cost of a faceless video. Spends nothing. |
 | `make-faceless` | Starts a faceless video: narration over an opening animated clip and image scenes. **Costs credits.** Prints the run; follow it with `runs <id>`. |
 | `delete-actor <id>` | Deletes a personal actor of this account. Videos already made with it stay as they are. Free. |
+| `shots <run>` | Lists the shots of a finished video: span, kind, start of the description and preview link of each. Free. |
+| `edit-show <run>` | Prints the draft of an edit of a run as JSON. Version 0 means nothing is stored. Free. |
+| `edit-save <run> --file <path>` | Saves the draft from a file `edit-show` printed. Charges nothing and renders nothing. |
 
 `quote` and `make` take the actor's photo as `--image <url>` or `--image-file <path>`
 (uploaded first, then passed on), plus `--aspect-ratio 9:16|1:1|16:9` and
@@ -79,6 +82,25 @@ and gender. Without it the narration is read by `narrator_en_wise_lady`. A
 `make` voice such as `george` and an unknown name are refused before any
 charge. Quote first: both commands take the same flags, so the
 quote prices exactly the request `make-faceless` would send.
+
+`shots <run>` prints text: the line of the run, whether it can be edited and
+until when its media are stored, then one line per shot with a preview link
+under it. The link points at a large source file; the command prints it and
+downloads nothing. A description or a link the API did not give is printed as
+`withheld` or `none`. A run with no shots to show prints the reason and exits
+with code 0.
+
+`edit-show <run>` writes only the draft's JSON to stdout, so you can keep it in
+a file, change the `document` and pass the file to `edit-save`; the version and
+the issues of the draft go to stderr. `edit-save <run> --file <path>` reads
+`version` and `document` from that file, ignores its other keys and sends them
+as the base version and the document. A file of another shape is refused before
+any request. When the save is refused because the draft has another version,
+the command reads the draft once. If the draft already holds your document one
+version later, an earlier send went through and the save is reported as done.
+Otherwise it reports the conflict with the stored version: run `edit-show`
+again and apply your change to that draft. Write the new draft to another file
+than the one you pass with `--file`.
 
 `make` retries are explicit: `--retry 2` deliberately starts a *new* run for the
 same script. Without it a repeated call returns the run you already paid for,

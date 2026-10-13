@@ -11,6 +11,11 @@ resolution resolution rules, speech-pacing rules, the voice catalog, and the fie
 disposition registry — the table that records, per input field, whether it is
 honored, rejected, or accepted-with-a-warning.
 
+The `./edit` subpath holds the contract of a run's shots and of the draft of an
+edit: `runShots`, `runEdit` and `saveRunEdit` are what the API emits and takes;
+`runShotsRead` and `runEditRead` are what a client parses a response with, so
+that a name a later API adds does not break it.
+
 The `./idempotency` subpath export is separate because it pulls in a Node
 built-in and would otherwise break bundlers targeting the browser.
 

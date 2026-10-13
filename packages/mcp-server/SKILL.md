@@ -164,9 +164,9 @@ Environment variables:
 | `CLIPWRIGHT_CLIENT_ID` | YES (see section 2) | Unique identifier of this INSTALLATION. |
 
 After connecting, restart or reopen the MCP host and confirm that `tools/list`
-returns fourteen tools: `make_ugc`, `get_run`, `quote_ugc`, `list_actors`, `list_voices`, `upload_image`, `get_account`,
-`create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`, `set_actor_defaults`, `quote_faceless`,
-`make_faceless`.
+returns 15 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_ugc`, `list_actors`, `list_voices`, `upload_image`,
+`get_account`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`, `set_actor_defaults`,
+`quote_faceless`, `make_faceless`.
 
 ## 2. `CLIPWRIGHT_CLIENT_ID` — required, and WHY
 
@@ -520,6 +520,31 @@ is not in `TERMINAL_STATES`) is a deliberate degradation: `isTerminal` returns
 `false`, so such a run lands in the `IN_PROGRESS` branch and the agent is told to
 keep polling a run that has already finished. That is accepted prototype behaviour
 — MCP and the API ship as one version — not a formatter bug.
+
+### `get_run_shots` — free, read-only
+
+Takes a `run_id` and returns the shots of that video as the API states them
+(`GET /v1/runs/{id}/shots`). It changes nothing and starts nothing.
+
+- `planned: true` — the answer holds `frame`, `timebase.fps`, `duration_frames`,
+  the narration `words` with their timing, and `tracks[]`. Each shot has an `id`,
+  `start_frame` and `end_frame`, a `kind`, the words it covers, a `description`
+  and a `preview_url`. Spans are whole frames at `timebase.fps`.
+- `planned: false` — a normal answer, not an error. The run has no shots to show,
+  and `editable.state` with `editable.reason` says why: the run did not succeed,
+  its `line` is one the API reads no shots for, or it kept no record of its
+  media. Tell the user that reason; do not retry.
+
+`preview_url` is a signed link to the shot's source picture or clip, which is a
+large file. It expires: call the tool again for a fresh link and never store it.
+A field named in `withheld` is null on every shot, so a null `description` or
+`preview_url` there means "not shown", not "missing".
+
+`editable.media_available_until` is how long the media of the run are stored.
+`paid_edits.enabled` says whether a video can be made from an edit; while it is
+`false`, none can. This server has no tool that changes a video. Read `kind`, `line`,
+`editable.state` and each shot's `operations` as open strings, because a later
+API may name values this text does not list.
 
 ### `list_actors` — free, no input
 

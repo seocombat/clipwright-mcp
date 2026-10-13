@@ -26,7 +26,14 @@ import {
   PUBLIC_API_BASE_URL,
   retryDelayMs,
   run as runSchema,
+  runEditPath,
+  runEditRead,
+  type RunEditRead,
   runRead as runReadSchema,
+  runShotsPath,
+  runShotsRead,
+  type RunShotsRead,
+  type SaveRunEditArgs,
   isTerminal,
   FAILED_STATE,
   quoteResponse,
@@ -131,10 +138,11 @@ export class ClipwrightResponseError extends Error {
     deliveryConfirmed: boolean,
   ): string {
     if (!mayHaveTakenEffect) {
+      // About money only: a call on this branch may still have stored something, a draft for one.
+      const free = "No run was created and no credits were spent, and a retry creates no run and spends none.";
       return deliveryConfirmed
-        ? `The response to ${path} did not match the Clipwright contract. ` +
-            "Nothing was created; retrying is safe."
-        : `The request to ${path} failed before an answer arrived. Nothing was created; retrying is safe.`;
+        ? `The response to ${path} did not match the Clipwright contract. ${free}`
+        : `The request to ${path} failed before an answer arrived. ${free}`;
     }
     const tail =
       "Check your recent runs before retrying: a retry with a new idempotency key would pay twice.";
@@ -481,6 +489,30 @@ export class ClipwrightClient {
     return parsed.success ? parsed.data : (body as RunRead);
   }
 
+  /** The shots of a run, read tolerantly: a kind, action or line of a newer server still parses. Free. */
+  async getRunShots(runId: string): Promise<RunShotsRead> {
+    const path = runShotsPath(runId);
+    return parseResponse(runShotsRead, await this.#request(path, false), path, false);
+  }
+
+  /** The draft of a run's edit, read as tolerantly. Version 0 is a run with nothing stored. Free. */
+  async getRunEdit(runId: string): Promise<RunEditRead> {
+    const path = runEditPath(runId);
+    return parseResponse(runEditRead, await this.#request(path, false), path, false);
+  }
+
+  /** Saves the draft against the version it was read at; charges nothing. One request, never repeated */
+  /** here: after a lost answer the same save answers `edit_conflict`, and a read of the draft tells why. */
+  async saveRunEdit(runId: string, input: SaveRunEditArgs): Promise<RunEditRead> {
+    const path = runEditPath(runId);
+    // `false`: a save creates no run and reserves no credits, which is what that flag warns about.
+    const body = await this.#request(path, false, {
+      method: "POST",
+      body: JSON.stringify({ base_version: input.base_version, document: input.document }),
+    });
+    return parseResponse(runEditRead, body, path, false);
+  }
+
   /** Start plus polling to a terminal state. `maxWaitMs` is one deadline that */
   /** aborts both the pause and the request itself. */
   async makeUgc(
@@ -553,3 +585,4 @@ export { resolveClientId } from "./client-id.js";
 export type { AgentFailureReport, ApiFailure };
 export type { MakeUgcInput, MakeUgcInputArgs, QuoteResponse, Run, RunRead };
 export type { FacelessQuoteResponse, MakeFacelessInputArgs };
+export type { RunEditRead, RunShotsRead, SaveRunEditArgs };

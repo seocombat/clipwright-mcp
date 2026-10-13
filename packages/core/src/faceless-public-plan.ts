@@ -74,6 +74,7 @@ type Score = ReturnType<typeof facelessCutScore>;
 const PACE_OVER_PENALTY = 2;
 /** The opening VIDEO lasts 3–5 s at 25 fps; rationale in docs/70 (clipwright#442). */
 export const FACELESS_OPENER_MIN_FRAMES = 75, FACELESS_OPENER_MAX_FRAMES = 125;
+export const FACELESS_IMAGE_MIN_FRAMES = 25, FACELESS_IMAGE_MAX_FRAMES = 150;
 export const FACELESS_OPENER_BOUNDS_ERROR =
   `mandatory opening VIDEO requires ${FACELESS_OPENER_MIN_FRAMES}–${FACELESS_OPENER_MAX_FRAMES} frames`;
 export type FacelessPublicPlan = {
@@ -168,7 +169,7 @@ export function planPublicFacelessStory(
     for (let start = 0; start < end; start++) {
       const prior = states[start];
       const duration = nodes[end]!.frame - nodes[start]!.frame;
-      if (!prior || duration < 25 || duration > 150) continue;
+      if (!prior || duration < FACELESS_IMAGE_MIN_FRAMES || duration > FACELESS_IMAGE_MAX_FRAMES) continue;
       const phase = story.beats[nodes[start]!.beatIndex]!.phase;
       const phaseRange = style.pacing.by_phase[phase];
       const range = phaseRange && phaseRange.n > 0 ? phaseRange : style.pacing.global_image_frames;

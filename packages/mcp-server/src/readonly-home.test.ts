@@ -140,6 +140,7 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
         "get_account",
         "get_actor_defaults",
         "get_run",
+        "get_run_shots",
         "list_actors",
         "list_voices",
         "make_faceless",

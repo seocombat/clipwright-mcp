@@ -11,7 +11,9 @@ import { QUEUE_PROMISES } from "./__fixtures__/queue-promises.js";
 import {
   accountNotAdmittedBody,
   debtOutstandingBody,
+  editConflictBody,
   insufficientCreditsBody,
+  runNotEditableBody,
 } from "./errors.js";
 import {
   RATE_LIMIT_PAID_PER_MINUTE,
@@ -287,6 +289,59 @@ describe("parseApiFailure — our bodies parse with all their numbers", () => {
         if (status === 402) expect(isRetryableFailure(failure)).toBe(false);
       }
     }
+  });
+});
+
+describe("the two refusals of a draft carry their fields", () => {
+  const CONFLICT = editConflictBody({ baseVersion: 4, version: 7 });
+  const UNSUPPORTED = runNotEditableBody({ runId: "run_a1", state: "unsupported_line", reason: "this line has no editor yet" });
+  const STATELESS = runNotEditableBody({ runId: "run_a1", state: "retired", reason: null });
+  const parsed = (status: number, body: unknown) => parseApiFailure({ status, bodyText: JSON.stringify(body), now: NOW });
+
+  it("409 edit_conflict carries the stored version; 409 run_not_editable carries the state and the reason, a null reason included", () => {
+    expect(parsed(409, CONFLICT)).toEqual({ kind: "edit_conflict", status: 409, message: CONFLICT.error.message, version: 7 });
+    expect(parsed(409, editConflictBody({ baseVersion: 2, version: 0 }))).toMatchObject({ kind: "edit_conflict", version: 0 });
+    expect(parsed(409, UNSUPPORTED)).toEqual({ kind: "run_not_editable", status: 409, message: UNSUPPORTED.error.message,
+      state: "unsupported_line", reason: "this line has no editor yet" });
+    expect(parsed(409, STATELESS)).toEqual({ kind: "run_not_editable", status: 409, message: STATELESS.error.message,
+      state: "retired", reason: null });
+  });
+
+  it("neither is retried, and each report repeats its fields in the fields and in the imperative", () => {
+    const conflict = agentFailureReport(parsed(409, CONFLICT));
+    expect(conflict).toMatchObject({ status: "FAILED", code: "edit_conflict", retryable: false, version: 7 });
+    expect(conflict.next_action).toContain("version 7");
+    expect(conflict.next_action).toContain("Read the draft");
+    expect(conflict).not.toHaveProperty("state");
+
+    const unsupported = agentFailureReport(parsed(409, UNSUPPORTED));
+    expect(unsupported).toMatchObject({ status: "FAILED", code: "run_not_editable", retryable: false,
+      state: "unsupported_line", reason: "this line has no editor yet" });
+    expect(unsupported.next_action).toContain("its state is unsupported_line (this line has no editor yet)");
+    expect(unsupported).not.toHaveProperty("version");
+    const stateless = agentFailureReport(parsed(409, STATELESS));
+    expect(stateless).toMatchObject({ state: "retired", reason: null });
+    expect(stateless.next_action).toContain("its state is retired. Nothing was stored");
+
+    for (const body of [CONFLICT, UNSUPPORTED, STATELESS]) expect(isRetryableFailure(parsed(409, body))).toBe(false);
+  });
+
+  it("each is recognized on 409 only: on another status the class comes from the status and the code is dropped; another 409 keeps its code", () => {
+    for (const body of [CONFLICT, UNSUPPORTED, STATELESS]) {
+      // Every status an error can carry but the one: a status with typed refusals of its own (402, 403, 429) included.
+      for (let status = 400; status <= 599; status += 1) {
+        if (status === 409) continue;
+        const failure = parsed(status, body);
+        expect(["edit_conflict", "run_not_editable"], String(status)).not.toContain(failure.kind);
+        expect(["edit_conflict", "run_not_editable"], String(status)).not.toContain(agentFailureReport(failure).code);
+      }
+      for (const status of [400, 404, 429, 503]) expect(parsed(status, body).message).toBe(body.error.message);
+    }
+    const reused = parsed(409, { error: { code: "idempotency_key_reused", message: "the key was spent" } });
+    expect(reused).toEqual({ kind: "client_error", status: 409, message: "the key was spent", code: "idempotency_key_reused" });
+    // A conflict body without its version is not the typed refusal, and its code does not pose as one.
+    const versionless = parsed(409, { error: { code: "edit_conflict", message: "moved" } });
+    expect(versionless).toEqual({ kind: "client_error", status: 409, message: "moved", code: undefined });
   });
 });
 

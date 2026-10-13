@@ -54,6 +54,22 @@ gets `george` and a warning. `actor_gender` next to `actor_id` or without
 `image` is refused before any charge. With `tts_model: "gemini-3.8-flash-tts"`
 the defaults are `kore` for a woman and `charon` otherwise.
 
+`getRunShots(runId)` reads the shots of a finished video: for each shot its span
+in frames, its kind, the words it covers, its description and a signed link to
+its source picture or clip. A run with no shots to show answers
+`planned: false` with `editable.state` and `editable.reason`; that is an answer,
+not an error. `getRunEdit(runId)` reads the draft of an edit of that run and
+`saveRunEdit(runId, { base_version, document })` saves it. Version 0 means
+nothing is stored. A save names the version the draft was read at and is
+refused with `edit_conflict` when the stored one differs; the error carries
+`failure.version`. A run without a draft is refused with `run_not_editable`,
+carrying `failure.state` and `failure.reason`. `saveRunEdit` sends one request
+and never repeats it: a save whose answer was lost answers `edit_conflict` when
+sent again, so read the draft and compare it with your document before you
+treat that as a conflict. The three calls are free. A draft charges nothing and
+renders nothing. Responses are parsed tolerantly: a kind of shot, an action or
+the code of an issue that a later API adds arrives as a plain string.
+
 Requires `CLIPWRIGHT_CLIENT_ID`, or a writable `~/.clipwright/` for the SDK to
 create one on first use. It fails loudly rather than generating a throwaway id,
 because a per-process id would disable duplicate protection without saying so.

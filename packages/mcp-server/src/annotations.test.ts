@@ -16,6 +16,7 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   set_actor_defaults: { readOnlyHint: false, destructiveHint: false },
   delete_actor: { readOnlyHint: false, destructiveHint: true },
   get_run: { readOnlyHint: true, destructiveHint: false },
+  get_run_shots: { readOnlyHint: true, destructiveHint: false },
   quote_ugc: { readOnlyHint: true, destructiveHint: false },
   quote_actor: { readOnlyHint: true, destructiveHint: false },
   list_voices: { readOnlyHint: true, destructiveHint: false },

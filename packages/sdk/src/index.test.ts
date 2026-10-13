@@ -247,7 +247,10 @@ describe("ClipwrightClient.startUgc — strict write parsing", () => {
       .catch((caught: unknown) => caught)) as ClipwrightResponseError;
     expect(quoted).toBeInstanceOf(ClipwrightResponseError);
     expect(quoted.mayHaveTakenEffect).toBe(false);
-    expect(quoted.message).toMatch(/retrying is safe/);
+    expect(quoted.message).toBe(
+      "The response to /v1/skills/make_ugc/quote did not match the Clipwright contract. " +
+        "No run was created and no credits were spent, and a retry creates no run and spends none.",
+    );
   });
 
   it("rejected INPUT stays a ZodError and never reaches the network", async () => {

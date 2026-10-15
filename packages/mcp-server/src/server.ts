@@ -27,6 +27,9 @@ import {
   MAKE_FACELESS_AGENT_PROTOCOL,
   makeFacelessInput,
   offeredFacelessInput,
+  REVISION_CHARGE_TEXT,
+  revisionRequest,
+  type RevisionRequest,
   UPLOAD_IMAGE_DESCRIPTION,
   UPLOAD_MAX_BYTES,
   sniffUploadMediaType,
@@ -84,7 +87,7 @@ export function createServer(client: ClipwrightClient): McpServer {
       }),
   );
 
-  // The only tool of the editor: the draft of an edit stays on REST, the SDK and the CLI.
+  // The editor's read tool; the draft of an edit stays on REST, the SDK and the CLI.
   server.registerTool(
     "get_run_shots",
     {
@@ -106,6 +109,57 @@ export function createServer(client: ClipwrightClient): McpServer {
       withFailureReport(async () => ({
         content: [{ type: "text", text: JSON.stringify(await client.getRunShots(run_id)) }],
       })),
+  );
+
+  // The revision pair: a flat object for tools/list, and the union parse refuses none or both of `changes` and `document`.
+  const [byDocument, byChanges] = revisionRequest.options;
+  const revisionShape = {
+    run_id: runId.describe("The run to revise: a succeeded make_faceless run, an original or a revision."),
+    changes: byChanges.shape.changes.optional()
+      .describe("Shots to generate anew over the run as it is: each a shot_id and the operation to generate for it."),
+    document: byDocument.shape.document.optional()
+      .describe("The whole edited document, as the run's draft holds it; retimes, deletions and uploads go this way."),
+  };
+  const revisionOf = ({ changes, document }: { changes?: unknown; document?: unknown }): RevisionRequest =>
+    revisionRequest.parse({ ...(changes === undefined ? {} : { changes }), ...(document === undefined ? {} : { document }) });
+
+  server.registerTool(
+    "quote_revision",
+    {
+      title: "Quote a revision of a run",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "Price a revision of a run WITHOUT spending credits: what it would change (summary) and what it costs " +
+        "(billing.total_credits). Pass run_id and exactly one of changes or document, the same as revise_run. Always " +
+        `call this first and show the user the price before revise_run. ${REVISION_CHARGE_TEXT} While paid edits are ` +
+        "closed it answers editing_disabled and charges nothing.",
+      inputSchema: revisionShape,
+    },
+    async ({ run_id, ...request }) =>
+      withFailureReport(async () => ({
+        content: [{ type: "text", text: JSON.stringify(await client.quoteRevision(run_id, revisionOf(request))) }],
+      })),
+  );
+
+  server.registerTool(
+    "revise_run",
+    {
+      title: "Revise a run",
+      annotations: { readOnlyHint: false, destructiveHint: false },
+      description:
+        "Start a revision of a run made by make_faceless (paid): a NEW run that renders the video again with the " +
+        "shots you change, by changes (a shot and what to generate for it) or by document (the whole edited " +
+        "document); pass exactly one. Call quote_revision first and show the user the price. An identical request " +
+        "returns the same run it started before, so a call repeated after a lost answer starts nothing new; to " +
+        `start a second revision with the same request on purpose, pass attempt 2. ${REVISION_CHARGE_TEXT} An ` +
+        "original has a limit on revisions running at once and on revisions failed or unfinished, and paid edits " +
+        "of it close some days after it finished; a refusal names which. While paid edits are closed it answers " +
+        "editing_disabled and charges nothing. The result is a new run: poll it with get_run; once it succeeded " +
+        "it is editable under its own run_id.",
+      inputSchema: { ...revisionShape, ...agentRetryShape },
+    },
+    async ({ run_id, attempt, ...request }) =>
+      withFailureReport(async () => formatGetRun(await client.startRevision(run_id, revisionOf(request), { attempt }))),
   );
 
   server.registerTool(

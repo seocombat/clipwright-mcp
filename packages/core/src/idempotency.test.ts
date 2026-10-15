@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { actorIdempotencyKeyFor, facelessIdempotencyKeyFor, idempotencyKeyFor, requestHash } from "./idempotency.js";
+import { actorIdempotencyKeyFor, facelessIdempotencyKeyFor, idempotencyKeyFor, requestHash, revisionIdempotencyKeyFor } from "./idempotency.js";
 
 /** Every paid-run key: a new key builder must join this table, not get its own ad hoc test. */
 const keyBuilders = [
@@ -26,6 +26,23 @@ describe.each(keyBuilders)("$name idempotency key", ({ key, input, explicit, oth
   });
   it("differs for a different request", () => {
     expect(key(input, "client-aaaa")).not.toBe(key(other, "client-aaaa"));
+  });
+});
+
+describe("revision idempotency key", () => {
+  const changes = { changes: [{ shot_id: "beat-3", operation: { mode: "new_picture", description: "A harbour at dawn" } }] };
+  const reordered = { changes: [{ operation: { description: "A harbour at dawn", mode: "new_picture" }, shot_id: "beat-3" }] };
+  it("differs by source run and by client, and is one key under reordered keys", () => {
+    const key = revisionIdempotencyKeyFor("run_source1", changes, "client-aaaa");
+    expect(key).toMatch(/^[a-f0-9]{64}$/);
+    expect(revisionIdempotencyKeyFor("run_source1", reordered, "client-aaaa")).toBe(key);
+    expect(revisionIdempotencyKeyFor("run_source2", changes, "client-aaaa")).not.toBe(key);
+    expect(revisionIdempotencyKeyFor("run_source1", changes, "client-bbbb")).not.toBe(key);
+    expect(revisionIdempotencyKeyFor("run_source1", { changes: [{ shot_id: "beat-3", operation: { mode: "retake" } }] }, "client-aaaa")).not.toBe(key);
+  });
+  it("parses before hashing: a malformed source or request throws", () => {
+    expect(() => revisionIdempotencyKeyFor("source1", changes, "client-aaaa")).toThrow();
+    expect(() => revisionIdempotencyKeyFor("run_source1", { ...changes, document: {} }, "client-aaaa")).toThrow();
   });
 });
 

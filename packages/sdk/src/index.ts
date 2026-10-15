@@ -33,6 +33,12 @@ import {
   runShotsPath,
   runShotsRead,
   type RunShotsRead,
+  revisionQuoteRead,
+  type RevisionQuoteRead,
+  revisionRequest,
+  type RevisionRequest,
+  runRevisionsPath,
+  runRevisionsQuotePath,
   type SaveRunEditArgs,
   isTerminal,
   FAILED_STATE,
@@ -53,7 +59,12 @@ import {
   type Run,
   type RunRead,
 } from "@clipwright/core";
-import { actorIdempotencyKeyFor, facelessIdempotencyKeyFor, idempotencyKeyFor } from "@clipwright/core/idempotency";
+import {
+  actorIdempotencyKeyFor,
+  facelessIdempotencyKeyFor,
+  idempotencyKeyFor,
+  revisionIdempotencyKeyFor,
+} from "@clipwright/core/idempotency";
 
 import { resolveClientId } from "./client-id.js";
 
@@ -471,6 +482,31 @@ export class ClipwrightClient {
     return parseResponse(runSchema, body, FACELESS_RUN_PATH, true);
   }
 
+  /** What a revision of a run would change and cost; spends no credits. Read tolerantly, as the shots are. */
+  async quoteRevision(runId: string, request: RevisionRequest): Promise<RevisionQuoteRead> {
+    const parsed = revisionRequest.parse(request);
+    const path = runRevisionsQuotePath(runId);
+    const body = await this.#request(path, false, { method: "POST", body: JSON.stringify(parsed) });
+    return parseResponse(revisionQuoteRead, body, path, false);
+  }
+
+  /** Starts a revision: a new run, returned at once (state=queued). The same request and attempt send the same key, */
+  /** so a resend returns the first run; `attempt: 2` starts a deliberate second one. */
+  async startRevision(runId: string, request: RevisionRequest, opts?: StartUgcOptions): Promise<RunRead> {
+    const parsed = revisionRequest.parse(request);
+    const key =
+      opts?.idempotencyKey ??
+      `${revisionIdempotencyKeyFor(runId, parsed, this.#getClientId())}:${attemptSuffix(opts?.attempt)}`;
+    const path = runRevisionsPath(runId);
+    // `true`: once sent, the run may have been created and its credits held.
+    const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(parsed), headers: { "Idempotency-Key": key } });
+    // Read as `#getRun` reads: a billing unit of a newer server must not throw after the credits are held.
+    const read = runReadSchema.safeParse(body);
+    if (read.success) return read.data;
+    if (typeof body !== "object" || body === null || Array.isArray(body)) throw new ClipwrightResponseError(path, true, read.error);
+    return body as RunRead;
+  }
+
   /** Deletes a personal actor. The answer is 204 with no body. */
   async deleteActor(id: string): Promise<void> {
     await this.#request(actorItemPath(id), true, { method: "DELETE" });
@@ -586,3 +622,4 @@ export type { AgentFailureReport, ApiFailure };
 export type { MakeUgcInput, MakeUgcInputArgs, QuoteResponse, Run, RunRead };
 export type { FacelessQuoteResponse, MakeFacelessInputArgs };
 export type { RunEditRead, RunShotsRead, SaveRunEditArgs };
+export type { RevisionQuoteRead, RevisionRequest };

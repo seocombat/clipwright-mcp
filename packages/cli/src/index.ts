@@ -16,9 +16,12 @@ import {
   CATALOG_LANGUAGES,
   DEFAULT_FACELESS_VOICE,
   editDocumentRead,
+  FAILED_STATE,
   MODEL_VOICE_MODEL,
   PUBLIC_APP_BASE_URL,
   RESOLUTIONS,
+  REVISION_CHARGE_TEXT,
+  type RevisionRequest,
   TTS_MODELS,
   UPLOAD_MAX_BYTES,
   VOICE_NAME_PATTERN,
@@ -37,6 +40,7 @@ import {
   ClipwrightClient,
   ClipwrightResponseError,
   type RunEditRead,
+  type RunRead,
   type SaveRunEditArgs,
 } from "@clipwright/sdk";
 
@@ -360,6 +364,101 @@ program
       saved = await settleConflict(sdk, run, file, error.failure.version);
     }
     printDraft(saved);
+  });
+
+interface ReviseOptions {
+  shot?: string;
+  retake?: boolean;
+  newPicture?: string;
+  animate?: string | boolean;
+  document?: string;
+}
+
+const GENERATE_FLAGS = ["retake", "newPicture", "animate"] as const;
+
+/** Revision input shared by quote and start, so the quote prices what is started: one shot to generate, or a document. */
+const withReviseOptions = (command: Command): Command =>
+  command
+    .addOption(new Option("--shot <id>", "the shot to generate anew, with one of --retake, --new-picture or --animate")
+      .conflicts("document"))
+    .addOption(new Option("--retake", "generate the shot again from its own description").conflicts(["newPicture", "animate", "document"]))
+    .addOption(new Option("--new-picture <description>", "draw a new picture for the shot from this description")
+      .conflicts(["animate", "document"]))
+    .addOption(new Option("--animate [motion]", "turn the opening picture into a clip, with this motion if given").conflicts("document"))
+    .option("--document <path>", "the file edit-show prints: its document, edited, is the whole revision");
+
+/** The request a revision sends, built here and refused before any request when the flags or the file name none. */
+function revisionInput(opts: ReviseOptions): RevisionRequest {
+  if (opts.document !== undefined) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(readFileSync(opts.document, "utf8"));
+    } catch (error) {
+      console.error(`${opts.document} cannot be read as JSON: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+    const document = isRecord(parsed) ? parsed.document : undefined;
+    if (!isRecord(document)) {
+      console.error(`${opts.document} is not a draft as "clipwright edit-show" prints it: it lacks document (an object). ` +
+        "Nothing was sent.");
+      process.exit(1);
+    }
+    return { document } as RevisionRequest;
+  }
+  const chosen = GENERATE_FLAGS.filter((flag) => opts[flag] !== undefined);
+  if (opts.shot === undefined || chosen.length !== 1) {
+    console.error("pass --shot <id> with one of --retake, --new-picture or --animate, or --document <path>. Nothing was sent.");
+    process.exit(1);
+  }
+  const operation = opts.retake === true ? { mode: "retake" as const }
+    : opts.newPicture !== undefined ? { mode: "new_picture" as const, description: opts.newPicture }
+    : { mode: "animate" as const, ...(typeof opts.animate === "string" ? { motion: opts.animate } : {}) };
+  return { changes: [{ shot_id: opts.shot, operation }] };
+}
+
+withReviseOptions(
+  program.command("revise-quote <run>")
+    .description(`price a revision of a run without spending credits; prints the quote as JSON. ${REVISION_CHARGE_TEXT}`),
+).action(async (run: string, opts: ReviseOptions) => {
+  console.log(JSON.stringify(await client().quoteRevision(run, revisionInput(opts)), null, 2));
+});
+
+withReviseOptions(
+  program.command("revise <run>")
+    .description(`start a revision of a run (paid): a new run, editable in its turn; prints the run. ${REVISION_CHARGE_TEXT}`),
+)
+  .option("--retry <n>", "attempt number: the same request with another number starts another revision", parseRetry)
+  .action(async (run: string, opts: ReviseOptions & { retry?: number }) => {
+    const request = revisionInput(opts);
+    let started: RunRead;
+    try {
+      started = await client().startRevision(run, request, { attempt: opts.retry });
+    } catch (error) {
+      if (!(error instanceof ClipwrightApiError)) throw error;
+      const failure = error.failure;
+      if (failure.kind === "edit_ceiling_reached") {
+        console.error(formatApiError(error));
+        if (failure.limit === "in_flight") {
+          for (const id of failure.runIds) console.error(`running: ${id}; follow it with "clipwright runs ${id}"`);
+        } else {
+          console.error(`${failure.counted} of ${failure.allowed} revisions of ${failure.rootRunId} are counted; ask support to raise the limit.`);
+        }
+        process.exit(1);
+      }
+      // The source is resolved before a resent key is replayed, so a `--shot` resend of a source past its media meets this.
+      if (failure.kind === "run_not_editable" && "changes" in request) {
+        console.error(formatApiError(error));
+        console.error('if you started this revision before, find it with "clipwright runs"');
+        process.exit(1);
+      }
+      throw error;
+    }
+    console.log(JSON.stringify(started, null, 2));
+    if (started.state === FAILED_STATE) {
+      console.error(`run ${started.run_id} is ${started.state}; to try again, pass --retry ${(opts.retry ?? 1) + 1}`);
+      process.exit(1);
+    }
+    console.error(`follow it with "clipwright runs ${started.run_id}"`);
   });
 
 program.command("actors").description("list saved actors and verified formats").action(async () => {

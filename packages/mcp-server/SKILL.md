@@ -164,9 +164,9 @@ Environment variables:
 | `CLIPWRIGHT_CLIENT_ID` | YES (see section 2) | Unique identifier of this INSTALLATION. |
 
 After connecting, restart or reopen the MCP host and confirm that `tools/list`
-returns 15 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_ugc`, `list_actors`, `list_voices`, `upload_image`,
-`get_account`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`, `set_actor_defaults`,
-`quote_faceless`, `make_faceless`.
+returns 17 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_ugc`, `list_actors`,
+`list_voices`, `upload_image`, `get_account`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
+`set_actor_defaults`, `quote_faceless`, `make_faceless`.
 
 ## 2. `CLIPWRIGHT_CLIENT_ID` — required, and WHY
 
@@ -542,9 +542,38 @@ A field named in `withheld` is null on every shot, so a null `description` or
 
 `editable.media_available_until` is how long the media of the run are stored.
 `paid_edits.enabled` says whether a video can be made from an edit; while it is
-`false`, none can. This server has no tool that changes a video. Read `kind`, `line`,
+`false`, none can, and `revise_run` answers `editing_disabled`. Read `kind`, `line`,
 `editable.state` and each shot's `operations` as open strings, because a later
 API may name values this text does not list.
+
+### `quote_revision` — free; `revise_run` — paid
+
+Both take a `run_id` and exactly one of `changes` (shots to generate anew over
+the run as it is: each a `shot_id` and its `operation`, such as
+`{ "mode": "retake" }`) or `document` (the whole edited document; retimes,
+deletions and uploads go this way). `quote_revision` answers what the revision
+would change (`summary`) and cost (`billing.total_credits`) and spends nothing.
+Show the user that price before `revise_run`.
+
+`revise_run` starts a NEW run and returns it at once; poll it with `get_run`.
+Once it succeeded it is editable under its own `run_id`. A revision that
+delivers is charged its quoted total; one that fails is charged nothing, even
+when its paid work was already done. An identical request returns the same run
+it started before, so a call repeated after a lost answer starts nothing new;
+pass `attempt: 2` to start a second revision with the same request on purpose.
+
+The refusals are terminal; do not retry them unchanged:
+
+- `editing_disabled`, `editing_not_priced`, `editing_window_not_set` (503) —
+  paid edits are not open. Nothing was charged and no run was created.
+- `edit_ceiling_reached` (409) — `ceiling: "in_flight"` means a revision of the
+  original is still running: follow `run_ids` with `get_run` and start the next
+  one after it finishes; if it is held for review, contact support.
+  `"failed_or_unfinished"` means support has to raise the limit.
+- `edit_invalid` (422) — the document breaks a rule of the run; `issues` lists
+  each, and the rules are in the run's shots.
+- `run_not_editable` (409) with `state: "edit_window_closed"` — the paid window
+  of the original has closed.
 
 ### `list_actors` — free, no input
 

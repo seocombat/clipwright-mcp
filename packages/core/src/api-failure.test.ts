@@ -10,8 +10,13 @@ import {
 import { QUEUE_PROMISES } from "./__fixtures__/queue-promises.js";
 import {
   accountNotAdmittedBody,
+  apiErrorBody,
   debtOutstandingBody,
+  editCeilingReachedBody,
   editConflictBody,
+  editingDisabledBody,
+  editingNotPricedBody,
+  editInvalidBody,
   insufficientCreditsBody,
   runNotEditableBody,
 } from "./errors.js";
@@ -342,6 +347,106 @@ describe("the two refusals of a draft carry their fields", () => {
     // A conflict body without its version is not the typed refusal, and its code does not pose as one.
     const versionless = parsed(409, { error: { code: "edit_conflict", message: "moved" } });
     expect(versionless).toEqual({ kind: "client_error", status: 409, message: "moved", code: undefined });
+  });
+});
+
+describe("the revision refusals carry their kinds and fields", () => {
+  const parsed = (status: number, body: unknown) => parseApiFailure({ status, bodyText: JSON.stringify(body), now: NOW });
+  const DISABLED = editingDisabledBody({ reason: "flag_off" });
+  const UNSET_CEILING = editingDisabledBody({ reason: "ceiling_not_set" });
+  const NOT_PRICED = editingNotPricedBody({ seams: ["unit", "zero_unit"] });
+  const NO_WINDOW = apiErrorBody({ code: "editing_window_not_set", message: "paid edits have no window yet." });
+  const IN_FLIGHT = editCeilingReachedBody({ limit: "in_flight", root_run_id: "run_root", allowed: 1, counted: 1, run_ids: ["run_busy"] });
+  // Counted above allowed (a ceiling lowered after the failures), so a swap of the two fields shows.
+  const FAILED = editCeilingReachedBody({ limit: "failed_or_unfinished", root_run_id: "run_root", allowed: 3, counted: 4,
+    run_ids: ["run_f1", "run_f2", "run_f3", "run_f4"] });
+  const INVALID = editInvalidBody({ issues: [
+    { code: "overlap", shot_id: "beat-2", from_frame: 40, to_frame: 52, message: "beat-2 overlaps beat-1" },
+    { code: "uncovered", shot_id: "beat-4", message: "a gap before beat-4" },
+  ] });
+  const NO_CHANGES = apiErrorBody({ code: "no_changes", message: "the document changes nothing." });
+  const NEEDS_UNIT = apiErrorBody({ code: "revision_needs_generated_unit", message: "needs a generated unit." });
+
+  it("each of the seven revision codes on its own status parses to its kind with its fields", () => {
+    const table: [number, unknown, unknown][] = [
+      [503, DISABLED, { kind: "editing_closed", status: 503, message: DISABLED.error.message, code: "editing_disabled", reason: "flag_off", seams: null }],
+      [503, UNSET_CEILING, { kind: "editing_closed", status: 503, message: UNSET_CEILING.error.message, code: "editing_disabled", reason: "ceiling_not_set", seams: null }],
+      [503, NOT_PRICED, { kind: "editing_closed", status: 503, message: NOT_PRICED.error.message, code: "editing_not_priced", reason: null, seams: ["unit", "zero_unit"] }],
+      [503, NO_WINDOW, { kind: "editing_closed", status: 503, message: NO_WINDOW.error.message, code: "editing_window_not_set", reason: null, seams: null }],
+      [409, IN_FLIGHT, { kind: "edit_ceiling_reached", status: 409, message: IN_FLIGHT.error.message, limit: "in_flight",
+        rootRunId: "run_root", allowed: 1, counted: 1, runIds: ["run_busy"] }],
+      [409, FAILED, { kind: "edit_ceiling_reached", status: 409, message: FAILED.error.message, limit: "failed_or_unfinished",
+        rootRunId: "run_root", allowed: 3, counted: 4, runIds: ["run_f1", "run_f2", "run_f3", "run_f4"] }],
+      [422, INVALID, { kind: "edit_invalid", status: 422, message: INVALID.error.message, issues: INVALID.error.issues }],
+      [422, NO_CHANGES, { kind: "client_error", status: 422, message: NO_CHANGES.error.message, code: "no_changes" }],
+      [422, NEEDS_UNIT, { kind: "client_error", status: 422, message: NEEDS_UNIT.error.message, code: "revision_needs_generated_unit" }],
+    ];
+    for (const [status, body, expected] of table) expect(parsed(status, body), JSON.stringify(body)).toEqual(expected);
+  });
+
+  it("a reason, limit or issue code of a newer server still parses to its kind, and a body missing a field does not", () => {
+    const later = (body: { error: object }, error: object) => ({ error: { ...body.error, ...error } });
+    expect(parsed(503, later(DISABLED, { reason: "paused" }))).toMatchObject({ kind: "editing_closed", reason: "paused" });
+    expect(parsed(503, later(NOT_PRICED, { seams: ["voice"] }))).toMatchObject({ kind: "editing_closed", seams: ["voice"] });
+    expect(parsed(409, later(IN_FLIGHT, { limit: "per_day" }))).toMatchObject({ kind: "edit_ceiling_reached", limit: "per_day" });
+    expect(parsed(422, later(INVALID, { issues: [{ code: "voice_gap", message: "no voice" }] })))
+      .toMatchObject({ kind: "edit_invalid", issues: [{ code: "voice_gap", message: "no voice" }] });
+    const { run_ids: _runIds, ...countless } = IN_FLIGHT.error;
+    expect(parsed(409, { error: countless })).toEqual({ kind: "client_error", status: 409, message: IN_FLIGHT.error.message, code: undefined });
+    expect(parsed(422, later(INVALID, { issues: [] }))).toMatchObject({ kind: "client_error", code: undefined });
+  });
+
+  it("the three closed-door 503s are not retryable", () => {
+    for (const body of [DISABLED, UNSET_CEILING, NOT_PRICED, NO_WINDOW]) {
+      const failure = parsed(503, body);
+      expect(isRetryableFailure(failure), JSON.stringify(body)).toBe(false);
+      expect(agentFailureReport(failure)).toMatchObject({ status: "FAILED", retryable: false, code: body.error.code });
+    }
+    for (const body of [IN_FLIGHT, FAILED, INVALID]) expect(isRetryableFailure(parsed(body === INVALID ? 422 : 409, body))).toBe(false);
+  });
+
+  it("off its own status a revision code is dropped and the class follows the status", () => {
+    const own = new Map<unknown, number>([[DISABLED, 503], [NOT_PRICED, 503], [NO_WINDOW, 503], [IN_FLIGHT, 409], [INVALID, 422]]);
+    for (const [body, home] of own) {
+      for (let status = 400; status <= 599; status += 1) {
+        if (status === home) continue;
+        const failure = parsed(status, body);
+        expect(["editing_closed", "edit_ceiling_reached", "edit_invalid"], String(status)).not.toContain(failure.kind);
+        expect(failure.kind === "client_error" ? failure.code : undefined, String(status)).toBeUndefined();
+        expect(failure.kind, String(status)).toBe(status === 429 ? "rate_limited" : status >= 500 ? "server_error" : "client_error");
+      }
+    }
+  });
+
+  it("a 503 with a foreign body is still server_error", () => {
+    expect(parseApiFailure({ status: 503, bodyText: "<html>Service Unavailable</html>", now: NOW }).kind).toBe("server_error");
+    expect(parsed(503, { error: { code: "maintenance", message: "back soon" } }).kind).toBe("server_error");
+    expect(isRetryableFailure(parsed(503, { error: { code: "maintenance", message: "back soon" } }))).toBe(true);
+  });
+
+  it("the ceiling refusal reports ceiling, allowed, counted and run_ids, and leaves limit unset", () => {
+    const inFlight = agentFailureReport(parsed(409, IN_FLIGHT));
+    expect(inFlight).toMatchObject({ code: "edit_ceiling_reached", ceiling: "in_flight", root_run_id: "run_root",
+      allowed: 1, counted: 1, run_ids: ["run_busy"] });
+    expect(inFlight).not.toHaveProperty("limit");
+    expect(inFlight.next_action).toContain("still running (run_busy)");
+    expect(inFlight.next_action).toContain("held for review, contact support");
+    const failed = agentFailureReport(parsed(409, FAILED));
+    expect(failed).toMatchObject({ ceiling: "failed_or_unfinished", allowed: 3, counted: 4 });
+    expect(failed.next_action).toContain("run_root has 4 of 3 failed or unfinished revisions");
+    expect(failed.next_action).toContain("support can raise the limit");
+    expect(failed).not.toHaveProperty("limit");
+  });
+
+  it("the closed door names its code and reason or seams; the invalid document names its first issue", () => {
+    expect(agentFailureReport(parsed(503, DISABLED))).toMatchObject({ reason: "flag_off", seams: null });
+    expect(agentFailureReport(parsed(503, DISABLED)).next_action).toContain("(editing_disabled: flag_off)");
+    expect(agentFailureReport(parsed(503, NOT_PRICED)).next_action).toContain("(editing_not_priced: unit, zero_unit)");
+    expect(agentFailureReport(parsed(503, NOT_PRICED))).toMatchObject({ reason: null, seams: ["unit", "zero_unit"] });
+    expect(agentFailureReport(parsed(503, NO_WINDOW)).next_action).toContain("(editing_window_not_set)");
+    const invalid = agentFailureReport(parsed(422, INVALID));
+    expect(invalid).toMatchObject({ code: "edit_invalid", issues: INVALID.error.issues });
+    expect(invalid.next_action).toContain("Fix the document: beat-2 overlaps beat-1.");
   });
 });
 

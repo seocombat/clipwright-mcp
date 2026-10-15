@@ -6,6 +6,7 @@ import { createdActor } from "./account-actors.js";
 import { faceBillingAdmissionTermsSchema } from "./billing-terms.js";
 import { brollPolicy } from "./broll-policy.js";
 import { facelessQuote } from "./faceless-price.js";
+import { revisionBilling } from "./edit-billing.js";
 
 /** Shared run stages; skill-specific workers use the stages they need. */
 export const RUN_STATES = [
@@ -58,8 +59,15 @@ export const FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT =
 /** response call this, so the sentence names what that video holds. */
 export function aiDisclosureText(skill: string, input: unknown): string {
   if (skill !== "make_faceless") return AI_DISCLOSURE_TEXT;
-  const images = typeof input === "object" && input !== null ? (input as { scene_images?: unknown }).scene_images : undefined;
-  return Array.isArray(images) && images.length > 0 ? FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT : FACELESS_AI_DISCLOSURE_TEXT;
+  return facelessOwnImages(input) ? FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT : FACELESS_AI_DISCLOSURE_TEXT;
+}
+
+/** Whether a faceless run's stored input holds images of its author: a revision reads what its admission froze down the chain. */
+export function facelessOwnImages(input: unknown): boolean {
+  const stored = typeof input === "object" && input !== null
+    ? input as { scene_images?: unknown; resolved_revision?: { own_images?: unknown } } : {};
+  return stored.resolved_revision !== undefined ? stored.resolved_revision?.own_images === true
+    : Array.isArray(stored.scene_images) && stored.scene_images.length > 0;
 }
 
 /** Object metadata key that says whether the tag is in the file: a reader learns it without the bytes. */
@@ -88,6 +96,12 @@ export const run = z.object({
   credits_charged: z.number().int().nonnegative().nullable(),
   billing_terms: faceBillingAdmissionTermsSchema.optional(),
   faceless_billing: facelessQuote.optional(),
+  /** A revision of another run: its family, the credits held at admission, and its frozen price (`null` once redacted). */
+  revision: z.object({
+    source_run_id: runId, root_run_id: runId,
+    quoted_credits: z.number().int().nonnegative(),
+    billing: revisionBilling.nullable(),
+  }).optional(),
   resolved_broll_policy: brollPolicy.optional(),
   warnings: z.array(z.string()).default([]),
   /** The reason. A non-empty `error` does NOT imply `state: "failed"`: on a non-terminal */

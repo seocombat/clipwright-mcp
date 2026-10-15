@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { editSummaryWire, revisionBilling } from "./edit-billing.js";
+import { editDocument } from "./edit-document.js";
+import { runId } from "./runs.js";
 import { uploadResponse } from "./uploads.js";
 import { MAX_URL_LENGTH } from "./skills.js";
 import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
@@ -53,6 +56,18 @@ const briefInput = z.object({ ...common,
 export const makeFacelessInput = z.discriminatedUnion("input_mode", [scriptInput, briefInput]);
 export type MakeFacelessInput = z.infer<typeof makeFacelessInput>;
 export type MakeFacelessInputArgs = z.input<typeof makeFacelessInput>;
+
+/** The stored input of a revision: the request as resolved, and what admission froze about it. */
+export const facelessRevisionInput = z.strictObject({
+  input_mode: z.literal("revision"),
+  revision: z.strictObject({ source_run_id: runId, document: editDocument }),
+  resolved_revision: z.strictObject({ root_run_id: runId, own_images: z.boolean(), summary: editSummaryWire, billing: revisionBilling }),
+});
+export type FacelessRevisionInput = z.infer<typeof facelessRevisionInput>;
+
+/** What a `make_faceless` run stores as its input: a generate request or a revision. */
+export const facelessStoredInput = z.discriminatedUnion("input_mode", [scriptInput, briefInput, facelessRevisionInput]);
+export type FacelessStoredInput = z.infer<typeof facelessStoredInput>;
 
 /** The API routes repeat these paths as literals, and a test keeps them equal. */
 export const FACELESS_QUOTE_PATH = "/v1/skills/make_faceless/quote";

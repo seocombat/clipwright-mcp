@@ -16,6 +16,37 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
+## [0.28.0] - 2026-10-15
+
+The revision of a faceless video is paid and open: `quoteRevision` and `startRevision` in the SDK, `revise-quote` and
+`revise` in the CLI, and the MCP tools `quote_revision` and `revise_run`, which make the server list 17 tools. Three
+failure kinds are new: `editing_closed`, `edit_ceiling_reached` and `edit_invalid`.
+
+### Added
+
+- A finished faceless video can be revised: `quoteRevision` and `startRevision` in the SDK, `revise-quote` and
+  `revise` in the CLI, and the MCP tools `quote_revision` and `revise_run`. A revision is a new run made from the
+  edited document, or from shots named to be generated anew. The quote charges nothing. An identical request returns
+  the same run; `attempt` (`--retry` in the CLI) starts a second revision on purpose. A revision that delivers is
+  charged its quoted total; one that fails is charged nothing, even when its paid work was already done. While paid
+  edits are closed on the server, both calls answer `editing_disabled`. (clipwright#604)
+
+### Changed
+
+- **Breaking:** `@clipwright/core`, for TypeScript callers: the union `ApiFailure` has three more members,
+  `editing_closed`, `edit_ceiling_reached` and `edit_invalid`. A `switch` over `failure.kind` that is checked for
+  exhaustiveness does not compile until it handles them. Code that does not switch on the kind is not affected.
+  (clipwright#604)
+- The refusals of the revision routes have failure kinds of their own: `editing_closed` for the 503s
+  `editing_disabled`, `editing_not_priced` and `editing_window_not_set`, which are no longer retried as server errors;
+  `edit_ceiling_reached` with the limit, the count and the runs counted; `edit_invalid` with the issues of the
+  document. They were `server_error` and a `client_error` without their fields. (clipwright#604)
+- *Dashboard:* `/videos` lists faceless videos as well as UGC videos. A faceless video has no still frame, so its
+  tile says that no preview was recorded, and a click plays it like any other tile. "Get video link" on the Balance
+  page now gives the link of a faceless video, where it used to answer "No video for this run.". (clipwright#604)
+- *Dashboard:* a revision is labelled with the run it revises on the Balance page and on `/videos`, and the docs page
+  lists the prices of a revision. (clipwright#604)
+
 ## [0.27.0] - 2026-10-13
 
 The shots of a finished video can be read, and the draft of an edit can be kept: `getRunShots`, `getRunEdit` and

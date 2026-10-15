@@ -1,10 +1,16 @@
+import { z } from "zod";
 import {
   accountNotAdmittedError,
   apiError,
   debtOutstandingError,
+  editCeilingReachedError,
   editConflictError,
+  editingDisabledError,
+  editingNotPricedError,
+  editInvalidError,
   insufficientCreditsError,
   runNotEditableError,
+  type BareApiErrorCode,
 } from "./errors.js";
 import { rateLimitedError } from "./rate-limit.js";
 
@@ -66,6 +72,47 @@ export interface RunNotEditableFailure {
   reason: string | null;
 }
 
+/** Paid edits are closed. Terminal until the owner opens them: a retry is refused the same way. */
+export interface EditingClosedFailure {
+  kind: "editing_closed";
+  status: number;
+  message: string;
+  code: string;
+  /** `flag_off`, `ceiling_not_set`, or a reason of a newer server; null when the code carries none. */
+  reason: string | null;
+  /** The price seams still unset, on `editing_not_priced`. */
+  seams: string[] | null;
+}
+
+/** A root has as many revisions running, or failed and unfinished, as it may; `runIds` are the ones counted. */
+export interface EditCeilingReachedFailure {
+  kind: "edit_ceiling_reached";
+  status: number;
+  message: string;
+  limit: string;
+  rootRunId: string;
+  allowed: number;
+  counted: number;
+  runIds: string[];
+}
+
+/** One rule of the run an edit document breaks, as the validator states it. */
+export interface EditIssueRead {
+  code: string;
+  message: string;
+  shot_id?: string | undefined;
+  from_frame?: number | undefined;
+  to_frame?: number | undefined;
+}
+
+/** The document breaks the rules of the run it edits; `issues` are in the server's order. */
+export interface EditInvalidFailure {
+  kind: "edit_invalid";
+  status: number;
+  message: string;
+  issues: EditIssueRead[];
+}
+
 /** 5xx: the server says the fault is its own. Safe to retry. */
 export interface ServerFailure {
   kind: "server_error";
@@ -90,6 +137,9 @@ export type ApiFailure =
   | NotAdmittedFailure
   | EditConflictFailure
   | RunNotEditableFailure
+  | EditingClosedFailure
+  | EditCeilingReachedFailure
+  | EditInvalidFailure
   | ServerFailure
   | ClientFailure;
 
@@ -260,7 +310,26 @@ const BEHAVIOURAL_CODES = new Set<string>([
   accountNotAdmittedError.shape.error.shape.code.value,
   editConflictError.shape.error.shape.code.value,
   runNotEditableError.shape.error.shape.code.value,
+  editingDisabledError.shape.error.shape.code.value,
+  editingNotPricedError.shape.error.shape.code.value,
+  "editing_window_not_set" satisfies BareApiErrorCode,
+  editCeilingReachedError.shape.error.shape.code.value,
+  editInvalidError.shape.error.shape.code.value,
 ]);
+
+// The revision refusals are read with their closed vocabularies open: a reason, limit or issue code
+// a newer server adds must not turn a refusal into a retryable `server_error`.
+const editingClosedRead = z.union([
+  z.object({ error: editingDisabledError.shape.error.extend({ reason: z.string().min(1) }) }),
+  z.object({ error: editingNotPricedError.shape.error.extend({ seams: z.array(z.string().min(1)) }) }),
+  z.object({ error: apiError.shape.error.extend({ code: z.literal("editing_window_not_set" satisfies BareApiErrorCode) }) }),
+]);
+const editCeilingReachedRead = z.object({ error: editCeilingReachedError.shape.error.extend({ limit: z.string().min(1) }) });
+const editInvalidRead = z.object({
+  error: editInvalidError.shape.error.extend({
+    issues: z.array(editInvalidError.shape.error.shape.issues.element.extend({ code: z.string().min(1) })).min(1),
+  }),
+});
 
 export interface ApiFailureInput {
   status: number;
@@ -341,6 +410,27 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
     return { kind: "run_not_editable", status, message: error.message, state: error.state, reason: error.reason };
   }
 
+  // The revision refusals, each on its own status: a closed door is not a server fault and is not retried.
+  const closed = status === 503 ? editingClosedRead.safeParse(body) : undefined;
+  if (closed?.success === true) {
+    const { error } = closed.data;
+    return { kind: "editing_closed", status, message: error.message, code: error.code,
+      reason: "reason" in error ? error.reason : null, seams: "seams" in error ? error.seams : null };
+  }
+
+  const ceiling = status === 409 ? editCeilingReachedRead.safeParse(body) : undefined;
+  if (ceiling?.success === true) {
+    const { error } = ceiling.data;
+    return { kind: "edit_ceiling_reached", status, message: error.message, limit: error.limit,
+      rootRunId: error.root_run_id, allowed: error.allowed, counted: error.counted, runIds: error.run_ids };
+  }
+
+  const invalid = status === 422 ? editInvalidRead.safeParse(body) : undefined;
+  if (invalid?.success === true) {
+    const { error } = invalid.data;
+    return { kind: "edit_invalid", status, message: error.message, issues: error.issues };
+  }
+
   // From here the body is foreign or unparsed. The generic envelope still gives
   // text and code; otherwise the message is built from the status.
   const generic = apiError.safeParse(body);
@@ -405,9 +495,19 @@ export interface AgentFailureReport {
   debt_credits?: number;
   /** The stored version of a draft, on `edit_conflict`. */
   version?: number;
-  /** Why a run has no draft, on `run_not_editable`. */
+  /** Why a run has no draft, on `run_not_editable`; why paid edits are closed, on `editing_closed`. */
   state?: string;
   reason?: string | null;
+  /** The unset price seams, on `editing_closed`. `limit` stays the rate limit's bucket size. */
+  seams?: string[] | null;
+  /** Which revision ceiling a root reached, with its root, bound, count and the runs counted. */
+  ceiling?: string;
+  root_run_id?: string;
+  allowed?: number;
+  counted?: number;
+  run_ids?: string[];
+  /** The rules an edit document breaks, on `edit_invalid`. */
+  issues?: EditIssueRead[];
 }
 
 export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
@@ -522,6 +622,55 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
           "gives the same answer while that state stands. The shots of the run state the same state and reason.",
         state: failure.state,
         reason: failure.reason,
+      };
+
+    case "editing_closed": {
+      const why = failure.seams !== null ? failure.seams.join(", ") : failure.reason;
+      return {
+        ...base,
+        status: "FAILED",
+        code: failure.code,
+        retryable: false,
+        next_action:
+          `STOP. Paid edits are not open (${failure.code}${why === null || why === "" ? "" : `: ${why}`}). Nothing was ` +
+          "charged and no run was created. Do NOT retry: `paid_edits` on the run's shots says when they open.",
+        reason: failure.reason,
+        seams: failure.seams,
+      };
+    }
+
+    case "edit_ceiling_reached": {
+      const runs = failure.runIds.join(", ");
+      return {
+        ...base,
+        status: "FAILED",
+        code: "edit_ceiling_reached",
+        retryable: false,
+        next_action: failure.limit === "in_flight"
+          ? `STOP. A revision of ${failure.rootRunId} is still running (${runs}); follow it with get_run and start the ` +
+            "next one after it finishes. If get_run says it is held for review, contact support: only an operator " +
+            "closes it, and it charges nothing."
+          : `STOP. ${failure.rootRunId} has ${failure.counted} of ${failure.allowed} ${failure.limit === "failed_or_unfinished"
+            ? "failed or unfinished revisions" : `revisions counted against its ${failure.limit} limit`}${runs === "" ? "" : ` (${runs})`}; ` +
+            "support can raise the limit after a failure that was ours. Nothing was charged and no run was created.",
+        ceiling: failure.limit,
+        root_run_id: failure.rootRunId,
+        allowed: failure.allowed,
+        counted: failure.counted,
+        run_ids: failure.runIds,
+      };
+    }
+
+    case "edit_invalid":
+      return {
+        ...base,
+        status: "FAILED",
+        code: "edit_invalid",
+        retryable: false,
+        next_action:
+          `STOP. Do NOT retry unchanged. Fix the document: ${failure.issues[0]?.message ?? failure.message}. The rules are ` +
+          "in the run's shots. Nothing was charged and no run was created.",
+        issues: failure.issues,
       };
 
     case "client_error":

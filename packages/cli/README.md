@@ -32,6 +32,8 @@ above name the package with `-p`, so they resolve here either way.
 | `shots <run>` | Lists the shots of a finished video: span, kind, start of the description and preview link of each. Free. |
 | `edit-show <run>` | Prints the draft of an edit of a run as JSON. Version 0 means nothing is stored. Free. |
 | `edit-save <run> --file <path>` | Saves the draft from a file `edit-show` printed. Charges nothing and renders nothing. |
+| `revise-quote <run>` | Prices a revision of a faceless video and prints the quote as JSON. Spends nothing. |
+| `revise <run>` | Starts a revision: a new run that renders the video again with the shots you change. **Costs credits.** Prints the run; follow it with `runs <id>`. |
 
 `quote` and `make` take the actor's photo as `--image <url>` or `--image-file <path>`
 (uploaded first, then passed on), plus `--aspect-ratio 9:16|1:1|16:9` and
@@ -101,6 +103,15 @@ version later, an earlier send went through and the save is reported as done.
 Otherwise it reports the conflict with the stored version: run `edit-show`
 again and apply your change to that draft. Write the new draft to another file
 than the one you pass with `--file`.
+
+`revise-quote` and `revise` take one of two inputs: `--shot <id>` with one of
+`--retake`, `--new-picture <description>` or `--animate [motion]`, or
+`--document <path>`, a file `edit-show` printed whose edited `document` is the
+whole revision. A revision that delivers is charged its quoted total; one that
+fails is charged nothing, even when its paid work was already done. The same
+request sent again returns the run it started; `--retry 2` starts a second
+revision. While paid edits are closed on the server, both commands answer
+`editing_disabled`.
 
 `make` retries are explicit: `--retry 2` deliberately starts a *new* run for the
 same script. Without it a repeated call returns the run you already paid for,

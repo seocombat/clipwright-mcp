@@ -1,6 +1,6 @@
 {
   "name": "@clipwright/sdk",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "TypeScript client for the Clipwright UGC video API",
   "license": "MIT",
   "author": "Dimantika Sp. z o.o.",

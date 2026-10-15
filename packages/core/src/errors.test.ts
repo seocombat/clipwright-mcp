@@ -5,8 +5,12 @@ import {
   apiError,
   debtOutstandingBody,
   debtOutstandingError,
+  editCeilingReachedBody,
   editConflictBody,
   editConflictError,
+  editInvalidBody,
+  editingDisabledBody,
+  editingNotPricedBody,
   runNotEditableBody,
   runNotEditableError,
   insufficientCreditsBody,
@@ -110,5 +114,22 @@ describe("refusal bodies of the draft of an edit", () => {
     expect(editConflictError.safeParse(closed).success).toBe(false);
     expect(API_ERROR_CODES).toContain("edit_conflict");
     expect(API_ERROR_CODES).toContain("run_not_editable");
+  });
+});
+
+describe("refusal bodies of a revision", () => {
+  it("each of the seven codes is published, and the four typed bodies carry their fields", () => {
+    for (const code of ["editing_disabled", "editing_not_priced", "editing_window_not_set", "edit_invalid", "no_changes",
+      "revision_needs_generated_unit", "edit_ceiling_reached"]) expect(API_ERROR_CODES).toContain(code);
+    expect(editingDisabledBody({ reason: "ceiling_not_set" }).error).toMatchObject({ code: "editing_disabled", reason: "ceiling_not_set" });
+    expect(editingNotPricedBody({ seams: ["unit", "zero_unit"] }).error).toMatchObject({ seams: ["unit", "zero_unit"],
+      message: expect.stringContaining("(unit, zero_unit)") });
+    expect(editingNotPricedBody({ seams: [] }).error.message).toMatch(/^this revision would cost nothing/);
+    const issues = [{ code: "unknown_asset" as const, shot_id: "beat-3", message: "upl_x is not an upload of this account" }];
+    expect(editInvalidBody({ issues }).error).toMatchObject({ code: "edit_invalid", issues });
+    expect(() => editInvalidBody({ issues: [] })).toThrow();
+    expect(editCeilingReachedBody({ limit: "in_flight", root_run_id: "run_root1", allowed: 1, counted: 1, run_ids: ["run_q1"] }).error)
+      .toMatchObject({ code: "edit_ceiling_reached", limit: "in_flight", root_run_id: "run_root1", allowed: 1, counted: 1, run_ids: ["run_q1"],
+        message: expect.stringContaining("Nothing was charged") });
   });
 });

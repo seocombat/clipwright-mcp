@@ -1,2 +1,5 @@
 packages:
   - "packages/*"
+
+allowBuilds:
+  esbuild: true  # native binary for core's browser-bundle test

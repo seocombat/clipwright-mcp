@@ -70,6 +70,17 @@ treat that as a conflict. The three calls are free. A draft charges nothing and
 renders nothing. Responses are parsed tolerantly: a kind of shot, an action or
 the code of an issue that a later API adds arrives as a plain string.
 
+`quoteRevision(runId, request)` prices a revision of a faceless video for
+nothing, and `startRevision(runId, request, { attempt })` starts it: a new run,
+returned at once, that renders the video again with the shots you change. The
+request is `{ document }`, the edited document of the draft, or
+`{ changes: [{ shot_id, operation }] }`. A revision that delivers is charged its
+quoted total; one that fails is charged nothing, even when its paid work was
+already done. The same request and attempt send the same idempotency key, so a
+resend returns the first run; `attempt: 2` starts a second one. While paid edits
+are closed on the server, both calls throw a `ClipwrightApiError` of kind
+`editing_closed`, which is not retried.
+
 Requires `CLIPWRIGHT_CLIENT_ID`, or a writable `~/.clipwright/` for the SDK to
 create one on first use. It fails loudly rather than generating a throwaway id,
 because a per-process id would disable duplicate protection without saying so.

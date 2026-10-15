@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 
 import { createActorInput } from "./account-actors.js";
+import { revisionRequest } from "./edit-revision.js";
 import { makeFacelessInput } from "./faceless-public.js";
+import { runId } from "./runs.js";
 import { makeUgcInput } from "./skills.js";
 
 // Request fingerprint and per-client idempotency key. A subpath export, not the barrel:
@@ -49,6 +51,14 @@ export function idempotencyKeyFor(input: unknown, clientId: string): string {
 /** parse would strip every actor field. */
 export function actorIdempotencyKeyFor(input: unknown, clientId: string): string {
   const parsed = createActorInput.parse(input);
+  return createHash("sha256")
+    .update(clientId + JSON.stringify(canonicalize(parsed)))
+    .digest("hex");
+}
+
+/** The key of a revision: the source run and the request, parsed, under the client's prefix. */
+export function revisionIdempotencyKeyFor(sourceRunId: string, request: unknown, clientId: string): string {
+  const parsed = { source_run_id: runId.parse(sourceRunId), request: revisionRequest.parse(request) };
   return createHash("sha256")
     .update(clientId + JSON.stringify(canonicalize(parsed)))
     .digest("hex");

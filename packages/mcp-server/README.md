@@ -51,6 +51,15 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
 - `get_run_shots` — the shots of a finished video: the span, kind, description
   and preview link of each, with the narration words and their timing. Free and
   read-only. A run with no shots to show answers with the reason instead.
+- `quote_revision` — price of a revision of a faceless video: what it would
+  change and what it costs. Free.
+- `revise_run` — **starts a revision: a new run that renders the video again
+  with the shots you change; this costs money.** Pass `changes` (a shot and what
+  to generate for it) or the whole edited `document`. A revision that delivers
+  is charged its quoted total; one that fails is charged nothing, even when its
+  paid work was already done. An identical request returns the same run;
+  `attempt` starts a second one on purpose. Returns a `run_id` immediately; poll
+  `get_run` until `succeeded`.
 - `upload_image` — a local PNG/JPEG → signed https url to pass as `image`. Free;
   20 per day, the url lives 24 hours. Set `aspect_ratio` explicitly afterwards.
 - `quote_actor` — price of a personal actor before creating one. Free.

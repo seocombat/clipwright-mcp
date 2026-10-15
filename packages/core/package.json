@@ -1,6 +1,6 @@
 {
   "name": "@clipwright/core",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "Zod schemas and the shared request/response contract of the Clipwright UGC video API",
   "license": "MIT",
   "author": "Dimantika Sp. z o.o.",
@@ -17,6 +17,10 @@
     "node": ">=20"
   },
   "exports": {
+    "./workflows": {
+      "types": "./dist/workflows.d.ts",
+      "default": "./dist/workflows.js"
+    },
     "./media-timebase": {
       "types": "./dist/media-timebase.d.ts",
       "default": "./dist/media-timebase.js"
@@ -59,6 +63,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1"
+    "@types/node": "^26.1.1",
+    "esbuild": "0.28.2"
   }
 }

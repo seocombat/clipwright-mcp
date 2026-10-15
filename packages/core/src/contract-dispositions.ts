@@ -129,7 +129,7 @@ export interface ContractFlags {
 }
 
 /** `create_actor` is open only with the fetch surface: a personal actor cannot render without it. */
-export function isActorGenerationEnabled(env: Record<string, string | undefined> = process.env): boolean {
+export function isActorGenerationEnabled(env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env): boolean {
   return env.CLIPWRIGHT_ACTOR_GENERATION === "1" && env.CLIPWRIGHT_REMOTE_FETCH === "1";
 }
 
@@ -144,7 +144,7 @@ const PERSON_WITH_ACTOR_GENERATION: Disposition = {
 /** Flags from the environment, read once per process: a kill switch is set at deploy, */
 /** and `tools/list` must not flicker between calls. */
 export function contractFlagsFromEnv(
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env,
 ): ContractFlags {
   return {
     remoteFetch: env.CLIPWRIGHT_REMOTE_FETCH === "1",
@@ -153,7 +153,7 @@ export function contractFlagsFromEnv(
   };
 }
 
-export function isLongFormQualificationEnabled(env: Record<string, string | undefined> = process.env): boolean {
+export function isLongFormQualificationEnabled(env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env): boolean {
   return env.CLIPWRIGHT_LONG_FORM_QUALIFICATION === "1" &&
     env.CLIPWRIGHT_COMPOSE === "1" && env.CLIPWRIGHT_REMOTE_FETCH === "1";
 }

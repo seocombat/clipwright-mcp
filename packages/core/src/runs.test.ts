@@ -1,6 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import { RUN_STATES, TERMINAL_STATES, isTerminal, run, runId, runRead } from "./runs.js";
+import { storedRevisionInputFixture } from "./__fixtures__/edit-views.fixture.js";
+import {
+  FACELESS_AI_DISCLOSURE_TEXT, FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT, RUN_STATES, TERMINAL_STATES, aiDisclosureText, isTerminal, run,
+  runId, runRead,
+} from "./runs.js";
+
+// Mutant: the disclosure of a revision read from scene images, which a revision input never holds.
+describe("the disclosure of a revision", () => {
+  it("names own images when admission froze them down the chain, and only then", () => {
+    expect(aiDisclosureText("make_faceless", storedRevisionInputFixture(true))).toBe(FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT);
+    expect(aiDisclosureText("make_faceless", storedRevisionInputFixture(false))).toBe(FACELESS_AI_DISCLOSURE_TEXT);
+    expect(aiDisclosureText("make_faceless", { ...storedRevisionInputFixture(false), scene_images: [{}] })).toBe(FACELESS_AI_DISCLOSURE_TEXT);
+    expect(aiDisclosureText("make_faceless", { scene_images: [{}] })).toBe(FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT);
+    expect(aiDisclosureText("make_faceless", { scene_images: [] })).toBe(FACELESS_AI_DISCLOSURE_TEXT);
+  });
+  it("a run carries its revision's family, its quoted credits and its billing, which may be redacted", () => {
+    const base = { run_id: "run_rev1", skill: "make_faceless", state: "queued", credits_reserved: 18, credits_charged: null, error: null,
+      final_output: null, created_at: "2026-10-14T10:00:00.000Z", finished_at: null };
+    const billing = storedRevisionInputFixture().resolved_revision.billing;
+    const revision = { source_run_id: "run_src1", root_run_id: "run_root1", quoted_credits: 18, billing };
+    expect(run.parse({ ...base, revision }).revision).toEqual(revision);
+    expect(run.parse({ ...base, revision: { ...revision, billing: null } }).revision?.billing).toBeNull();
+    expect(run.safeParse({ ...base, revision: { ...revision, quoted_credits: -1 } }).success).toBe(false);
+    expect(run.parse(base).revision).toBeUndefined();
+  });
+});
 
 // Exactly two terminal states, pinned as a set: a third one turns this red. The second case
 // ties both values to the stage list, so the constant cannot hold strings no run reaches.

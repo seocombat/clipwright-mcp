@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
-import type { FacelessShotsContext } from "../edit-faceless.js";
+import { identityEditDocument } from "../edit-document.js";
+import { facelessRunShots, type FacelessShotsContext } from "../edit-faceless.js";
+import type { FacelessRevisionInput } from "../faceless-public.js";
 import type { EditRules } from "../edit-rules.js";
 import type { PlannedRunShots, UnplannedRunShots, ViewShot } from "../edit-shots.js";
 import { parseCutStyle } from "../faceless-cut-style.js";
@@ -99,5 +101,19 @@ export function longFormShotsFixture(): PlannedRunShots {
     editable: { state: "editable", media_available_until: AVAILABLE_UNTIL, reason: null },
     lineage: lineageAlone(LONG_FORM_FIXTURE_RUN_ID),
     withheld: [], pricing: null, paid_edits: { enabled: false, reason: "not priced" }, contract_version: "test",
+  };
+}
+
+/** The stored input of a revision of the fixture run that redraws its fourth shot: 11 credits plus a 7-credit render. */
+export function storedRevisionInputFixture(ownImages = false): FacelessRevisionInput {
+  const identity = identityEditDocument(facelessRunShots(facelessPlanFixture(), editableContext()));
+  const shot = identity.shots[3]!;
+  return {
+    input_mode: "revision",
+    revision: { source_run_id: FACELESS_FIXTURE_RUN_ID, document: { ...identity,
+      shots: identity.shots.map(item => item.id === shot.id ? { ...item, asset: { from: "generate", operation: { mode: "retake" } } } : item) } },
+    resolved_revision: { root_run_id: FACELESS_FIXTURE_RUN_ID, own_images: ownImages,
+      summary: { retimed: [], deleted: [], added: [], replaced: [], generated: [{ shot_id: shot.id, kind: "picture", mode: "retake" }], changed: true },
+      billing: { tariff_id: "t-test", lines: [{ shot_id: shot.id, unit: "picture", credits: 11 }], render_credits: 7, zero_unit: null, total_credits: 18 } },
   };
 }

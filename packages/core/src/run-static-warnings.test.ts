@@ -7,6 +7,7 @@ import {
   derivedRunWarnings as derivedWith,
   type VoiceGenderResolver,
 } from "./run-static-warnings.js";
+import { storedRevisionInputFixture } from "./__fixtures__/edit-views.fixture.js";
 import { buildFacelessVoiceWarnings, FACELESS_VOICE_NAMES, FACELESS_VOICES } from "./faceless-voices.js";
 import { makeUgcInput } from "./skills.js";
 import { dispositionWarnings } from "./contract-dispositions.js";
@@ -42,6 +43,13 @@ const stored = (extra: Record<string, unknown> = {}) =>
 const NO_FACTS = {};
 
 describe("derivedRunWarnings", () => {
+  it("a stored revision input yields no voice warning and no throw", () => {
+    for (const ownImages of [false, true]) {
+      const stored = storedRevisionInputFixture(ownImages);
+      expect(derivedRunWarnings(stored, NO_FACTS, "make_faceless")).toEqual([]);
+      expect(composeRunWarnings(["stored line"], stored, NO_FACTS, "make_faceless")).toEqual(["stored line"]);
+    }
+  });
   it("does not route faceless input through UGC warning derivation", () => {
     expect(derivedRunWarnings({ input_mode: "brief", brief: "A story", duration_seconds: 30 }, NO_FACTS, "make_faceless")).toEqual([]);
   });

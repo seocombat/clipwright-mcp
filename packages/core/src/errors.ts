@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EDIT_ISSUE_CODES } from "./edit-validate.js";
 
 // Imported only for the 429 codes in the registry below: the names come from their
 // schemas, not literals (`rate-limit.ts` is the only home of the 429 shape).
@@ -283,6 +284,97 @@ export function runNotEditableBody(args: { runId: string; state: string; reason:
   });
 }
 
+/** Paid edits are closed: the flag is off, or a ceiling the owner sets is not set yet. */
+export const editingDisabledError = z.object({
+  error: z.object({
+    code: z.literal("editing_disabled"),
+    message: z.string().min(1),
+    reason: z.enum(["flag_off", "ceiling_not_set"]),
+  }),
+});
+export type EditingDisabledError = z.infer<typeof editingDisabledError>;
+
+export function editingDisabledBody(args: { reason: EditingDisabledError["error"]["reason"] }): EditingDisabledError {
+  return editingDisabledError.parse({
+    error: {
+      code: "editing_disabled",
+      message: `paid edits are not open (${args.reason}). Nothing was charged and no run was created.`,
+      reason: args.reason,
+    },
+  });
+}
+
+/** A revision has no price: each seam still unset is named, and an empty list is a total of zero no rule allows. */
+export const editingNotPricedError = z.object({
+  error: z.object({
+    code: z.literal("editing_not_priced"),
+    message: z.string().min(1),
+    seams: z.array(z.enum(["unit", "render", "zero_unit"])),
+  }),
+});
+export type EditingNotPricedError = z.infer<typeof editingNotPricedError>;
+
+export function editingNotPricedBody(args: { seams: EditingNotPricedError["error"]["seams"] }): EditingNotPricedError {
+  return editingNotPricedError.parse({
+    error: {
+      code: "editing_not_priced",
+      message: `${args.seams.length > 0 ? `paid edits have no price yet (${args.seams.join(", ")}).`
+        : "this revision would cost nothing, and no price rule offers that."} Nothing was charged and no run was created.`,
+      seams: args.seams,
+    },
+  });
+}
+
+/** The document breaks the rules of the run it edits; `issues` are the validator's, in its order. */
+export const editInvalidError = z.object({
+  error: z.object({
+    code: z.literal("edit_invalid"),
+    message: z.string().min(1),
+    issues: z.array(z.object({
+      code: z.enum(EDIT_ISSUE_CODES), shot_id: z.string().optional(),
+      from_frame: z.number().int().nonnegative().optional(), to_frame: z.number().int().nonnegative().optional(),
+      message: z.string().min(1),
+    })).min(1),
+  }),
+});
+export type EditInvalidError = z.infer<typeof editInvalidError>;
+
+export function editInvalidBody(args: { issues: EditInvalidError["error"]["issues"] }): EditInvalidError {
+  return editInvalidError.parse({
+    error: {
+      code: "edit_invalid",
+      message: `the document breaks ${args.issues.length} rule(s) of the run it edits: ${args.issues[0]?.message ?? ""}. ` +
+        "Nothing was charged and no run was created.",
+      issues: args.issues,
+    },
+  });
+}
+
+/** A root has as many revisions running, or failed and unfinished, as it may have; `run_ids` are the ones counted. */
+export const editCeilingReachedError = z.object({
+  error: z.object({
+    code: z.literal("edit_ceiling_reached"),
+    message: z.string().min(1),
+    limit: z.enum(["in_flight", "failed_or_unfinished", "free_renders"]),
+    root_run_id: z.string().min(1),
+    allowed: z.number().int().nonnegative(),
+    counted: z.number().int().nonnegative(),
+    run_ids: z.array(z.string().min(1)),
+  }),
+});
+export type EditCeilingReachedError = z.infer<typeof editCeilingReachedError>;
+
+export function editCeilingReachedBody(args: Omit<EditCeilingReachedError["error"], "code" | "message">): EditCeilingReachedError {
+  return editCeilingReachedError.parse({
+    error: {
+      code: "edit_ceiling_reached",
+      message: `run ${args.root_run_id} has ${args.counted} revision(s) counted against its ${args.limit} limit of ${args.allowed}. ` +
+        "Nothing was charged and no run was created.",
+      ...args,
+    },
+  });
+}
+
 /** Keeps the tool description's promise ("refused before any charge"): an unusable */
 /** source is refused, not estimated. */
 export function unusableSourceMessage(errorClass: string, detail: string): string {
@@ -308,15 +400,18 @@ const BARE_ERROR_CODES = [
   "actor_storage_unavailable",
   "actor_generation_disabled",
   "actor_in_use",
+  "editing_window_not_set",
   "idempotency_key_required",
   "idempotency_key_reused",
   "internal_error",
   "invalid_image",
   "invalid_request",
   "malformed_body",
+  "no_changes",
   "not_found",
   "paid_render_disabled",
   "payload_too_large",
+  "revision_needs_generated_unit",
   "unauthorized",
   "unsupported_media_type",
   "unusable_source",
@@ -339,6 +434,10 @@ export const API_ERROR_CODES: readonly string[] = [
   accountNotAdmittedError.shape.error.shape.code.value,
   editConflictError.shape.error.shape.code.value,
   runNotEditableError.shape.error.shape.code.value,
+  editingDisabledError.shape.error.shape.code.value,
+  editingNotPricedError.shape.error.shape.code.value,
+  editInvalidError.shape.error.shape.code.value,
+  editCeilingReachedError.shape.error.shape.code.value,
   rateLimitedError.shape.error.shape.code.value,
   actorCreationLimitedError.shape.error.shape.code.value,
 ];

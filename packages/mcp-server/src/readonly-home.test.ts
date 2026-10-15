@@ -147,7 +147,9 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
         "make_ugc",
         "quote_actor",
         "quote_faceless",
+        "quote_revision",
         "quote_ugc",
+        "revise_run",
         "set_actor_defaults",
         "upload_image",
       ]);

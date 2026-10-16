@@ -34,6 +34,81 @@ above name the package with `-p`, so they resolve here either way.
 | `edit-save <run> --file <path>` | Saves the draft from a file `edit-show` printed. Charges nothing and renders nothing. |
 | `revise-quote <run>` | Prices a revision of a faceless video and prints the quote as JSON. Spends nothing. |
 | `revise <run>` | Starts a revision: a new run that renders the video again with the shots you change. **Costs credits.** Prints the run; follow it with `runs <id>`. |
+| `candidate-quote <run>` | Prices a shot candidate, one picture or clip for one shot, and prints the quote as JSON. Spends nothing. |
+| `candidate <run>` | Prints the quote of a shot candidate; with `--yes` makes it. **Costs credits.** Prints the run; follow it with `runs <id>`. |
+| `candidates <run>` | Lists the shot candidates of a video's family as JSON, with state, charge and preview. Free. |
+| `workflows` | Public workflow methods and availability as JSON. Free. |
+| `workflow-show <method>` | One method's rules, requirements and limitations as JSON. Free. |
+| `plan-create --file <path>` | Store `{ document }` without starting a run. Free. |
+| `plan-show <plan>` | Print the current owned plan and revision as JSON. Free. |
+| `plan-save <plan> --file <path>` | Save `{ base_version, document }` or the complete plan-show output for this plan. Free. |
+| `plan-approve <plan> --file <path>` | Explicitly approve `{ revision, content_digest }`. Free; starts no run. |
+| `plan-quote <plan>` | Print the approved plan's quote as JSON. Free. |
+| `plan-run <plan> --file <path>` | Start one explicitly keyed paid workflow and print its receipt and native run immediately. |
+
+## Workflow files and explicit purchases
+
+The four native methods are `ugc-product-intro`, `ugc-faq-answer`,
+`faceless-explainer` and `product-image-story`, subject to their executor's
+configuration, qualification and activation. `website-proof-demo` and
+`kinetic-launch` remain `execution_blocked` with reasons.
+
+Workflow commands print JSON to stdout; API refusal messages, including all
+issues and warnings, go to stderr. Files must be valid UTF-8 JSON and at most
+1 MiB before parsing. Documents have a separate 256000 JSON-byte limit.
+Unknown write fields are refused; accepted raw narration is preserved.
+
+Start with a method's complete example, then edit its brief and evidence to
+match your intent. Preserve the method/capability pins and accepted raw script:
+
+```bash
+clipwright workflow-show faceless-explainer > method.json
+jq '{document: {v: 1, method: {method_id: .descriptor.id, version: .descriptor.version, content_digest: .descriptor.content_digest, capability_digest: .capabilities.content_digest}, brief: .descriptor.example.brief, beats: .descriptor.example.beats, claims: [], assets: []}}' method.json > create.json
+```
+
+Inspect the plan's readiness issues and warnings before choosing its exact
+revision for approval:
+
+```bash
+clipwright plan-create --file create.json > plan.json
+jq '{revision, content_digest}' plan.json > approval.json
+clipwright plan-approve wfp_example --file approval.json
+clipwright plan-quote wfp_example > quote.json
+```
+
+Replace `wfp_example` with the returned plan id. After accepting the quoted
+price, choose one stable key for this purchase and extract exactly the launch
+fields. Do not send the whole quote as the launch file:
+
+```bash
+jq '{revision, content_digest, semantic_input_digest, quote_id, idempotency_key: "workflow-example:1"}' quote.json > launch.json
+clipwright plan-run wfp_example --file launch.json
+clipwright runs run_example
+```
+
+Use the returned run id in `runs`. The launch does not wait for the video.
+If its answer is uncertain, keep and explicitly resend the original file and
+key to recover that purchase; a new key can pay twice. No workflow command
+automatically approves, quotes, launches or selects a new attempt.
+
+`plan-show wfp_example > edited.json` produces a file you can edit and pass to
+`plan-save wfp_example --file edited.json`. The CLI requires its original plan
+id, takes its revision as the base version, and validates the original document
+strictly. Future document fields survive reading and cause an unsupported
+save to fail before fetch. A repeated explicit save after a lost answer returns
+the already-saved current revision; a different current document conflicts.
+
+`runs` appends optional workflow JSON with the purchased plan and available
+artifact/placement evidence. It keeps native state and warnings. Missing proof
+is explicit `null` with a validation issue; `[]` means verified no placements.
+Historical evidence does not renew a download URL, and
+`creative_acceptance: "not_reviewed"` is separate from technical delivery.
+Original product images use owned upload ids, digests and nonoverlapping
+word/quote anchors in supported IMAGE shots; the generated opener is
+illustrative. Required unsupported layouts or unproven protected placement
+are refused. See the [workflow API contract](https://clipwright.io/docs).
+
+## Native video commands
 
 `quote` and `make` take the actor's photo as `--image <url>` or `--image-file <path>`
 (uploaded first, then passed on), plus `--aspect-ratio 9:16|1:1|16:9` and
@@ -112,6 +187,15 @@ fails is charged nothing, even when its paid work was already done. The same
 request sent again returns the run it started; `--retry 2` starts a second
 revision. While paid edits are closed on the server, both commands answer
 `editing_disabled`.
+
+`candidate-quote` and `candidate` take `--shot <id>` with one of `--retake`,
+`--new-picture <description>` or `--animate [motion]`, and `--take <n>`, 1 by
+default. `candidate` prints the price first and starts nothing without `--yes`.
+A delivered candidate is charged its one unit whether it is kept or discarded;
+one that fails is charged nothing, even when its paid work was already done.
+The same request and take sent again return the run they started; `--take 2`
+makes another candidate, charged again. While shot candidates are closed on the
+server, the three commands answer `editing_disabled`.
 
 `make` retries are explicit: `--retry 2` deliberately starts a *new* run for the
 same script. Without it a repeated call returns the run you already paid for,

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { createActorInput } from "./account-actors.js";
+import { candidateRequest } from "./edit-candidate.js";
 import { revisionRequest } from "./edit-revision.js";
 import { makeFacelessInput } from "./faceless-public.js";
 import { runId } from "./runs.js";
@@ -59,6 +60,14 @@ export function actorIdempotencyKeyFor(input: unknown, clientId: string): string
 /** The key of a revision: the source run and the request, parsed, under the client's prefix. */
 export function revisionIdempotencyKeyFor(sourceRunId: string, request: unknown, clientId: string): string {
   const parsed = { source_run_id: runId.parse(sourceRunId), request: revisionRequest.parse(request) };
+  return createHash("sha256")
+    .update(clientId + JSON.stringify(canonicalize(parsed)))
+    .digest("hex");
+}
+
+/** The key of a shot candidate: the source run and the request with its take, parsed, under the client's prefix. */
+export function candidateIdempotencyKeyFor(sourceRunId: string, request: unknown, clientId: string): string {
+  const parsed = { source_run_id: runId.parse(sourceRunId), candidate: candidateRequest.parse(request) };
   return createHash("sha256")
     .update(clientId + JSON.stringify(canonicalize(parsed)))
     .digest("hex");

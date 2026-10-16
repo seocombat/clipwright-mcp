@@ -1,9 +1,10 @@
-import { FAILED_STATE, isTerminal, type RunRead } from "@clipwright/core";
+import { FAILED_STATE, isTerminal } from "@clipwright/core";
+import type { WorkflowRunRead } from '@clipwright/core/workflows';
 import type { ClipwrightApiError, RunEditRead, RunShotsRead, VoiceCatalogEntry } from "@clipwright/sdk";
 
 /** Pure formatter for `clipwright runs <id>`. Terminality comes from core, so an */
 /** unknown server stage (e.g. `"publishing"`) prints as is and does not crash. */
-export function formatRun(run: RunRead): string {
+export function formatRun(run: WorkflowRunRead): string {
   const lines: string[] = [];
   if (isTerminal(run.state)) {
     const outcome = run.state === FAILED_STATE ? "FAILED" : "SUCCEEDED";
@@ -21,6 +22,7 @@ export function formatRun(run: RunRead): string {
   if (run.error) {
     lines.push(`error: ${run.error}`);
   }
+  if (run.workflow !== undefined) lines.push(`workflow: ${JSON.stringify(run.workflow)}`);
   return lines.join("\n");
 }
 
@@ -99,6 +101,10 @@ export function formatDraftNotes(draft: RunEditRead): string[] {
 export function formatApiError(error: ClipwrightApiError): string {
   const report = error.report();
   const lines = [`error: ${report.message}`, `code: ${report.code} (HTTP ${error.status})`];
+  if (report.warnings !== undefined) {
+    for (const issue of report.issues ?? []) if ('kind' in issue) lines.push(`issue: ${issue.kind} at ${issue.path || 'input'}: ${issue.message}`);
+    for (const warning of report.warnings) lines.push(`warning: ${warning}`);
+  }
   if (report.next_action) lines.push(report.next_action);
   return lines.join("\n");
 }

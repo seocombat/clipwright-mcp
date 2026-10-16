@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EDIT_ISSUE_CODES } from "./edit-validate.js";
+import { workflowCommandError } from "./contracts/v1/workflow-execution.js";
 
 // Imported only for the 429 codes in the registry below: the names come from their
 // schemas, not literals (`rate-limit.ts` is the only home of the 429 shape).
@@ -17,6 +18,10 @@ export const apiError = z.object({
   }),
 });
 export type ApiError = z.infer<typeof apiError>;
+
+export function workflowCommandErrorBody(args: z.input<typeof workflowCommandError>['error']) {
+  return workflowCommandError.parse({ error: args });
+}
 
 /** Fewer credits on the balance than the run weighs: "top up". */
 export const insufficientCreditsError = z.object({
@@ -304,12 +309,12 @@ export function editingDisabledBody(args: { reason: EditingDisabledError["error"
   });
 }
 
-/** A revision has no price: each seam still unset is named, and an empty list is a total of zero no rule allows. */
+/** A paid edit has no price: each seam still unset is named, and an empty list is a revision total of zero no rule allows. */
 export const editingNotPricedError = z.object({
   error: z.object({
     code: z.literal("editing_not_priced"),
     message: z.string().min(1),
-    seams: z.array(z.enum(["unit", "render", "zero_unit"])),
+    seams: z.array(z.enum(["unit", "render", "zero_unit", "candidate_policy"])),
   }),
 });
 export type EditingNotPricedError = z.infer<typeof editingNotPricedError>;
@@ -350,7 +355,7 @@ export function editInvalidBody(args: { issues: EditInvalidError["error"]["issue
   });
 }
 
-/** A root has as many revisions running, or failed and unfinished, as it may have; `run_ids` are the ones counted. */
+/** A root has as many revisions (or candidates) running, or failed and unfinished, as it may have; `run_ids` are the ones counted. */
 export const editCeilingReachedError = z.object({
   error: z.object({
     code: z.literal("edit_ceiling_reached"),
@@ -364,11 +369,12 @@ export const editCeilingReachedError = z.object({
 });
 export type EditCeilingReachedError = z.infer<typeof editCeilingReachedError>;
 
-export function editCeilingReachedBody(args: Omit<EditCeilingReachedError["error"], "code" | "message">): EditCeilingReachedError {
+export function editCeilingReachedBody(args: Omit<EditCeilingReachedError["error"], "code" | "message">,
+  counting: "revision" | "candidate" = "revision"): EditCeilingReachedError {
   return editCeilingReachedError.parse({
     error: {
       code: "edit_ceiling_reached",
-      message: `run ${args.root_run_id} has ${args.counted} revision(s) counted against its ${args.limit} limit of ${args.allowed}. ` +
+      message: `run ${args.root_run_id} has ${args.counted} ${counting}(s) counted against its ${args.limit} limit of ${args.allowed}. ` +
         "Nothing was charged and no run was created.",
       ...args,
     },
@@ -426,6 +432,7 @@ export type BareApiErrorCode = (typeof BARE_ERROR_CODES)[number];
 /** so a rename reaches here on its own. */
 export const API_ERROR_CODES: readonly string[] = [
   ...BARE_ERROR_CODES,
+  ...workflowCommandError.shape.error.shape.code.options,
   rejectedFieldError.shape.error.shape.code.value,
   unknownFieldError.shape.error.shape.code.value,
   scriptEncodingLostError.shape.error.shape.code.value,

@@ -56,7 +56,7 @@ export function resolveResolution(
 export const MAX_URL_LENGTH = 2048;
 
 /** Skills in the shared run namespace. `runs.skill` is text, so it is read through `parseSkill`. */
-export const SKILLS = ["make_ugc", "create_actor", "make_faceless"] as const;
+export const SKILLS = ["make_ugc", "create_actor", "make_faceless", "edit_shot"] as const;
 export type Skill = (typeof SKILLS)[number];
 
 export function parseSkill(value: unknown): Skill | null {

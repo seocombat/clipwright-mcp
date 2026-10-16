@@ -1,0 +1,40 @@
+{
+  "acceptance": { "kind": "local_fixture", "provider_calls": 0, "cloud_qualified": false },
+  "document": {
+    "v": 1,
+    "method": {
+      "method_id": "faceless-explainer",
+      "version": 1,
+      "content_digest": "58c1f9c2f5fa4c59e4d655331f29a72627e3a1980c300d09f868f141f94bb5a8",
+      "capability_digest": "75afc0a09f17e7cfe894f4fb3971e7251b2cff9110be26290a6991bad621ef7c"
+    },
+    "brief": {
+      "audience": "First-time gardeners",
+      "message": "Explain seed germination in the supplied order",
+      "topic": "Three needs of a germinating seed",
+      "script": "  \nA seed needs three simple things to begin growing. First, moisture helps the seed take in water. Next, suitable warmth supports its early growth. Finally, air allows the living seed to breathe. The exact conditions depend on the plant. Check the instructions for your seed before you start. Keep the steps in that order and watch for the first small root.\n  ",
+      "required_terms": ["moisture", "warmth", "air"],
+      "requirements": [{ "feature": "exact_script", "required": true }],
+      "native": {
+        "skill": "make_faceless",
+        "input": {
+          "input_mode": "script",
+          "script": "  \nA seed needs three simple things to begin growing. First, moisture helps the seed take in water. Next, suitable warmth supports its early growth. Finally, air allows the living seed to breathe. The exact conditions depend on the plant. Check the instructions for your seed before you start. Keep the steps in that order and watch for the first small root.\n  ",
+          "duration_seconds": 30,
+          "captions": true,
+          "voice": "narrator_en_kind_girl"
+        }
+      },
+      "references": []
+    },
+    "beats": [
+      { "id": "topic", "role": "opening", "anchor": { "quote": "A seed needs three simple things" }, "required": false },
+      { "id": "moisture", "role": "ordered_points", "anchor": { "quote": "First moisture helps the seed take in water" }, "required": false },
+      { "id": "warmth", "role": "ordered_points", "anchor": { "quote": "Next suitable warmth supports its early growth" }, "required": false },
+      { "id": "air", "role": "ordered_points", "anchor": { "quote": "Finally air allows the living seed to breathe" }, "required": false },
+      { "id": "takeaway", "role": "takeaway", "anchor": { "quote": "Check the instructions for your seed" }, "required": false }
+    ],
+    "claims": [],
+    "assets": []
+  }
+}

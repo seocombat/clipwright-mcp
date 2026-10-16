@@ -45,6 +45,7 @@ export function parseFacelessPublicStory(input: unknown, expectedScript?: string
   if (expectedScript !== undefined && (typeof input !== "object" || input === null ||
       (input as { script?: unknown }).script !== expectedScript)) throw new Error("faceless story changed supplied script");
   const story = storySchema.parse(input);
+  if (expectedScript !== undefined) story.script = expectedScript;
   const wordCount = facelessSpeechWordSpans(story.script).length;
   const phases = ["setup", "development", "climax", "resolution"] as const;
   let nextWord = 0, lastPhase = 0;
@@ -99,6 +100,9 @@ export type FacelessPublicPlanOptions = { keepBeats?: ReadonlySet<number>;
   /** Lets the word gap fall after words of a kept range, which the opener then covers; the caller warns about them. */
   openerGapPastKept?: boolean };
 
+/** Speech boundaries and planner cuts share the native nearest-frame clock. */
+export const facelessSpeechFrame = (seconds: number): number => Math.round(seconds * 25);
+
 export function planPublicFacelessStory(
   input: FacelessPublicStory, words: readonly WordTiming[], inputStyle: CutStyleProfile, outputFrames: number,
   options: FacelessPublicPlanOptions = {},
@@ -106,7 +110,7 @@ export function planPublicFacelessStory(
   if (!Number.isSafeInteger(outputFrames) || outputFrames < FACELESS_MIN_OUTPUT_FRAMES || outputFrames > 2250) {
     throw new Error("public faceless output must be 625–2250 frames");
   }
-  const story = parseFacelessPublicStory(input);
+  const story = parseFacelessPublicStory(input, input.script);
   const style = parseCutStyle(inputStyle);
   assertStoryboardWords(story.script, words);
   const speechEnd = story.narrationStartFrame + words.at(-1)!.endSec * 25;
@@ -134,7 +138,7 @@ export function planPublicFacelessStory(
   if (nextWord !== words.length) throw new Error("caption phrases must cover all words");
 
   const cutAfter = (afterWord: number) => ({ afterWord,
-    frame: story.narrationStartFrame + Math.round((words[afterWord]!.endSec + words[afterWord + 1]!.startSec) / 2 * 25) });
+    frame: story.narrationStartFrame + facelessSpeechFrame((words[afterWord]!.endSec + words[afterWord + 1]!.startSec) / 2) });
   const inOpenerBounds = (frame: number) => frame >= FACELESS_OPENER_MIN_FRAMES && frame <= FACELESS_OPENER_MAX_FRAMES;
   const held = (cut: { afterWord: number }) =>
     options.keepTogether?.some(range => range.first <= cut.afterWord && cut.afterWord + 1 < range.end) ?? false;

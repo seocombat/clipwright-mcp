@@ -81,6 +81,9 @@ export function derivedRunWarnings(
       return storedCreateActorInput.safeParse(storedInput).success ? [] : [UNREADABLE_CREATE_ACTOR_INPUT_WARNING];
     case "make_faceless":
       return facelessRunWarnings(storedInput);
+    // A candidate speaks no narration and has no input-derived line: its warnings are written by its run.
+    case "edit_shot":
+      return [];
     case null:
       return [UNREADABLE_RUN_INPUT_WARNING];
     default:

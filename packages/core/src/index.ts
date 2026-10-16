@@ -1,5 +1,7 @@
 export * from "./skills.js";
 export * from "./faceless-public.js";
+export * from "./faceless-customer-anchors.js";
+export * from "./faceless-image-placement.js";
 export * from "./faceless-voices.js";
 export * from "./faceless-price.js";
 export * from "./actors.js";

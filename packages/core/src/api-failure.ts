@@ -13,12 +13,13 @@ import {
   type BareApiErrorCode,
 } from "./errors.js";
 import { rateLimitedError } from "./rate-limit.js";
+import { workflowCommandErrorRead } from "./contracts/v1/workflow-execution.js";
 
 // API failure parsing shared by the SDK, the MCP formatter and the CLI, so all three agree on
 // whether to retry. Pure: input is status, body text and header, no network.
 
 /** Rate-limit failure: a 429 from us or from a proxy or edge in between. */
-export interface RateLimitedFailure {
+export interface RateLimitedFailure extends WorkflowDiagnostics {
   kind: "rate_limited";
   status: number;
   message: string;
@@ -113,8 +114,21 @@ export interface EditInvalidFailure {
   issues: EditIssueRead[];
 }
 
+type WorkflowFailureKind = z.infer<typeof workflowCommandErrorRead>["error"]["code"];
+interface WorkflowDiagnostics {
+  issues?: z.infer<typeof workflowCommandErrorRead>["error"]["issues"];
+  warnings?: string[];
+}
+export type WorkflowFailure = { [Kind in WorkflowFailureKind]: {
+  kind: Kind;
+  status: number;
+  message: string;
+  issues: z.infer<typeof workflowCommandErrorRead>["error"]["issues"];
+  warnings: string[];
+} }[WorkflowFailureKind];
+
 /** 5xx: the server says the fault is its own. Safe to retry. */
-export interface ServerFailure {
+export interface ServerFailure extends WorkflowDiagnostics {
   kind: "server_error";
   status: number;
   message: string;
@@ -122,7 +136,7 @@ export interface ServerFailure {
 }
 
 /** Everything else (4xx): repeating the same request gives the same answer. */
-export interface ClientFailure {
+export interface ClientFailure extends WorkflowDiagnostics {
   kind: "client_error";
   status: number;
   message: string;
@@ -140,6 +154,7 @@ export type ApiFailure =
   | EditingClosedFailure
   | EditCeilingReachedFailure
   | EditInvalidFailure
+  | WorkflowFailure
   | ServerFailure
   | ClientFailure;
 
@@ -315,6 +330,7 @@ const BEHAVIOURAL_CODES = new Set<string>([
   "editing_window_not_set" satisfies BareApiErrorCode,
   editCeilingReachedError.shape.error.shape.code.value,
   editInvalidError.shape.error.shape.code.value,
+  ...workflowCommandErrorRead.shape.error.shape.code.options,
 ]);
 
 // The revision refusals are read with their closed vocabularies open: a reason, limit or issue code
@@ -431,6 +447,12 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
     return { kind: "edit_invalid", status, message: error.message, issues: error.issues };
   }
 
+  const workflow = workflowCommandErrorRead.safeParse(body);
+  if (workflow?.success && status === (workflow.data.error.code === "workflow_invalid" ? 400 : 409)) {
+    const { error } = workflow.data;
+    return { kind: error.code, status, message: error.message, issues: error.issues, warnings: error.warnings };
+  }
+
   // From here the body is foreign or unparsed. The generic envelope still gives
   // text and code; otherwise the message is built from the status.
   const generic = apiError.safeParse(body);
@@ -442,10 +464,12 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
   // "rate_limited" with `retryable: false`. The body text still reaches `message`.
   const rawCode = generic.success ? generic.data.error.code : undefined;
   const code = rawCode !== undefined && BEHAVIOURAL_CODES.has(rawCode) ? undefined : rawCode;
+  const diagnostics = workflow.success ? { issues: workflow.data.error.issues, warnings: workflow.data.error.warnings } : {};
 
   if (status === 429) {
     return {
       kind: "rate_limited",
+      ...diagnostics,
       status,
       message,
       retryAfterSeconds: headerSeconds,
@@ -454,9 +478,9 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
     };
   }
   if (status >= 500) {
-    return { kind: "server_error", status, message, retryAfterSeconds: headerSeconds };
+    return { kind: "server_error", ...diagnostics, status, message, retryAfterSeconds: headerSeconds };
   }
-  return { kind: "client_error", status, message, code };
+  return { kind: "client_error", ...diagnostics, status, message, code };
 }
 
 /** Message when the body said nothing usable, instead of a parser `SyntaxError` */
@@ -506,12 +530,15 @@ export interface AgentFailureReport {
   allowed?: number;
   counted?: number;
   run_ids?: string[];
-  /** The rules an edit document breaks, on `edit_invalid`. */
-  issues?: EditIssueRead[];
+  /** The rules an edit or workflow document breaks. */
+  issues?: EditIssueRead[] | WorkflowFailure["issues"];
+  warnings?: string[];
 }
 
 export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
-  const base = { message: failure.message } as const;
+  const base = { message: failure.message,
+    ...('issues' in failure && failure.issues !== undefined && { issues: failure.issues }),
+    ...('warnings' in failure && failure.warnings !== undefined && { warnings: failure.warnings }) } as const;
 
   switch (failure.kind) {
     case "rate_limited": {
@@ -646,13 +673,15 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
         status: "FAILED",
         code: "edit_ceiling_reached",
         retryable: false,
+        // Revisions and shot candidates share this code under separate limits, so the text names neither.
         next_action: failure.limit === "in_flight"
-          ? `STOP. A revision of ${failure.rootRunId} is still running (${runs}); follow it with get_run and start the ` +
+          ? `STOP. A paid edit of ${failure.rootRunId} is still running (${runs}); follow it with get_run and start the ` +
             "next one after it finishes. If get_run says it is held for review, contact support: only an operator " +
             "closes it, and it charges nothing."
           : `STOP. ${failure.rootRunId} has ${failure.counted} of ${failure.allowed} ${failure.limit === "failed_or_unfinished"
-            ? "failed or unfinished revisions" : `revisions counted against its ${failure.limit} limit`}${runs === "" ? "" : ` (${runs})`}; ` +
-            "support can raise the limit after a failure that was ours. Nothing was charged and no run was created.",
+            ? "failed or unfinished paid edits" : `paid edits counted against its ${failure.limit} limit`}${runs === "" ? "" : ` (${runs})`}; ` +
+            "revisions and shot candidates are counted apart, and support can raise the revision limit after a failure " +
+            "that was ours. Nothing was charged and no run was created.",
         ceiling: failure.limit,
         root_run_id: failure.rootRunId,
         allowed: failure.allowed,
@@ -668,9 +697,20 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
         code: "edit_invalid",
         retryable: false,
         next_action:
-          `STOP. Do NOT retry unchanged. Fix the document: ${failure.issues[0]?.message ?? failure.message}. The rules are ` +
+          `STOP. Do NOT retry unchanged. Fix the request: ${failure.issues[0]?.message ?? failure.message}. The rules are ` +
           "in the run's shots. Nothing was charged and no run was created.",
         issues: failure.issues,
+      };
+
+    case "workflow_invalid":
+    case "workflow_conflict":
+    case "workflow_not_ready":
+      return {
+        ...base, status: "FAILED", code: failure.kind, retryable: false,
+        issues: failure.issues, warnings: failure.warnings,
+        next_action: failure.kind === "workflow_conflict"
+          ? "STOP. Read the current plan and compare its revision and quote with the original request. Recover an uncertain purchase with its ORIGINAL request and idempotency key; do not change the key to retry."
+          : "STOP. Read the plan and address every issue before purchase. Save the corrected document, obtain approval of its exact revision, then quote it. Approval and a paid launch are separate explicit actions; do not perform them automatically.",
       };
 
     case "client_error":

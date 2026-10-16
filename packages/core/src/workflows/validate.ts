@@ -4,14 +4,28 @@ import { workflowPlanDocument } from '../contracts/v1/workflow-plan.js';
 import type { WorkflowIssue } from '../contracts/v1/workflow-primitives.js';
 import { damagedTextPaths } from '../script-integrity.js';
 import { planSemanticInserts } from '../semantic-inserts.js';
+import { resolveFacelessCustomerAnchors } from '../faceless-customer-anchors.js';
 import type { FacelessSceneAnchor } from '../faceless-public.js';
 import { FIELD_DISPOSITIONS } from '../contract-dispositions.js';
+import { makeUgcInputShape } from '../skills.js';
 import { queryWorkflowMethod } from './catalog.js';
 
 export type WorkflowReadiness = { ready: boolean; issues: WorkflowIssue[]; warnings: string[] };
 const result = (issues: WorkflowIssue[], warnings: string[]): WorkflowReadiness => ({ ready: issues.length === 0, issues, warnings });
 const semanticAnchor = (anchor: FacelessSceneAnchor) => 'startWord' in anchor ? anchor
     : { quote: anchor.quote, ...(anchor.occurrence === undefined ? {} : { occurrence: anchor.occurrence }) };
+const nativeFieldRequested = (input: Readonly<Record<string, unknown>>, field: string, skill: WorkflowNativeInput['skill']): boolean => {
+    if (field === 'captions') return input[field] === true;
+    if (input[field] === undefined) return false;
+    if (skill === 'make_ugc' && field in FIELD_DISPOSITIONS) {
+        const key = field as keyof typeof FIELD_DISPOSITIONS, disposition = FIELD_DISPOSITIONS[key];
+        if (disposition.kind === 'warned' && disposition.triggersWhen === 'differs-from-default') {
+            const standard = makeUgcInputShape[key].safeParse(undefined);
+            return !standard.success || input[field] !== standard.data;
+        }
+    }
+    return true;
+};
 
 function nativeTransportPaths(native: WorkflowNativeInput): string[] {
     const paths: string[] = [];
@@ -82,17 +96,17 @@ export function checkWorkflowBrief(methodId: string, input: unknown, capabilitie
                     add('unsupported_format', 'brief.native.input', 'Native output settings are not qualified on this deployment.');
                 }
                 for (const [field, disposition] of Object.entries(FIELD_DISPOSITIONS)) {
-                    if ((disposition.kind === 'rejected' || executor?.field_dispositions[field] === 'rejected') && settings[field as keyof typeof settings] !== undefined) {
+                    if ((disposition.kind === 'rejected' || executor?.field_dispositions[field] === 'rejected') && nativeFieldRequested(settings, field, 'make_ugc')) {
                         add('native_field_rejected', `brief.native.input.${field}`, disposition.kind === 'rejected' ? disposition.message : `Native ${field} is rejected on this deployment.`);
                     }
                 }
                 for (const field of ['captions', 'look', 'person', 'caption_style', 'name'] as const) {
-                    if ((field === 'captions' ? settings.captions : field === 'look' ? settings.look !== 'natural' : field === 'caption_style' ? settings.caption_style !== 'hormozi' : settings[field] !== undefined) &&
+                    if (nativeFieldRequested(settings, field, 'make_ugc') &&
                         executor?.field_dispositions[field] !== 'implemented') warnings.push(`Native ${field} is advisory or not honored; launch keeps the native disposition.`);
                 }
             } else {
                 for (const [field, disposition] of Object.entries(executor?.field_dispositions ?? {})) {
-                    if (disposition === 'rejected' && native[field as keyof typeof native] !== undefined) {
+                    if (disposition === 'rejected' && nativeFieldRequested(native, field, 'make_faceless')) {
                         add('native_field_rejected', `brief.native.input.${field}`, `Native ${field} is rejected on this deployment.`);
                     }
                 }
@@ -121,6 +135,7 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
         }
     }
     const script = document.brief.script;
+    const faceless = method.descriptor.binding.kind === 'native' && method.descriptor.binding.skill === 'make_faceless';
     let previousRole = -1;
     let previousWord = -1;
     for (const beat of document.beats) {
@@ -133,9 +148,10 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
         }
         if (script !== undefined) {
             try {
-                const anchor = planSemanticInserts(script, [{ insertId: beat.id, mediaId: beat.id, anchor: semanticAnchor(beat.anchor) }]).inserts[0]!;
-                if (anchor.startWord < previousWord) add('invalid_method_structure', `beats.${beat.id}.anchor`, 'Accepted semantic beats must follow the script order.');
-                previousWord = anchor.startWord;
+                const first = faceless ? resolveFacelessCustomerAnchors(script, [{ image_url: beat.id, anchor: beat.anchor }])[0]!.first
+                    : planSemanticInserts(script, [{ insertId: beat.id, mediaId: beat.id, anchor: semanticAnchor(beat.anchor) }]).inserts[0]!.startWord;
+                if (first < previousWord) add('invalid_method_structure', `beats.${beat.id}.anchor`, 'Accepted semantic beats must follow the script order.');
+                previousWord = first;
             }
             catch (error) { add('invalid_anchor', `beats.${beat.id}.anchor`, error instanceof Error ? error.message : 'Invalid semantic anchor.'); }
         }
@@ -152,7 +168,13 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
         if (instances.has(asset.instance_id)) add('duplicate_instance', 'assets', 'Each asset placement needs its own instance ID.');
         instances.add(asset.instance_id);
         if (asset.rights === 'unresolved') add('unresolved_rights', `assets.${asset.instance_id}`, 'Asset rights are unresolved.');
-        if (asset.protected_area !== undefined) add('placement_preflight_required', `assets.${asset.instance_id}.protected_area`, 'A measured crop and motion preflight must prove that this product area remains visible.');
+        if (asset.protected_area !== undefined) {
+            const executor = faceless ? capabilities.executors.find(item => item.skill === 'make_faceless') : undefined;
+            if (!executor?.configured || !executor.qualified || !executor.enabled || !executor.features.includes('protected_product_area') ||
+                executor.field_dispositions.protected_product_area !== 'implemented') {
+                add('placement_preflight_required', `assets.${asset.instance_id}.protected_area`, 'A measured crop and motion preflight must prove that this product area remains visible.');
+            }
+        }
         if (asset.purpose !== 'illustration' && asset.provenance === 'generated_illustration') add('unsupported_proof', `assets.${asset.instance_id}`, 'Generated illustration cannot establish product or UI proof.');
     }
     if (method.descriptor.required_inputs.includes('assets') && document.assets.length === 0) add('missing_method_input', 'assets', 'This method requires supplied asset bindings.');
@@ -160,7 +182,10 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
         add('missing_product_proof', 'assets', 'This method requires original product proof; illustrative assets cannot replace it.');
     }
     if (script !== undefined && document.assets.length > 0) {
-        try { planSemanticInserts(script, document.assets.map(asset => ({ insertId: asset.instance_id, mediaId: asset.asset_id, anchor: semanticAnchor(asset.anchor) }))); }
+        try {
+            if (faceless) resolveFacelessCustomerAnchors(script, document.assets.map(asset => ({ image_url: asset.asset_id, anchor: asset.anchor })));
+            else planSemanticInserts(script, document.assets.map(asset => ({ insertId: asset.instance_id, mediaId: asset.asset_id, anchor: semanticAnchor(asset.anchor) })));
+        }
         catch (error) { add('invalid_anchor', 'assets', error instanceof Error ? error.message : 'Asset anchors are invalid or overlap.'); }
     }
     return result(issues, warnings);

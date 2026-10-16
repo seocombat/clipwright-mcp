@@ -433,8 +433,8 @@ describe("the revision refusals carry their kinds and fields", () => {
     expect(inFlight.next_action).toContain("held for review, contact support");
     const failed = agentFailureReport(parsed(409, FAILED));
     expect(failed).toMatchObject({ ceiling: "failed_or_unfinished", allowed: 3, counted: 4 });
-    expect(failed.next_action).toContain("run_root has 4 of 3 failed or unfinished revisions");
-    expect(failed.next_action).toContain("support can raise the limit");
+    expect(failed.next_action).toContain("run_root has 4 of 3 failed or unfinished paid edits");
+    expect(failed.next_action).toContain("support can raise the revision limit");
     expect(failed).not.toHaveProperty("limit");
   });
 
@@ -446,7 +446,27 @@ describe("the revision refusals carry their kinds and fields", () => {
     expect(agentFailureReport(parsed(503, NO_WINDOW)).next_action).toContain("(editing_window_not_set)");
     const invalid = agentFailureReport(parsed(422, INVALID));
     expect(invalid).toMatchObject({ code: "edit_invalid", issues: INVALID.error.issues });
-    expect(invalid.next_action).toContain("Fix the document: beat-2 overlaps beat-1.");
+    expect(invalid.next_action).toContain("Fix the request: beat-2 overlaps beat-1.");
+  });
+
+  /** Mutant: a report that says "revision" or "document", and an agent creating a candidate is told about a run it never started. */
+  it("the candidate refusals reach the same kinds, and their reports name neither a revision nor a document", () => {
+    const inFlight = editCeilingReachedBody({ limit: "in_flight", root_run_id: "run_root", allowed: 1, counted: 1,
+      run_ids: ["run_cand1"] }, "candidate");
+    const failed = editCeilingReachedBody({ limit: "failed_or_unfinished", root_run_id: "run_root", allowed: 3, counted: 3,
+      run_ids: ["run_c1", "run_c2", "run_c3"] }, "candidate");
+    const notOffered = editInvalidBody({ issues: [{ code: "action_not_allowed", shot_id: "beat-2", message: "beat-2 does not offer animate" }] });
+    expect(parsed(409, inFlight)).toMatchObject({ kind: "edit_ceiling_reached", limit: "in_flight", runIds: ["run_cand1"] });
+    expect(parsed(409, failed)).toMatchObject({ kind: "edit_ceiling_reached", counted: 3, allowed: 3 });
+    expect(parsed(422, notOffered)).toMatchObject({ kind: "edit_invalid", issues: notOffered.error.issues });
+    expect(parsed(503, editingNotPricedBody({ seams: ["candidate_policy"] }))).toMatchObject({ kind: "editing_closed", seams: ["candidate_policy"] });
+    for (const [status, body] of [[409, inFlight], [409, failed], [422, notOffered]] as const) {
+      const report = agentFailureReport(parsed(status, body));
+      expect(report.retryable, JSON.stringify(body)).toBe(false);
+      expect(report.next_action, JSON.stringify(body)).not.toMatch(/A revision of|unfinished revisions|revisions counted|the document/i);
+    }
+    expect(agentFailureReport(parsed(409, inFlight)).next_action).toContain("A paid edit of run_root is still running (run_cand1)");
+    expect(agentFailureReport(parsed(409, failed)).next_action).toContain("revisions and shot candidates are counted apart");
   });
 });
 

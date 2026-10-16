@@ -151,10 +151,22 @@ describe('WF-01 review: bounded documents and complete semantic checks', () => {
 });
 
 describe('WF-01 review: native source and tools-list boundaries', () => {
+    it.each([{ field: 'look', standard: 'natural', requested: 'commercial' }, { field: 'caption_style', standard: 'hormozi', requested: 'tiktok' }])
+    ('rejects only non-default UGC $field requests when its effective disposition is rejected', ({ field, standard, requested }) => {
+        const capabilities = structuredClone(snapshot);
+        capabilities.executors[0]!.field_dispositions[field] = 'rejected';
+        const brief = plan().brief;
+        for (const value of [undefined, standard, requested]) {
+            const input = { ...brief.native!.input, [field]: value };
+            const checked = checkWorkflowBrief('ugc-faq-answer', { ...brief, native: { skill: 'make_ugc', input } }, capabilities);
+            expect(checked.issues.filter(issue => issue.kind === 'native_field_rejected')).toHaveLength(value === requested ? 1 : 0);
+            expect(checked.ready).toBe(value !== requested);
+        }
+    });
     it.each([
         { field: 'actor_id', value: 'actor_male' }, { field: 'voice', value: 'george' }, { field: 'voice_id', value: 'a'.repeat(20) },
         { field: 'aspect_ratio', value: '9:16' }, { field: 'resolution', value: '1080p' }, { field: 'person', value: 'A gardener' },
-        { field: 'name', value: 'A campaign' }, { field: 'captions', value: false },
+        { field: 'name', value: 'A campaign' }, { field: 'captions', value: true },
     ])('honors an effective UGC rejection of $field, independently of its static disposition', ({ field, value }) => {
         const document = plan();
         const brief = { ...document.brief, native: { skill: 'make_ugc', input: { script: document.brief.script, [field]: value } } };
@@ -180,6 +192,36 @@ describe('WF-01 review: native source and tools-list boundaries', () => {
         const checked = checkWorkflowBrief('faceless-explainer', brief, changed);
         expect(checked.ready).toBe(false);
         expect(checked.issues).toContainEqual(expect.objectContaining({ kind: 'native_field_rejected', path: `brief.native.input.${field}` }));
+    });
+    it.each(['voice', 'character_details'])('adds no native field refusal for absent rejected faceless %s (#633)', field => {
+        const changed = structuredClone(snapshot);
+        changed.executors[1]!.field_dispositions[field] = 'rejected';
+        const checked = checkWorkflowBrief('faceless-explainer', plan('faceless-explainer').brief, changed);
+        expect(checked.issues).not.toContainEqual(expect.objectContaining({ kind: 'native_field_rejected', path: `brief.native.input.${field}` }));
+        if (field === 'voice') expect(kinds(checked)).toEqual(['missing_feature']);
+        else expect(checked.ready).toBe(true);
+    });
+    it.each(['warned', 'stored'] as const)('accepts present faceless captions with %s disposition (#633)', disposition => {
+        const changed = structuredClone(snapshot);
+        changed.executors[1]!.field_dispositions.captions = disposition;
+        expect(checkWorkflowBrief('faceless-explainer', plan('faceless-explainer').brief, changed).ready).toBe(true);
+    });
+    it.each([undefined, true, false])('checks effective faceless captions=%s rather than field presence (#633)', captions => {
+        const changed = structuredClone(snapshot);
+        changed.executors[1]!.field_dispositions.captions = 'rejected';
+        const document = plan('faceless-explainer');
+        const brief = { ...document.brief, native: { skill: 'make_faceless', input: { ...document.brief.native!.input, captions } } };
+        const checked = checkWorkflowBrief('faceless-explainer', brief, changed);
+        expect(checked.ready).toBe(captions === false);
+        if (captions === false) expect(kinds(checked)).not.toContain('native_field_rejected');
+        else expect(checked.issues).toContainEqual(expect.objectContaining({ kind: 'native_field_rejected', path: 'brief.native.input.captions' }));
+    });
+    it.each([undefined, true, false])('checks effective UGC captions=%s rather than field presence (#633 class)', captions => {
+        const changed = structuredClone(snapshot);
+        changed.executors[0]!.field_dispositions.captions = 'rejected';
+        const document = plan();
+        const brief = { ...document.brief, native: { skill: 'make_ugc', input: { ...document.brief.native!.input, captions } } };
+        expect(checkWorkflowBrief('ugc-faq-answer', brief, changed).ready).toBe(captions !== true);
     });
     it.each(['faceless-explainer', 'product-image-story'])('checks supplied assets against scene_images qualification for %s', id => {
         const document = plan(id);

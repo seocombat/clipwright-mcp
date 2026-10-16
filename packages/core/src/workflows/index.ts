@@ -4,6 +4,8 @@ export * from '../contracts/v1/workflow-evidence.js';
 export * from '../contracts/v1/workflow-catalog.js';
 export * from '../contracts/v1/workflow-plan.js';
 export * from '../contracts/v1/workflow-execution.js';
+export * from '../contracts/v1/workflow-run-read.js';
+export * from '../contracts/v1/workflow-client.js';
 export * from '../contracts/v1/workflow-dto.js';
 export * from './catalog.js';
 export * from './validate.js';

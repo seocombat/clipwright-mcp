@@ -26,10 +26,18 @@ import {
   PUBLIC_API_BASE_URL,
   retryDelayMs,
   run as runSchema,
+  runRead as runReadSchema,
   runEditPath,
   runEditRead,
   type RunEditRead,
-  runRead as runReadSchema,
+  PUBLIC_WORKFLOWS_PATH,
+  PUBLIC_WORKFLOW_PATH,
+  WORKFLOW_PLANS_PATH,
+  WORKFLOW_PLAN_PATH,
+  WORKFLOW_REVISIONS_PATH,
+  WORKFLOW_APPROVE_PATH,
+  WORKFLOW_QUOTE_PATH,
+  WORKFLOW_RUN_PATH,
   runShotsPath,
   runShotsRead,
   type RunShotsRead,
@@ -39,6 +47,14 @@ import {
   type RevisionRequest,
   runRevisionsPath,
   runRevisionsQuotePath,
+  candidateQuoteRead,
+  type CandidateQuoteRead,
+  candidateRequest,
+  type CandidateRequest,
+  runCandidatesPath,
+  runCandidatesQuotePath,
+  runCandidatesRead,
+  type RunCandidatesRead,
   type SaveRunEditArgs,
   isTerminal,
   FAILED_STATE,
@@ -61,15 +77,22 @@ import {
 } from "@clipwright/core";
 import {
   actorIdempotencyKeyFor,
+  candidateIdempotencyKeyFor,
   facelessIdempotencyKeyFor,
   idempotencyKeyFor,
   revisionIdempotencyKeyFor,
 } from "@clipwright/core/idempotency";
+import { createWorkflowPlan, saveWorkflowPlan, approveWorkflowPlan, launchWorkflow,
+  workflowCatalogResponseRead, workflowMethodResponseRead, workflowPlanRead, workflowQuoteBindingRead,
+  workflowLaunchResponseRead, workflowRunRead, workflowRunIdentityRead, type CreateWorkflowPlanArgs, type SaveWorkflowPlanArgs,
+  type ApproveWorkflowPlanArgs, type LaunchWorkflowArgs, type WorkflowCatalogRead, type WorkflowMethodRead,
+  type WorkflowPlanRead, type WorkflowQuoteRead, type WorkflowLaunchRead, type WorkflowRunRead } from '@clipwright/core/workflows';
 
 import { resolveClientId } from "./client-id.js";
 
 /** Production API by default; shared with core so every surface names one address. */
 const DEFAULT_BASE_URL = PUBLIC_API_BASE_URL;
+const workflowPath = (pattern: string, id: string): string => pattern.replace(':id', encodeURIComponent(id));
 
 export interface ClipwrightClientOptions {
   apiKey: string;
@@ -507,6 +530,34 @@ export class ClipwrightClient {
     return body as RunRead;
   }
 
+  /** What one shot candidate would cost; spends no credits. Read tolerantly, as a revision quote is. */
+  async quoteCandidate(runId: string, request: CandidateRequest): Promise<CandidateQuoteRead> {
+    const parsed = candidateRequest.parse(request);
+    const path = runCandidatesQuotePath(runId);
+    const body = await this.#request(path, false, { method: "POST", body: JSON.stringify(parsed) });
+    return parseResponse(candidateQuoteRead, body, path, false);
+  }
+
+  /** Starts a shot candidate: a new run, returned at once (state=queued). The key is the run and the request with */
+  /** its `take`, so a resend returns the first run; `take: 2` makes a deliberate second candidate. */
+  async createCandidate(runId: string, request: CandidateRequest, opts?: { idempotencyKey?: string | undefined }): Promise<RunRead> {
+    const parsed = candidateRequest.parse(request);
+    const key = opts?.idempotencyKey ?? candidateIdempotencyKeyFor(runId, parsed, this.#getClientId());
+    const path = runCandidatesPath(runId);
+    // `true`: once sent, the run may have been created and its unit held.
+    const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(parsed), headers: { "Idempotency-Key": key } });
+    const read = runReadSchema.safeParse(body);
+    if (read.success) return read.data;
+    if (typeof body !== "object" || body === null || Array.isArray(body)) throw new ClipwrightResponseError(path, true, read.error);
+    return body as RunRead;
+  }
+
+  /** The shot candidates of a run's family, oldest first, each with its state, charge and preview. Free. */
+  async listCandidates(runId: string): Promise<RunCandidatesRead> {
+    const path = runCandidatesPath(runId);
+    return parseResponse(runCandidatesRead, await this.#request(path, false), path, false);
+  }
+
   /** Deletes a personal actor. The answer is 204 with no body. */
   async deleteActor(id: string): Promise<void> {
     await this.#request(actorItemPath(id), true, { method: "DELETE" });
@@ -514,15 +565,57 @@ export class ClipwrightClient {
 
   /** Reads a run tolerantly (`state: string`): a newer server stage must not */
   /** break installed clients, so parsing falls back to the raw body. */
-  async getRun(runId: string): Promise<RunRead> {
+  async getRun(runId: string): Promise<WorkflowRunRead> {
     return this.#getRun(runId);
   }
 
   /** `signal` is internal only: the `makeUgc` deadline also aborts the poll. */
-  async #getRun(runId: string, signal?: AbortSignal): Promise<RunRead> {
-    const body = await this.#request(`/v1/runs/${runId}`, false, { signal: signal ?? null });
-    const parsed = runReadSchema.safeParse(body);
-    return parsed.success ? parsed.data : (body as RunRead);
+  async #getRun(runId: string, signal?: AbortSignal): Promise<WorkflowRunRead> {
+    const path = `/v1/runs/${runId}`, body = await this.#request(path, false, { signal: signal ?? null });
+    const parsed = workflowRunRead.safeParse(body);
+    if (parsed.success) return parsed.data;
+    if (body !== null && typeof body === 'object' && 'workflow' in body) parseResponse(workflowRunIdentityRead, body, path, false);
+    return body as WorkflowRunRead;
+  }
+
+  async listWorkflows(): Promise<WorkflowCatalogRead> {
+    return parseResponse(workflowCatalogResponseRead, await this.#request(PUBLIC_WORKFLOWS_PATH, false), PUBLIC_WORKFLOWS_PATH, false);
+  }
+  async getWorkflow(methodId: string): Promise<WorkflowMethodRead> {
+    const path = workflowPath(PUBLIC_WORKFLOW_PATH, methodId);
+    return parseResponse(workflowMethodResponseRead, await this.#request(path, false), path, false);
+  }
+  async createWorkflowPlan(input: CreateWorkflowPlanArgs): Promise<WorkflowPlanRead> {
+    const parsed = createWorkflowPlan.parse(input), path = WORKFLOW_PLANS_PATH;
+    return parseResponse(workflowPlanRead, await this.#request(path, false, { method: 'POST', body: JSON.stringify(parsed) }), path, false);
+  }
+  async getWorkflowPlan(planId: string): Promise<WorkflowPlanRead> {
+    const path = workflowPath(WORKFLOW_PLAN_PATH, planId);
+    return parseResponse(workflowPlanRead, await this.#request(path, false), path, false);
+  }
+  async saveWorkflowPlan(planId: string, input: SaveWorkflowPlanArgs): Promise<WorkflowPlanRead> {
+    const parsed = saveWorkflowPlan.parse(input), path = workflowPath(WORKFLOW_REVISIONS_PATH, planId);
+    return parseResponse(workflowPlanRead, await this.#request(path, false, { method: 'POST', body: JSON.stringify(parsed) }), path, false);
+  }
+  async approveWorkflowPlan(planId: string, input: ApproveWorkflowPlanArgs): Promise<WorkflowPlanRead> {
+    const parsed = approveWorkflowPlan.parse(input), path = workflowPath(WORKFLOW_APPROVE_PATH, planId);
+    return parseResponse(workflowPlanRead, await this.#request(path, false, { method: 'POST', body: JSON.stringify(parsed) }), path, false);
+  }
+  async quoteWorkflowPlan(planId: string): Promise<WorkflowQuoteRead> {
+    const path = workflowPath(WORKFLOW_QUOTE_PATH, planId);
+    return parseResponse(workflowQuoteBindingRead, await this.#request(path, false, { method: 'POST' }), path, false);
+  }
+  async runWorkflowPlan(planId: string, input: LaunchWorkflowArgs): Promise<WorkflowLaunchRead> {
+    const parsed = launchWorkflow.parse(input), path = workflowPath(WORKFLOW_RUN_PATH, planId);
+    const headers = new Headers({ 'Idempotency-Key': parsed.idempotency_key });
+    if (headers.get('Idempotency-Key') !== parsed.idempotency_key) throw new TypeError('Idempotency key must survive HTTP header encoding unchanged');
+    const result = parseResponse(workflowLaunchResponseRead, await this.#request(path, true, {
+      method: 'POST', body: JSON.stringify(parsed), headers: Object.fromEntries(headers.entries()),
+    }), path, true);
+    if (result.receipt.plan_id !== planId || result.receipt.revision !== parsed.revision ||
+      result.receipt.content_digest !== parsed.content_digest || result.receipt.semantic_input_digest !== parsed.semantic_input_digest)
+      throw new ClipwrightResponseError(path, true, new Error('Workflow receipt must identify the requested purchase'));
+    return result;
   }
 
   /** The shots of a run, read tolerantly: a kind, action or line of a newer server still parses. Free. */
@@ -591,7 +684,8 @@ export class ClipwrightClient {
       await sleep(Math.min(nextDelayMs, remaining));
 
       try {
-        current = await this.#getRun(current.run_id, callDeadline);
+        // Preserve makeUgc's legacy result type and its existing permissive native read fallback.
+        current = await this.#getRun(current.run_id, callDeadline) as RunRead;
         nextDelayMs = this.#pollIntervalMs;
         onProgress?.(current);
       } catch (error) {
@@ -623,3 +717,6 @@ export type { MakeUgcInput, MakeUgcInputArgs, QuoteResponse, Run, RunRead };
 export type { FacelessQuoteResponse, MakeFacelessInputArgs };
 export type { RunEditRead, RunShotsRead, SaveRunEditArgs };
 export type { RevisionQuoteRead, RevisionRequest };
+export type { CandidateQuoteRead, CandidateRequest, RunCandidatesRead };
+export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs,
+  WorkflowCatalogRead, WorkflowMethodRead, WorkflowPlanRead, WorkflowQuoteRead, WorkflowLaunchRead, WorkflowRunRead };

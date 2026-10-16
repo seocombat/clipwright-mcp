@@ -34,8 +34,8 @@ const briefShape = {
 export const workflowBrief = z.strictObject(briefShape);
 export type WorkflowBrief = z.infer<typeof workflowBrief>;
 export type WorkflowBriefArgs = z.input<typeof workflowBrief>;
-export const workflowBriefRead = z.object({ ...briefShape,
-    requested_format: workflowFormatRead.optional(), native: z.object({ skill: z.string(), input: z.record(z.string(), z.unknown()) }).optional(),
-    requirements: z.array(z.object({ feature: z.string(), required: z.boolean() })).default([]),
-    references: z.array(z.object({ kind: z.string(), reference: z.string(), url: z.string().optional(), observed_at: z.string().optional(), product_state: z.string().optional() })).default([]),
+export const workflowBriefRead = z.looseObject({ ...briefShape,
+    requested_format: workflowFormatRead.optional(), native: z.looseObject({ skill: z.string(), input: z.record(z.string(), z.unknown()) }).optional(),
+    requirements: z.array(z.looseObject({ feature: z.string(), required: z.boolean() })).default([]),
+    references: z.array(z.looseObject({ kind: z.string(), reference: z.string(), url: z.string().optional(), observed_at: z.string().optional(), product_state: z.string().optional() })).default([]),
 });

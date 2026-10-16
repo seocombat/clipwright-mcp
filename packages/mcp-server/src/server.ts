@@ -10,6 +10,9 @@ import {
   offeredUgcInputShape,
   actorDefaultsInput,
   BROLL_POLICY_DESCRIPTION,
+  CANDIDATE_CHARGE_TEXT,
+  candidateRequest,
+  type CandidateRequest,
   CATALOG_LANGUAGES,
   CREATE_ACTOR_DESCRIPTION,
   createActorInputShape,
@@ -35,6 +38,7 @@ import {
   sniffUploadMediaType,
 } from "@clipwright/core";
 import { formatGetRun, withFailureReport } from "./format.js";
+import { registerWorkflowTools } from './workflow-tools.js';
 
 // Version from the manifest: a literal drifts, and a JSON import breaks `rootDir`.
 const packageVersion = (): string =>
@@ -44,6 +48,7 @@ const packageVersion = (): string =>
 /** so tool registration is testable without a stdio process. */
 export function createServer(client: ClipwrightClient): McpServer {
   const server = new McpServer({ name: "clipwright", version: packageVersion() });
+  registerWorkflowTools(server, client);
 
   // tools/list publishes the full schema; an empty schema leaves agents guessing.
   server.registerTool(
@@ -160,6 +165,57 @@ export function createServer(client: ClipwrightClient): McpServer {
     },
     async ({ run_id, attempt, ...request }) =>
       withFailureReport(async () => formatGetRun(await client.startRevision(run_id, revisionOf(request), { attempt }))),
+  );
+
+  // The candidate pair; the list stays on REST, the SDK and the CLI, since an agent polls its own candidate with get_run.
+  const candidateShape = {
+    run_id: runId.describe("The faceless run whose shot the candidate is for: a succeeded original or revision."),
+    shot_id: candidateRequest.shape.shot_id.describe("The shot to make a candidate for, as get_run_shots names it."),
+    operation: candidateRequest.shape.operation.describe("What to generate: one of the operations get_run_shots lists for the shot."),
+    take: candidateRequest.shape.take.optional()
+      .describe("Take number, 1 by default: the same request and take return the same run; take 2 makes another candidate."),
+  };
+  // The tool schema has already parsed every field; only the take's default is added here.
+  const candidateOf = ({ take, ...request }: Omit<CandidateRequest, "take"> & { take?: number | undefined }): CandidateRequest =>
+    ({ ...request, take: take ?? 1 });
+
+  server.registerTool(
+    "quote_candidate",
+    {
+      title: "Quote a shot candidate",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "Price one shot candidate of a run WITHOUT spending credits: one picture or clip made for one shot, to keep " +
+        "or discard in a revision. Pass run_id, shot_id and operation, the same as create_candidate; the answer names " +
+        "the unit, its credits and usable_until, the last moment the candidate can enter a revision. Always call this " +
+        `first and show the user the price before create_candidate. ${CANDIDATE_CHARGE_TEXT} While shot candidates are ` +
+        "closed it answers editing_disabled and charges nothing.",
+      inputSchema: candidateShape,
+    },
+    async ({ run_id, ...request }) =>
+      withFailureReport(async () => ({
+        content: [{ type: "text", text: JSON.stringify(await client.quoteCandidate(run_id, candidateOf(request))) }],
+      })),
+  );
+
+  server.registerTool(
+    "create_candidate",
+    {
+      title: "Make a shot candidate",
+      annotations: { readOnlyHint: false, destructiveHint: false },
+      description:
+        "Make a shot candidate of a run made by make_faceless (paid): a NEW run of skill edit_shot that generates one " +
+        "picture or clip for one shot, to keep or discard in a later revision. Call quote_candidate first and show the " +
+        `user the price. ${CANDIDATE_CHARGE_TEXT} An identical request returns the same run it started before, so a ` +
+        "call repeated after a lost answer starts nothing new; to make another candidate with the same request on " +
+        "purpose, pass take 2. An original has a limit on candidates running at once and on candidates failed or " +
+        "unfinished, apart from its revisions; a refusal names which. While shot candidates are closed it answers " +
+        "editing_disabled and charges nothing. The result is a new run: poll it with get_run; once it succeeded, its " +
+        "candidate.preview_url shows what was made.",
+      inputSchema: candidateShape,
+    },
+    async ({ run_id, ...request }) =>
+      withFailureReport(async () => formatGetRun(await client.createCandidate(run_id, candidateOf(request)))),
   );
 
   server.registerTool(

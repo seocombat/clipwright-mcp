@@ -35,6 +35,13 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
 
 ## Tools
 
+- `list_workflows` — read workflow methods and current availability. Free.
+- `get_workflow` — read one method's required inputs, script rules, evidence and limitations. Free.
+- `prepare_workflow_plan` — create with a complete document, or save with both `plan_id` and `base_version`. Free; starts no run.
+- `get_workflow_plan` — read the current owned plan, revision and readiness. Free.
+- `approve_workflow_plan` — explicitly approve a chosen revision and content digest. Free; starts no run.
+- `quote_workflow_plan` — quote the approved revision without spending credits.
+- `run_workflow_plan` — start a paid workflow using its exact quote fields and an explicit idempotency key. Returns its receipt and run id immediately; poll `get_run`. Recover an uncertain purchase with the original request and key.
 - `list_voices` — voices for `voice`: the presets, the thirty voices of the
   speech model `gemini-3.8-flash-tts` and the catalog for `make_ugc`, with
   filters by language, gender, age, use case and model, and a short audio
@@ -60,6 +67,14 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
   paid work was already done. An identical request returns the same run;
   `attempt` starts a second one on purpose. Returns a `run_id` immediately; poll
   `get_run` until `succeeded`.
+- `quote_candidate` — price of a shot candidate of a faceless video: one picture
+  or clip made for one shot, to keep or discard in a revision. Free.
+- `create_candidate` — **makes a shot candidate; this costs money.** Pass the
+  shot and the operation to generate for it. A delivered candidate is charged
+  its one unit whether it is kept or discarded; one that fails is charged
+  nothing, even when its paid work was already done. An identical request
+  returns the same run; `take` makes another candidate on purpose. Returns a
+  `run_id` immediately; poll `get_run` until `succeeded`.
 - `upload_image` — a local PNG/JPEG → signed https url to pass as `image`. Free;
   20 per day, the url lives 24 hours. Set `aspect_ratio` explicitly afterwards.
 - `quote_actor` — price of a personal actor before creating one. Free.

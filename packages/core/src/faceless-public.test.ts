@@ -8,9 +8,23 @@ import {
 } from "./faceless-public.js";
 import { run } from "./runs.js";
 import { parseSkill } from "./skills.js";
+import * as facelessContracts from "./faceless-public.js";
 
 const script = { input_mode: "script", script: "A clear story with spoken words.", duration_seconds: 30 };
 const brief = { input_mode: "brief", brief: "Explain how the product works.", duration_seconds: 90 };
+
+it("validates accepted and stored generation input without rewriting its raw script", () => {
+  expect(facelessContracts).toHaveProperty("parseFacelessInputPreservingScript", expect.any(Function));
+  expect(facelessContracts).toHaveProperty("parseFacelessStoredInputPreservingScript", expect.any(Function));
+  const raw = { ...script, script: ` \n${script.script}\n ` };
+  expect(facelessContracts.parseFacelessInputPreservingScript(raw)).toEqual({ ...raw, captions: true });
+  expect(facelessContracts.parseFacelessStoredInputPreservingScript(raw)).toEqual({ ...raw, captions: true });
+  expect(facelessContracts.parseFacelessInputPreservingScript(brief)).toEqual(makeFacelessInput.parse(brief));
+  for (const parse of [facelessContracts.parseFacelessInputPreservingScript, facelessContracts.parseFacelessStoredInputPreservingScript]) {
+    expect(() => parse({ ...raw, script: "   " })).toThrow();
+    expect(() => parse({ ...raw, unexpected: true })).toThrow();
+  }
+});
 
 describe("makeFacelessInput", () => {
   it("accepts script and brief modes and defaults captions on", () => {

@@ -2,6 +2,15 @@
 /** prints the "what costs money" list from here. */
 import { ACTOR_DEFAULTS_PATH } from "./broll-policy.js";
 
+export const PUBLIC_WORKFLOWS_PATH = "/v1/public/workflows";
+export const PUBLIC_WORKFLOW_PATH = "/v1/public/workflows/:id";
+export const WORKFLOW_PLANS_PATH = "/v1/workflow-plans";
+export const WORKFLOW_PLAN_PATH = "/v1/workflow-plans/:id";
+export const WORKFLOW_REVISIONS_PATH = "/v1/workflow-plans/:id/revisions";
+export const WORKFLOW_APPROVE_PATH = "/v1/workflow-plans/:id/approve";
+export const WORKFLOW_QUOTE_PATH = "/v1/workflow-plans/:id/quote";
+export const WORKFLOW_RUN_PATH = "/v1/workflow-plans/:id/run";
+
 export interface ApiEndpoint {
   method: "GET" | "POST" | "DELETE";
   /** The path in Hono notation: a parameter is `:id`. */
@@ -29,8 +38,11 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "GET", path: "/v1/runs/:id/shots", billed: false, onQuickstart: false, jsonBody: false, cabinet: true },
   { method: "GET", path: "/v1/runs/:id/edit", billed: false, onQuickstart: false, jsonBody: false, cabinet: true },
   { method: "POST", path: "/v1/runs/:id/edit", billed: false, onQuickstart: false, jsonBody: true, cabinet: true },
-  { method: "POST", path: "/v1/runs/:id/revisions/quote", billed: false, onQuickstart: false, jsonBody: true, cabinet: false },
-  { method: "POST", path: "/v1/runs/:id/revisions", billed: true, onQuickstart: false, jsonBody: true, cabinet: false },
+  { method: "POST", path: "/v1/runs/:id/revisions/quote", billed: false, onQuickstart: false, jsonBody: true, cabinet: true },
+  { method: "POST", path: "/v1/runs/:id/revisions", billed: true, onQuickstart: false, jsonBody: true, cabinet: true },
+  { method: "POST", path: "/v1/runs/:id/candidates/quote", billed: false, onQuickstart: false, jsonBody: true, cabinet: false },
+  { method: "POST", path: "/v1/runs/:id/candidates", billed: true, onQuickstart: false, jsonBody: true, cabinet: false },
+  { method: "GET", path: "/v1/runs/:id/candidates", billed: false, onQuickstart: false, jsonBody: false, cabinet: false },
   { method: "POST", path: "/v1/skills/make_ugc/run", billed: true, onQuickstart: true, jsonBody: true, cabinet: false },
   { method: "GET", path: "/v1/public/skills", billed: false, onQuickstart: false, jsonBody: false, cabinet: false },
   { method: "GET", path: "/v1/actors", billed: false, onQuickstart: false, jsonBody: false, cabinet: false },
@@ -41,6 +53,14 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "POST", path: "/v1/skills/create_actor/run", billed: true, onQuickstart: false, jsonBody: true, cabinet: false },
   { method: "POST", path: "/v1/uploads", billed: false, onQuickstart: false, jsonBody: false, cabinet: false },
   { method: "GET", path: "/internal/portfolio-metrics", billed: false, onQuickstart: false, jsonBody: false, cabinet: false },
+  { method: "GET", path: PUBLIC_WORKFLOWS_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false },
+  { method: "GET", path: PUBLIC_WORKFLOW_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false },
+  { method: "POST", path: WORKFLOW_PLANS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false },
+  { method: "GET", path: WORKFLOW_PLAN_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: true },
+  { method: "POST", path: WORKFLOW_REVISIONS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false },
+  { method: "POST", path: WORKFLOW_APPROVE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false },
+  { method: "POST", path: WORKFLOW_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false },
+  { method: "POST", path: WORKFLOW_RUN_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false },
 ];
 
 /** `GET /v1/runs/{id}`: the human notation, with the parameter in curly braces. */

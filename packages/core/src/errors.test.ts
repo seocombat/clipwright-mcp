@@ -18,6 +18,9 @@ import {
 } from "./errors.js";
 
 describe("money refusal bodies", () => {
+  it('publishes every workflow refusal code in the public error registry', () => {
+    expect(API_ERROR_CODES).toEqual(expect.arrayContaining(['workflow_invalid', 'workflow_conflict', 'workflow_not_ready']));
+  });
   it("the two refusals differ by SCHEMA, not only by text", () => {
     // Answering debt with an `insufficient_credits` body would tell a client with money
     // that credits are short and report the balance instead of the debt.

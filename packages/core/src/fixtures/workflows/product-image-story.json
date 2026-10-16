@@ -1,0 +1,51 @@
+{
+  "acceptance": { "kind": "local_fixture", "provider_calls": 0, "cloud_qualified": false },
+  "source": {
+    "description": "Author-created local calibration card: a central red square on blue, used only to verify placement",
+    "media_type": "image/png",
+    "width": 180,
+    "height": 320,
+    "sha256": "c72b2a417d0d9ff4ef7fe4b83f5b9bbf148ec609c5adeb83924cea1a87b4e9a4",
+    "base64": "iVBORw0KGgoAAAANSUhEUgAAALQAAAFACAYAAAAVuVaJAAADHUlEQVR4Ae3BwQ0CQBDEsNyI/lteWuCHFMV+cEciMRKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkQ/52fH4h8eR34xEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIRB7ckUiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpGRiIxEZCQiIxEZichIREYiMhKRkYiMRGQkIiMRGYnISERGIjISkZGIjERkJCIjERmJyEhERiIyEpEvKewIfRCh8IEAAAAASUVORK5CYII="
+  },
+  "document": {
+    "v": 1,
+    "method": {
+      "method_id": "product-image-story",
+      "version": 1,
+      "content_digest": "f073ff5a7147a5f95add0ae90f168dc9e99ba1e2430daedbf84bfbb7e9abfa16",
+      "capability_digest": "75afc0a09f17e7cfe894f4fb3971e7251b2cff9110be26290a6991bad621ef7c"
+    },
+    "brief": {
+      "audience": "Developers checking original image placements",
+      "message": "Show the source marker while its accepted narration describes it",
+      "product": "Local calibration card",
+      "script": "  \nThis local calibration card checks supplied image placement. The opening animation is illustrative and is never original product proof. In the first supplied image, a red square sits on a blue background. The same original appears again while these words explain its central marker. Compare the source with both still placements. Keep the red square visible throughout the pan. This fixture checks placement only. It makes no claim about a real product or a live provider result.\n  ",
+      "required_terms": ["red square", "blue background"],
+      "requirements": [{ "feature": "exact_script", "required": true }, { "feature": "protected_product_area", "required": true }],
+      "native": {
+        "skill": "make_faceless",
+        "input": {
+          "input_mode": "script",
+          "script": "  \nThis local calibration card checks supplied image placement. The opening animation is illustrative and is never original product proof. In the first supplied image, a red square sits on a blue background. The same original appears again while these words explain its central marker. Compare the source with both still placements. Keep the red square visible throughout the pan. This fixture checks placement only. It makes no claim about a real product or a live provider result.\n  ",
+          "duration_seconds": 30,
+          "captions": false,
+          "voice": "narrator_en_kind_girl"
+        }
+      },
+      "references": []
+    },
+    "beats": [
+      { "id": "context", "role": "product_context", "anchor": { "quote": "This local calibration card checks supplied image placement" }, "required": false },
+      { "id": "marker", "role": "visible_fact", "anchor": { "quote": "a red square sits on a blue background" }, "required": false },
+      { "id": "again", "role": "image_evidence", "anchor": { "quote": "Keep the red square visible throughout the pan" }, "required": false },
+      { "id": "scope", "role": "decision", "anchor": { "quote": "It makes no claim about a real product" }, "required": false }
+    ],
+    "claims": [],
+    "assets": [
+      { "instance_id": "first", "asset_id": "upl_11111111111111111111111111111111", "content_digest": "c72b2a417d0d9ff4ef7fe4b83f5b9bbf148ec609c5adeb83924cea1a87b4e9a4", "anchor": { "quote": "a red square sits on a blue background" }, "purpose": "product_proof", "provenance": "owner_supplied", "rights": "owner_authorized", "protected_area": { "x": 0.4, "y": 0.4, "width": 0.2, "height": 0.12 } },
+      { "instance_id": "reused", "asset_id": "upl_11111111111111111111111111111111", "content_digest": "c72b2a417d0d9ff4ef7fe4b83f5b9bbf148ec609c5adeb83924cea1a87b4e9a4", "anchor": { "quote": "Keep the red square visible throughout the pan" }, "purpose": "product_proof", "provenance": "owner_supplied", "rights": "owner_authorized", "protected_area": { "x": 0.4, "y": 0.4, "width": 0.2, "height": 0.12 } },
+      { "instance_id": "same_bytes", "asset_id": "upl_22222222222222222222222222222222", "content_digest": "c72b2a417d0d9ff4ef7fe4b83f5b9bbf148ec609c5adeb83924cea1a87b4e9a4", "anchor": { "quote": "It makes no claim about a real product" }, "purpose": "illustration", "provenance": "owner_supplied", "rights": "licensed" }
+    ]
+  }
+}

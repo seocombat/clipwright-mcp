@@ -1,4 +1,5 @@
-import { FAILED_STATE, isTerminal, runMoney, VIDEO_URL_CHECK, type RunRead } from "@clipwright/core";
+import { FAILED_STATE, isTerminal, runMoney, VIDEO_URL_CHECK } from "@clipwright/core";
+import type { WorkflowRunRead, WorkflowLaunchRead } from '@clipwright/core/workflows';
 import { ClipwrightApiError } from "@clipwright/sdk";
 
 /** MCP tool response: content blocks. The index signature matches the SDK's */
@@ -32,7 +33,8 @@ export async function withFailureReport(
 
 /** Pure `get_run` formatter. Terminal answers carry both `status` and `state`; */
 /** an unknown terminal state falls into IN_PROGRESS by design. */
-export function formatGetRun(run: RunRead): McpToolResponse {
+export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead['receipt']): McpToolResponse {
+  const workflow = { ...(run.workflow === undefined ? {} : { workflow: run.workflow }), ...(receipt ? { receipt } : {}) };
   if (isTerminal(run.state)) {
     // Outcome by core's named constant, not an array index that reordering
     // could silently invert.
@@ -43,6 +45,7 @@ export function formatGetRun(run: RunRead): McpToolResponse {
             type: "text",
             text: JSON.stringify({
               status: "FAILED",
+              ...workflow,
               run_id: run.run_id,
               state: run.state,
               ...runMoney(run),
@@ -60,6 +63,7 @@ export function formatGetRun(run: RunRead): McpToolResponse {
           type: "text",
           text: JSON.stringify({
             status: "SUCCEEDED",
+            ...workflow,
             run_id: run.run_id,
             state: run.state,
             ...runMoney(run),
@@ -82,6 +86,7 @@ export function formatGetRun(run: RunRead): McpToolResponse {
         type: "text",
         text: JSON.stringify({
           status: "IN_PROGRESS",
+          ...workflow,
           run_id: run.run_id,
           state: run.state,
           ...runMoney(run),

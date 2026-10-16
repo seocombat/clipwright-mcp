@@ -8,6 +8,13 @@ import { createServer } from "./server.js";
 
 /** Every tool needs a `title` and both hints; a tool's class follows its cost and consequences. */
 const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean }> = {
+  list_workflows: { readOnlyHint: true, destructiveHint: false },
+  get_workflow: { readOnlyHint: true, destructiveHint: false },
+  prepare_workflow_plan: { readOnlyHint: false, destructiveHint: false },
+  get_workflow_plan: { readOnlyHint: true, destructiveHint: false },
+  approve_workflow_plan: { readOnlyHint: false, destructiveHint: false },
+  quote_workflow_plan: { readOnlyHint: true, destructiveHint: false },
+  run_workflow_plan: { readOnlyHint: false, destructiveHint: false },
   make_ugc: { readOnlyHint: false, destructiveHint: false },
   create_actor: { readOnlyHint: false, destructiveHint: false },
   make_faceless: { readOnlyHint: false, destructiveHint: false },
@@ -19,6 +26,8 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   get_run_shots: { readOnlyHint: true, destructiveHint: false },
   quote_revision: { readOnlyHint: true, destructiveHint: false },
   revise_run: { readOnlyHint: false, destructiveHint: false },
+  quote_candidate: { readOnlyHint: true, destructiveHint: false },
+  create_candidate: { readOnlyHint: false, destructiveHint: false },
   quote_ugc: { readOnlyHint: true, destructiveHint: false },
   quote_actor: { readOnlyHint: true, destructiveHint: false },
   list_voices: { readOnlyHint: true, destructiveHint: false },
@@ -26,6 +35,27 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   get_actor_defaults: { readOnlyHint: true, destructiveHint: false },
   get_account: { readOnlyHint: true, destructiveHint: false },
 };
+
+/** Mutants: the retry field unnamed, a resend described as a new paid run, or a discarded candidate described as free. */
+it("the create_candidate description says an identical request returns the same run, names take, and says a delivered candidate is charged kept or discarded", async () => {
+  const server = createServer(new ClipwrightClient({ apiKey: "cw_test", baseUrl: "http://unused.invalid" }));
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "annotations-test", version: "0.0.0" });
+  await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+  try {
+    const { tools } = await client.listTools();
+    const create = tools.find((tool) => tool.name === "create_candidate");
+    expect(create?.description).toContain("An identical request returns the same run it started before");
+    expect(create?.description).toContain("pass take 2");
+    expect(Object.keys(create?.inputSchema.properties ?? {})).toContain("take");
+    expect(create?.description).toContain("A delivered candidate is charged its one unit whether it is kept or discarded");
+    expect(create?.description).toContain("one that fails is charged nothing");
+    expect(create?.description).toContain("Call quote_candidate first and show the user the price.");
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
 
 /** Mutants: the retry field unnamed, or a resend described as a new paid run. */
 it("the revise_run description says an identical request returns the same run and names attempt", async () => {

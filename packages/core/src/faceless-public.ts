@@ -69,6 +69,16 @@ export type FacelessRevisionInput = z.infer<typeof facelessRevisionInput>;
 export const facelessStoredInput = z.discriminatedUnion("input_mode", [scriptInput, briefInput, facelessRevisionInput]);
 export type FacelessStoredInput = z.infer<typeof facelessStoredInput>;
 
+/** Admission and the worker validate accepted input without canonicalizing its narration again. */
+export function parseFacelessInputPreservingScript(input: unknown): MakeFacelessInput {
+  const parsed = makeFacelessInput.parse(input);
+  return parsed.input_mode === "script" ? { ...parsed, script: (input as { script: string }).script } : parsed;
+}
+export function parseFacelessStoredInputPreservingScript(input: unknown): FacelessStoredInput {
+  const parsed = facelessStoredInput.parse(input);
+  return parsed.input_mode === "script" ? { ...parsed, script: (input as { script: string }).script } : parsed;
+}
+
 /** The API routes repeat these paths as literals, and a test keeps them equal. */
 export const FACELESS_QUOTE_PATH = "/v1/skills/make_faceless/quote";
 export const FACELESS_RUN_PATH = "/v1/skills/make_faceless/run";

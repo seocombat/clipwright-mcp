@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    workflowBrief, workflowBriefRead, WorkflowBriefDto, workflowPlanDocument,
+    workflowBrief, workflowBriefRead, WorkflowBriefDto, workflowPlanDocument, workflowPlanRead, createWorkflowPlan,
     saveWorkflowPlan, approveWorkflowPlan, launchWorkflow, workflowReceiptRead, workflowQuoteBinding, workflowQuoteBindingRead,
 } from './index.js';
 
@@ -10,6 +10,26 @@ const brief = { audience: 'New users', message: 'Explain export', script: '  Exp
     native: { skill: 'make_ugc', input: { script: '  Export your MP4.\n', actor_id: 'actor_male' } } };
 
 describe('workflow write and read boundaries', () => {
+    it.each(['\u0000', '\ud800', '\udc00'])('rejects non-storable text before any document persistence %#', message => {
+        expect(workflowBrief.safeParse({ ...brief, message }).success).toBe(false);
+    });
+    it('keeps valid surrogate pairs and literal escape text unchanged', () => {
+        const message = '\ud83d\ude00 literal \\ud800';
+        expect(workflowBrief.parse({ ...brief, message }).message).toBe(message);
+    });
+    it('reads optional future server snapshots without turning them into accepted writes', () => {
+        const document = { v: 1, method: pin, brief, beats: [], claims: [], assets: [] };
+        const plan = { v: 1, plan_id: 'wfp_read', account_id: 'acc_read', revision: 1, content_digest: digest, document,
+            status: 'draft', issues: [], warnings: [], approved_at: null, created_at: '2026-10-15T00:00:00Z' };
+        expect(workflowPlanRead.safeParse(plan).success).toBe(true);
+        const capability_snapshot = { v: 2, content_digest: digest, future: true, executors: [{ skill: 'future_executor', configured: true, qualified: true, enabled: true,
+            profiles: ['future-profile'], features: ['future-feature'], formats: [{ aspect_ratio: 'future-ratio', resolution: 'future-size' }], field_dispositions: { future: 'advisory_v2' }, future: true }] };
+        const read = workflowPlanRead.parse({ ...plan, capability_snapshot });
+        expect(read.capability_snapshot?.executors[0]?.field_dispositions.future).toBe('advisory_v2');
+        expect(read.capability_snapshot?.v).toBe(2);
+        expect(createWorkflowPlan.safeParse({ document, capability_snapshot }).success).toBe(false);
+        expect(workflowPlanDocument.safeParse({ ...document, capability_snapshot }).success).toBe(false);
+    });
     it('reads additive and future workflow quotes without accepting them as writes', () => {
         const quote = { v: 1, quote_id: 'wq_123', plan_id: 'wfp_123', revision: 1, content_digest: digest, method: { ...pin, method_id: 'future-method', future: true },
             semantic_input_digest: 'b'.repeat(64), expires_at: '2026-10-14T12:00:00Z', future: true,

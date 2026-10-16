@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { actorIdempotencyKeyFor, facelessIdempotencyKeyFor, idempotencyKeyFor, requestHash, revisionIdempotencyKeyFor } from "./idempotency.js";
+import {
+  actorIdempotencyKeyFor, candidateIdempotencyKeyFor, facelessIdempotencyKeyFor, idempotencyKeyFor, requestHash, revisionIdempotencyKeyFor,
+} from "./idempotency.js";
 
 /** Every paid-run key: a new key builder must join this table, not get its own ad hoc test. */
 const keyBuilders = [
@@ -43,6 +45,27 @@ describe("revision idempotency key", () => {
   it("parses before hashing: a malformed source or request throws", () => {
     expect(() => revisionIdempotencyKeyFor("source1", changes, "client-aaaa")).toThrow();
     expect(() => revisionIdempotencyKeyFor("run_source1", { ...changes, document: {} }, "client-aaaa")).toThrow();
+  });
+});
+
+describe("candidate idempotency key", () => {
+  const request = { shot_id: "beat-2", operation: { mode: "new_picture", description: "A harbour at dawn" }, take: 1 };
+  const reordered = { take: 1, operation: { description: "A harbour at dawn", mode: "new_picture" }, shot_id: "beat-2" };
+  it("differs by source run, client, operation and take, and is one key under reordered keys", () => {
+    const key = candidateIdempotencyKeyFor("run_source1", request, "client-aaaa");
+    expect(key).toMatch(/^[a-f0-9]{64}$/);
+    expect(candidateIdempotencyKeyFor("run_source1", reordered, "client-aaaa")).toBe(key);
+    expect(candidateIdempotencyKeyFor("run_source2", request, "client-aaaa")).not.toBe(key);
+    expect(candidateIdempotencyKeyFor("run_source1", request, "client-bbbb")).not.toBe(key);
+    expect(candidateIdempotencyKeyFor("run_source1", { ...request, take: 2 }, "client-aaaa")).not.toBe(key);
+    expect(candidateIdempotencyKeyFor("run_source1", { ...request, operation: { mode: "retake" } }, "client-aaaa")).not.toBe(key);
+    expect(candidateIdempotencyKeyFor("run_source1", request, "client-aaaa")).not.toBe(revisionIdempotencyKeyFor("run_source1",
+      { changes: [{ shot_id: "beat-2", operation: request.operation }] }, "client-aaaa"));
+  });
+  it("parses before hashing: a malformed source, a missing take or an extra field throws", () => {
+    expect(() => candidateIdempotencyKeyFor("source1", request, "client-aaaa")).toThrow();
+    expect(() => candidateIdempotencyKeyFor("run_source1", { shot_id: "beat-2", operation: { mode: "retake" } }, "client-aaaa")).toThrow();
+    expect(() => candidateIdempotencyKeyFor("run_source1", { ...request, note: "x" }, "client-aaaa")).toThrow();
   });
 });
 

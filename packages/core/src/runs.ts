@@ -7,6 +7,7 @@ import { faceBillingAdmissionTermsSchema } from "./billing-terms.js";
 import { brollPolicy } from "./broll-policy.js";
 import { facelessQuote } from "./faceless-price.js";
 import { revisionBilling } from "./edit-billing.js";
+import { SHOT_OPERATION_MODES, shotId } from "./edit-operations.js";
 
 /** Shared run stages; skill-specific workers use the stages they need. */
 export const RUN_STATES = [
@@ -87,6 +88,18 @@ export const AI_DISCLOSURE_OBJECT_METADATA = aiDisclosureObjectMetadata(AI_DISCL
 /** where a bare `z.string()` let garbage reach the network. */
 export const runId = z.string().regex(/^run_[a-zA-Z0-9]+$/);
 
+/** A shot candidate's family and unit. The mode and take come from the stored input and are `null` once it is redacted; */
+/** the preview and `usable_until` are `null` until its unit is published, and the preview again once its media are gone. */
+export const runCandidate = z.object({
+  source_run_id: runId, root_run_id: runId, shot_id: shotId,
+  kind: z.enum(["picture", "clip"]),
+  operation_mode: z.enum(SHOT_OPERATION_MODES).nullable(),
+  take: z.number().int().positive().safe().nullable(),
+  preview_url: z.string().url().nullable(),
+  usable_until: z.string().datetime().nullable(),
+});
+export type RunCandidate = z.infer<typeof runCandidate>;
+
 export const run = z.object({
   run_id: runId,
   actor: actorSelection.optional(),
@@ -102,6 +115,8 @@ export const run = z.object({
     quoted_credits: z.number().int().nonnegative(),
     billing: revisionBilling.nullable(),
   }).optional(),
+  /** A shot candidate (`edit_shot`): told by its lineage row; its `final_output` is always `null`. */
+  candidate: runCandidate.optional(),
   resolved_broll_policy: brollPolicy.optional(),
   warnings: z.array(z.string()).default([]),
   /** The reason. A non-empty `error` does NOT imply `state: "failed"`: on a non-terminal */
@@ -165,7 +180,7 @@ export const RUN_MONEY_FIELDS: readonly RunMoneyField[] = Object.keys(run.shape)
 );
 
 /** A run's money fields as one object, for surfaces that build their own response. */
-export function runMoney(read: RunRead): Pick<RunRead, RunMoneyField> {
+export function runMoney(read: Pick<RunRead, RunMoneyField>): Pick<RunRead, RunMoneyField> {
   return Object.fromEntries(RUN_MONEY_FIELDS.map((field) => [field, read[field]])) as Pick<
     RunRead,
     RunMoneyField

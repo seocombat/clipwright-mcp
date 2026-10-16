@@ -41,6 +41,14 @@ function timed(beatWordFrames: number[][]) {
 }
 
 describe("public faceless speech planner", () => {
+  it("preserves the accepted script byte for byte after validating story coverage", () => {
+    const { story } = publicFixture();
+    const script = ` \n${story.script}\n `;
+    expect(parseFacelessPublicStory({ ...story, script }, script).script).toBe(script);
+    expect(parseFacelessPublicStory({ ...story, script }).script).toBe(story.script);
+    const { words } = publicFixture();
+    expect(planPublicFacelessStory({ ...story, script }, words, style, 750).script).toBe(script);
+  });
   it("maps lexical words onto whitespace-free subtitle offsets", () => {
     expect(facelessSpeechWordSpans("Hello—Mira. Home")).toEqual([
       { word: "Hello—", start: 0, end: 6 },

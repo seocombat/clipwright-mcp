@@ -16,6 +16,43 @@ a customer reading it should not miss what appeared in the product. Like *Server
 they are live from the day the web app was deployed, not from the package release they are
 listed under.
 
+## [Unreleased]
+
+## [0.29.0] - 2026-10-16
+
+### Added
+
+- Workflow plans: a method from the public workflow catalog becomes a plan that you prepare, save, approve and
+  quote for free, and then start as one paid UGC or faceless run with an explicit idempotency key. `listWorkflows`,
+  `getWorkflow`, `createWorkflowPlan`, `getWorkflowPlan`, `saveWorkflowPlan`, `approveWorkflowPlan`,
+  `quoteWorkflowPlan` and `runWorkflowPlan` in the SDK; `workflows`, `workflow-show`, `plan-create`, `plan-show`,
+  `plan-save`, `plan-approve`, `plan-quote` and `plan-run` in the CLI; the MCP tools `list_workflows`, `get_workflow`,
+  `prepare_workflow_plan`, `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan` and
+  `run_workflow_plan`. Approval and the paid start are separate explicit calls; nothing quotes, approves or starts on
+  its own. A method starts only once it is enabled on the server; until then its availability says why. `getRun` of a
+  workflow run carries the purchased plan revision and its receipt. *Dashboard:* the videos list labels a workflow
+  run with its plan, method and revision. (clipwright#631)
+- *Dashboard:* the editor of a faceless video edits its draft: move a cut by dragging it or with the keys, set a shot's
+  start, end or length, start or end it on a word, remove a picture, and regenerate a picture or describe a new one.
+  The draft saves itself. "Copy as API call" copies the revision as `curl` and as the MCP `revise_run` call, and
+  "Render new version" shows the quote and starts the revision, which the header then follows to "Version ready".
+  An answer that does not come is held in the browser, so a retry starts no second revision. (clipwright#604)
+- A shot of a faceless video can get a candidate: one picture or clip made for that shot, to keep or discard in a
+  revision. `quoteCandidate`, `createCandidate` and `listCandidates` in the SDK, `candidate-quote`, `candidate` and
+  `candidates` in the CLI, and the MCP tools `quote_candidate` and `create_candidate`. The quote charges nothing. A
+  delivered candidate is charged its one unit whether it is kept or discarded; one that fails is charged nothing,
+  even when its paid work was already done. An identical request returns the same run; `take` (`--take` in the CLI)
+  makes another candidate on purpose. `candidate` prints the quote and starts nothing without `--yes`. While shot
+  candidates are closed on the server, every call answers `editing_disabled`. (clipwright#604)
+
+### Changed
+
+- **Breaking:** `ApiFailure` gains the kinds `workflow_invalid`, `workflow_conflict` and `workflow_not_ready`, for
+  TypeScript callers that switch on the kind. Each keeps every issue and warning of the refusal. (clipwright#631)
+- The agent report of `edit_ceiling_reached` and `edit_invalid` names a paid edit and the request, not a revision and
+  a document, since shot candidates are refused with the same codes. *Dashboard:* the docs page lists the prices of a
+  shot candidate. (clipwright#604)
+
 ## [0.28.0] - 2026-10-15
 
 The revision of a faceless video is paid and open: `quoteRevision` and `startRevision` in the SDK, `revise-quote` and

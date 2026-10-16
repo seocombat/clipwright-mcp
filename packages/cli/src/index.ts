@@ -14,6 +14,8 @@ import {
   type MakeFacelessInputArgs,
   CATALOG_GENDERS,
   CATALOG_LANGUAGES,
+  CANDIDATE_CHARGE_TEXT,
+  type CandidateRequest,
   DEFAULT_FACELESS_VOICE,
   editDocumentRead,
   FAILED_STATE,
@@ -52,6 +54,7 @@ import {
   formatSchemaError,
   formatVoices,
 } from "./format.js";
+import { registerWorkflowCommands, WorkflowFileError } from './workflows.js';
 
 // Version from the manifest: a literal drifts, and a JSON import breaks `rootDir`.
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -134,18 +137,19 @@ function withSourceOptions(command: Command): Command {
     .addOption(new Option("--resolution <size>", "output resolution").choices(RESOLUTIONS));
 }
 
-/** --retry is an attempt NUMBER, parsed strictly: the value enters the */
+/** --retry and --take are NUMBERS, parsed strictly: the value enters the */
 /** idempotency key, so a lenient parse could buy a second render. */
-function parseRetry(raw: string): number {
+const parseWholeNumber = (flag: string) => (raw: string): number => {
   // Same bound as the SDK's `attemptSuffix`: a leading `[1-9]` rejects zero,
   // `isSafeInteger` rejects values too large to stay distinct.
   const parsed = Number.parseInt(raw, 10);
   if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(parsed)) {
-    console.error(`--retry expects a whole number of 1 or more, got ${raw}`);
+    console.error(`${flag} expects a whole number of 1 or more, got ${raw}`);
     process.exit(1);
   }
   return parsed;
-}
+};
+const parseRetry = parseWholeNumber("--retry");
 
 program
   .command("upload <path>")
@@ -461,6 +465,98 @@ withReviseOptions(
     console.error(`follow it with "clipwright runs ${started.run_id}"`);
   });
 
+interface CandidateOptions {
+  shot?: string;
+  retake?: boolean;
+  newPicture?: string;
+  animate?: string | boolean;
+  take?: number;
+}
+
+/** Candidate input shared by quote and start, so the quote prices what is started: one shot, one operation, one take. */
+const withCandidateOptions = (command: Command): Command =>
+  command
+    .option("--shot <id>", "the shot to make a candidate for, with one of --retake, --new-picture or --animate")
+    .addOption(new Option("--retake", "generate the shot again from its own description").conflicts(["newPicture", "animate"]))
+    .addOption(new Option("--new-picture <description>", "draw a new picture for the shot from this description").conflicts("animate"))
+    .option("--animate [motion]", "turn the opening picture into a clip, with this motion if given")
+    .option("--take <n>", "take number, 1 by default: the same request and take return the first candidate; " +
+      "another take makes another one, charged again", parseWholeNumber("--take"));
+
+/** The request a candidate sends, built here and refused before any request when the flags name no shot or operation. */
+function candidateInput(opts: CandidateOptions): CandidateRequest {
+  const chosen = GENERATE_FLAGS.filter((flag) => opts[flag] !== undefined);
+  if (opts.shot === undefined || chosen.length !== 1) {
+    console.error("pass --shot <id> with one of --retake, --new-picture or --animate. Nothing was sent.");
+    process.exit(1);
+  }
+  const operation = opts.retake === true ? { mode: "retake" as const }
+    : opts.newPicture !== undefined ? { mode: "new_picture" as const, description: opts.newPicture }
+    : { mode: "animate" as const, ...(typeof opts.animate === "string" ? { motion: opts.animate } : {}) };
+  return { shot_id: opts.shot, operation, take: opts.take ?? 1 };
+}
+
+withCandidateOptions(
+  program.command("candidate-quote <run>")
+    .description(`price a shot candidate of a run without spending credits; prints the quote as JSON. ${CANDIDATE_CHARGE_TEXT}`),
+).action(async (run: string, opts: CandidateOptions) => {
+  console.log(JSON.stringify(await client().quoteCandidate(run, candidateInput(opts)), null, 2));
+});
+
+withCandidateOptions(
+  program.command("candidate <run>")
+    .description("make a shot candidate of a run (paid): one picture or clip for one shot, to keep or discard in a revision; " +
+      `prints the quote, then with --yes starts it and prints the run. ${CANDIDATE_CHARGE_TEXT}`),
+)
+  .option("--yes", "start the candidate after printing its quote; without it nothing is started")
+  .action(async (run: string, opts: CandidateOptions & { yes?: boolean }) => {
+    const request = candidateInput(opts);
+    const quote = await client().quoteCandidate(run, request);
+    console.error(`candidate of shot ${quote.shot_id} (${quote.unit}, take ${request.take}): ${quote.credits} credits; ` +
+      `usable in a revision until ${quote.usable_until}`);
+    for (const warning of quote.warnings) console.error(`warning: ${warning}`);
+    if (opts.yes !== true) {
+      console.error("Nothing was started; pass --yes to start it.");
+      process.exit(1);
+    }
+    let created: RunRead;
+    try {
+      created = await client().createCandidate(run, request);
+    } catch (error) {
+      if (!(error instanceof ClipwrightApiError)) throw error;
+      const failure = error.failure;
+      if (failure.kind === "edit_ceiling_reached") {
+        console.error(formatApiError(error));
+        if (failure.limit === "in_flight") {
+          for (const id of failure.runIds) console.error(`running: ${id}; follow it with "clipwright runs ${id}"`);
+        } else {
+          console.error(`${failure.counted} of ${failure.allowed} candidates of ${failure.rootRunId} are counted; ` +
+            "no candidate of it can start, and support cannot raise this limit yet.");
+        }
+        process.exit(1);
+      }
+      // The source is resolved before a resent key is replayed, so a resend after the source's media are gone meets this.
+      if (failure.kind === "run_not_editable") {
+        console.error(formatApiError(error));
+        console.error(`if you made this candidate before, find it with "clipwright candidates ${run}"`);
+        process.exit(1);
+      }
+      throw error;
+    }
+    console.log(JSON.stringify(created, null, 2));
+    if (created.state === FAILED_STATE) {
+      console.error(`run ${created.run_id} is ${created.state}; to try again, pass --take ${request.take + 1}`);
+      process.exit(1);
+    }
+    console.error(`follow it with "clipwright runs ${created.run_id}"; once it succeeded, "clipwright candidates ${run}" shows its preview`);
+  });
+
+program.command("candidates <run>")
+  .description("list the shot candidates of a run's family, oldest first, with state, charge and preview; free")
+  .action(async (run: string) => {
+    console.log(JSON.stringify(await client().listCandidates(run), null, 2));
+  });
+
 program.command("actors").description("list saved actors and verified formats").action(async () => {
   console.log(JSON.stringify({ actors: await client().listActors() }, null, 2));
 });
@@ -631,6 +727,7 @@ program
 
 /** Exported so tests can drive the program; autorun happens only when this */
 /** module is the process entry point, so importing it runs nothing. */
+registerWorkflowCommands(program, client);
 export { program };
 
 const isDirectRun = (): boolean => {
@@ -653,6 +750,11 @@ if (isDirectRun()) run();
 /** still throw, since their stack is the useful part. */
 function run(): void {
   program.parseAsync().catch((error: unknown) => {
+  if (error instanceof WorkflowFileError) {
+    console.error(`error: ${error.message}`);
+    process.exitCode = 1;
+    return;
+  }
   if (error instanceof ClipwrightApiError) {
     console.error(formatApiError(error));
     process.exitCode = 1;

@@ -200,6 +200,14 @@ describe("derivation by run skill", () => {
     expect(derivedRunWarnings(actorInput(), NO_FACTS, "create_actor")).toEqual([]);
   });
 
+  // Mutant: a candidate read as a faceless run, so its stored input yields the voice line of a narration it never speaks.
+  it("edit_shot derives nothing, even from an input a faceless run would warn on", () => {
+    const russian = FACELESS_VOICE_NAMES.find((name) => FACELESS_VOICES[name].language === "ru")!;
+    const voiced = { input_mode: "script", script: "A clear story with spoken words.", duration_seconds: 30, captions: true, voice: russian };
+    expect(derivedRunWarnings(voiced, FACTS, "make_faceless").length).toBeGreaterThan(0);
+    expect(derivedRunWarnings(voiced, FACTS, "edit_shot")).toEqual([]);
+  });
+
   it("create_actor keeps only stored lines, in order and without duplicates", () => {
     expect(composeRunWarnings(["A", "B", "A"], actorInput(), FACTS, "create_actor")).toEqual(["A", "B"]);
   });

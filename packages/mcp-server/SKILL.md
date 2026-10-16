@@ -164,9 +164,22 @@ Environment variables:
 | `CLIPWRIGHT_CLIENT_ID` | YES (see section 2) | Unique identifier of this INSTALLATION. |
 
 After connecting, restart or reopen the MCP host and confirm that `tools/list`
-returns 17 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_ugc`, `list_actors`,
+returns 26 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`, `quote_ugc`, `list_actors`,
 `list_voices`, `upload_image`, `get_account`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
-`set_actor_defaults`, `quote_faceless`, `make_faceless`.
+`set_actor_defaults`, `quote_faceless`, `make_faceless`, `list_workflows`, `get_workflow`, `prepare_workflow_plan`,
+`get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`.
+
+Workflow calls are explicit steps: list/read a method, prepare its complete
+document, read all readiness issues and warnings, approve the chosen revision,
+then quote and show its native price before a paid launch. Preparation, approval
+and quoting start no run. To save, pass both `plan_id` and `base_version` with
+the document; omit both to create. Unknown write fields are refused.
+`run_workflow_plan` requires the quote's revision, content digest, semantic input
+digest and quote id, plus an explicit idempotency key. It returns the captured
+receipt and native run id at once. Poll `get_run`; its optional workflow field
+keeps the purchased revision and available outcome evidence. Technical evidence
+does not mean a person accepted the creative result. After an uncertain paid
+answer, preserve the original request and key; a new key can pay twice.
 
 ## 2. `CLIPWRIGHT_CLIENT_ID` — required, and WHY
 
@@ -574,6 +587,29 @@ The refusals are terminal; do not retry them unchanged:
   each, and the rules are in the run's shots.
 - `run_not_editable` (409) with `state: "edit_window_closed"` — the paid window
   of the original has closed.
+
+### `quote_candidate` — free; `create_candidate` — paid
+
+A shot candidate is one picture or clip made for one shot of a `make_faceless`
+run, to keep or discard in a later revision. Both tools take a `run_id`, a
+`shot_id` and an `operation` the shot lists in `get_run_shots` (such as
+`{ "mode": "retake" }`), and an optional `take`, 1 by default.
+`quote_candidate` answers the `unit`, its `credits` and `usable_until`, the last
+moment the candidate can enter a revision, and spends nothing. Show the user
+that price before `create_candidate`.
+
+`create_candidate` starts a NEW run of skill `edit_shot` and returns it at once;
+poll it with `get_run`. Once it succeeded, `candidate.preview_url` shows what was
+made. A delivered candidate is charged its one unit whether it is kept or
+discarded; one that fails is charged nothing, even when its paid work was
+already done. An identical request returns the same run it started before, so a
+call repeated after a lost answer starts nothing new; pass `take: 2` to make
+another candidate with the same request on purpose, charged again.
+
+The refusals are those of `revise_run` above. The candidate limits of an
+original, running at once and failed or unfinished, are counted apart from its
+revisions, and support raises only the revision limit. An operation the shot
+does not offer is `edit_invalid` with the code `action_not_allowed`.
 
 ### `list_actors` — free, no input
 

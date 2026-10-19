@@ -18,6 +18,8 @@ import {
   createActorInputShape,
   DEFAULT_FACELESS_VOICE,
   FACELESS_VOICE_NAMES,
+  generateImageRequest,
+  generateVideoRequest,
   MODEL_VOICE_MODEL,
   MODEL_VOICE_NAMES,
   SCRIPT_LENGTH_DESCRIPTION,
@@ -44,9 +46,19 @@ import { registerWorkflowTools } from './workflow-tools.js';
 const packageVersion = (): string =>
   (createRequire(import.meta.url)("../package.json") as { version: string }).version;
 
+export interface CreateServerOptions {
+  /** `local` reads the caller's files (stdio); `refuse` is a remote server, where a path names a file on another machine. */
+  fileAccess: "local" | "refuse";
+}
+
+/** What `upload_image` answers a path on a server that reads no files; the tool list stays the same on both transports. */
+export const REMOTE_UPLOAD_REFUSAL =
+  "This Clipwright server is remote and cannot read files on your machine, so upload_image takes no path here. " +
+  "Pass a public https URL of the PNG or JPEG as `image` to quote_ugc and make_ugc instead.";
+
 /** Builds the MCP server with its tools registered but NO transport connected, */
 /** so tool registration is testable without a stdio process. */
-export function createServer(client: ClipwrightClient): McpServer {
+export function createServer(client: ClipwrightClient, options: CreateServerOptions = { fileAccess: "local" }): McpServer {
   const server = new McpServer({ name: "clipwright", version: packageVersion() });
   registerWorkflowTools(server, client);
 
@@ -79,9 +91,11 @@ export function createServer(client: ClipwrightClient): McpServer {
       title: "Get run status",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "Check the status of a video generation started by make_ugc or make_faceless. Pass the run_id. While the run " +
+        "Check the status of a video generation started by make_ugc or make_faceless, or of a generate_image or " +
+        "generate_video run. Pass the run_id. While the run " +
         "is still working it returns status IN_PROGRESS with a next_action telling you to poll again; " +
-        "repeat every ~5 seconds until it reaches a terminal state — SUCCEEDED (with video_url) or FAILED.",
+        "repeat every ~5 seconds until it reaches a terminal state — SUCCEEDED (with video_url, or generation.url for " +
+        "generate_image and generate_video) or FAILED.",
       inputSchema: { run_id: runId },
     },
     async ({ run_id }) =>
@@ -218,6 +232,97 @@ export function createServer(client: ClipwrightClient): McpServer {
       withFailureReport(async () => formatGetRun(await client.createCandidate(run_id, candidateOf(request)))),
   );
 
+  // Single generations (clipwright#724): the tools are listed while the feature is closed and relay the API's refusal.
+  const generationTerms =
+    "A reference is {upload_id, rights_confirmed: true} for a picture from upload_image (rights_confirmed states you may use " +
+    "the people and works in it) or {run_id} of a succeeded generate_image run of this account until its reusable_until. " +
+    "A generation that fails is charged nothing, even when the vendor was already paid. An identical request returns the " +
+    "same run it started before, so a call repeated after a lost answer starts nothing new; to make another one with the " +
+    "same request on purpose, pass attempt 2. While generations are closed it answers generations_disabled or " +
+    "generations_marking_pending and charges nothing.";
+  // Strict objects: an unknown key is refused at the tool, not stripped. The clip's mode rules run in the handler.
+  const imageTool = generateImageRequest, imageRunTool = generateImageRequest.extend(agentRetryShape);
+  const videoTool = z.strictObject(generateVideoRequest.shape), videoRunTool = videoTool.extend(agentRetryShape);
+
+  server.registerTool(
+    "list_generation_models",
+    {
+      title: "List generation models",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "List the models generate_image and generate_video take, each with its modes, aspect ratios, resolutions, " +
+        "durations, output width and height, and unit_credits: credits per image, or per second of a clip. Only measured " +
+        "combinations are listed; any other is refused with unsupported_combination before any charge. Free.",
+      inputSchema: {},
+    },
+    async () => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.listGenerationModels()) }],
+    })),
+  );
+
+  server.registerTool(
+    "quote_image",
+    {
+      title: "Quote an image",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "Price one generate_image call WITHOUT spending credits: its credits (one image at its model's unit_credits), " +
+        "its width and height, and warnings. Always call this first and show the user the price before generate_image. " +
+        generationTerms,
+      inputSchema: imageTool,
+    },
+    async (args) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.quoteImage(args)) }],
+    })),
+  );
+
+  server.registerTool(
+    "generate_image",
+    {
+      title: "Generate an image",
+      annotations: { readOnlyHint: false, destructiveHint: false },
+      description:
+        "Generate one image from a prompt (paid): a NEW run of skill generate_image, charged the quoted credits per image " +
+        "once it is delivered. Call quote_image first and show the user the price. Poll the run with get_run; once it " +
+        "succeeded, generation.url is the image and its run_id can be a reference of a later generation. " + generationTerms,
+      inputSchema: imageRunTool,
+    },
+    async ({ attempt, ...request }) =>
+      withFailureReport(async () => formatGetRun(await client.generateImage(request, { attempt }))),
+  );
+
+  server.registerTool(
+    "quote_video",
+    {
+      title: "Quote a clip",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "Price one generate_video call WITHOUT spending credits: its credits (unit_credits per second of duration_s), " +
+        "its width and height, and warnings. Always call this first and show the user the price before generate_video. " +
+        generationTerms,
+      inputSchema: videoTool,
+    },
+    async (args) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.quoteVideo(generateVideoRequest.parse(args))) }],
+    })),
+  );
+
+  server.registerTool(
+    "generate_video",
+    {
+      title: "Generate a clip",
+      annotations: { readOnlyHint: false, destructiveHint: false },
+      description:
+        "Generate one silent clip (paid): a NEW run of skill generate_video, charged unit_credits per second of duration_s " +
+        "once it is delivered. Modes: text; first_frame (first_frame, optional last_frame, of the requested aspect ratio " +
+        "within 2%); reference (1 to 4 references). Call quote_video first and show the user the price. Poll the run with " +
+        "get_run; once it succeeded, generation.url is the clip. " + generationTerms,
+      inputSchema: videoRunTool,
+    },
+    async ({ attempt, ...request }) =>
+      withFailureReport(async () => formatGetRun(await client.generateVideo(generateVideoRequest.parse(request), { attempt }))),
+  );
+
   server.registerTool(
     "quote_ugc",
     {
@@ -249,6 +354,7 @@ export function createServer(client: ClipwrightClient): McpServer {
     },
     async ({ path }) =>
       withFailureReport(async () => {
+        if (options.fileAccess !== "local") throw new Error(REMOTE_UPLOAD_REFUSAL);
         const bytes = new Uint8Array(await readFile(path));
         const mediaType = sniffUploadMediaType(bytes);
         if (mediaType === null || bytes.byteLength > UPLOAD_MAX_BYTES) {
@@ -268,7 +374,8 @@ export function createServer(client: ClipwrightClient): McpServer {
                 next_action:
                   "Pass `url` as `image` to quote_ugc, then make_ugc. Set `aspect_ratio` explicitly " +
                   `to the picture's shape (${upload.width}x${upload.height}); the url expires at ` +
-                  `${upload.expires_at} — upload again after that.`,
+                  `${upload.expires_at} — upload again after that. For workflow assets, use upload_id as asset_id ` +
+                  "and content_digest directly; it identifies the original uploaded bytes.",
               }),
             },
           ],

@@ -5,7 +5,7 @@ import { facelessMediaRecord, storedObject, type FacelessMediaRecord, type Store
 const sha = (seed: string) => seed.repeat(64).slice(0, 64);
 const stored = (kind: StoredObject["kind"], seed: string, bytes: number): StoredObject => ({
   kind, key: `runs/run_record/faceless/media/${sha(seed)}.${kind === "image" ? "png" : kind === "video" ? "mp4" : "wav"}`,
-  sha256: sha(seed), bytes,
+  sha256: sha(seed), content_sha256: sha(seed), bytes,
   width: kind === "audio" ? null : kind === "video" ? 1088 : 1024, height: kind === "audio" ? null : kind === "video" ? 1920 : 1536,
   duration_sec: kind === "image" ? null : kind === "video" ? 5.04 : 31.36,
 });
@@ -34,6 +34,11 @@ function referencedRecord(): FacelessMediaRecord {
     settings: { captions: false, character_reference: true, character_details: "Mira: a black bob haircut and a red scarf.",
       image_model: "gpt-image-2", voice: "warm_narrator", lambda_site_sha256: sha("9") } };
 }
+
+it("retains two product-photo reference roles and their customer provenance", () => {
+  const record = { ...generatedRecord(), references: ["1", "2"].map(seed => ({ ...stored("image", seed, 3101), role: "product", from: "customer" })) };
+  expect(facelessMediaRecord.parse(record).references).toEqual(record.references);
+});
 /** A run with a customer picture in its second shot. */
 function customerPictureRecord(): FacelessMediaRecord {
   const record = generatedRecord();
@@ -88,7 +93,7 @@ describe("the media record of a faceless run", () => {
     ["a motion outside the two", (record: Loose) => { record.shots[1]!.motion = "ZOOM_IN"; }],
     ["a shot without `motion`", (record: Loose) => { delete record.shots[0]!.motion; }],
     ["a shot id the edit document cannot name", (record: Loose) => { record.shots[2]!.id = "beat 1"; }],
-    ["a reference role outside the two", (record: Loose) => { record.references[0]!.role = "pose"; }],
+    ["an unsupported reference role", (record: Loose) => { record.references[0]!.role = "pose"; }],
     ["a reference origin outside the two", (record: Loose) => { record.references[1]!.from = "library"; }],
     ["a reference without its origin", (record: Loose) => { delete record.references[0]!.from; }],
     ["a record without the opening still", (record: Loose) => { delete (record as Record<string, unknown>).opener_still; }],
@@ -114,11 +119,20 @@ describe("a stored object", () => {
   it("is a picture, a clip or a sound with its key, hash and measures", () => {
     for (const object of [picture(), stored("video", "b", 880_001), stored("audio", "e", 1_505_324)]) expect(storedObject.parse(object)).toEqual(object);
   });
+  it("preserves an optional raw content identity and leaves historical records absent", () => {
+    const full = { ...picture(), content_sha256: sha("b") };
+    expect(storedObject.parse(full)).toEqual(full);
+    const { content_sha256: _omitted, ...legacy } = full;
+    expect(storedObject.parse(legacy)).toEqual(legacy);
+    expect(Object.hasOwn(storedObject.parse(legacy), "content_sha256")).toBe(false);
+  });
   it.each([
     ["a kind outside the three", { kind: "text" }],
     ["an empty key", { key: "" }],
     ["a hash that is not 64 lowercase hex digits", { sha256: sha("A") }],
     ["a short hash", { sha256: sha("a").slice(1) }],
+    ["an invalid raw content hash", { content_sha256: "g".repeat(64) }],
+    ["a null raw content hash", { content_sha256: null }],
     ["no bytes", { bytes: 0 }],
     ["a fractional byte count", { bytes: 10.5 }],
     ["a zero width", { width: 0 }],
@@ -137,18 +151,18 @@ describe("a stored object", () => {
 });
 
 type Path = Array<string | number>;
-type Leaf = { holds: "string" | "number" | "boolean" | readonly unknown[]; nullable?: true };
+type Leaf = { holds: "string" | "number" | "boolean" | readonly unknown[]; nullable?: true; optional?: true };
 const text: Leaf = { holds: "string" }, count: Leaf = { holds: "number" }, flag: Leaf = { holds: "boolean" };
 const oneOf = (...values: unknown[]): Leaf => ({ holds: values }), orNull = (leaf: Leaf): Leaf => ({ ...leaf, nullable: true });
 const under = (place: string, leaves: Record<string, Leaf>) => Object.entries(leaves).map(([key, leaf]) => [`${place}.${key}`, leaf] as const);
-const OBJECT = { kind: oneOf("image", "video", "audio"), key: text, sha256: text, bytes: count, width: orNull(count), height: orNull(count),
+const OBJECT = { kind: oneOf("image", "video", "audio"), key: text, sha256: text, content_sha256: { ...text, optional: true as const }, bytes: count, width: orNull(count), height: orNull(count),
   duration_sec: orNull(count) };
 /** The record's shape written out by hand, a second witness beside the schema: every leaf by its place, and what it holds. */
 const SHAPE = new Map<string, Leaf>([
   ["v", oneOf(1)],
   ["shots.[].id", text], ["shots.[].source", oneOf("generated", "customer")], ["shots.[].motion", orNull(oneOf("PAN_UP", "PAN_DOWN"))],
   ...under("shots.[].media", OBJECT), ...under("opener_still", OBJECT),
-  ...under("references.[]", { ...OBJECT, role: oneOf("style", "character"), from: oneOf("customer", "lead_picture") }),
+  ...under("references.[]", { ...OBJECT, role: oneOf("style", "character", "product"), from: oneOf("customer", "lead_picture") }),
   ...under("narration", OBJECT),
   ...under("settings", { captions: flag, character_reference: flag, character_details: orNull(text), image_model: text, voice: orNull(text),
     lambda_site_sha256: text }),
@@ -164,13 +178,14 @@ function parts(value: unknown, path: Path = [], found = { objects: [] as Path[],
   } else found.leaves.push(path);
   return found;
 }
-/** The leaves the schema itself names, read from its public shape. A node this walk does not know stops it, an optional key among them. */
+/** The leaves the schema itself names, including explicitly witnessed optional content identities. */
 function schemaLeaves(schema: unknown, place: string[] = []): string[] {
   const node = schema as { def: { type: string }; shape: Record<string, unknown>; element: unknown; unwrap: () => unknown };
   switch (node.def.type) {
     case "object": return Object.entries(node.shape).flatMap(([key, item]) => schemaLeaves(item, [...place, key]));
     case "array": return schemaLeaves(node.element, [...place, "[]"]);
     case "nullable": return schemaLeaves(node.unwrap(), place);
+    case "optional": return schemaLeaves(node.unwrap(), place);
     case "string": case "number": case "boolean": case "literal": case "enum": return [place.join(".")];
     default: throw new Error(`the walk does not know a ${node.def.type} node at ${place.join(".")}`);
   }
@@ -193,20 +208,24 @@ describe("the shape of the media record, walked from one fully populated record"
 
   it("the walk reaches every leaf the schema names, and the schema names the leaves written out here and no other", () => {
     const named = [...SHAPE.keys()].sort();
-    expect(named).toHaveLength(40);
+    expect(named).toHaveLength(44);
     expect(schemaLeaves(facelessMediaRecord).sort()).toEqual(named);
     expect([...new Set(leaves.map(placeOf))].sort()).toEqual(named);
     // Three shots, two references, the still, the narration and the settings: a smaller walk would be a thinner record.
-    expect([leaves.length, objects.length, lists.length, stored.length]).toEqual([69, 12, 2, 7]);
+    expect([leaves.length, objects.length, lists.length, stored.length]).toEqual([76, 12, 2, 7]);
     expect(refused(referencedRecord())).toBe(false);
   });
 
-  it("needs every key of every object: without any one of them the record is refused", () => {
+  it("requires every original key and permits omission only of the new raw identity", () => {
     const keys = objects.flatMap(path => Object.keys(valueAt(path) as object).map(key => [...path, key]));
-    expect(keys).toHaveLength(77);
-    expect(keys.filter(path => !refused(changedAt(path, (holder, key) => { delete holder[key]; }))).map(path => shown(path))).toEqual([]);
+    expect(keys).toHaveLength(84);
+    const optional = keys.filter(path => SHAPE.get(placeOf(path))?.optional);
+    expect(optional).toHaveLength(7);
+    const required = keys.filter(path => !SHAPE.get(placeOf(path))?.optional);
+    expect(required.filter(path => !refused(changedAt(path, (holder, key) => { delete holder[key]; }))).map(path => shown(path))).toEqual([]);
     // `undefined` is no value either: a key that is there and holds nothing is as absent as a key that is not.
-    expect(keys.filter(path => !refused(put(path, undefined))).map(path => shown(path))).toEqual([]);
+    expect(required.filter(path => !refused(put(path, undefined))).map(path => shown(path))).toEqual([]);
+    expect(optional.filter(path => refused(changedAt(path, (holder, key) => { delete holder[key]; }))).map(path => shown(path))).toEqual([]);
   });
 
   it("refuses a key it does not know in every object", () => {
@@ -228,8 +247,8 @@ describe("the shape of the media record, walked from one fully populated record"
     }
     expect(taken).toEqual([]);
     expect(nulls).toEqual([]);
-    // 69 leaves; each refuses at least the six samples of the other scalar types and the containers.
-    expect(tried).toBeGreaterThanOrEqual(69 * 6);
+    // Every populated leaf refuses at least the six samples of other types and containers.
+    expect(tried).toBeGreaterThanOrEqual(76 * 6);
     expect(leaves.filter(path => SHAPE.get(placeOf(path))!.nullable)).toHaveLength(3 + 7 * 3 + 2);
   });
 
@@ -247,6 +266,8 @@ describe("the shape of the media record, walked from one fully populated record"
     ["key", [["k", true], ["k".repeat(1024), true], ["", false], ["k".repeat(1025), false]]],
     ["sha256", [[hex, true], [hex.slice(1), false], [`${hex}a`, false], [hex.toUpperCase(), false], [`g${hex.slice(1)}`, false],
       [`${hex.slice(1)}g`, false], [`${hex}\n`, false]]],
+    ["content_sha256", [[hex, true], [hex.slice(1), false], [`${hex}a`, false], [hex.toUpperCase(), false], [`g${hex.slice(1)}`, false],
+      [`${hex.slice(1)}g`, false], [`${hex}\n`, false], [null, false]]],
     ["bytes", sizes], ["width", sizes], ["height", sizes],
     ["duration_sec", [[0.04, true], [1, true], [0, false], [-0.04, false], [-1, false], [Number.NaN, false], [Number.POSITIVE_INFINITY, false]]],
   ])("holds `%s` of every stored object to its bound, a value on each side", (key, cases) => {
@@ -263,7 +284,7 @@ describe("the shape of the media record, walked from one fully populated record"
     ["a shot source", [0, 1, 2].map(shot => ["shots", shot, "source"]), [["generated", true], ["customer", true], ["upload", false], ["", false]]],
     ["a shot motion", [0, 1, 2].map(shot => ["shots", shot, "motion"]), [["PAN_UP", true], ["PAN_DOWN", true], [null, true], ["ZOOM_IN", false],
       ["pan_up", false]]],
-    ["a reference role", [0, 1].map(reference => ["references", reference, "role"]), [["style", true], ["character", true], ["pose", false]]],
+    ["a reference role", [0, 1].map(reference => ["references", reference, "role"]), [["style", true], ["character", true], ["product", true], ["pose", false]]],
     ["a reference origin", [0, 1].map(reference => ["references", reference, "from"]), [["customer", true], ["lead_picture", true], ["library", false]]],
     // §3.10 writes these four as plain strings and the two lists without a least length: no bound is stated, so none is held.
     ["a plain string of the settings", ["character_details", "image_model", "voice", "lambda_site_sha256"].map(key => ["settings", key]), [["", true], ["x".repeat(5000), true]]],

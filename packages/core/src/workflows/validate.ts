@@ -9,6 +9,7 @@ import type { FacelessSceneAnchor } from '../faceless-public.js';
 import { FIELD_DISPOSITIONS } from '../contract-dispositions.js';
 import { makeUgcInputShape } from '../skills.js';
 import { queryWorkflowMethod } from './catalog.js';
+import { workflowProductReferenceWarnings } from './product-references.js';
 
 export type WorkflowReadiness = { ready: boolean; issues: WorkflowIssue[]; warnings: string[] };
 const result = (issues: WorkflowIssue[], warnings: string[]): WorkflowReadiness => ({ ready: issues.length === 0, issues, warnings });
@@ -122,6 +123,7 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
     const document = parsed.data;
     const readiness = checkWorkflowBrief(document.method.method_id, document.brief, capabilities);
     const { issues, warnings } = readiness;
+    warnings.push(...workflowProductReferenceWarnings(document.method.method_id, document.assets));
     const add = (code: string, path: string, message: string) => issues.push({ kind: code, path, message });
     const method = queryWorkflowMethod(document.method.method_id, capabilities)!;
     if (document.method.version !== method.descriptor.version || document.method.content_digest !== method.descriptor.content_digest) {

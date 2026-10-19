@@ -37,6 +37,7 @@ above name the package with `-p`, so they resolve here either way.
 | `candidate-quote <run>` | Prices a shot candidate, one picture or clip for one shot, and prints the quote as JSON. Spends nothing. |
 | `candidate <run>` | Prints the quote of a shot candidate; with `--yes` makes it. **Costs credits.** Prints the run; follow it with `runs <id>`. |
 | `candidates <run>` | Lists the shot candidates of a video's family as JSON, with state, charge and preview. Free. |
+| `uploads` | Lists your uploads that a revision still takes as JSON, newest first, each with a fresh url and `usable_until`. Free. |
 | `workflows` | Public workflow methods and availability as JSON. Free. |
 | `workflow-show <method>` | One method's rules, requirements and limitations as JSON. Free. |
 | `plan-create --file <path>` | Store `{ document }` without starting a run. Free. |

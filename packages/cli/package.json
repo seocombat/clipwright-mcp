@@ -1,6 +1,6 @@
 {
   "name": "@clipwright/cli",
-  "version": "0.29.0",
+  "version": "0.31.0",
   "description": "Command-line client for the Clipwright UGC video API",
   "keywords": [
     "cli",

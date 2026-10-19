@@ -8,6 +8,7 @@ import { brollPolicy } from "./broll-policy.js";
 import { facelessQuote } from "./faceless-price.js";
 import { revisionBilling } from "./edit-billing.js";
 import { SHOT_OPERATION_MODES, shotId } from "./edit-operations.js";
+import { runGeneration } from "./generations-output.js";
 
 /** Shared run stages; skill-specific workers use the stages they need. */
 export const RUN_STATES = [
@@ -59,6 +60,8 @@ export const FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT =
 /** The disclosure of one run, from its skill and stored input: every writer and the API */
 /** response call this, so the sentence names what that video holds. */
 export function aiDisclosureText(skill: string, input: unknown): string {
+  // A long-form revision shows its root's synthetic presenter, so it says what the root says.
+  if (skill === "revise_long_form") return AI_DISCLOSURE_TEXT;
   if (skill !== "make_faceless") return AI_DISCLOSURE_TEXT;
   return facelessOwnImages(input) ? FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT : FACELESS_AI_DISCLOSURE_TEXT;
 }
@@ -117,6 +120,8 @@ export const run = z.object({
   }).optional(),
   /** A shot candidate (`edit_shot`): told by its lineage row; its `final_output` is always `null`. */
   candidate: runCandidate.optional(),
+  /** A single generation (`generate_image`, `generate_video`): its delivered file; its `final_output` is always `null`. */
+  generation: runGeneration.optional(),
   resolved_broll_policy: brollPolicy.optional(),
   warnings: z.array(z.string()).default([]),
   /** The reason. A non-empty `error` does NOT imply `state: "failed"`: on a non-terminal */

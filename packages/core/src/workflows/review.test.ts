@@ -21,6 +21,13 @@ type ToolSchema = { const?: unknown; properties?: Record<string, ToolSchema>; on
     minLength?: number; maxLength?: number; required?: string[]; additionalProperties?: boolean };
 
 describe('WF-01 review: independent catalog qualification and immutability', () => {
+    it('discloses bounded product-photo conditioning and illustration limits in plan readiness', () => {
+        const checked = validateWorkflowPlan({ ...plan('product-image-story'), assets: [asset] }, snapshot);
+        expect(checked.ready).toBe(true);
+        const warnings = checked.warnings.join(' ');
+        expect(warnings).toContain('1 original product-photo'); expect(warnings).toContain('first two distinct');
+        expect(warnings).toContain('primary shape'); expect(warnings).toContain('may differ');
+    });
     it.each(['make_ugc', 'make_faceless'])('blocks %s when the declared method profile is missing', skill => {
         const changed = structuredClone(snapshot);
         changed.executors.find(executor => executor.skill === skill)!.profiles = ['unrelated-profile'];
@@ -146,7 +153,8 @@ describe('WF-01 review: bounded documents and complete semantic checks', () => {
         const assets = [{ ...asset, anchor: { quote: 'ceramic mug', occurrence: 0 } }, { ...asset, instance_id: 'second', anchor: { quote: 'ceramic mug', occurrence: 1 } }];
         const beats = [{ id: 'first', role: 'visible_fact', anchor: { quote: 'ceramic mug', occurrence: 0 }, required: false },
             { id: 'second', role: 'image_evidence', anchor: { quote: 'ceramic mug', occurrence: 1 }, required: false }];
-        expect(validateWorkflowPlan({ ...document, brief, assets, beats }, snapshot)).toEqual({ ready: true, issues: [], warnings: [] });
+        expect(validateWorkflowPlan({ ...document, brief, assets, beats }, snapshot)).toEqual({ ready: true, issues: [],
+            warnings: [expect.stringContaining('1 original product-photo')] });
     });
 });
 

@@ -30,8 +30,13 @@ export const editRules = z.strictObject({
   visual_covers_presenter: z.boolean(),
   add_visual: z.enum(["never", "over_presenter"]),
   reuse_source_asset: z.boolean(),
-  upload_aspect: z.strictObject({ max_distance: z.number().positive() }).nullable(),
-  max_generated_per_revision: z.number().int().positive(),
+  // `max_distance` is relative (`aspectDistance`); `exact` is the composition's absolute ratio test (`isExactFit`).
+  upload_aspect: z.union([z.strictObject({ max_distance: z.number().positive() }),
+    z.strictObject({ mode: z.literal("exact"), epsilon: z.number().positive() })]).nullable(),
+  max_generated_per_revision: z.number().int().nonnegative(),
+  // The shortest added or retimed visual shot over presenter time; an unchanged source shot is exempt.
+  // Absent reads as null, so a view from a server without the field still parses.
+  cover_min_frames: frameCount.nullable().default(null),
 });
 export type EditRules = z.infer<typeof editRules>;
 
@@ -41,7 +46,7 @@ export const FACELESS_EDIT_RULES: EditRules = {
     clip: { min_frames: FACELESS_OPENER_MIN_FRAMES, max_frames: FACELESS_OPENER_MAX_FRAMES, movable: false, resizable: true },
   },
   output_coverage: "visual", first_visual_kind: "clip", picture_assets_unique: true, visual_covers_presenter: false,
-  add_visual: "never", reuse_source_asset: false, upload_aspect: null, max_generated_per_revision: 8,
+  add_visual: "never", reuse_source_asset: false, upload_aspect: null, max_generated_per_revision: 8, cover_min_frames: null,
 };
 
 /** The actions a faceless shot offers: the opener by its place, a picture by where its image came from. */

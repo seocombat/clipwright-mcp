@@ -15,6 +15,80 @@ by signing up starts with 420 trial credits, enough for one 90-second faceless v
 
 ## Install
 
+There are two ways to connect: the hosted server at
+`https://mcp.clipwright.io/mcp`, or this package run locally over stdio. Both
+serve the same tools.
+
+### Hosted server, no key
+
+Add the URL to your client. On first use the client opens a browser, you sign
+in to Clipwright and approve the app. **Claude Code and the device-code flow
+below were verified live on 2026-10-18;** the other commands come from each
+client's own documentation and have not been tried with Clipwright yet.
+
+- **Claude Code** (verified live): `claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp`,
+  then run `/mcp` in a session and sign in.
+- **Claude.ai and Claude Desktop:** Customize → Connectors → Add custom
+  connector, then paste the URL.
+- **ChatGPT:** add the URL as the remote MCP server of a plugin, as OpenAI's
+  guide "Connect and test your plugin" describes; ChatGPT signs in with OAuth.
+- **Cursor:** in `~/.cursor/mcp.json`,
+  `{"mcpServers": {"clipwright": {"url": "https://mcp.clipwright.io/mcp"}}}`.
+- **VS Code:** in `.mcp.json` at the workspace root,
+  `{"mcpServers": {"clipwright": {"type": "http", "url": "https://mcp.clipwright.io/mcp"}}}`.
+- **Gemini CLI:** `gemini mcp add --transport http clipwright https://mcp.clipwright.io/mcp`,
+  then `/mcp auth clipwright`.
+- **Codex:** `codex mcp add clipwright --url https://mcp.clipwright.io/mcp`,
+  then `codex mcp login clipwright`.
+
+The approval page lists the permissions the app asks for. There are two:
+
+- `mcp:read` — the tools marked read-only: account, runs, shots, voices,
+  actors, workflows and quotes.
+- `mcp:write` — every other tool. Some start paid runs and **spend credits**;
+  the rest change the account (actors, uploads, workflow plans).
+
+A connection without `mcp:write` gets `403 insufficient_scope` from those
+tools, and nothing is charged. Only an admitted account can approve.
+
+To disconnect an app, open [app.clipwright.io/api-keys](https://app.clipwright.io/api-keys),
+find it under **Connected apps** and revoke it. Its next request gets `401`. A
+connection lasts 90 days from approval; after that the app asks you to sign in
+again.
+
+On the hosted server `upload_image` cannot read a file on your machine. Pass a
+public https URL of the PNG or JPEG as `image` instead (#709 tracks upload by
+URL).
+
+**An agent with no browser** signs in with a device code and the first-party
+client `clipwright-agent` (verified live 2026-10-18):
+
+```bash
+curl -s https://mcp.clipwright.io/device/auth -d client_id=clipwright-agent \
+  --data-urlencode "scope=mcp:read mcp:write offline_access" \
+  --data-urlencode "resource=https://mcp.clipwright.io/mcp"
+```
+
+Open `verification_uri` (`https://mcp.clipwright.io/device`) on any device,
+enter `user_code`, sign in and approve; the approval page repeats the code.
+Meanwhile poll `POST https://mcp.clipwright.io/token` with
+`grant_type=urn:ietf:params:oauth:grant-type:device_code`, the `device_code`
+and `client_id=clipwright-agent`, no more often than every 5 seconds: a faster
+poll gets `slow_down`. Send the `access_token` as `Authorization: Bearer` to
+`/mcp`; it lasts an hour. Renew it with `grant_type=refresh_token` and keep the
+newest refresh token each time. The device flow is open to this client only.
+
+### Hosted server with a `cw_*` key
+
+For CI and scripts, send a key instead of signing in. A key holds both
+permissions.
+
+```bash
+claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp --header "Authorization: Bearer cw_..."
+```
+
+### Local server over stdio
+
 ```bash
 claude mcp add clipwright -e CLIPWRIGHT_API_KEY=cw_... -- npx -y -p @clipwright/mcp-server clipwright-mcp
 ```
@@ -23,9 +97,12 @@ Put your own key in place of `cw_...`. The command is one line and gives the
 shell nothing to expand, so bash, zsh and PowerShell run it alike. It needs
 Node.js 20 or newer.
 
-Any MCP host works — the server speaks JSON-RPC over stdio.
+Any MCP host works — the local server speaks JSON-RPC over stdio. Issue keys at
+[app.clipwright.io/api-keys](https://app.clipwright.io/api-keys).
 
 ## Environment
+
+These variables configure the local server.
 
 | Variable | Required | Meaning |
 |---|---|---|
@@ -75,6 +152,13 @@ Any MCP host works — the server speaks JSON-RPC over stdio.
   nothing, even when its paid work was already done. An identical request
   returns the same run; `take` makes another candidate on purpose. Returns a
   `run_id` immediately; poll `get_run` until `succeeded`.
+- `list_generation_models` — the models of single generations with their
+  measured shapes and credits per image or per second. Free.
+- `quote_image`, `quote_video` — price of one image or one clip. Free.
+- `generate_image`, `generate_video` — **make one image or one silent clip;
+  this costs money.** One that fails is charged nothing, even when the vendor
+  was already paid. An identical request returns the same run; `attempt` starts
+  another on purpose. Poll `get_run`; `generation.url` is the file.
 - `upload_image` — a local PNG/JPEG → signed https url to pass as `image`. Free;
   20 per day, the url lives 24 hours. Set `aspect_ratio` explicitly afterwards.
 - `quote_actor` — price of a personal actor before creating one. Free.

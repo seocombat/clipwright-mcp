@@ -561,7 +561,9 @@ describe("dispositions and admission warnings", () => {
 
 describe("run skills", () => {
   it("the registry names the shared run skills; an unfamiliar value is null", () => {
-    expect([...SKILLS]).toEqual(["make_ugc", "create_actor", "make_faceless", "edit_shot"]);
+    expect([...SKILLS]).toEqual(["make_ugc", "create_actor", "make_faceless", "edit_shot", "revise_long_form", "generate_image", "generate_video"]);
+    expect(parseSkill("generate_video")).toBe("generate_video");
+    expect(parseSkill("revise_long_form")).toBe("revise_long_form");
     expect(parseSkill("make_ugc")).toBe("make_ugc");
     expect(parseSkill("create_actor")).toBe("create_actor");
     expect(parseSkill("make_faceless")).toBe("make_faceless");

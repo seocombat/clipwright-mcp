@@ -3,18 +3,18 @@ import { makeUgcInputShape } from "./skills.js";
 import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
 
 /** Disposition registry for `make_ugc` input fields: every field must have a recorded */
-/** decision. The type guards completeness; the egress test proves truth. */
+/** decision. The type guards completeness; tests at each effect boundary prove truth. */
 
-/** Public contract version, sent as the `X-Clipwright-Contract` header and as `contract_version` */
-/** in the quote response. Every breaking change must bump it. */
-export const CONTRACT_VERSION = "2026-10-04";
+/** Public header/quote version: optional visible_ai_label and new-run marking admission policy. */
+/** Internal marking policy/profile identifiers are versioned separately; see docs/71-output-provenance.md. */
+export const CONTRACT_VERSION = "2026-10-18";
 export const CONTRACT_VERSION_HEADER = "X-Clipwright-Contract";
 
-/** `implemented`: reaches the vendor or the composition tree; `rejected`: 400 before any run or reserve; */
+/** `implemented`: reaches the vendor, composition tree, or final output processing; `rejected`: 400 before any run or reserve; */
 /** `warned`: accepted with a `warnings[]` entry. `triggersWhen` keeps defaulted fields quiet on the happy path. */
 export type Disposition =
   | { kind: "stored"; message: string } // Persistence only, without media enforcement.
-  | { kind: "implemented"; provenBy: "egress" | "composition" }
+  | { kind: "implemented"; provenBy: "egress" | "composition" | "finalization" }
   | { kind: "rejected"; message: string }
   | {
       kind: "warned";
@@ -89,6 +89,8 @@ export const FIELD_DISPOSITIONS = {
     message:
       "disclosure_overlay is not supported: the visible label was removed. The output is still marked in the run contract and in the file metadata; label the publication with the platform's own control",
   },
+  // Applied to the completed video before the invisible mark and C2PA signature.
+  visible_ai_label: { kind: "implemented", provenBy: "finalization" },
   // Applied by composition and gated by `CLIPWRIGHT_COMPOSE`, like `image` is gated
   // by `CLIPWRIGHT_REMOTE_FETCH`.
   background: { kind: "implemented", provenBy: "composition" },
@@ -126,6 +128,7 @@ export interface ContractFlags {
   /** Personal actor generation; absent means off. */
   actorGeneration?: boolean;
   longForm?: boolean;
+  outputMarking?: boolean;
 }
 
 /** `create_actor` is open only with the fetch surface: a personal actor cannot render without it. */
@@ -150,6 +153,7 @@ export function contractFlagsFromEnv(
     remoteFetch: env.CLIPWRIGHT_REMOTE_FETCH === "1",
     compose: env.CLIPWRIGHT_COMPOSE === "1",
     longForm: isLongFormQualificationEnabled(env),
+    ...(env.CLIPWRIGHT_OUTPUT_MARKING === "1" ? { outputMarking: true } : {}),
   };
 }
 
@@ -203,6 +207,9 @@ export function resolveDispositions(
     },
     // With composition off nothing can apply a background, so the field is rejected.
     background: flags.compose ? FIELD_DISPOSITIONS.background : COMPOSE_DISABLED,
+    visible_ai_label: flags.outputMarking === true ? FIELD_DISPOSITIONS.visible_ai_label : {
+      kind: "rejected", message: "visible_ai_label is not available: output marking is disabled on this deployment; omit it",
+    },
   };
 }
 
@@ -355,8 +362,8 @@ export const IMPLEMENTED_FIELDS: ContractField[] = CONTRACT_FIELDS.filter(
   (field) => FIELD_DISPOSITIONS[field].kind === "implemented",
 );
 
-/** Two kinds of proof, not interchangeable: egress fields are checked against captured */
-/** outgoing requests, composition fields (applied after the vendor) against composition tests. */
+/** Separate effect boundaries: outgoing vendor requests, composition trees, and final */
+/** output processing each have their own behavior tests and coverage meta-test. */
 export const EGRESS_PROVEN_FIELDS: ContractField[] = CONTRACT_FIELDS.filter((field) => {
   const disposition = FIELD_DISPOSITIONS[field];
   return disposition.kind === "implemented" && disposition.provenBy === "egress";
@@ -366,5 +373,12 @@ export const COMPOSITION_PROVEN_FIELDS: ContractField[] = CONTRACT_FIELDS.filter
   (field) => {
     const disposition = FIELD_DISPOSITIONS[field];
     return disposition.kind === "implemented" && disposition.provenBy === "composition";
+  },
+);
+
+export const FINALIZATION_PROVEN_FIELDS: ContractField[] = CONTRACT_FIELDS.filter(
+  (field) => {
+    const disposition = FIELD_DISPOSITIONS[field];
+    return disposition.kind === "implemented" && disposition.provenBy === "finalization";
   },
 );

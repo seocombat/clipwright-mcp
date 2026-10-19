@@ -9,3 +9,4 @@ export * from '../contracts/v1/workflow-client.js';
 export * from '../contracts/v1/workflow-dto.js';
 export * from './catalog.js';
 export * from './validate.js';
+export * from './product-references.js';

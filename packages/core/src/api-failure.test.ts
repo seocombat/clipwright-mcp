@@ -756,3 +756,18 @@ describe("invalid_request is not a behavioral code", () => {
     expect(isRetryableFailure(failure)).toBe(false);
   });
 });
+
+/** Mutant: the branch dropped, and a closed door reads as http_503 to repeat in a few seconds. */
+describe("a closed generation door (clipwright#724)", () => {
+  it.each(["generations_disabled", "generations_marking_pending"] as const)("503 %s keeps its code and is not retried", (code) => {
+    const failure = parseApiFailure({ status: 503, bodyText: JSON.stringify(apiErrorBody({ code, message: "closed" })), now: NOW });
+    expect(failure).toEqual({ kind: "client_error", status: 503, message: "closed", code });
+    expect(isRetryableFailure(failure)).toBe(false);
+    expect(agentFailureReport(failure)).toMatchObject({ status: "FAILED", code, retryable: false });
+  });
+
+  it("another 503 stays a server error to retry", () => {
+    const failure = parseApiFailure({ status: 503, bodyText: JSON.stringify(apiErrorBody({ code: "paid_render_disabled", message: "off" })), now: NOW });
+    expect(failure.kind).toBe("server_error");
+  });
+});

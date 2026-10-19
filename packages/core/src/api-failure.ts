@@ -477,6 +477,10 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
       windowSeconds: undefined,
     };
   }
+  // A closed generation door is not a server fault: its code reaches the agent, and a retry would not open it (clipwright#724).
+  if (status === 503 && (code === "generations_disabled" || code === "generations_marking_pending")) {
+    return { kind: "client_error", ...diagnostics, status, message, code };
+  }
   if (status >= 500) {
     return { kind: "server_error", ...diagnostics, status, message, retryAfterSeconds: headerSeconds };
   }

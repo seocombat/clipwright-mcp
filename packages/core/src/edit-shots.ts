@@ -33,7 +33,8 @@ export const plannedRunShots = z.object({
   narration: z.object({ offset_frames: frame, words: z.array(word) }),
   tracks: z.array(z.object({ id: z.enum(SHOT_TRACKS), shots: z.array(viewShot) })),
   rules: editRules,
-  editable: z.object({ state: z.enum(["editable", "expired", "not_recorded"]), media_available_until: until, reason: z.string().nullable() }),
+  // `view_only`: the run's shots are shown, and no draft of them is kept yet (long form, #604 S7a).
+  editable: z.object({ state: z.enum(["editable", "view_only", "expired", "not_recorded"]), media_available_until: until, reason: z.string().nullable() }),
   lineage,
   withheld: z.array(z.enum(["description", "source_media"])),
   pricing: editPricing.nullable(),

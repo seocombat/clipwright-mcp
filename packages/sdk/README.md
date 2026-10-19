@@ -181,6 +181,11 @@ request, so a resend returns the first run and `take: 2` makes another one.
 While shot candidates are closed on the server, the three calls throw a
 `ClipwrightApiError` of kind `editing_closed`.
 
+`listUploads()` lists the account's uploads that a revision still takes, newest
+first and one per picture. Each carries a freshly signed `url` and
+`usable_until`: its creation plus 30 days of storage, less a two-hour margin.
+Free.
+
 Requires `CLIPWRIGHT_CLIENT_ID`, or a writable `~/.clipwright/` for the SDK to
 create one on first use. It fails loudly rather than generating a throwaway id,
 because a per-process id would disable duplicate protection without saying so.

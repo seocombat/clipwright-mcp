@@ -1,7 +1,7 @@
 import { defineWorkflowMethod, nativeLimitations, nativeQa, verticalOutput } from './shared.js';
 
 export const ugcProductIntro = defineWorkflowMethod({
-    id: 'ugc-product-intro', version: 1, content_digest: '5bdbc3b1b287e5b3a5c7af233addffb1ff7bd6b4fe8b7dd7882101f85ec3f63a', authoring_status: 'ready', title: 'Introduce a product through its benefit',
+    id: 'ugc-product-intro', version: 1, content_digest: '98e31baef9e80d9c283012c415364ab2524c8965ddac89e33d2fa77896982799', authoring_status: 'ready', title: 'Introduce a product through its benefit',
     purpose: 'Help a defined audience understand one verified product benefit and take one next step.',
     required_inputs: ['audience', 'message', 'product', 'script'], required_features: ['exact_script', 'actor', 'voice'],
     script_rules: { structure: ['opening', 'problem', 'solution', 'cta'], instructions: [
@@ -13,7 +13,7 @@ export const ugcProductIntro = defineWorkflowMethod({
         'A product insert needs qualified long-form admission; choosing this method does not grant it.'], qa_policy: nativeQa,
     example: { brief: { audience: 'People managing several plants', product: 'A local plant-care checklist', message: 'Keep each watering task visible', cta: 'Open your checklist',
         script: 'Keep your watering tasks in one place. A missed note can leave a plant waiting. This checklist keeps each task visible. Open your checklist today.',
-        native: { skill: 'make_ugc', input: { script: 'Keep your watering tasks in one place. A missed note can leave a plant waiting. This checklist keeps each task visible. Open your checklist today.', actor_id: 'actor_male' } } },
+        native: { skill: 'make_ugc', input: { script: 'Keep your watering tasks in one place. A missed note can leave a plant waiting. This checklist keeps each task visible. Open your checklist today.', actor_id: 'actor_marcus' } } },
         beats: [{ id: 'benefit', role: 'opening', anchor: { quote: 'Keep your watering tasks in one place' }, required: false },
             { id: 'next-step', role: 'cta', anchor: { quote: 'Open your checklist today' }, required: false }] },
 });

@@ -1,7 +1,7 @@
 import { defineWorkflowMethod, nativeLimitations, nativeQa, verticalOutput } from './shared.js';
 
 export const ugcFaqAnswer = defineWorkflowMethod({
-    id: 'ugc-faq-answer', version: 1, content_digest: 'eaea5436b436c7b2df7512aa5b8a9077203a53f520817195208290ef9eed9d3a', authoring_status: 'ready', title: 'Answer one product question',
+    id: 'ugc-faq-answer', version: 1, content_digest: '267a26c7a5f6f605f4ffa88a68957809f4645e3ec8c5e645f6015275ccb508d3', authoring_status: 'ready', title: 'Answer one product question',
     purpose: 'Answer a single audience question directly, explain the supplied facts, and give a useful next step.',
     required_inputs: ['audience', 'message', 'question', 'script'], required_features: ['exact_script', 'actor', 'voice'],
     script_rules: { structure: ['answer', 'explanation', 'next_step'], instructions: [
@@ -13,7 +13,7 @@ export const ugcFaqAnswer = defineWorkflowMethod({
         'Captions and look follow native UGC dispositions; they are not made available by this method.'], qa_policy: nativeQa,
     example: { brief: { audience: 'New Clipwright users', message: 'Explain the download step', question: 'Can I download the finished video?', cta: 'Open the completed run',
         script: 'Yes, you can download the finished MP4. Open the completed run and use its video link. Keep the file for your own review.',
-        native: { skill: 'make_ugc', input: { script: 'Yes, you can download the finished MP4. Open the completed run and use its video link. Keep the file for your own review.', actor_id: 'actor_male' } } },
+        native: { skill: 'make_ugc', input: { script: 'Yes, you can download the finished MP4. Open the completed run and use its video link. Keep the file for your own review.', actor_id: 'actor_marcus' } } },
         beats: [{ id: 'direct-answer', role: 'answer', anchor: { quote: 'Yes, you can download the finished MP4' }, required: false },
             { id: 'how', role: 'next_step', anchor: { quote: 'Open the completed run' }, required: false }] },
 });

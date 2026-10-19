@@ -20,6 +20,7 @@ export const uploadId = z.string().regex(/^upl_[a-f0-9]{32}$/);
 
 export const uploadResponse = z.object({
   upload_id: uploadId,
+  content_digest: z.string().regex(/^[a-f0-9]{64}$/).describe("SHA-256 of the original uploaded bytes; use it as the workflow asset content_digest."),
   url: z.string().url().startsWith("https://"),
   media_type: z.enum(UPLOAD_MEDIA_TYPES),
   bytes: z.number().int().positive().max(UPLOAD_MAX_BYTES),
@@ -28,6 +29,26 @@ export const uploadResponse = z.object({
   expires_at: z.string().datetime(),
 });
 export type UploadResponse = z.infer<typeof uploadResponse>;
+
+/** `GET /v1/uploads`: the account's uploads a revision still takes, newest first, one per picture, each with a link signed now. */
+export const uploadList = z.strictObject({
+  uploads: z.array(z.strictObject({
+    ...uploadResponse.shape,
+    created_at: z.string().datetime(),
+    /** When a revision stops taking it: the stored object's retention less the admission margin, rounded down to the ms. */
+    usable_until: z.string().datetime(),
+  })),
+  contract_version: z.string().min(1),
+});
+export type UploadList = z.infer<typeof uploadList>;
+
+// What installed clients parse: the media type is an open string, the size has no cap, and unknown keys are kept.
+export const uploadListRead = uploadList.extend({
+  uploads: z.array(uploadList.shape.uploads.element.extend({
+    media_type: z.string().min(1), bytes: z.number().int().positive(),
+  }).loose()),
+}).loose();
+export type UploadListRead = z.infer<typeof uploadListRead>;
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
@@ -49,4 +70,6 @@ export const UPLOAD_IMAGE_DESCRIPTION =
   "to quote_ugc / make_ugc. The url is signed and expires in 24 hours; upload again after that. " +
   "Use this whenever the user points at a file on disk — `image` itself accepts only public https " +
   "urls. Then set `aspect_ratio` EXPLICITLY to match the picture (a 16:9 photo with no aspect_ratio " +
-  "renders vertical 9:16 with a warning). Free: spends no credits; 20 uploads per day per account.";
+  "renders vertical 9:16 with a warning). For workflow assets, use the returned upload_id as asset_id " +
+  "and content_digest directly: it is the SHA-256 of the original uploaded bytes. " +
+  "Free: spends no credits; 20 uploads per day per account.";

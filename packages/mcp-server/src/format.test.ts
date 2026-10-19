@@ -31,6 +31,19 @@ it("preserves explicit unavailable speech timing gaps in successful MCP output",
   expect(result.speech_timing_gaps).toEqual(metric);
 });
 
+/** Mutant: the block dropped from the success branch, and an agent never sees the generated file. */
+it("a succeeded generation carries its generation block; a run without one adds no key", () => {
+  const generation = { kind: "image", model: "seedream-5.0-flash", url: "https://cdn.example/i.png", mime: "image/png",
+    width: 1440, height: 2560, duration_s: null, reusable_until: new Date().toISOString() } as const;
+  expect(payload(formatGetRun(run("succeeded", { skill: "generate_image", generation }))).generation).toEqual(generation);
+  expect(payload(formatGetRun(run("succeeded")))).not.toHaveProperty("generation");
+  const generated = payload(formatGetRun(run("succeeded", { skill: "generate_image", generation })));
+  expect(generated).not.toHaveProperty("video_url");
+  expect(generated).not.toHaveProperty("duration_seconds");
+  expect(generated).toHaveProperty("url_check");
+  expect(payload(formatGetRun(run("succeeded")))).toHaveProperty("video_url_check");
+});
+
 /** Parsed JSON from the single content block. */
 function payload(res: { content: { text: string }[] }): Record<string, unknown> {
   return JSON.parse(res.content[0]!.text) as Record<string, unknown>;

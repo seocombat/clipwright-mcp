@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { storedRevisionInputFixture } from "./__fixtures__/edit-views.fixture.js";
 import {
-  FACELESS_AI_DISCLOSURE_TEXT, FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT, RUN_STATES, TERMINAL_STATES, aiDisclosureText, isTerminal, run,
+  AI_DISCLOSURE_TEXT, FACELESS_AI_DISCLOSURE_TEXT, FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT, RUN_STATES, TERMINAL_STATES, aiDisclosureText, isTerminal, run,
   runId, runRead,
 } from "./runs.js";
 
@@ -14,6 +14,10 @@ describe("the disclosure of a revision", () => {
     expect(aiDisclosureText("make_faceless", { ...storedRevisionInputFixture(false), scene_images: [{}] })).toBe(FACELESS_AI_DISCLOSURE_TEXT);
     expect(aiDisclosureText("make_faceless", { scene_images: [{}] })).toBe(FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT);
     expect(aiDisclosureText("make_faceless", { scene_images: [] })).toBe(FACELESS_AI_DISCLOSURE_TEXT);
+  });
+  it("a long-form revision states its root's presenter disclosure, whatever its input holds", () => {
+    expect(aiDisclosureText("revise_long_form", storedRevisionInputFixture(true))).toBe(AI_DISCLOSURE_TEXT);
+    expect(aiDisclosureText("revise_long_form", { scene_images: [{}] })).toBe(AI_DISCLOSURE_TEXT);
   });
   it("a run carries its revision's family, its quoted credits and its billing, which may be redacted", () => {
     const base = { run_id: "run_rev1", skill: "make_faceless", state: "queued", credits_reserved: 18, credits_charged: null, error: null,

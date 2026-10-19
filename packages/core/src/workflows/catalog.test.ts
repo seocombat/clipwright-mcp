@@ -78,7 +78,8 @@ describe('workflow script and semantic readiness', () => {
             provenance: 'owner_supplied', rights: 'owner_authorized', purpose: 'product_proof' };
         const assets = methodId === 'product-image-story' ? [{ ...asset, instance_id: 'shape', anchor: { quote: 'ceramic mug' } },
             { ...asset, instance_id: 'handle', anchor: { quote: 'wide handle' } }] : [];
-        expect(validateWorkflowPlan({ ...plan, assets }, capabilities)).toEqual({ ready: true, issues: [], warnings: [] });
+        expect(validateWorkflowPlan({ ...plan, assets }, capabilities)).toEqual({ ready: true, issues: [],
+            warnings: methodId === 'product-image-story' ? [expect.stringContaining('1 original product-photo reference')] : [] });
     });
     it('rejects a qualified native format that contradicts requested or method geometry', () => {
         const snapshot = structuredClone(capabilities);

@@ -208,6 +208,12 @@ describe("derivation by run skill", () => {
     expect(derivedRunWarnings(voiced, FACTS, "edit_shot")).toEqual([]);
   });
 
+  it("revise_long_form derives nothing, even from an input a UGC run would warn on", () => {
+    const silent = { script: "A clear story with spoken words." };
+    expect(derivedRunWarnings(silent, FACTS, "make_ugc").length).toBeGreaterThan(0);
+    expect(derivedRunWarnings(silent, FACTS, "revise_long_form")).toEqual([]);
+  });
+
   it("create_actor keeps only stored lines, in order and without duplicates", () => {
     expect(composeRunWarnings(["A", "B", "A"], actorInput(), FACTS, "create_actor")).toEqual(["A", "B"]);
   });

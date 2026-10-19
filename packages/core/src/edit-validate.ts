@@ -1,8 +1,10 @@
 import { aspectDistance } from "./aspect.js";
+import { isExactFit } from "./canvas-fit.js";
 import type { EditDocument, EditShot } from "./edit-document.js";
 import { SHOT_OPERATION_MODES, type ShotOperationMode } from "./edit-operations.js";
-import type { ShotKind } from "./edit-rules.js";
+import type { EditRules, ShotKind } from "./edit-rules.js";
 import type { PlannedRunShots, ViewShot } from "./edit-shots.js";
+import { MAX_INSERTS } from "./skills.js";
 
 /** In the order issues are reported. */
 export const EDIT_ISSUE_CODES = [
@@ -27,7 +29,7 @@ export type EditSummary = {
   deleted: string[];
   /** Document shot ids that are not source shot ids. */
   added: string[];
-  replaced: { shot_id: string; from: "candidate" | "upload" }[];
+  replaced: { shot_id: string; from: "candidate" | "upload" | "source" }[];
   /** Facts only: pricing decides what each entry costs. */
   generated: { shot_id: string; kind: ShotKind; mode: ShotOperationMode }[];
   /** Any list above is non-empty. */
@@ -64,9 +66,40 @@ const offsetOf = (shot: EditShot, source: ViewShot | undefined) => shot.media_of
 const retimed = (shot: EditShot, source: ViewShot) => shot.start_frame !== source.start_frame ||
   shot.end_frame !== source.end_frame || offsetOf(shot, source) !== (source.media_offset_frames ?? 0);
 
+/** Whether a visual shot reaches presenter frames its source span did not; `was` is the presenter shot's source. */
+function newlyCovers(shot: Framed, from: Framed | undefined, presenter: Framed, was: (Framed & { track: string }) | undefined): boolean {
+  if (!overlaps(shot, presenter)) return false;
+  if (!from) return true;
+  // A presenter shot the source lacks, or holds on another track, is refused on its own.
+  if (!was || was.track !== "presenter") return false;
+  if (!overlaps(from, was)) return true;
+  const now = overlapOf(shot, presenter), before = overlapOf(from, was);
+  return now.start < before.start || now.end > before.end;
+}
+
+/** The stretches of each presenter shot that no visual shot covers. */
+function visiblePieces(presenter: (Framed & { id: string })[], visual: Framed[]): { id: string; start: number; end: number }[] {
+  const covered = union(visual.map(spanOf));
+  return presenter.flatMap(shot => {
+    const pieces: { id: string; start: number; end: number }[] = [];
+    let at = shot.start_frame;
+    for (const span of covered) {
+      if (span.end <= at || span.start >= shot.end_frame) continue;
+      if (span.start > at) pieces.push({ id: shot.id, start: at, end: span.start });
+      at = Math.max(at, span.end);
+    }
+    if (at < shot.end_frame) pieces.push({ id: shot.id, start: at, end: shot.end_frame });
+    return pieces;
+  });
+}
+
 /** The one check that reads the output's shape, and only its ratio. */
 function uploadShapeIssue(frame: { width: number; height: number }, upload: { width: number; height: number },
-  rule: { max_distance: number }): string | null {
+  rule: NonNullable<EditRules["upload_aspect"]>): string | null {
+  if ("mode" in rule) {
+    return isExactFit(upload, frame, rule.epsilon) ? null
+      : `the upload is ${upload.width}×${upload.height}; a picture here must have the output's shape exactly, ${frame.width}×${frame.height}`;
+  }
   const distance = aspectDistance(upload.width / upload.height, frame.width / frame.height);
   return distance <= rule.max_distance ? null
     : `the upload is ${upload.width}×${upload.height}, ${Math.round(distance * 100)}% away from the output's shape; ` +
@@ -91,6 +124,7 @@ export function diffEditDocument(document: EditDocument, shots: PlannedRunShots)
     if (!from) summary.added.push(shot.id);
     else if (retimed(shot, from)) summary.retimed.push(shot.id);
     if (shot.asset.from === "candidate" || shot.asset.from === "upload") summary.replaced.push({ shot_id: shot.id, from: shot.asset.from });
+    if (shot.asset.from === "source" && shot.asset.shot_id !== shot.id) summary.replaced.push({ shot_id: shot.id, from: "source" });
     if (shot.asset.from === "generate") summary.generated.push({ shot_id: shot.id, kind: shot.kind, mode: shot.asset.operation.mode });
   }
   summary.changed = [summary.retimed, summary.deleted, summary.added, summary.replaced, summary.generated].some(list => list.length > 0);
@@ -119,6 +153,15 @@ export function validateEditDocument(document: EditDocument, shots: PlannedRunSh
   for (const shot of document.shots) (ids.has(shot.id) ? repeated : ids).add(shot.id);
   for (const id of repeated) add("duplicate_shot_id", "two shots share this id", { shot_id: id });
 
+  const sourcePresenter = [...source.values()].filter(shot => shot.track === "presenter");
+  const overSource = (shot: ViewShot) => shot.track === "visual" && sourcePresenter.some(presenter => overlaps(presenter, shot));
+  const overNow = (shot: EditShot) => shot.track === "visual" && presenterShots.some(presenter => overlaps(presenter, shot));
+  // Shots the source already shows over the presenter count first, so a chain of revisions keeps the cap.
+  let overPresenter = document.shots.filter(shot => { const from = source.get(shot.id); return from && overSource(from) && overNow(shot); }).length;
+  // Id stems of the source's own tiling: a new shot named like one would read as that shot in a later record.
+  const stem = (id: string) => id.replace(/\d+$/, "");
+  const tiling = new Set([...source.values()].filter(shot => shot.track === "presenter" || !overSource(shot)).map(shot => stem(shot.id)));
+
   const pictureAssets = new Set<string>();
   let generated = 0;
   for (const shot of document.shots) {
@@ -132,10 +175,18 @@ export function validateEditDocument(document: EditDocument, shots: PlannedRunSh
         !presenterTime.some(span => span.start <= shot.start_frame && shot.end_frame <= span.end))) {
       add("shot_added_not_allowed", rules.add_visual === "never" ? "this timeline takes no new shots"
         : "a new shot must be a visual shot lying wholly inside presenter time", at);
+    } else if (!from && /\d$/.test(shot.id) && tiling.has(stem(shot.id))) {
+      add("shot_added_not_allowed", `a new shot may not take an id shaped like the run's own shots, as ${shot.id} does`, at);
+    } else if (overNow(shot) && !(from && overSource(from)) && ++overPresenter > MAX_INSERTS) {
+      add("shot_added_not_allowed", `at most ${MAX_INSERTS} shots lie over the presenter`, at);
     }
     if (!rule) add("too_short", "this kind is not allowed here", at);
     else if (frames < rule.min_frames) add("too_short", `a ${shot.kind} lasts at least ${rule.min_frames} frames, this one ${frames}`, at);
     else if (frames > rule.max_frames) add("too_long", `a ${shot.kind} lasts at most ${rule.max_frames} frames, this one ${frames}`, at);
+    else if (rules.cover_min_frames !== null && frames < rules.cover_min_frames && shot.track === "visual" && (!from || retimed(shot, from)) &&
+      presenterShots.some(presenter => overlaps(presenter, shot))) {
+      add("too_short", `a shot over the presenter lasts at least ${rules.cover_min_frames} frames, this one ${frames}`, at);
+    }
 
     if (from) {
       const offered = new Set<string>(from.operations);
@@ -145,8 +196,10 @@ export function validateEditDocument(document: EditDocument, shots: PlannedRunSh
       if (retimed(shot, from) && !offered.has("retime")) denied.push("this shot may not be retimed");
       if (shot.start_frame !== from.start_frame && rule && !rule.movable) add("not_movable", `a ${shot.kind} keeps its start frame, ${from.start_frame}`, at);
       if (frames !== framesOf(from) && rule && !rule.resizable) add("not_resizable", `a ${shot.kind} keeps its length, ${framesOf(from)} frames`, at);
-    } else if (shot.track === "visual") {
-      const uncoverable = presenterShots.find(presenter => overlaps(presenter, shot) && !source.get(presenter.id)?.operations.includes("cover"));
+    }
+    if (shot.track === "visual") {
+      const uncoverable = presenterShots.find(presenter => newlyCovers(shot, from, presenter, source.get(presenter.id)) &&
+        !source.get(presenter.id)?.operations.includes("cover"));
       if (uncoverable) denied.push(`presenter shot ${uncoverable.id} may not be covered`);
     }
     if (denied.length) add("action_not_allowed", denied.join("; "), at);
@@ -156,6 +209,9 @@ export function validateEditDocument(document: EditDocument, shots: PlannedRunSh
       const named = source.get(asset.shot_id);
       if (!named) add("unknown_asset", `the run has no shot ${asset.shot_id}`, at);
       else if (asset.shot_id !== shot.id && !rules.reuse_source_asset) add("foreign_source_asset", `shot ${asset.shot_id}'s media may not be reused here`, at);
+      else if (asset.shot_id !== shot.id && (named.track !== "visual" || named.kind !== shot.kind)) {
+        mismatched.push(`shot ${asset.shot_id} holds a ${named.kind} on the ${named.track} track, this shot a ${shot.kind}`);
+      }
       footage = named?.media_frames ?? null;
     } else if (asset.from === "candidate") {
       const fact = own(facts.candidates, asset.run_id);
@@ -210,6 +266,18 @@ export function validateEditDocument(document: EditDocument, shots: PlannedRunSh
         add("overlap", `overlaps shot ${reach.id}`, { shot_id: shot.id, from_frame: shared.start, to_frame: shared.end });
       }
       if (!reach || shot.end_frame > reach.end_frame) reach = shot;
+    }
+  }
+  // The presenter shows for at least the cover minimum or not at all (Q23); a stretch the source already shows stays.
+  if (rules.cover_min_frames !== null) {
+    const all = [...source.values()];
+    const shown = new Set(visiblePieces(all.filter(shot => shot.track === "presenter"), all.filter(shot => shot.track === "visual"))
+      .map(piece => `${piece.start}:${piece.end}`));
+    for (const piece of visiblePieces(presenterShots, visualShots)) {
+      if (piece.end - piece.start < rules.cover_min_frames && !shown.has(`${piece.start}:${piece.end}`)) {
+        add("too_short", `presenter shot ${piece.id} shows for ${piece.end - piece.start} frames between pictures; ` +
+          `it shows for at least ${rules.cover_min_frames} or not at all`, { shot_id: piece.id, from_frame: piece.start, to_frame: piece.end });
+      }
     }
   }
   if (!rules.visual_covers_presenter) {

@@ -30,7 +30,7 @@ export const editSummaryWire = z.strictObject({
   retimed: z.array(shotId),
   deleted: z.array(shotId),
   added: z.array(shotId),
-  replaced: z.array(z.strictObject({ shot_id: shotId, from: z.enum(["candidate", "upload"]) })),
+  replaced: z.array(z.strictObject({ shot_id: shotId, from: z.enum(["candidate", "upload", "source"]) })),
   generated: z.array(z.strictObject({ shot_id: shotId, kind: shotKind, mode: z.enum(SHOT_OPERATION_MODES) })),
   changed: z.boolean(),
 });

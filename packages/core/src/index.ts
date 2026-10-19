@@ -58,7 +58,11 @@ export * from "./billing-terms.js";
 
 export * from "./voice-preview-approval.js";
 export * from "./face-delivery.js";
+export * from "./ugc-delivery.js";
 export * from "./faceless-public-plan.js";
 export * from "./faceless-media-record.js";
 export * from "./edit.js";
 export * from "./workflows/index.js";
+export * from "./output-provenance.js";
+export * from "./generations.js";
+export * from "./generations-output.js";

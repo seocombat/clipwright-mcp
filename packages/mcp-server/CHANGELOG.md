@@ -18,6 +18,104 @@ listed under.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-19
+
+### Added
+
+- *Server-side:* the remote MCP server at `https://mcp.clipwright.io/mcp` signs in with OAuth 2.1 and needs no API key.
+  A client registers itself, either with a metadata document or with dynamic registration. You approve it at
+  app.clipwright.io, and its token carries `mcp:read`, or `mcp:write` for tools that spend credits. Headless agents
+  sign in with a device code as the client `clipwright-agent`.
+- *Dashboard:* the API keys page lists your connected apps and revokes them, effective on the app's next request.
+  Signing in and signing up return you to the page that sent you there.
+- `@clipwright/mcp-server` exports `createServer(client, { fileAccess })`, so the same tools can be served over HTTP;
+  with `fileAccess: "refuse"`, `upload_image` refuses a local `path`. `ClipwrightClient` in the SDK takes an explicit
+  `clientId` (it then ignores `CLIPWRIGHT_CLIENT_ID` and `~/.clipwright`) and an `apiKey` function called per
+  request. *Server-side:* a new error code, `insufficient_scope` (403).
+- *Server-side (activation pending):* new jobs admitted with required output marking verify signed provenance and a separate
+  hidden watermark before delivering generated MP4/PNG/JPEG files; unverifiable required output is withheld with zero charge
+  for the failed delivery. Optional `visible_ai_label` defaults to true for newly marked presenter videos, including long form;
+  false hides only the visible label. Required machine marking stays enabled, and original uploads and historical files remain
+  unchanged. Public contract version: `2026-10-18`. Marking is closed and the P2 video profile remains inactive pending native
+  qualification; this entry does not announce deployment or activation.
+- *Server-side (activation pending):* single paid generations. `generate_image` makes one image and `generate_video`
+  makes one silent clip from a prompt, with optional reference images or a first frame. MCP tools: `list_generation_models`,
+  `quote_image`, `generate_image`, `quote_video` and `generate_video`. SDK methods: `listGenerationModels`, `quoteImage`,
+  `generateImage`, `quoteVideo` and `generateVideo`. An image costs one unit; a clip is priced per requested second. A
+  failed generation costs nothing. The routes answer `generations_disabled` until the feature is switched on; this entry
+  does not announce activation.
+
+- *Server-side:* upload responses and the upload list include `content_digest`, the SHA-256 of the original bytes, alongside
+  `upload_id`. CLI `upload --json` prints both for direct workflow asset binding; the default still prints the URL.
+  SDK and MCP preserve the metadata, and the workflow docs show how to copy it without a digest lookup.
+  Hand-built TypeScript `UploadResponse` values, including mocks, must supply the new required digest.
+- Edit rules for long videos in `@clipwright/core`. The rules gain `cover_min_frames`, the shortest picture over a
+  presenter take and the shortest presenter gap between two such pictures; it is `null` where it does not apply, and
+  read as `null` when absent. `upload_aspect` may be `{ mode: "exact", epsilon }`, and `max_generated_per_revision`
+  may be 0. *Server-side:* `GET /v1/runs/{id}/shots` of a long video carries these rules; the video stays view-only.
+- **Breaking:** `SKILLS` gains `revise_long_form`, the revision of a long video that a later release opens. Code with
+  an exhaustive `Record<Skill, …>` or `switch` over skills must add it. No run of this skill exists yet.
+- *Server-side:* four workflow methods now render: `ugc-product-intro`, `ugc-faq-answer`, `faceless-explainer` and
+  `product-image-story`. `plan-run` in the CLI, `run_workflow_plan` in MCP and `runWorkflowPlan` in the SDK buy the
+  quoted plan, charged like the video type the method makes. `website-proof-demo` and `kinetic-launch` still only
+  plan.
+- *Dashboard:* the quickstart names the four workflow methods, and the Workflows section of the docs shows the CLI
+  steps from a method's example to a finished run, and how to add your own product photos.
+- *Dashboard:* a link to clipwright.io shared in a chat, a social post or a directory shows a preview picture: the
+  Clipwright mark and name.
+
+### Changed
+
+- *Dashboard:* a long video's button says **View** instead of **Edit**, because the editor only shows long videos for
+  now. The button appears only while the API shows long videos.
+
+### Fixed
+
+- The SDK reads server responses tolerantly: a field that a newer server adds to a quote, the generation models list,
+  a run or a workflow answer no longer makes `ClipwrightResponseError` throw in an installed client. A response
+  missing a required field still fails.
+- *Server-side:* UGC output evidence accepts the measured AAC-LC tail beyond the last video frame, up to two
+  AAC frames at the measured sample rate. It retains the container duration and existing billing behavior.
+- *Server-side:* a short UGC video is charged for its picture, not for the audio that runs past the last frame.
+  An 8.96-second video whose AAC track ends 0.04 s later was charged for 10 seconds; it is now charged for 9.
+  `duration_seconds` still reports the file's full length.
+- *Server-side:* UGC workflow quotes explicitly warn that duration and credits are estimates, so the final charge
+  may differ. Short UGC keeps measured-duration rounding; long-form keeps its separate frozen face-time tariff.
+  SDK, CLI and MCP retain the advice in the native quote warnings. Billing calculations are unchanged.
+- UGC workflow outcomes expose the measured final-file format, duration and
+  digest after verified delivery. Missing or damaged evidence stays explicit;
+  the native video result and settlement remain available.
+- *Server-side:* generated scenes in `product-image-story` use up to two distinct original product photos as
+  references, including the opener image. The first anchors shape; extra originals keep their image placements.
+  Plan readiness and the quote disclose the selection and possible visual differences. Older paid checkpoints
+  reuse their existing scenes with a warning when product-photo conditioning cannot be verified. Revisions and
+  candidates retain that known limitation through later edits.
+- The examples of `ugc-product-intro` and `ugc-faq-answer` named the actor `actor_male`, which does not exist, so a
+  plan built from either example was refused at the quote with `actor_unavailable`. They name `actor_marcus` now. Both
+  cards get a new `content_digest`; a plan pinned to the old one needs a new revision.
+
+## [0.30.0] - 2026-10-17
+
+### Added
+
+- Upload list: `listUploads` in the SDK and `uploads` in the CLI read the account's uploads that a revision still
+  takes, newest first and one per picture. Each comes with a freshly signed url and `usable_until`, its creation plus
+  30 days of storage less a two-hour margin. Free. *Server-side:* `GET /v1/uploads`.
+- *Dashboard:* the editor's **Edit shot** dialog makes a new picture or clip for one shot and shows it beside the one in
+  the video; you keep it or discard it. A result costs its price once it is made, kept or discarded; nothing if it fails.
+  **Replace with a file** and the **Uploads** tab place your own picture in a shot at no cost, and **Generated assets**
+  lists what you made for the video.
+- *Dashboard:* long videos open in the editor to view. Each presenter take and each inserted picture or clip is a shot
+  you can select and play, with the words said over it; a take also shows how many seconds of the video have the face
+  on screen. Editing long videos comes later. *Server-side:* `GET /v1/runs/{id}/shots` answers a delivered long-form
+  run with `planned: true` and the new `editable.state` `view_only`; a draft save of such a run gets 409
+  `run_not_editable`.
+
+### Fixed
+
+- *Server-side:* uploads made before 2026-10-05T19:49Z are no longer listed or taken by a revision. The storage rule of
+  that time deleted their files after 7 days, so a revision that named one failed at no charge.
+
 ## [0.29.0] - 2026-10-16
 
 ### Added

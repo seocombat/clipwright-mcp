@@ -28,6 +28,11 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   revise_run: { readOnlyHint: false, destructiveHint: false },
   quote_candidate: { readOnlyHint: true, destructiveHint: false },
   create_candidate: { readOnlyHint: false, destructiveHint: false },
+  list_generation_models: { readOnlyHint: true, destructiveHint: false },
+  quote_image: { readOnlyHint: true, destructiveHint: false },
+  generate_image: { readOnlyHint: false, destructiveHint: false },
+  quote_video: { readOnlyHint: true, destructiveHint: false },
+  generate_video: { readOnlyHint: false, destructiveHint: false },
   quote_ugc: { readOnlyHint: true, destructiveHint: false },
   quote_actor: { readOnlyHint: true, destructiveHint: false },
   list_voices: { readOnlyHint: true, destructiveHint: false },
@@ -51,6 +56,35 @@ it("the create_candidate description says an identical request returns the same 
     expect(create?.description).toContain("A delivered candidate is charged its one unit whether it is kept or discarded");
     expect(create?.description).toContain("one that fails is charged nothing");
     expect(create?.description).toContain("Call quote_candidate first and show the user the price.");
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+/** Mutants: a price unit unnamed, a failure described as charged, the rights confirmation or the retry field dropped. */
+it("the generation tools name their price unit, a free failure, rights_confirmed, attempt and the closed state", async () => {
+  const server = createServer(new ClipwrightClient({ apiKey: "cw_test", baseUrl: "http://unused.invalid" }));
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "annotations-test", version: "0.0.0" });
+  await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+  try {
+    const { tools } = await client.listTools();
+    const described = (name: string) => tools.find((tool) => tool.name === name);
+    expect(described("list_generation_models")?.description).toContain("credits per image, or per second of a clip");
+    expect(described("generate_image")?.description).toContain("credits per image");
+    expect(described("generate_video")?.description).toContain("unit_credits per second of duration_s");
+    for (const name of ["quote_image", "generate_image", "quote_video", "generate_video"]) {
+      const tool = described(name);
+      expect(tool?.description, name).toContain("A generation that fails is charged nothing, even when the vendor was already paid.");
+      expect(tool?.description, name).toContain("rights_confirmed: true");
+      expect(tool?.description, name).toContain("An identical request returns the same run it started before");
+      expect(tool?.description, name).toContain("generations_disabled");
+    }
+    for (const name of ["generate_image", "generate_video"]) {
+      expect(Object.keys(described(name)?.inputSchema.properties ?? {}), name).toContain("attempt");
+      expect(described(name)?.description, name).toContain(`Call ${name.replace("generate", "quote")} first and show the user the price.`);
+    }
   } finally {
     await client.close();
     await server.close();

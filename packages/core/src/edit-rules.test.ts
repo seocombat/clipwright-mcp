@@ -24,6 +24,13 @@ describe("the faceless edit rules", () => {
     for (const source of ["candidate", "upload", "unknown"] as const) expect(facelessShotActions({ index: 1, source })).toEqual([]);
   });
 
+  it("rules without cover_min_frames parse as null, so a view from a server that predates the field still opens", () => {
+    const { cover_min_frames: _absent, ...older } = FACELESS_EDIT_RULES;
+    expect(editRules.parse(older)).toEqual({ ...FACELESS_EDIT_RULES, cover_min_frames: null });
+    expect(editRules.parse({ ...older, cover_min_frames: 25 }).cover_min_frames).toBe(25);
+    expect(editRules.safeParse({ ...older, cover_min_frames: 0 }).success).toBe(false);
+  });
+
   it("the planner holds a picture to the two image constants: after an 80-frame opener and four 140-frame pictures, a last picture of 25 or 150 frames plans and one of 24 or 151 does not", () => {
     const style = parseCutStyle(JSON.parse(readFileSync(new URL("./fixtures/cut-style-profile-v1.json", import.meta.url), "utf8")));
     // Gapless speech in 20-frame words. A 140-frame picture cannot take the last beat in: 164 frames is over the ceiling too.

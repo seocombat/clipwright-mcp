@@ -8,6 +8,8 @@ export const storedObject = z.strictObject({
   kind: z.enum(["image", "video", "audio"]),
   key: z.string().min(1).max(1024),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  /** New marked bytes keep their retained pre-marking identity; historical records omit it. */
+  content_sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   bytes: size,
   width: size.nullable(), height: size.nullable(),
   duration_sec: z.number().positive().nullable(),
@@ -21,7 +23,7 @@ export const facelessMediaRecord = z.strictObject({
     motion: z.enum(["PAN_UP", "PAN_DOWN"]).nullable(), media: storedObject })),
   /** The picture under shot 0, whose own media is the clip made from it. */
   opener_still: storedObject,
-  references: z.array(storedObject.extend({ role: z.enum(["style", "character"]), from: z.enum(["customer", "lead_picture"]) })),
+  references: z.array(storedObject.extend({ role: z.enum(["style", "character", "product"]), from: z.enum(["customer", "lead_picture"]) })),
   narration: storedObject,
   settings: z.strictObject({ captions: z.boolean(), character_reference: z.boolean(), character_details: z.string().nullable(),
     image_model: z.string(), voice: z.string().nullable(), lambda_site_sha256: z.string() }),

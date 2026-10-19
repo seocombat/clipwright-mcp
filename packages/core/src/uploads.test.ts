@@ -8,6 +8,8 @@ import {
   offeredUgcInputShape,
   sniffUploadMediaType,
   uploadExtension,
+  uploadList,
+  uploadListRead,
   uploadResponse,
 } from "./index.js";
 
@@ -16,6 +18,7 @@ const JPEG_HEAD = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 const VALID = {
   upload_id: `upl_${"a1".repeat(16)}`,
+  content_digest: "b".repeat(64),
   url: "https://bucket.account.r2.cloudflarestorage.com/uploads/acc/abc.png?X-Amz-Signature=x",
   media_type: "image/png",
   bytes: 1_339_691,
@@ -26,7 +29,13 @@ const VALID = {
 
 describe("uploadResponse — the POST /v1/uploads response contract", () => {
   it("accepts a body with a signed https link and dimensions", () => {
-    expect(uploadResponse.safeParse(VALID).success).toBe(true);
+    expect(uploadResponse.parse(VALID)).toEqual(VALID);
+  });
+
+  it.each([undefined, null, 1, "invalid", "A".repeat(64), "a".repeat(63)])("refuses an absent or malformed source digest: %j", content_digest => {
+    expect(uploadResponse.safeParse({ ...VALID, content_digest }).success).toBe(false);
+    expect(uploadListRead.safeParse({ uploads: [{ ...VALID, content_digest,
+      created_at: VALID.expires_at, usable_until: VALID.expires_at }], contract_version: "v" }).success).toBe(false);
   });
 
   it("refuses http, zero dimensions and types other than PNG/JPEG", () => {
@@ -34,6 +43,24 @@ describe("uploadResponse — the POST /v1/uploads response contract", () => {
     expect(uploadResponse.safeParse({ ...VALID, width: 0 }).success).toBe(false);
     expect(uploadResponse.safeParse({ ...VALID, media_type: "image/webp" }).success).toBe(false);
     expect(uploadResponse.safeParse({ ...VALID, bytes: UPLOAD_MAX_BYTES + 1 }).success).toBe(false);
+  });
+});
+
+describe("uploadList and uploadListRead — the GET /v1/uploads contract", () => {
+  const ITEM = { ...VALID, created_at: "2026-10-16T10:00:00.000Z", usable_until: "2026-11-15T08:00:00.000Z" };
+  const LATER = { ...ITEM, bytes: UPLOAD_MAX_BYTES + 1, media_type: "image/avif", thumbnail: "https://x.test/t.png" };
+
+  it("the server's schema is closed: a size over the cap, another type or an extra key is refused", () => {
+    expect(uploadList.safeParse({ uploads: [ITEM], contract_version: "v" }).success).toBe(true);
+    for (const item of [{ ...ITEM, bytes: UPLOAD_MAX_BYTES + 1 }, { ...ITEM, media_type: "image/avif" }, { ...ITEM, extra: 1 }]) {
+      expect(uploadList.safeParse({ uploads: [item], contract_version: "v" }).success).toBe(false);
+    }
+  });
+
+  it("installed clients read a later server: a larger cap, a new type and new keys pass and are kept", () => {
+    const read = uploadListRead.parse({ uploads: [LATER], contract_version: "v", next: null });
+    expect(read.uploads[0]).toEqual(LATER);
+    expect(read).toHaveProperty("next", null);
   });
 });
 

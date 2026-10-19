@@ -145,6 +145,60 @@ describe("ClipwrightClient — lazy client id resolution", () => {
   });
 });
 
+describe("ClipwrightClient — an explicit clientId and a credential per request", () => {
+  it("an explicit clientId keys the run while the env and ~/.clipwright name others, and neither is read", async () => {
+    const { mkdirSync, mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const home = mkdtempSync(join(tmpdir(), "cw-explicit-id-"));
+    mkdirSync(join(home, ".clipwright"));
+    writeFileSync(join(home, ".clipwright", "client-id"), "file-client");
+    process.env.HOME = home;
+    process.env.CLIPWRIGHT_CLIENT_ID = "env-client";
+    let capturedKey: string | undefined;
+    globalThis.fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      capturedKey = ((init?.headers ?? {}) as Record<string, string>)["Idempotency-Key"];
+      return jsonResponse(runBody("queued"));
+    }) as unknown as typeof fetch;
+
+    const input = { script: "hello" };
+    await new ClipwrightClient({ apiKey: "cw_test", baseUrl: "http://x", clientId: "grant-client" }).startUgc(input);
+
+    expect(capturedKey).toBe(`${idempotencyKeyFor(input, "grant-client")}:1`);
+  });
+
+  it("a blank clientId is refused at construction", () => {
+    expect(() => new ClipwrightClient({ apiKey: "cw_test", clientId: "  " })).toThrow(/clientId/);
+  });
+
+  it("the credential callback sees each request as sent and its answer is the bearer", async () => {
+    const seen: unknown[] = [];
+    let authorization: string | undefined;
+    globalThis.fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      authorization = ((init?.headers ?? {}) as Record<string, string>).Authorization;
+      return jsonResponse(runBody("queued"));
+    }) as unknown as typeof fetch;
+    const client = new ClipwrightClient({
+      apiKey: (request) => {
+        seen.push(request);
+        return `cwm_signed_${seen.length}`;
+      },
+      baseUrl: "http://x",
+      clientId: "grant-client",
+    });
+
+    const input = { script: "hello" };
+    await client.startUgc(input);
+    expect(seen).toEqual([{ method: "POST", path: "/v1/skills/make_ugc/run", body: JSON.stringify(input),
+      idempotencyKey: `${idempotencyKeyFor(input, "grant-client")}:1` }]);
+    expect(authorization).toBe("Bearer cwm_signed_1");
+
+    globalThis.fetch = vi.fn(async () => jsonResponse({ voices: [] })) as unknown as typeof fetch;
+    await client.listVoices({ language: "en" });
+    expect(seen[1]).toEqual({ method: "GET", path: "/v1/voices?language=en", body: "", idempotencyKey: "" });
+  });
+});
+
 describe("ClipwrightClient.makeUgc — attempt suffix", () => {
   it("makeUgc({attempt:2}) sends Idempotency-Key = <hash>:2", async () => {
     process.env.CLIPWRIGHT_CLIENT_ID = "unit-client";
@@ -937,6 +991,7 @@ describe("ClipwrightClient.uploadImage", () => {
   const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
   const ok = {
     upload_id: `upl_${"ab".repeat(16)}`,
+    content_digest: "a".repeat(64),
     url: "https://bucket.acct.r2.cloudflarestorage.com/uploads/acc/x.png?X-Amz-Signature=s",
     media_type: "image/png",
     bytes: 11,

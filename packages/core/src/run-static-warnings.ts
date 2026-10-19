@@ -84,6 +84,13 @@ export function derivedRunWarnings(
     // A candidate speaks no narration and has no input-derived line: its warnings are written by its run.
     case "edit_shot":
       return [];
+    // A long-form revision re-renders stored media and speaks nothing new: its warnings are written by its run.
+    case "revise_long_form":
+      return [];
+    // A generation's warnings are written at admission and by its run, never derived from input.
+    case "generate_image":
+    case "generate_video":
+      return [];
     case null:
       return [UNREADABLE_RUN_INPUT_WARNING];
     default:

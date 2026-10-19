@@ -191,7 +191,7 @@ export function unknownFieldBody(
       code: "unknown_field",
       message:
         `${named.join("; ")}. Nothing was charged and no run was created. ` +
-        `Accepted fields: ${acceptedFields.join(", ")}.`,
+        (acceptedFields.length === 0 ? "This route takes no fields." : `Accepted fields: ${acceptedFields.join(", ")}.`),
       fields: hits.map((hit) => hit.field),
     },
   });
@@ -407,8 +407,11 @@ const BARE_ERROR_CODES = [
   "actor_generation_disabled",
   "actor_in_use",
   "editing_window_not_set",
+  "generations_disabled",
+  "generations_marking_pending",
   "idempotency_key_required",
   "idempotency_key_reused",
+  "insufficient_scope",
   "internal_error",
   "invalid_image",
   "invalid_request",
@@ -417,8 +420,12 @@ const BARE_ERROR_CODES = [
   "not_found",
   "paid_render_disabled",
   "payload_too_large",
+  "reference_not_usable",
   "revision_needs_generated_unit",
+  "rights_not_confirmed",
+  "source_aspect_mismatch",
   "unauthorized",
+  "unsupported_combination",
   "unsupported_media_type",
   "unusable_source",
   "upload_cap_exceeded",

@@ -56,7 +56,7 @@ export function resolveResolution(
 export const MAX_URL_LENGTH = 2048;
 
 /** Skills in the shared run namespace. `runs.skill` is text, so it is read through `parseSkill`. */
-export const SKILLS = ["make_ugc", "create_actor", "make_faceless", "edit_shot"] as const;
+export const SKILLS = ["make_ugc", "create_actor", "make_faceless", "edit_shot", "revise_long_form", "generate_image", "generate_video"] as const;
 export type Skill = (typeof SKILLS)[number];
 
 export function parseSkill(value: unknown): Skill | null {
@@ -282,6 +282,11 @@ export const makeUgcInputShape = {
   /** Removed visible label (clipwright#488). The key stays in the shape so that the refusal */
   /** names its reason instead of answering `unknown_field`. */
   disclosure_overlay: z.boolean().optional(),
+  visible_ai_label: z.boolean().optional().describe(
+    "Visible AI label for newly marked presenter videos, including long form; defaults to true in the server admission policy. " +
+    "False hides only the visible label and does not disable invisible marking or signed provenance. " +
+    "Historical outputs are unchanged.",
+  ),
   /** How to fill a frame the clip does not cover. No `.default()`: absence means no layout */
   /** is needed. `contain` fits whole, `white` pads white, `blur` fills with the blurred frame. */
   background: z.enum(["white", "blur", "contain"]).optional(),

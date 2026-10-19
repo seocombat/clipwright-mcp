@@ -28,11 +28,18 @@ it('keeps future workflow/read fields and enums compatible while the captured re
         .toMatchObject({ state: 'future_stage', workflow: { creative_acceptance: 'future_review',
             receipt: { skill: 'future_skill', v: 2 }, approved_plan: { v: 2, method: { method_id: 'future_method' } } } });
 });
-it.each(['run_id', 'skill', 'state', 'method'] as const)('refuses mismatched %s in an otherwise readable native outcome', field => {
+it.each(['run_id', 'skill', 'state'] as const)('refuses mismatched %s in an otherwise readable native outcome', field => {
     const value = response();
-    if (field === 'method') value.workflow.approved_plan.method = { ...value.workflow.approved_plan.method, version: 99 };
-    else if (field === 'state') value.workflow.state = 'succeeded';
+    if (field === 'state') value.workflow.state = 'succeeded';
     else value.workflow.receipt[field] = field === 'skill' ? 'make_ugc' : 'run_other';
+    expect(workflowRunRead.safeParse(value).success).toBe(false);
+});
+it.each([
+    ['method_id', 'future_method'], ['version', 99],
+    ['content_digest', 'b'.repeat(64)], ['capability_digest', 'b'.repeat(64)],
+] as const)('refuses a different purchased method %s even when both pins are individually valid', (field, other) => {
+    const value = response();
+    value.workflow.approved_plan.method = { ...value.workflow.approved_plan.method, [field]: other };
     expect(workflowRunRead.safeParse(value).success).toBe(false);
 });
 it('continues to accept a native-only run without workflow metadata', () => {

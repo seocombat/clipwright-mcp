@@ -16,6 +16,7 @@ import {
   contractFlagsFromEnv,
   EFFECTIVE_DISPOSITIONS,
   FIELD_DISPOSITIONS,
+  FINALIZATION_PROVEN_FIELDS,
   IMPLEMENTED_FIELDS,
   makeUgcInput,
   makeUgcInputShape,
@@ -58,9 +59,9 @@ describe("FIELD_DISPOSITIONS — completeness guard", () => {
     expect(Object.keys(FIELD_DISPOSITIONS).sort()).toEqual([...FIELDS].sort());
   });
 
-  it("the table matches today's contract (22 fields)", () => {
+  it("the table matches today's contract (23 fields)", () => {
     // Pinned: growing the shape is a deliberate contract change, not a side effect.
-    expect(FIELDS).toHaveLength(22);
+    expect(FIELDS).toHaveLength(23);
   });
 
   it("an incomplete registry does not compile", () => {
@@ -312,7 +313,7 @@ describe("identity contract", () => {
 
 describe("CONTRACT_VERSION", () => {
   it("is declared and non-empty", () => {
-    expect(CONTRACT_VERSION).toBe("2026-10-04");
+    expect(CONTRACT_VERSION).toBe("2026-10-18");
   });
 });
 
@@ -612,18 +613,20 @@ describe("resolveDispositions — composition kill switch", () => {
   });
 });
 
-// A third `provenBy` value would leave an `implemented` field outside every meta-test.
+// Every proof category must participate in a behavior suite and this exhaustive partition.
 describe("split-proof guard", () => {
-  it("egress ∪ composition covers ALL implemented fields", () => {
-    expect([...EGRESS_PROVEN_FIELDS, ...COMPOSITION_PROVEN_FIELDS].sort()).toEqual(
+  it("egress ∪ composition ∪ finalization covers ALL implemented fields", () => {
+    expect([...EGRESS_PROVEN_FIELDS, ...COMPOSITION_PROVEN_FIELDS, ...FINALIZATION_PROVEN_FIELDS].sort()).toEqual(
       [...IMPLEMENTED_FIELDS].sort(),
     );
   });
 
   it("the lists do not overlap: a field has one kind of proof", () => {
-    const overlap = EGRESS_PROVEN_FIELDS.filter((field) =>
-      COMPOSITION_PROVEN_FIELDS.includes(field),
-    );
-    expect(overlap).toEqual([]);
+    const groups = [EGRESS_PROVEN_FIELDS, COMPOSITION_PROVEN_FIELDS, FINALIZATION_PROVEN_FIELDS];
+    for (let first = 0; first < groups.length; first++) {
+      for (let second = first + 1; second < groups.length; second++) {
+        expect(groups[first]!.filter(field => groups[second]!.includes(field))).toEqual([]);
+      }
+    }
   });
 });

@@ -18,6 +18,19 @@ import {
   FACELESS_RUN_PATH,
   facelessQuoteResponse,
   type FacelessQuoteResponse,
+  GENERATION_MODELS_PATH,
+  GENERATE_IMAGE_QUOTE_PATH,
+  GENERATE_IMAGE_RUN_PATH,
+  GENERATE_VIDEO_QUOTE_PATH,
+  GENERATE_VIDEO_RUN_PATH,
+  generateImageRequest,
+  type GenerateImageRequest,
+  generateVideoRequest,
+  type GenerateVideoRequest,
+  generationModels,
+  type GenerationModels,
+  generationQuote,
+  type GenerationQuote,
   makeFacelessInput,
   type MakeFacelessInputArgs,
   agentFailureReport,
@@ -61,6 +74,8 @@ import {
   quoteResponse,
   RETRY_AFTER_HEADER,
   UPLOADS_PATH,
+  uploadListRead,
+  type UploadListRead,
   uploadResponse,
   type UploadMediaType,
   type UploadResponse,
@@ -79,6 +94,7 @@ import {
   actorIdempotencyKeyFor,
   candidateIdempotencyKeyFor,
   facelessIdempotencyKeyFor,
+  generationIdempotencyKeyFor,
   idempotencyKeyFor,
   revisionIdempotencyKeyFor,
 } from "@clipwright/core/idempotency";
@@ -87,15 +103,32 @@ import { createWorkflowPlan, saveWorkflowPlan, approveWorkflowPlan, launchWorkfl
   workflowLaunchResponseRead, workflowRunRead, workflowRunIdentityRead, type CreateWorkflowPlanArgs, type SaveWorkflowPlanArgs,
   type ApproveWorkflowPlanArgs, type LaunchWorkflowArgs, type WorkflowCatalogRead, type WorkflowMethodRead,
   type WorkflowPlanRead, type WorkflowQuoteRead, type WorkflowLaunchRead, type WorkflowRunRead } from '@clipwright/core/workflows';
+import type { z } from "zod";
 
 import { resolveClientId } from "./client-id.js";
+import { tolerant } from "./tolerant.js";
 
 /** Production API by default; shared with core so every surface names one address. */
 const DEFAULT_BASE_URL = PUBLIC_API_BASE_URL;
 const workflowPath = (pattern: string, id: string): string => pattern.replace(':id', encodeURIComponent(id));
 
+/** What a credential callback is asked to cover: one request exactly as it is sent. */
+export interface ApiKeyRequest {
+  /** The method in upper case. */
+  method: string;
+  /** The path with its query string. */
+  path: string;
+  /** The body as sent; the empty string when there is none. */
+  body: string | Uint8Array;
+  /** The `Idempotency-Key` header, or the empty string. */
+  idempotencyKey: string;
+}
+
 export interface ClipwrightClientOptions {
-  apiKey: string;
+  /** A key, or a callback that makes a credential for each request (a per-request signature). */
+  apiKey: string | ((request: ApiKeyRequest) => string);
+  /** The install identity of idempotency keys. When set, neither the environment nor `~/.clipwright` is read. */
+  clientId?: string | undefined;
   baseUrl?: string | undefined;
   /** Run status polling interval, ms. */
   pollIntervalMs?: number | undefined;
@@ -189,13 +222,13 @@ export class ClipwrightResponseError extends Error {
 }
 
 function parseResponse<T>(
-  schema: { parse: (value: unknown) => T },
+  schema: z.ZodType<T>,
   body: unknown,
   path: string,
   mayHaveTakenEffect: boolean,
 ): T {
   try {
-    return schema.parse(body);
+    return tolerant(schema).parse(body);
   } catch (cause) {
     throw new ClipwrightResponseError(path, mayHaveTakenEffect, cause);
   }
@@ -275,7 +308,7 @@ export class ClipwrightApiError extends Error {
 }
 
 export class ClipwrightClient {
-  readonly #apiKey: string;
+  readonly #apiKey: string | ((request: ApiKeyRequest) => string);
   readonly #baseUrl: string;
   readonly #pollIntervalMs: number;
   readonly #requestTimeoutMs: number;
@@ -285,6 +318,11 @@ export class ClipwrightClient {
 
   constructor(opts: ClipwrightClientOptions) {
     this.#apiKey = opts.apiKey;
+    if (opts.clientId !== undefined) {
+      // A blank id would key every caller's runs alike; refused here rather than resolved from disk.
+      if (opts.clientId.trim().length === 0) throw new TypeError("clientId must be a non-empty string");
+      this.#clientId = opts.clientId;
+    }
     this.#baseUrl = opts.baseUrl ?? DEFAULT_BASE_URL;
     this.#pollIntervalMs = positiveMs(opts.pollIntervalMs, 5_000, "pollIntervalMs");
     this.#requestTimeoutMs = positiveMs(
@@ -318,12 +356,19 @@ export class ClipwrightClient {
     const { signal: callerSignal, ...rest } = init ?? {};
     const timeout = AbortSignal.timeout(this.#requestTimeoutMs);
     const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout;
+    // Every caller passes headers as a record and a body as a string or bytes, so the callback sees what is sent.
+    const credential = typeof this.#apiKey === "string" ? this.#apiKey : this.#apiKey({
+      method: (rest.method ?? "GET").toUpperCase(),
+      path,
+      body: (rest.body as string | Uint8Array | null | undefined) ?? "",
+      idempotencyKey: (rest.headers as Record<string, string> | undefined)?.["Idempotency-Key"] ?? "",
+    });
     try {
       res = await fetch(`${this.#baseUrl}${path}`, {
         ...rest,
         signal,
         headers: {
-          Authorization: `Bearer ${this.#apiKey}`,
+          Authorization: `Bearer ${credential}`,
           "Content-Type": "application/json",
           ...rest.headers,
         },
@@ -420,6 +465,11 @@ export class ClipwrightClient {
       headers: { "Content-Type": mediaType },
     });
     return parseResponse(uploadResponse, body, UPLOADS_PATH, true);
+  }
+
+  /** The account's uploads a revision still takes, newest first, each with a link signed now and its `usable_until`. Free. */
+  async listUploads(): Promise<UploadListRead> {
+    return parseResponse(uploadListRead, await this.#request(UPLOADS_PATH, false), UPLOADS_PATH, false);
   }
 
   /** Curated voice catalog for `voice`/`voice_id`; other voices stay reachable by raw `voice_id`. */
@@ -524,7 +574,7 @@ export class ClipwrightClient {
     // `true`: once sent, the run may have been created and its credits held.
     const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(parsed), headers: { "Idempotency-Key": key } });
     // Read as `#getRun` reads: a billing unit of a newer server must not throw after the credits are held.
-    const read = runReadSchema.safeParse(body);
+    const read = tolerant(runReadSchema).safeParse(body);
     if (read.success) return read.data;
     if (typeof body !== "object" || body === null || Array.isArray(body)) throw new ClipwrightResponseError(path, true, read.error);
     return body as RunRead;
@@ -546,7 +596,7 @@ export class ClipwrightClient {
     const path = runCandidatesPath(runId);
     // `true`: once sent, the run may have been created and its unit held.
     const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(parsed), headers: { "Idempotency-Key": key } });
-    const read = runReadSchema.safeParse(body);
+    const read = tolerant(runReadSchema).safeParse(body);
     if (read.success) return read.data;
     if (typeof body !== "object" || body === null || Array.isArray(body)) throw new ClipwrightResponseError(path, true, read.error);
     return body as RunRead;
@@ -556,6 +606,46 @@ export class ClipwrightClient {
   async listCandidates(runId: string): Promise<RunCandidatesRead> {
     const path = runCandidatesPath(runId);
     return parseResponse(runCandidatesRead, await this.#request(path, false), path, false);
+  }
+
+  /** The generation models with their measured shapes and prices. Free. */
+  async listGenerationModels(): Promise<GenerationModels> {
+    return parseResponse(generationModels, await this.#request(GENERATION_MODELS_PATH, false), GENERATION_MODELS_PATH, false);
+  }
+
+  /** What one image would cost and its size; spends no credits. */
+  async quoteImage(request: GenerateImageRequest): Promise<GenerationQuote> {
+    return this.#quoteGeneration(GENERATE_IMAGE_QUOTE_PATH, generateImageRequest.parse(request));
+  }
+
+  /** Starts an image generation, returned at once (state=queued); the same request and attempt return the same run. */
+  async generateImage(request: GenerateImageRequest, opts?: StartUgcOptions): Promise<RunRead> {
+    return this.#startGeneration("generate_image", GENERATE_IMAGE_RUN_PATH, generateImageRequest.parse(request), opts);
+  }
+
+  /** What one clip would cost and its size; spends no credits. */
+  async quoteVideo(request: GenerateVideoRequest): Promise<GenerationQuote> {
+    return this.#quoteGeneration(GENERATE_VIDEO_QUOTE_PATH, generateVideoRequest.parse(request));
+  }
+
+  /** Starts a clip generation, returned at once (state=queued); the same request and attempt return the same run. */
+  async generateVideo(request: GenerateVideoRequest, opts?: StartUgcOptions): Promise<RunRead> {
+    return this.#startGeneration("generate_video", GENERATE_VIDEO_RUN_PATH, generateVideoRequest.parse(request), opts);
+  }
+
+  async #quoteGeneration(path: string, request: GenerateImageRequest | GenerateVideoRequest): Promise<GenerationQuote> {
+    return parseResponse(generationQuote, await this.#request(path, false, { method: "POST", body: JSON.stringify(request) }), path, false);
+  }
+
+  async #startGeneration(skill: "generate_image" | "generate_video", path: string, request: GenerateImageRequest | GenerateVideoRequest,
+    opts: StartUgcOptions | undefined): Promise<RunRead> {
+    const key = opts?.idempotencyKey ?? `${generationIdempotencyKeyFor(skill, request, this.#getClientId())}:${attemptSuffix(opts?.attempt)}`;
+    // `true`: once sent, the run may have been created and its credits held.
+    const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(request), headers: { "Idempotency-Key": key } });
+    const read = tolerant(runReadSchema).safeParse(body);
+    if (read.success) return read.data;
+    if (typeof body !== "object" || body === null || Array.isArray(body)) throw new ClipwrightResponseError(path, true, read.error);
+    return body as RunRead;
   }
 
   /** Deletes a personal actor. The answer is 204 with no body. */
@@ -572,7 +662,7 @@ export class ClipwrightClient {
   /** `signal` is internal only: the `makeUgc` deadline also aborts the poll. */
   async #getRun(runId: string, signal?: AbortSignal): Promise<WorkflowRunRead> {
     const path = `/v1/runs/${runId}`, body = await this.#request(path, false, { signal: signal ?? null });
-    const parsed = workflowRunRead.safeParse(body);
+    const parsed = tolerant(workflowRunRead).safeParse(body);
     if (parsed.success) return parsed.data;
     if (body !== null && typeof body === 'object' && 'workflow' in body) parseResponse(workflowRunIdentityRead, body, path, false);
     return body as WorkflowRunRead;
@@ -718,5 +808,7 @@ export type { FacelessQuoteResponse, MakeFacelessInputArgs };
 export type { RunEditRead, RunShotsRead, SaveRunEditArgs };
 export type { RevisionQuoteRead, RevisionRequest };
 export type { CandidateQuoteRead, CandidateRequest, RunCandidatesRead };
+export type { GenerateImageRequest, GenerateVideoRequest, GenerationModels, GenerationQuote };
+export type { UploadListRead };
 export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs,
   WorkflowCatalogRead, WorkflowMethodRead, WorkflowPlanRead, WorkflowQuoteRead, WorkflowLaunchRead, WorkflowRunRead };

@@ -5,6 +5,7 @@ import { facelessRunShots } from "./edit-faceless.js";
 import type { ShotOperation } from "./edit-operations.js";
 import type { ShotAction, ShotKind } from "./edit-rules.js";
 import type { PlannedRunShots } from "./edit-shots.js";
+import { MAX_INSERTS } from "./skills.js";
 import { EDIT_ISSUE_CODES, diffEditDocument as diff, presenterVisibleFrames as visibleFrames, validateEditDocument as validate,
   type EditFacts, type EditIssue, type EditIssueCode } from "./edit-validate.js";
 
@@ -197,6 +198,25 @@ describe("validateEditDocument on the faceless view", () => {
     expect(issuesOf(wide, ruled(long, limit), facts(1920, 1080))).toEqual([]);
     expect(issuesOf(wide, ruled(long, limit), facts(1080, 1920))).toEqual([{ code: "upload_shape_refused", shot_id: "insert-1" }]);
   });
+
+  it("`max_distance` is the view's, not a constant: 1080×1600, 20% off 9:16, passes at 0.3 and is refused at 0.15", () => {
+    const view = faceless(), tall = edited(view, { "beat-3": fromUpload });
+    const facts: EditFacts = { candidates: {}, uploads: { [UPLOAD]: { width: 1080, height: 1600 } } };
+    expect(issuesOf(tall, ruled(view, { upload_aspect: { max_distance: 0.15 } }), facts)).toEqual([{ code: "upload_shape_refused", shot_id: "beat-3" }]);
+    expect(issuesOf(tall, ruled(view, { upload_aspect: { max_distance: 0.3 } }), facts)).toEqual([]);
+  });
+});
+
+describe("validateEditDocument on the faceless view, as before #604 S7b", () => {
+  it("a picture moved to the presenter track and stretched keeps the issue list it had before cover checks reached source shots", () => {
+    const view = faceless(), beat4 = identityEditDocument(view).shots.find(shot => shot.id === "beat-4")!;
+    const document = edited(view, { "beat-4": { track: "presenter", end_frame: beat4.end_frame + 10 } });
+    expect(validateEditDocument(document, view, NO_FACTS)).toEqual({ ok: false, issues: [
+      { code: "kind_changed", shot_id: "beat-4", message: "this shot is a picture on the visual track" },
+      { code: "tracks_overlap", shot_id: "beat-5", from_frame: 339, to_frame: 349, message: "covers presenter shot beat-4" },
+      { code: "uncovered", from_frame: 242, to_frame: 339, message: "no shot is on screen here" },
+    ] });
+  });
 });
 
 describe("validateEditDocument on the 16:9 fixture", () => {
@@ -261,6 +281,7 @@ describe("the validator's table", () => {
     const hole = (from_frame: number, to_frame: number) => ({ code: "uncovered" as const, from_frame, to_frame });
     const retake = { mode: "retake" as const }, picture = { mode: "new_picture" as const, description: "A harbour at dawn" };
     const reusing = ruled(l, { reuse_source_asset: true }), limited = ruled(v, { upload_aspect: { max_distance: 0.15 } });
+    const pictureFrom = (min_frames: number) => ruled(l, { kinds: { ...l.rules.kinds, picture: { ...l.rules.kinds.picture!, min_frames } } });
     const everyAction: ShotAction[] = ["retake", "animate", "new_picture", "retime", "delete"];
     const identity = identityEditDocument(v);
 
@@ -286,9 +307,17 @@ describe("the validator's table", () => {
         document: edited(l, { "insert-1": null }, [{ ...COVER, start_frame: 200, end_frame: 500 }]), issues: [on("shot_added_not_allowed", "cover-1")] },
       { code: "shot_added_not_allowed", name: "a new shot on the presenter track", view: reusing,
         document: edited(l, {}, [{ id: "take-9", track: "presenter", kind: "presenter", start_frame: 300, end_frame: 400, ...fromSource("take-1") }]),
-        issues: [on("shot_added_not_allowed", "take-9")] },
+        issues: [on("shot_added_not_allowed", "take-9"), on("kind_asset_mismatch", "take-9")] },
+      { code: "shot_added_not_allowed", name: "one added shot more than a timeline holds inserts", view: pictureFrom(1), facts: FACTS,
+        document: edited(l, {}, Array.from({ length: MAX_INSERTS + 1 }, (_, at) =>
+          ({ ...COVER, id: `cover-${at}`, start_frame: 1800 + at * 10, end_frame: 1810 + at * 10 }))),
+        issues: [on("shot_added_not_allowed", `cover-${MAX_INSERTS}`)], reason: `at most ${MAX_INSERTS} shots lie over the presenter` },
+      { code: "shot_added_not_allowed", name: "a new shot named like the source's own tiling", view: l, facts: FACTS,
+        document: edited(l, {}, [{ ...COVER, id: "insert-9" }]), issues: [on("shot_added_not_allowed", "insert-9")], reason: "shaped like the run's own shots" },
       { code: "too_short", name: "24 frames", view: v, document: edited(v, { "beat-15": { end_frame: 913 }, "beat-16": { start_frame: 913 } }),
         issues: [on("too_short", "beat-15")], reason: "at least 25 frames" },
+      { code: "too_short", name: "a new shot over the presenter under `cover_min_frames`", view: ruled(pictureFrom(1), { cover_min_frames: 25 }), facts: FACTS,
+        document: edited(l, {}, [{ ...COVER, end_frame: 1024 }]), issues: [on("too_short", "cover-1")], reason: "over the presenter lasts at least 25 frames" },
       { code: "too_short", name: "a kind the rules have no entry for", view: v, document: edited(v, { "beat-4": { kind: "presenter" } }),
         issues: [on("kind_changed", "beat-4"), on("too_short", "beat-4")], reason: "this kind is not allowed here" },
       { code: "too_long", name: "151 frames", view: v, document: edited(v, { "beat-13": null, "beat-12": { end_frame: 820 }, "beat-14": { start_frame: 820 } }),
@@ -308,6 +337,8 @@ describe("the validator's table", () => {
         issues: [on("action_not_allowed", "beat-3")], reason: "may not be deleted" },
       { code: "action_not_allowed", name: "a cover of a take that offers none", view: offering(l, "take-2", ["retime"]), facts: FACTS,
         document: edited(l, {}, [COVER]), issues: [on("action_not_allowed", "cover-1")], reason: "take-2 may not be covered" },
+      { code: "action_not_allowed", name: "an insert stretched over a take that offers no cover", view: offering(l, "take-2", ["retime"]),
+        document: edited(l, { "insert-2": { end_frame: 950 } }), issues: [on("action_not_allowed", "insert-2")], reason: "take-2 may not be covered" },
       { code: "not_movable", name: "a picture moved where pictures keep their start", view: kindRuled(l, "picture", { movable: false }),
         document: edited(l, { "insert-3": { start_frame: 1450 } }), issues: [on("not_movable", "insert-3")] },
       { code: "not_resizable", name: "a clip stretched where clips keep their length", view: kindRuled(l, "clip", { resizable: false }),
@@ -326,6 +357,8 @@ describe("the validator's table", () => {
         issues: [on("foreign_source_asset", "insert-1")] },
       { code: "kind_asset_mismatch", name: "an upload on a clip", view: l, facts: FACTS, document: edited(l, { "insert-2": fromUpload }),
         issues: [on("kind_asset_mismatch", "insert-2")], reason: "only a picture takes an upload" },
+      { code: "kind_asset_mismatch", name: "a new picture showing a presenter take's media", view: reusing,
+        document: edited(l, {}, [{ ...COVER, ...fromSource("take-1") }]), issues: [on("kind_asset_mismatch", "cover-1")], reason: "on the presenter track" },
       { code: "kind_asset_mismatch", name: "a generation on a take", view: offering(l, "take-2", ["cover", "retime", "retake"]),
         document: edited(l, { "take-2": generate(retake) }), issues: [on("kind_asset_mismatch", "take-2")], reason: "keeps its own recording" },
       { code: "kind_asset_mismatch", name: "a new visual shot of the presenter kind off a source asset", view: l,
@@ -351,6 +384,9 @@ describe("the validator's table", () => {
         document: edited(v, { "beat-3": fromCandidate, "beat-15": fromUpload }), issues: [on("unknown_asset", "beat-15"), on("unknown_asset", "beat-3")] },
       { code: "upload_shape_refused", name: "a wide upload in a tall frame", view: limited, facts: { candidates: {}, uploads: { [UPLOAD]: { width: 1920, height: 1080 } } },
         document: edited(v, { "beat-3": fromUpload }), issues: [on("upload_shape_refused", "beat-3")] },
+      { code: "upload_shape_refused", name: "an upload 0.0028 from the frame's ratio where only an exact fit is taken",
+        view: ruled(l, { upload_aspect: { mode: "exact", epsilon: 0.002 } }), facts: { candidates: {}, uploads: { [UPLOAD]: { width: 1923, height: 1080 } } },
+        document: edited(l, { "insert-1": fromUpload }), issues: [on("upload_shape_refused", "insert-1")], reason: "shape exactly" },
       { code: "duplicate_picture_asset", name: "one upload on two pictures", view: v, facts: FACTS,
         document: edited(v, { "beat-3": fromUpload, "beat-4": fromUpload }), issues: [on("duplicate_picture_asset", "beat-4")] },
       { code: "too_many_generated", name: "nine retakes", view: v,
@@ -360,7 +396,8 @@ describe("the validator's table", () => {
       { code: "footage_exceeded", name: "a candidate clip shorter than the shot", view: v, facts: candidate("beat-1", "clip", 80),
         document: edited(v, { "beat-1": fromCandidate }), issues: [on("footage_exceeded", "beat-1")], reason: "80 frames of footage" },
       { code: "footage_exceeded", name: "a reused source asset is measured by the shot it names", view: reusing,
-        document: edited(l, { "insert-2": fromSource("take-1") }), issues: [on("footage_exceeded", "insert-2")], reason: "200 frames of footage" },
+        document: edited(l, { "insert-2": fromSource("take-1") }), issues: [on("kind_asset_mismatch", "insert-2"), on("footage_exceeded", "insert-2")],
+        reason: "200 frames of footage" },
       { code: "presenter_out_of_sync", name: "an offset the start does not explain", view: l,
         document: edited(l, { "take-2": { end_frame: 1400, media_offset_frames: 5 }, "insert-3": { start_frame: 1400 } }),
         issues: [on("presenter_out_of_sync", "take-2")] },

@@ -151,7 +151,10 @@ export function vendorAspectFor(
 export interface DeliveredClip {
   width: number;
   height: number;
+  /** Container duration: the longest stream, AAC tail included. */
   durationSec: number;
+  /** Picture duration (video frames / fps), measured only on request; the charge basis (#699). */
+  videoDurationSec?: number;
 }
 
 /** Compares vendor output with the prediction, so every paid run re-measures vendor */

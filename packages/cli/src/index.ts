@@ -26,6 +26,7 @@ import {
   type RevisionRequest,
   TTS_MODELS,
   UPLOAD_MAX_BYTES,
+  type UploadResponse,
   VOICE_NAME_PATTERN,
   VOICE_PRESET_NAMES,
   VOICE_SKILLS,
@@ -82,7 +83,7 @@ function client(): ClipwrightClient {
 }
 
 /** Reads the file and checks its signature BEFORE the network; extensions are not trusted. */
-async function uploadFile(path: string): Promise<string> {
+async function uploadFile(path: string): Promise<UploadResponse> {
   const bytes = new Uint8Array(readFileSync(path));
   const mediaType = sniffUploadMediaType(bytes);
   if (mediaType === null) {
@@ -97,7 +98,7 @@ async function uploadFile(path: string): Promise<string> {
   console.error(
     `uploaded ${upload.width}x${upload.height} ${upload.media_type}; url expires ${upload.expires_at}`,
   );
-  return upload.url;
+  return upload;
 }
 
 interface SourceOptions {
@@ -110,7 +111,7 @@ interface SourceOptions {
 }
 
 async function resolveImage(opts: SourceOptions): Promise<string | undefined> {
-  return opts.imageFile ? uploadFile(opts.imageFile) : opts.image;
+  return opts.imageFile ? (await uploadFile(opts.imageFile)).url : opts.image;
 }
 
 /** Image and format options shared by `quote` and `make`, so the quote sees the render's source. */
@@ -154,8 +155,17 @@ const parseRetry = parseWholeNumber("--retry");
 program
   .command("upload <path>")
   .description("upload a local PNG/JPEG and print the https url to pass as --image")
-  .action(async (path: string) => {
-    console.log(await uploadFile(path));
+  .option("--json", "print upload_id, content_digest and the full upload metadata as JSON")
+  .action(async (path: string, opts: { json?: boolean }) => {
+    const upload = await uploadFile(path);
+    console.log(opts.json ? JSON.stringify(upload, null, 2) : upload.url);
+  });
+
+program
+  .command("uploads")
+  .description("list your uploads a revision still takes, newest first, each with a fresh url and its usable_until; free")
+  .action(async () => {
+    console.log(JSON.stringify(await client().listUploads(), null, 2));
   });
 
 withSourceOptions(

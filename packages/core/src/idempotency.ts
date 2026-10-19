@@ -4,6 +4,7 @@ import { createActorInput } from "./account-actors.js";
 import { candidateRequest } from "./edit-candidate.js";
 import { revisionRequest } from "./edit-revision.js";
 import { makeFacelessInput } from "./faceless-public.js";
+import { generateImageRequest, generateVideoRequest } from "./generations.js";
 import { runId } from "./runs.js";
 import { makeUgcInput } from "./skills.js";
 
@@ -68,6 +69,14 @@ export function revisionIdempotencyKeyFor(sourceRunId: string, request: unknown,
 /** The key of a shot candidate: the source run and the request with its take, parsed, under the client's prefix. */
 export function candidateIdempotencyKeyFor(sourceRunId: string, request: unknown, clientId: string): string {
   const parsed = { source_run_id: runId.parse(sourceRunId), candidate: candidateRequest.parse(request) };
+  return createHash("sha256")
+    .update(clientId + JSON.stringify(canonicalize(parsed)))
+    .digest("hex");
+}
+
+/** The key of a single generation: the skill and its request, parsed, under the client's prefix. */
+export function generationIdempotencyKeyFor(skill: "generate_image" | "generate_video", request: unknown, clientId: string): string {
+  const parsed = { skill, request: skill === "generate_image" ? generateImageRequest.parse(request) : generateVideoRequest.parse(request) };
   return createHash("sha256")
     .update(clientId + JSON.stringify(canonicalize(parsed)))
     .digest("hex");

@@ -1,6 +1,6 @@
 {
   "name": "@clipwright/mcp-server",
-  "version": "0.29.0",
+  "version": "0.31.0",
   "description": "MCP server for Clipwright: generate UGC videos from your coding agent",
   "mcpName": "io.clipwright/mcp",
   "keywords": [
@@ -30,6 +30,20 @@
   },
   "bin": {
     "clipwright-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./remote": {
+      "types": "./dist/remote.d.ts",
+      "default": "./dist/remote.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

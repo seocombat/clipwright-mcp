@@ -20,6 +20,13 @@ an oversight: see `LICENSE` in the repository root.
 
 ## 1. Installation
 
+There are two ways to connect, and both serve the same tools:
+
+- **the hosted server** at `https://mcp.clipwright.io/mcp` (Streamable HTTP),
+  signed in with OAuth or with a `cw_*` key — section 1.4. Nothing to install;
+- **this package run locally** over stdio with `CLIPWRIGHT_API_KEY` — sections
+  1.1 to 1.3, and section 2.
+
 ### 1.1 From npm — the normal path
 
 ```bash
@@ -164,7 +171,8 @@ Environment variables:
 | `CLIPWRIGHT_CLIENT_ID` | YES (see section 2) | Unique identifier of this INSTALLATION. |
 
 After connecting, restart or reopen the MCP host and confirm that `tools/list`
-returns 26 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`, `quote_ugc`, `list_actors`,
+returns 31 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
+`list_generation_models`, `quote_image`, `generate_image`, `quote_video`, `generate_video`, `quote_ugc`, `list_actors`,
 `list_voices`, `upload_image`, `get_account`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
 `set_actor_defaults`, `quote_faceless`, `make_faceless`, `list_workflows`, `get_workflow`, `prepare_workflow_plan`,
 `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`.
@@ -181,7 +189,99 @@ keeps the purchased revision and available outcome evidence. Technical evidence
 does not mean a person accepted the creative result. After an uncertain paid
 answer, preserve the original request and key; a new key can pay twice.
 
+### 1.4 The hosted server — OAuth or a `cw_*` key
+
+The hosted server runs the same tools at `https://mcp.clipwright.io/mcp`. It
+keeps no session: every message is its own `POST`. Add the URL to the client;
+on first use the client opens a browser, the account holder signs in to
+Clipwright and approves the app.
+
+**Status: Claude Code and the device-code flow were verified live on
+2026-10-18;** the other commands come from each client's own documentation:
+
+| Client | How to add | Verified |
+|---|---|---|
+| Claude Code | `claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp`, then `/mcp` in a session to sign in | verified live 2026-10-18 |
+| Claude.ai, Claude Desktop | Customize → Connectors → Add custom connector, paste the URL | not yet verified live |
+| ChatGPT | the URL as the remote MCP server of a plugin (OpenAI's guide "Connect and test your plugin") | not yet verified live |
+| Cursor | `~/.cursor/mcp.json`: `{"mcpServers": {"clipwright": {"url": "https://mcp.clipwright.io/mcp"}}}` | not yet verified live |
+| VS Code | `.mcp.json` at the workspace root: `{"mcpServers": {"clipwright": {"type": "http", "url": "https://mcp.clipwright.io/mcp"}}}` | not yet verified live |
+| Gemini CLI | `gemini mcp add --transport http clipwright https://mcp.clipwright.io/mcp`, then `/mcp auth clipwright` | not yet verified live |
+| Codex | `codex mcp add clipwright --url https://mcp.clipwright.io/mcp`, then `codex mcp login clipwright` | not yet verified live |
+
+**Permissions.** The approval page lists what the app asks for:
+
+- `mcp:read` — the tools with `readOnlyHint: true`: account, runs, shots,
+  voices, actors, workflows and every quote. Free.
+- `mcp:write` — every other tool: `make_ugc`, `make_faceless`, `revise_run`,
+  `create_candidate`, `generate_image`, `generate_video`, `create_actor` and
+  `run_workflow_plan` **spend credits**;
+  `upload_image`, `delete_actor`, `set_actor_defaults`, `prepare_workflow_plan`
+  and `approve_workflow_plan` change the account.
+
+The account holder approves or declines the whole request; only an admitted
+account can approve. A connection without `mcp:write` that calls one of those
+tools gets HTTP `403` with `error: "insufficient_scope"` and
+`WWW-Authenticate: Bearer error="insufficient_scope", scope="mcp:write", resource_metadata="…"`.
+Nothing is charged and no run is created. Reconnect the app and approve
+spending to fix it.
+
+**Revoking.** The account holder revokes an app at
+`https://app.clipwright.io/api-keys`, under **Connected apps**. Its next request
+gets `401`. A connection lasts 90 days from approval and is not extended by
+use: after that the app must sign in again. An access token lasts one hour;
+clients renew it themselves.
+
+**Files.** The hosted server cannot read files on the agent's machine, so
+`upload_image` refuses a `path` there. Pass a public https URL of the PNG or
+JPEG as `image` to `quote_ugc` and `make_ugc` instead (#709 tracks upload by
+URL).
+
+**Idempotency.** Section 2 does not apply here. Each connected app (one
+grant) is its own client identity, and so is each `cw_*` key, so two
+connections of one account never collapse into one run. A repeated request
+within one connection returns the same run, as on stdio.
+
+**An agent with no browser** signs in with a device code (verified live
+2026-10-18). Only the first-party client `clipwright-agent` may use this flow:
+
+```bash
+curl -s https://mcp.clipwright.io/device/auth -d client_id=clipwright-agent \
+  --data-urlencode "scope=mcp:read mcp:write offline_access" \
+  --data-urlencode "resource=https://mcp.clipwright.io/mcp"
+```
+
+1. Show the person `user_code` and `verification_uri`
+   (`https://mcp.clipwright.io/device`). They open the page on any device,
+   enter the code, sign in and approve. The approval page repeats the code:
+   they approve only if it matches.
+2. Meanwhile poll `POST https://mcp.clipwright.io/token` with
+   `grant_type=urn:ietf:params:oauth:grant-type:device_code`, `device_code` and
+   `client_id=clipwright-agent`, no more often than every 5 seconds. Until
+   approval the answer is `authorization_pending`; a faster poll gets
+   `slow_down`.
+3. Send `access_token` as `Authorization: Bearer` to `/mcp`. Renew it with
+   `grant_type=refresh_token`, the refresh token and the same `client_id`. Each
+   renewal returns a new refresh token: keep the newest one.
+
+**With a `cw_*` key instead of OAuth** — for CI and scripts. A key holds both
+permissions:
+
+```bash
+claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp --header "Authorization: Bearer cw_..."
+```
+
+**Errors of the endpoint itself:** no token, or a revoked or unknown key —
+`401` with
+`WWW-Authenticate: Bearer resource_metadata="https://mcp.clipwright.io/.well-known/oauth-protected-resource/mcp", scope="mcp:read mcp:write"`,
+which a client follows to sign in; an expired or revoked OAuth token — the same
+`401` with `error="invalid_token"` added; `GET /mcp` with a valid token — `405`;
+a body over 1 MB — `413`.
+
 ## 2. `CLIPWRIGHT_CLIENT_ID` — required, and WHY
+
+This section is about the local server. The hosted server takes the client
+identity from the connection itself (section 1.4).
 
 **Rule: EVERY installation must get its OWN unique `CLIPWRIGHT_CLIENT_ID` BEFORE
 the first `make_ugc` call.** Do not copy the value from another machine, and do
@@ -610,6 +710,26 @@ The refusals are those of `revise_run` above. The candidate limits of an
 original, running at once and failed or unfinished, are counted apart from its
 revisions, and support raises only the revision limit. An operation the shot
 does not offer is `edit_invalid` with the code `action_not_allowed`.
+
+### `quote_image`, `quote_video` — free; `generate_image`, `generate_video` — paid
+
+One image or one silent clip from a prompt, each a run of its own.
+`list_generation_models` lists the models, modes, aspect ratios, resolutions,
+durations and `unit_credits`: credits per image, or per second of a clip. Any
+other combination is `unsupported_combination` before any charge. The quotes
+answer the credits, the width and height, and warnings; show the price first.
+
+A reference is `{ "upload_id": ..., "rights_confirmed": true }` for a picture
+from `upload_image`, or `{ "run_id": ... }` of a succeeded `generate_image` run
+of this account until its `reusable_until`. In `first_frame` mode the frame must
+match the requested aspect ratio within 2% (`source_aspect_mismatch`).
+
+The run tools return the run at once; poll it with `get_run`, and once it
+succeeded `generation.url` is the file. A delivered generation is charged its
+quoted credits; one that fails is charged nothing, even when the vendor was
+already paid. An identical request returns the same run; pass `attempt: 2` for
+another. While generations are closed the tools answer `generations_disabled`
+or `generations_marking_pending` and charge nothing.
 
 ### `list_actors` — free, no input
 

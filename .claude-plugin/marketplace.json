@@ -5,7 +5,7 @@
   "plugins": [
     {
       "name": "clipwright",
-      "source": "./",
+      "source": "./plugin",
       "description": "Short videos, faceless explainers, single images and clips from your agent, through the hosted Clipwright MCP server."
     }
   ]

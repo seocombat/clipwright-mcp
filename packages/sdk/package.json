@@ -2,6 +2,7 @@
   "name": "@clipwright/sdk",
   "version": "0.31.0",
   "description": "TypeScript client for the Clipwright UGC video API",
+  "repository": { "type": "git", "url": "git+https://github.com/seocombat/clipwright-mcp.git", "directory": "packages/sdk" },
   "license": "MIT",
   "author": "Dimantika Sp. z o.o.",
   "homepage": "https://clipwright.io/?ref=npm",

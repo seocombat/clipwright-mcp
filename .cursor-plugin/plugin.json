@@ -1,0 +1,10 @@
+{
+  "name": "clipwright",
+  "version": "0.31.0",
+  "description": "Make short videos, faceless explainers, single images and clips from your agent. Clipwright quotes the price for free, renders on its servers and returns the file; it does not publish anywhere.",
+  "author": { "name": "Clipwright", "email": "support@clipwright.io", "url": "https://clipwright.io" },
+  "homepage": "https://clipwright.io/?ref=cursor-plugin",
+  "repository": "https://github.com/seocombat/clipwright-mcp",
+  "license": "MIT",
+  "keywords": ["video", "ugc", "faceless", "image-generation", "video-generation", "mcp"]
+}

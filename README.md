@@ -15,6 +15,19 @@ file; it does not publish anywhere.
 | [`@clipwright/sdk`](https://www.npmjs.com/package/@clipwright/sdk) | TypeScript client |
 | [`@clipwright/core`](https://www.npmjs.com/package/@clipwright/core) | shared request and response schemas (zod) |
 
+## Claude Code plugin
+
+```bash
+claude plugin marketplace add seocombat/clipwright-mcp
+claude plugin install clipwright@clipwright
+```
+
+The plugin connects the hosted server at `https://mcp.clipwright.io/mcp` and
+adds a skill that tells the agent to quote before it spends credits. Run `/mcp`
+in a session, choose `clipwright` and sign in with your Clipwright account: no
+key goes into a config file. The same repository is a Cursor plugin
+(`.cursor-plugin/plugin.json`, `mcp.json`).
+
 ## MCP server in one line
 
 ```bash

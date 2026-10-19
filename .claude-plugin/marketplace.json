@@ -1,0 +1,12 @@
+{
+  "name": "clipwright",
+  "owner": { "name": "Clipwright", "email": "support@clipwright.io" },
+  "description": "The Clipwright plugin: video and image generation for your agent through the hosted Clipwright MCP server.",
+  "plugins": [
+    {
+      "name": "clipwright",
+      "source": "./",
+      "description": "Short videos, faceless explainers, single images and clips from your agent, through the hosted Clipwright MCP server."
+    }
+  ]
+}

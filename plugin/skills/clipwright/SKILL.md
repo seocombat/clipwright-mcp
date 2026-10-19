@@ -6,14 +6,14 @@ description: Use when the user wants a short video, a faceless explainer, a sing
 # Clipwright
 
 Clipwright renders video and images on its servers and returns the file. It
-does not publish anywhere. This plugin connects the hosted server at
-`https://mcp.clipwright.io/mcp`.
+does not publish anywhere. This plugin connects the hosted Clipwright MCP
+server.
 
 ## Sign in
 
 The server needs a Clipwright sign-in before its tools work. In Claude Code run
 `/mcp`, choose `clipwright` and approve in the browser. A new account starts with trial
-credits; more are sold at https://clipwright.io/pricing.
+credits; more are sold on the Clipwright pricing page.
 
 ## The rule: quote first
 

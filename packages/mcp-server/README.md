@@ -57,8 +57,9 @@ connection lasts 90 days from approval; after that the app asks you to sign in
 again.
 
 On the hosted server `upload_image` cannot read a file on your machine. Pass a
-public https URL of the PNG or JPEG as `image` instead (#709 tracks upload by
-URL).
+public https URL as `upload_image({url})` and the server downloads it, or call
+`create_upload` and PUT the file to the returned `put_url` with curl. Either
+way you get an `upload_id` for `first_frame`, `last_frame` and `references`.
 
 **An agent with no browser** signs in with a device code and the first-party
 client `clipwright-agent` (verified live 2026-10-18):
@@ -99,8 +100,9 @@ Verified live on 2026-10-20 with self-hosted n8n 2.43.8: `get_account`,
 `quote_ugc` and `get_run` returned through the node. A workflow to import,
 `n8n/clipwright-ugc.json` in [seocombat/clipwright-mcp](https://github.com/seocombat/clipwright-mcp),
 quotes a script, stops when the quote is above `max_credits`, starts `make_ugc`
-and polls `get_run` every 15 seconds. Its `make_ugc` step and n8n's OAuth
-credential have not been run against Clipwright yet.
+and polls `get_run` every 15 seconds. The whole workflow ran on n8n Cloud on
+2026-10-20 and returned a 1080×1920 MP4 in about three minutes. n8n's OAuth
+credential has not been run against Clipwright yet.
 
 ### Local server over stdio
 
@@ -174,8 +176,23 @@ These variables configure the local server.
   this costs money.** One that fails is charged nothing, even when the vendor
   was already paid. An identical request returns the same run; `attempt` starts
   another on purpose. Poll `get_run`; `generation.url` is the file.
-- `upload_image` — a local PNG/JPEG → signed https url to pass as `image`. Free;
-  20 per day, the url lives 24 hours. Set `aspect_ratio` explicitly afterwards.
+- `upload_image` — a PNG/JPEG from a local `path` or a public https `url` →
+  `upload_id` and a signed https url to pass as `image`. Free; 20 per day, at
+  most 30 url downloads per hour, the url lives 24 hours. Set `aspect_ratio`
+  explicitly afterwards.
+- `create_upload` — a presigned PUT for a local PNG/JPEG when the server is
+  remote: PUT the file with curl, then use the `upload_id`. Free.
+- `get_upload` — one upload with a fresh url, its size and `usable_until`;
+  after `create_upload` it confirms the PUT. Free.
+- `create_asset` — save a picture as an account asset, kept until you delete
+  it: from a `run_id`, an `upload_id`, a public `url` or `base64`, and a local
+  `path` on stdio. Your own material needs `rights_confirmed: true` once. Free;
+  2000 assets and 20 GB per account, 100 new ones per day.
+- `list_assets`, `get_asset` — the account's assets with fresh urls and the
+  usage of the caps. Free.
+- `update_asset` — rename an asset or change its role. Free.
+- `delete_asset` — delete an asset; a daily cleanup removes its file once 7 days
+  have passed. Free.
 - `quote_actor` — price of a personal actor before creating one. Free.
 - `create_actor` — **creates a personal actor from a description; this costs
   money.** Each requested format is a separate charged image. Returns a `run_id`

@@ -1,6 +1,58 @@
 {
-  "name": "Clipwright: quote, make and collect a UGC video",
+  "name": "Generate a talking-actor UGC video from a script with Clipwright",
   "nodes": [
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000101",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-480, -320],
+      "parameters": {
+        "color": 1,
+        "width": 440,
+        "height": 860,
+        "content": "## Generate a talking-actor UGC video from a script with Clipwright\n\n### Who it's for\nMarketers and agencies who want short vertical ads with an AI actor reading their script, started from n8n.\n\n### How it works\n1. **Script** holds your script and a credit ceiling, `max_credits`.\n2. **Quote UGC** asks Clipwright what the video will cost. Quotes are free.\n3. **Within budget?** stops at **Over budget** when the quote is above `max_credits`; nothing is spent.\n4. **Make UGC** starts the render and returns a `run_id` at once.\n5. **Wait**, **Get run** and **Finished?** check the run every 15 seconds until it ends.\n6. **Result** holds the state and the video URL: a 1080×1920 MP4 by default.\n\n### How to set up\n1. Sign up at clipwright.io. A new account gets 420 trial credits.\n2. Create an API key at app.clipwright.io/api-keys.\n3. In n8n, add a **Bearer Auth** credential with that key and select it in **Quote UGC**, **Make UGC** and **Get run**.\n4. Edit the script and `max_credits` in **Script**, then run the workflow.\n\n### Requirements\n- A Clipwright account. A talking-actor video costs 30 credits per second of finished video.\n- An n8n version with the built-in MCP Client node. No community node is needed.\n\n### How to customize\n- Replace **Start** with a form, a schedule or a new row in a sheet.\n- Send the video URL on to storage or a teammate: the link expires after 7 days."
+      }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000102",
+      "name": "Step 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [160, -160],
+      "parameters": {
+        "color": 7,
+        "width": 200,
+        "height": 320,
+        "content": "## 1. Set the script\nEdit `script` and `max_credits` here. The quote is checked against `max_credits` before any credits are spent."
+      }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000103",
+      "name": "Step 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [400, -160],
+      "parameters": {
+        "color": 7,
+        "width": 400,
+        "height": 320,
+        "content": "## 2. Check the price\nThe quote is free. Above `max_credits`, the run goes to **Over budget** and stops."
+      }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000104",
+      "name": "Step 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [840, -340],
+      "parameters": {
+        "color": 7,
+        "width": 1040,
+        "height": 380,
+        "content": "## 3. Render and collect\n**Make UGC** spends credits. The loop checks the run every 15 seconds; **Result** holds the video URL."
+      }
+    },
     {
       "id": "6f1c2a10-0001-4c3e-9a01-000000000001",
       "name": "Start",
@@ -79,7 +131,7 @@
       "name": "Over budget",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [880, 160],
+      "position": [880, 240],
       "parameters": {
         "assignments": {
           "assignments": [

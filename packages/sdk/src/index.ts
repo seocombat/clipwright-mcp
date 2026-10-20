@@ -74,11 +74,30 @@ import {
   quoteResponse,
   RETRY_AFTER_HEADER,
   UPLOADS_PATH,
+  UPLOAD_IMPORT_PATH,
+  UPLOAD_INTENTS_PATH,
+  UPLOAD_ITEM_PATH,
+  uploadIntentResponse,
+  type UploadIntentRequest,
+  type UploadIntentResponse,
+  uploadItemRead,
+  type UploadItemRead,
   uploadListRead,
   type UploadListRead,
   uploadResponse,
   type UploadMediaType,
   type UploadResponse,
+  ASSET_BYTES_PATH,
+  ASSET_ITEM_PATH,
+  ASSETS_PATH,
+  assetListRead,
+  type AssetListQuery,
+  type AssetListRead,
+  assetRead,
+  type AssetRead,
+  type AssetRole,
+  type CreateAssetRequest,
+  type UpdateAssetRequest,
   voicesResponse,
   type VoicesQuery,
   type VoiceCatalogEntry as CoreVoiceCatalogEntry,
@@ -97,6 +116,9 @@ import {
   generationIdempotencyKeyFor,
   idempotencyKeyFor,
   revisionIdempotencyKeyFor,
+  uploadRequestIdempotencyKeyFor,
+  assetBytesIdempotencyKeyFor,
+  assetRequestIdempotencyKeyFor,
 } from "@clipwright/core/idempotency";
 import { createWorkflowPlan, saveWorkflowPlan, approveWorkflowPlan, launchWorkflow,
   workflowCatalogResponseRead, workflowMethodResponseRead, workflowPlanRead, workflowQuoteBindingRead,
@@ -470,6 +492,82 @@ export class ClipwrightClient {
   /** The account's uploads a revision still takes, newest first, each with a link signed now and its `usable_until`. Free. */
   async listUploads(): Promise<UploadListRead> {
     return parseResponse(uploadListRead, await this.#request(UPLOADS_PATH, false), UPLOADS_PATH, false);
+  }
+
+  /** The server downloads a public https PNG or JPEG into an upload. Free; a repeat within a day answers the same upload. */
+  async importUpload(url: string): Promise<UploadResponse> {
+    const input = { url };
+    const body = await this.#request(UPLOAD_IMPORT_PATH, true, {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "Idempotency-Key": uploadRequestIdempotencyKeyFor("import", input, this.#getClientId()) },
+    });
+    return parseResponse(uploadResponse, body, UPLOAD_IMPORT_PATH, true);
+  }
+
+  /** A presigned PUT for a local file of the declared type, size and sha256; the upload is usable once the PUT lands. Free. */
+  async createUpload(input: UploadIntentRequest): Promise<UploadIntentResponse> {
+    const body = await this.#request(UPLOAD_INTENTS_PATH, true, {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "Idempotency-Key": uploadRequestIdempotencyKeyFor("intent", input, this.#getClientId()) },
+    });
+    return parseResponse(uploadIntentResponse, body, UPLOAD_INTENTS_PATH, true);
+  }
+
+  /** One upload with a fresh link; after `createUpload` it also confirms the PUT. Free. */
+  async getUpload(uploadIdValue: string): Promise<UploadItemRead> {
+    const path = UPLOAD_ITEM_PATH.replace(":id", encodeURIComponent(uploadIdValue));
+    return parseResponse(uploadItemRead, await this.#request(path, false), path, false);
+  }
+
+  /** Saves an asset of the account from a generation, an upload, a url or base64. Free; a repeat within a day answers the same asset. */
+  async createAsset(input: CreateAssetRequest): Promise<AssetRead> {
+    const body = await this.#request(ASSETS_PATH, true, {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "Idempotency-Key": assetRequestIdempotencyKeyFor(input, this.#getClientId()) },
+    });
+    return parseResponse(assetRead, body, ASSETS_PATH, true);
+  }
+
+  /** Saves a local PNG or JPEG as an asset; `rights_confirmed` states you may use the people and works in it. Free. */
+  async createAssetFromBytes(
+    bytes: Uint8Array<ArrayBuffer>,
+    mediaType: UploadMediaType,
+    meta: { role: AssetRole; name: string; rights_confirmed: true },
+  ): Promise<AssetRead> {
+    const query = new URLSearchParams({ role: meta.role, name: meta.name, rights_confirmed: "true" }).toString();
+    const key = assetBytesIdempotencyKeyFor({ role: meta.role, name: meta.name, bytes }, this.#getClientId());
+    const path = `${ASSET_BYTES_PATH}?${query}`;
+    const body = await this.#request(path, true, { method: "POST", body: bytes, headers: { "Content-Type": mediaType, "Idempotency-Key": key } });
+    return parseResponse(assetRead, body, ASSET_BYTES_PATH, true);
+  }
+
+  /** The account's live assets, newest first, with its usage of the caps. Free. */
+  async listAssets(query: AssetListQuery = {}): Promise<AssetListRead> {
+    const search = new URLSearchParams(
+      Object.entries(query).flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]])),
+    ).toString();
+    const path = search === "" ? ASSETS_PATH : `${ASSETS_PATH}?${search}`;
+    return parseResponse(assetListRead, await this.#request(path, false), ASSETS_PATH, false);
+  }
+
+  /** One asset with a link signed now. Free. */
+  async getAsset(assetIdValue: string): Promise<AssetRead> {
+    const path = ASSET_ITEM_PATH.replace(":id", encodeURIComponent(assetIdValue));
+    return parseResponse(assetRead, await this.#request(path, false), path, false);
+  }
+
+  /** A new name or role for an asset. Free. */
+  async updateAsset(assetIdValue: string, patch: UpdateAssetRequest): Promise<AssetRead> {
+    const path = ASSET_ITEM_PATH.replace(":id", encodeURIComponent(assetIdValue));
+    return parseResponse(assetRead, await this.#request(path, true, { method: "POST", body: JSON.stringify(patch) }), path, true);
+  }
+
+  /** Deletes an asset; the answer is 204 with no body. Free. */
+  async deleteAsset(assetIdValue: string): Promise<void> {
+    await this.#request(ASSET_ITEM_PATH.replace(":id", encodeURIComponent(assetIdValue)), true, { method: "DELETE" });
   }
 
   /** Curated voice catalog for `voice`/`voice_id`; other voices stay reachable by raw `voice_id`. */

@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 
 import { createActorInput } from "./account-actors.js";
+import { createAssetRequest } from "./assets.js";
 import { candidateRequest } from "./edit-candidate.js";
 import { revisionRequest } from "./edit-revision.js";
 import { makeFacelessInput } from "./faceless-public.js";
 import { generateImageRequest, generateVideoRequest } from "./generations.js";
 import { runId } from "./runs.js";
 import { makeUgcInput } from "./skills.js";
+import { uploadImportRequest, uploadIntentRequest } from "./uploads.js";
 
 // Request fingerprint and per-client idempotency key. A subpath export, not the barrel:
 // `node:crypto` in the barrel would break Next client bundles.
@@ -80,6 +82,46 @@ export function generationIdempotencyKeyFor(skill: "generate_image" | "generate_
   return createHash("sha256")
     .update(clientId + JSON.stringify(canonicalize(parsed)))
     .digest("hex");
+}
+
+/** What identifies an upload request: the url of an import, the declared file of an intent (`filename` is only a hint). */
+export function uploadRequestIdentity(kind: "import" | "intent", input: unknown): unknown {
+  if (kind === "import") return { kind, url: uploadImportRequest.parse(input).url };
+  const { media_type, bytes, sha256 } = uploadIntentRequest.parse(input);
+  return { kind, media_type, bytes, sha256 };
+}
+
+/** The key of an import or an intent: its identity under the client's prefix. */
+export function uploadRequestIdempotencyKeyFor(kind: "import" | "intent", input: unknown, clientId: string): string {
+  return createHash("sha256")
+    .update(clientId + JSON.stringify(canonicalize(uploadRequestIdentity(kind, input))))
+    .digest("hex");
+}
+
+/** What identifies an asset creation: role, name and source; inline base64 by its digest, and the confirmation is no part. */
+export function assetRequestIdentity(input: unknown): unknown {
+  const { source, role, name } = createAssetRequest.parse(input);
+  const named = "base64" in source
+    ? { base64_sha256: createHash("sha256").update(source.base64).digest("hex"), media_type: source.media_type } : source;
+  return { kind: "asset", role, name, source: named };
+}
+
+/** The identity of `POST /v1/assets/bytes`: the picture's digest with its role and name. */
+export function assetBytesIdentity(input: { role: string; name: string; sha256: string }): unknown {
+  return { kind: "asset_bytes", role: input.role, name: input.name.trim(), sha256: input.sha256 };
+}
+
+/** The key of `POST /v1/assets/bytes` for these bytes, as the server derives their identity. */
+export function assetBytesIdempotencyKeyFor(input: { role: string; name: string; bytes: Uint8Array }, clientId: string): string {
+  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  return createHash("sha256")
+    .update(clientId + JSON.stringify(canonicalize(assetBytesIdentity({ role: input.role, name: input.name, sha256 }))))
+    .digest("hex");
+}
+
+/** The key of an asset creation: its identity under the client's prefix. */
+export function assetRequestIdempotencyKeyFor(input: unknown, clientId: string): string {
+  return createHash("sha256").update(clientId + JSON.stringify(canonicalize(assetRequestIdentity(input)))).digest("hex");
 }
 
 /** The same key for `make_faceless`, parsed by its own union schema. */

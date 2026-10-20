@@ -37,7 +37,22 @@ import {
   type RevisionRequest,
   UPLOAD_IMAGE_DESCRIPTION,
   UPLOAD_MAX_BYTES,
+  UPLOAD_MEDIA_TYPES,
+  CREATE_UPLOAD_DESCRIPTION,
+  GET_UPLOAD_DESCRIPTION,
+  uploadId,
   sniffUploadMediaType,
+  ASSET_KINDS,
+  ASSET_LIST_MAX_LIMIT,
+  ASSET_ROLES,
+  assetId,
+  assetSource,
+  CREATE_ASSET_DESCRIPTION,
+  createAssetRequest,
+  DELETE_ASSET_DESCRIPTION,
+  GET_ASSET_DESCRIPTION,
+  LIST_ASSETS_DESCRIPTION,
+  UPDATE_ASSET_DESCRIPTION,
 } from "@clipwright/core";
 import { formatGetRun, withFailureReport } from "./format.js";
 import { registerWorkflowTools } from './workflow-tools.js';
@@ -54,7 +69,21 @@ export interface CreateServerOptions {
 /** What `upload_image` answers a path on a server that reads no files; the tool list stays the same on both transports. */
 export const REMOTE_UPLOAD_REFUSAL =
   "This Clipwright server is remote and cannot read files on your machine, so upload_image takes no path here. " +
-  "Pass a public https URL of the PNG or JPEG as `image` to quote_ugc and make_ugc instead.";
+  "Pass a public https URL as upload_image({url}), or call create_upload and PUT the file to the returned put_url " +
+  "(for example with curl), then use the upload_id.";
+
+/** What `create_asset` answers a path on a server that reads no files. */
+export const REMOTE_ASSET_PATH_REFUSAL =
+  "This Clipwright server is remote and cannot read files on your machine, so create_asset takes no path here. " +
+  "Pass source {url} or {base64, media_type}, or upload the file with create_upload and pass source {upload_id}.";
+
+function uploadNextAction(upload: { width: number; height: number; expires_at: string }): string {
+  return "Pass `url` as `image` to quote_ugc, then make_ugc, or the upload_id as {upload_id, rights_confirmed: true} in " +
+    "references, first_frame or last_frame of quote_image, generate_image, quote_video and generate_video. Set " +
+    `\`aspect_ratio\` explicitly to the picture's shape (${upload.width}x${upload.height}); the url expires at ` +
+    `${upload.expires_at} — upload again after that. For workflow assets, use upload_id as asset_id ` +
+    "and content_digest directly; it identifies the original uploaded bytes.";
+}
 
 /** Builds the MCP server with its tools registered but NO transport connected, */
 /** so tool registration is testable without a stdio process. */
@@ -234,8 +263,9 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
 
   // Single generations (clipwright#724): the tools are listed while the feature is closed and relay the API's refusal.
   const generationTerms =
-    "A reference is {upload_id, rights_confirmed: true} for a picture from upload_image (rights_confirmed states you may use " +
-    "the people and works in it) or {run_id} of a succeeded generate_image run of this account until its reusable_until. " +
+    "A reference is {upload_id, rights_confirmed: true} for a picture from upload_image or create_upload (rights_confirmed states you may use " +
+    "the people and works in it), {run_id} of a succeeded generate_image run of this account until its reusable_until, " +
+    "or {asset_id} of a picture asset from create_asset, whose rights were confirmed when it was made. " +
     "A generation that fails is charged nothing, even when the vendor was already paid. An identical request returns the " +
     "same run it started before, so a call repeated after a lost answer starts nothing new; to make another one with the " +
     "same request on purpose, pass attempt 2. While generations are closed it answers generations_disabled or " +
@@ -349,11 +379,18 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: false, destructiveHint: false },
       description: UPLOAD_IMAGE_DESCRIPTION,
       inputSchema: {
-        path: z.string().min(1).describe("Absolute or cwd-relative path to a PNG or JPEG file"),
+        path: z.string().min(1).optional()
+          .describe("Absolute or cwd-relative path to a PNG or JPEG file; only on a server running on your machine"),
+        url: z.string().url().optional().describe("Public https URL of a PNG or JPEG; the server downloads it"),
       },
     },
-    async ({ path }) =>
+    async ({ path, url }) =>
       withFailureReport(async () => {
+        if (url !== undefined && path === undefined) {
+          const imported = await client.importUpload(url);
+          return { content: [{ type: "text", text: JSON.stringify({ ...imported, next_action: uploadNextAction(imported) }) }], isError: false };
+        }
+        if (path === undefined || url !== undefined) throw new Error("Pass exactly one of path or url");
         if (options.fileAccess !== "local") throw new Error(REMOTE_UPLOAD_REFUSAL);
         const bytes = new Uint8Array(await readFile(path));
         const mediaType = sniffUploadMediaType(bytes);
@@ -365,23 +402,125 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
           );
         }
         const upload = await client.uploadImage(bytes, mediaType);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                ...upload,
-                next_action:
-                  "Pass `url` as `image` to quote_ugc, then make_ugc. Set `aspect_ratio` explicitly " +
-                  `to the picture's shape (${upload.width}x${upload.height}); the url expires at ` +
-                  `${upload.expires_at} — upload again after that. For workflow assets, use upload_id as asset_id ` +
-                  "and content_digest directly; it identifies the original uploaded bytes.",
-              }),
-            },
-          ],
-          isError: false,
-        };
+        return { content: [{ type: "text", text: JSON.stringify({ ...upload, next_action: uploadNextAction(upload) }) }], isError: false };
       }),
+  );
+
+  server.registerTool(
+    "create_upload",
+    {
+      title: "Create a presigned upload",
+      annotations: { readOnlyHint: false, destructiveHint: false },
+      description: CREATE_UPLOAD_DESCRIPTION,
+      inputSchema: {
+        media_type: z.enum(UPLOAD_MEDIA_TYPES),
+        bytes: z.number().int().positive().max(UPLOAD_MAX_BYTES).describe("Exact file size in bytes"),
+        sha256: z.string().regex(/^[a-f0-9]{64}$/).describe("Lowercase hex SHA-256 of the file"),
+        filename: z.string().min(1).max(200).optional(),
+      },
+    },
+    async (args) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.createUpload(args)) }],
+    })),
+  );
+
+  // Read-only although it may finish an intent: only the write tool create_upload makes one.
+  server.registerTool(
+    "get_upload",
+    {
+      title: "Get an upload",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: GET_UPLOAD_DESCRIPTION,
+      inputSchema: { upload_id: uploadId },
+    },
+    async ({ upload_id }) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.getUpload(upload_id)) }],
+    })),
+  );
+
+  // Account assets (clipwright#724 F2). A path is read only by a server on the caller's machine, as with upload_image.
+  const assetText = async (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(await value) }] });
+  server.registerTool(
+    "create_asset",
+    {
+      title: "Create an asset",
+      annotations: { readOnlyHint: false, destructiveHint: false },
+      description: CREATE_ASSET_DESCRIPTION,
+      inputSchema: {
+        source: z.union([...assetSource.options, z.strictObject({ path: z.string().min(1)
+          .describe("Absolute or cwd-relative path to a PNG or JPEG file; only on a server running on your machine") })]),
+        role: createAssetRequest.shape.role,
+        name: createAssetRequest.shape.name,
+        rights_confirmed: createAssetRequest.shape.rights_confirmed,
+      },
+    },
+    async ({ source, role, name, rights_confirmed }) => withFailureReport(async () => {
+      if (!("path" in source)) {
+        return assetText(client.createAsset({ source, role, name, ...(rights_confirmed === undefined ? {} : { rights_confirmed }) }));
+      }
+      if (options.fileAccess !== "local") throw new Error(REMOTE_ASSET_PATH_REFUSAL);
+      if (rights_confirmed !== true) throw new Error("A local file is your own material: pass rights_confirmed: true");
+      const bytes = new Uint8Array(await readFile(source.path));
+      const mediaType = sniffUploadMediaType(bytes);
+      if (mediaType === null || bytes.byteLength > UPLOAD_MAX_BYTES) {
+        throw new Error(mediaType === null
+          ? `${source.path} is not a PNG or JPEG file (checked by signature, not by extension)`
+          : `${source.path} is ${bytes.byteLength} bytes; the ceiling is ${UPLOAD_MAX_BYTES}`);
+      }
+      return assetText(client.createAssetFromBytes(bytes, mediaType, { role, name, rights_confirmed: true }));
+    }),
+  );
+
+  server.registerTool(
+    "list_assets",
+    {
+      title: "List assets",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: LIST_ASSETS_DESCRIPTION,
+      inputSchema: {
+        role: z.enum(ASSET_ROLES).optional(),
+        kind: z.enum(ASSET_KINDS).optional(),
+        limit: z.number().int().min(1).max(ASSET_LIST_MAX_LIMIT).optional(),
+        cursor: z.string().min(1).optional().describe("next_cursor of the previous page"),
+      },
+    },
+    async (query) => withFailureReport(async () => assetText(client.listAssets(query))),
+  );
+
+  server.registerTool(
+    "get_asset",
+    {
+      title: "Get an asset",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: GET_ASSET_DESCRIPTION,
+      inputSchema: { asset_id: assetId },
+    },
+    async ({ asset_id }) => withFailureReport(async () => assetText(client.getAsset(asset_id))),
+  );
+
+  server.registerTool(
+    "update_asset",
+    {
+      title: "Rename an asset",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      description: UPDATE_ASSET_DESCRIPTION,
+      inputSchema: { asset_id: assetId, name: createAssetRequest.shape.name.optional(), role: z.enum(ASSET_ROLES).optional() },
+    },
+    async ({ asset_id, ...patch }) => withFailureReport(async () => assetText(client.updateAsset(asset_id, patch))),
+  );
+
+  server.registerTool(
+    "delete_asset",
+    {
+      title: "Delete an asset",
+      annotations: { readOnlyHint: false, destructiveHint: true },
+      description: DELETE_ASSET_DESCRIPTION,
+      inputSchema: { asset_id: assetId },
+    },
+    async ({ asset_id }) => withFailureReport(async () => {
+      await client.deleteAsset(asset_id);
+      return { content: [{ type: "text", text: JSON.stringify({ deleted: asset_id }) }] };
+    }),
   );
   server.registerTool(
     "list_voices",

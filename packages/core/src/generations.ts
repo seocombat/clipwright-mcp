@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assetId } from "./assets.js";
 import { GENERATION_KINDS } from "./generations-output.js";
 import { runId } from "./runs.js";
 import { uploadId } from "./uploads.js";
@@ -161,10 +162,11 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-/** A reference: an own upload with its rights confirmed, or a prior image generation of the same account. */
+/** A reference: an own upload with its rights confirmed, a prior image generation, or an own asset (rights given at its creation). */
 export const generationReference = z.union([
   z.strictObject({ upload_id: uploadId, rights_confirmed: z.literal(true) }),
   z.strictObject({ run_id: runId }),
+  z.strictObject({ asset_id: assetId, rights_confirmed: z.literal(true).optional() }),
 ]);
 export type GenerationReference = z.infer<typeof generationReference>;
 

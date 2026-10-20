@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agentFailureReport,
+  UPLOAD_NOT_FINISHED_NEXT_ACTION,
   isRetryableFailure,
   parseApiFailure,
   parseRetryAfterSeconds,
@@ -757,9 +758,23 @@ describe("invalid_request is not a behavioral code", () => {
   });
 });
 
+/** Mutant: drop the upload branch, and the agent is told to STOP instead of finishing its upload (clipwright#758). */
+describe("upload_not_finished", () => {
+  it("409 upload_not_finished tells the agent to PUT the file and confirm it, and is not retried as it is", () => {
+    const failure = parseApiFailure({ status: 409,
+      bodyText: JSON.stringify(apiErrorBody({ code: "upload_not_finished", message: "no file yet" })), now: NOW });
+    const report = agentFailureReport(failure);
+    expect(report).toMatchObject({ status: "FAILED", code: "upload_not_finished", retryable: false,
+      next_action: UPLOAD_NOT_FINISHED_NEXT_ACTION });
+    expect(UPLOAD_NOT_FINISHED_NEXT_ACTION).toMatch(/PUT the file to the put_url .*get_upload.*repeat this call/);
+    expect(report.next_action).not.toMatch(/^STOP/);
+  });
+});
+
 /** Mutant: the branch dropped, and a closed door reads as http_503 to repeat in a few seconds. */
 describe("a closed generation door (clipwright#724)", () => {
-  it.each(["generations_disabled", "generations_marking_pending"] as const)("503 %s keeps its code and is not retried", (code) => {
+  it.each(["generations_disabled", "generations_marking_pending", "assets_disabled", "url_import_disabled"] as const)(
+    "503 %s keeps its code and is not retried", (code) => {
     const failure = parseApiFailure({ status: 503, bodyText: JSON.stringify(apiErrorBody({ code, message: "closed" })), now: NOW });
     expect(failure).toEqual({ kind: "client_error", status: 503, message: "closed", code });
     expect(isRetryableFailure(failure)).toBe(false);

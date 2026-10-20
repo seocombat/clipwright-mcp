@@ -477,8 +477,9 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
       windowSeconds: undefined,
     };
   }
-  // A closed generation door is not a server fault: its code reaches the agent, and a retry would not open it (clipwright#724).
-  if (status === 503 && (code === "generations_disabled" || code === "generations_marking_pending")) {
+  // A closed door is not a server fault: its code reaches the agent, and a retry would not open it (clipwright#724, #758).
+  if (status === 503 && (code === "generations_disabled" || code === "generations_marking_pending" || code === "assets_disabled"
+    || code === "url_import_disabled")) {
     return { kind: "client_error", ...diagnostics, status, message, code };
   }
   if (status >= 500) {
@@ -538,6 +539,10 @@ export interface AgentFailureReport {
   issues?: EditIssueRead[] | WorkflowFailure["issues"];
   warnings?: string[];
 }
+
+export const UPLOAD_NOT_FINISHED_NEXT_ACTION =
+  "Finish the upload first: PUT the file to the put_url from create_upload with the given put_headers, confirm it " +
+  "with get_upload, then repeat this call. Nothing was charged and no run was created.";
 
 export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
   const base = { message: failure.message,
@@ -723,7 +728,8 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
         status: "FAILED",
         code: failure.code ?? `http_${failure.status}`,
         retryable: false,
-        next_action:
+        // An unfinished presigned upload is fixed by the upload itself, not by changing this call (clipwright#758).
+        next_action: failure.code === "upload_not_finished" ? UPLOAD_NOT_FINISHED_NEXT_ACTION :
           "STOP. Do NOT retry: the request itself was rejected, so repeating it unchanged gives " +
           "the same answer. Read the message, fix the call, or tell the user what is wrong.",
       };

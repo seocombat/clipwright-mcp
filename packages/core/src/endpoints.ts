@@ -1,5 +1,6 @@
 /** API routes: the API contract test checks them against `app.routes`, and the quickstart */
 /** prints the "what costs money" list from here. */
+import { ASSET_BYTES_PATH, ASSET_ITEM_PATH, ASSETS_PATH } from "./assets.js";
 import { ACTOR_DEFAULTS_PATH } from "./broll-policy.js";
 import { GENERATION_MODELS_PATH } from "./generations.js";
 
@@ -56,6 +57,16 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "POST", path: "/v1/skills/create_actor/run", billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: "/v1/uploads", billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: false },
   { method: "GET", path: "/v1/uploads", billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: false },
+  { method: "POST", path: "/v1/uploads/import", billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: "/v1/uploads/intents", billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "GET", path: "/v1/uploads/:id", billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: true },
+  // Account assets (clipwright#724 F2). The bytes row stands before `:id`: `matchEndpoint` takes the first row that fits.
+  { method: "POST", path: ASSETS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: true, mcp: true },
+  { method: "POST", path: ASSET_BYTES_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: false },
+  { method: "GET", path: ASSETS_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: true },
+  { method: "GET", path: ASSET_ITEM_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: true },
+  { method: "POST", path: ASSET_ITEM_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: true, mcp: true },
+  { method: "DELETE", path: ASSET_ITEM_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: true },
   { method: "GET", path: "/internal/portfolio-metrics", billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
   { method: "GET", path: PUBLIC_WORKFLOWS_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
   { method: "GET", path: PUBLIC_WORKFLOW_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },

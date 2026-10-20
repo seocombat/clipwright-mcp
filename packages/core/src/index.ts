@@ -30,6 +30,8 @@ export * from "./api-failure.js";
 export * from "./account.js";
 // Image upload for `image`: response contract, caps, type probe.
 export * from "./uploads.js";
+// Account assets (clipwright#724 F2): kept until deleted, under a cap per account.
+export * from "./assets.js";
 export * from "./pacing.js";
 // Vendor-neutral contracts: everything vendor-specific lives in adapters, not here.
 export * from "./render-backend.js";

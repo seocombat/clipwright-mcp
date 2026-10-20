@@ -185,9 +185,10 @@ Environment variables:
 | `CLIPWRIGHT_CLIENT_ID` | YES (see section 2) | Unique identifier of this INSTALLATION. |
 
 After connecting, restart or reopen the MCP host and confirm that `tools/list`
-returns 31 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
+returns 38 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
 `list_generation_models`, `quote_image`, `generate_image`, `quote_video`, `generate_video`, `quote_ugc`, `list_actors`,
-`list_voices`, `upload_image`, `get_account`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
+`list_voices`, `upload_image`, `create_upload`, `get_upload`, `create_asset`, `list_assets`, `get_asset`, `update_asset`,
+`delete_asset`, `get_account`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
 `set_actor_defaults`, `quote_faceless`, `make_faceless`, `list_workflows`, `get_workflow`, `prepare_workflow_plan`,
 `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`.
 
@@ -230,8 +231,8 @@ Clipwright and approves the app.
 - `mcp:write` — every other tool: `make_ugc`, `make_faceless`, `revise_run`,
   `create_candidate`, `generate_image`, `generate_video`, `create_actor` and
   `run_workflow_plan` **spend credits**;
-  `upload_image`, `delete_actor`, `set_actor_defaults`, `prepare_workflow_plan`
-  and `approve_workflow_plan` change the account.
+  `upload_image`, `create_upload`, `create_asset`, `update_asset`, `delete_asset`, `delete_actor`,
+  `set_actor_defaults`, `prepare_workflow_plan` and `approve_workflow_plan` change the account.
 
 The account holder approves or declines the whole request; only an admitted
 account can approve. A connection without `mcp:write` that calls one of those
@@ -247,9 +248,10 @@ use: after that the app must sign in again. An access token lasts one hour;
 clients renew it themselves.
 
 **Files.** The hosted server cannot read files on the agent's machine, so
-`upload_image` refuses a `path` there. Pass a public https URL of the PNG or
-JPEG as `image` to `quote_ugc` and `make_ugc` instead (#709 tracks upload by
-URL).
+`upload_image` refuses a `path` there. Pass a public https URL as
+`upload_image({url})` and the server downloads it, or call `create_upload`,
+PUT the file to its `put_url` with curl and confirm with `get_upload`. Either
+way the `upload_id` works in `first_frame`, `last_frame` and `references`.
 
 **Idempotency.** Section 2 does not apply here. Each connected app (one
 grant) is its own client identity, and so is each `cw_*` key, so two
@@ -734,8 +736,9 @@ other combination is `unsupported_combination` before any charge. The quotes
 answer the credits, the width and height, and warnings; show the price first.
 
 A reference is `{ "upload_id": ..., "rights_confirmed": true }` for a picture
-from `upload_image`, or `{ "run_id": ... }` of a succeeded `generate_image` run
-of this account until its `reusable_until`. In `first_frame` mode the frame must
+from `upload_image` or `create_upload`, `{ "run_id": ... }` of a succeeded `generate_image` run
+of this account until its `reusable_until`, or `{ "asset_id": ... }` of a picture asset from
+`create_asset`, whose rights were confirmed when it was made. In `first_frame` mode the frame must
 match the requested aspect ratio within 2% (`source_aspect_mismatch`).
 
 The run tools return the run at once; poll it with `get_run`, and once it

@@ -33,9 +33,9 @@ key goes into a config file. The same repository is a Cursor plugin
 n8n's built-in MCP Client node reaches the hosted server with a key; no community
 node is needed. [`n8n/clipwright-ugc.json`](n8n/clipwright-ugc.json) is a workflow
 to import: it quotes a script, stops if the quote is above `max_credits`, starts
-the render and polls `get_run` every 15 seconds until the run ends. The quote
-and polling steps were run live in n8n 2.43.8; the render step and n8n's OAuth
-credential have not been tried with Clipwright yet. Setup:
+the render and polls `get_run` every 15 seconds until the run ends. The whole
+workflow ran on n8n Cloud on 2026-10-20 and returned the MP4; n8n's OAuth
+credential has not been tried with Clipwright yet. Setup:
 [`packages/mcp-server/README.md`](packages/mcp-server/README.md#n8n).
 
 ## MCP server in one line

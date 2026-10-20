@@ -18,6 +18,42 @@ listed under.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-20
+
+### Added
+
+- *Server-side:* `POST /v1/uploads/import` downloads a public https PNG or JPEG (up to 10 MB, 20 seconds, up to 3
+  redirects) and returns an `upload_id`; private and link-local addresses are refused, and downloads are limited to 30
+  attempts per hour per account.
+- *Server-side:* `POST /v1/uploads/intents` returns a presigned PUT url for a local PNG or JPEG; the `upload_id`
+  becomes usable once the PUT lands, and `GET /v1/uploads/{id}` confirms it. Before the PUT, generations answer
+  `upload_not_finished`.
+- MCP: `upload_image` takes `url`, and the new `create_upload` and `get_upload` tools work on the hosted server, so a
+  remote agent can pass its own picture as `first_frame` or a reference.
+- *Server-side:* account assets, switched on since 2026-10-20. `POST /v1/assets` saves a picture from an own
+  `generate_image` run, an upload, a public https url or base64, kept until the customer deletes it, and
+  `{ asset_id }` works in `references` of both generations and in `first_frame` and `last_frame` of `generate_video`. `GET /v1/assets`,
+  `GET /v1/assets/{id}`, `POST /v1/assets/{id}` and `DELETE /v1/assets/{id}` list, read, rename and delete them; an
+  account keeps up to 2000 assets and 20 GB and makes up to 100 new ones a day. Free.
+- MCP: `create_asset`, `list_assets`, `get_asset`, `update_asset` and `delete_asset`; SDK: `createAsset`,
+  `createAssetFromBytes`, `listAssets`, `getAsset`, `updateAsset` and `deleteAsset`.
+
+### Changed
+
+- MCP: on the hosted server, `upload_image` with a `path` now points to `upload_image({url})` and `create_upload`
+  instead of `quote_ugc`.
+- The n8n workflow `n8n/clipwright-ugc.json` carries sticky notes: an overview with setup and requirements, and one
+  note per step, as n8n's template gallery asks. Its whole path, render included, ran on n8n Cloud on 2026-10-20.
+
+### Fixed
+
+- SDK, CLI and MCP no longer retry `url_import_disabled` and `assets_disabled`: both mean the feature is switched off,
+  and a repeat gets the same answer.
+- `upload_not_finished` tells the agent to PUT the file to its `put_url`, confirm it with `get_upload`, and repeat
+  the call.
+- *Server-side:* a generation whose `first_frame` or `last_frame` names an unknown source fails before any vendor
+  call, at zero credits, instead of running without the frame.
+
 ## [0.32.0] - 2026-10-20
 
 ### Added

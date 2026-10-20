@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FACELESS_MIN_OUTPUT_FRAMES, facelessMaxEstimateFrames, facelessMaxOutputFrames, facelessQuote, quoteFaceless } from "./faceless-price.js";
+import { FACELESS_MIN_OUTPUT_FRAMES, FACELESS_PUBLIC_MAX_GENERATED_IMAGES, facelessMaxEstimateFrames, facelessMaxGeneratedImages,
+  facelessMaxOutputFrames, facelessQuote, quoteFaceless } from "./faceless-price.js";
 import { facelessPlannerInput } from "./faceless-public.js";
 import { run } from "./runs.js";
 
@@ -30,6 +31,17 @@ describe("faceless length ceilings", () => {
     [2250, 2250, 2250]])("a selection of %i frames delivers up to %i and admits an estimate up to %i", (selected, output, estimate) => {
     expect(facelessMaxOutputFrames(selected)).toBe(output);
     expect(facelessMaxEstimateFrames(selected)).toBe(estimate);
+  });
+});
+
+describe("facelessMaxGeneratedImages", () => {
+  it.each([[750, Infinity, 19], [1000, Infinity, 24], [1349, Infinity, 30], [1350, 31, 31], [2250, Infinity, 49], [2250, 31, 31], [750, 13, 13]])(
+    "a selection of %i frames under ceiling %s plans at most %i pictures", (selected, ceiling, pictures) => {
+      expect(facelessMaxGeneratedImages(selected, ceiling)).toBe(pictures);
+    });
+  it("defaults to no ceiling and names the public one", () => {
+    expect(facelessMaxGeneratedImages(2250)).toBe(49);
+    expect(FACELESS_PUBLIC_MAX_GENERATED_IMAGES).toBe(31);
   });
 });
 

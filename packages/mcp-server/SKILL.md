@@ -1,3 +1,17 @@
+---
+name: clipwright
+description: "Make short videos through Clipwright's MCP server: an AI actor speaking your script, or a faceless video of up to 90 seconds with narration over generated scenes. Quote first for free, then start a run and collect the MP4. Clipwright returns the file and does not publish anywhere."
+metadata:
+  openclaw:
+    emoji: "🎬"
+    os: [darwin, linux, win32]
+    requires:
+      bins: [node, npx]
+      env: [CLIPWRIGHT_API_KEY, CLIPWRIGHT_CLIENT_ID]
+author: Clipwright
+homepage: https://clipwright.io/?ref=clawhub
+---
+
 # SKILL.md — installing and operating `clipwright-mcp`
 
 A self-contained guide for an AGENT (or a human in Claude Code) that needs no

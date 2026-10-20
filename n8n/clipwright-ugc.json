@@ -1,0 +1,199 @@
+{
+  "name": "Clipwright: quote, make and collect a UGC video",
+  "nodes": [
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000001",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": {}
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000002",
+      "name": "Script",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6f1c2a10-0001-4c3e-9a01-0000000000a1",
+              "name": "script",
+              "type": "string",
+              "value": "This bottle keeps coffee hot for twelve hours. Fill it at seven, drink it hot at lunch."
+            },
+            {
+              "id": "6f1c2a10-0001-4c3e-9a01-0000000000a2",
+              "name": "max_credits",
+              "type": "number",
+              "value": 400
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000003",
+      "name": "Quote UGC",
+      "type": "@n8n/n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1.1,
+      "position": [440, 0],
+      "parameters": {
+        "serverTransport": "httpStreamable",
+        "endpointUrl": "https://mcp.clipwright.io/mcp",
+        "authentication": "bearerAuth",
+        "tool": { "__rl": true, "mode": "id", "value": "quote_ugc" },
+        "inputMode": "json",
+        "jsonInput": "={{ JSON.stringify({ script: $('Script').item.json.script }) }}",
+        "options": {}
+      },
+      "credentials": { "httpBearerAuth": { "id": "clipwright", "name": "Clipwright API key" } }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000009",
+      "name": "Within budget?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [660, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "6f1c2a10-0001-4c3e-9a01-0000000000c2",
+              "leftValue": "={{ $json.content[0].text.credits_estimate }}",
+              "rightValue": "={{ $('Script').item.json.max_credits }}",
+              "operator": { "type": "number", "operation": "lte" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000010",
+      "name": "Over budget",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [880, 160],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "6f1c2a10-0001-4c3e-9a01-0000000000e1", "name": "credits_estimate", "type": "number", "value": "={{ $json.content[0].text.credits_estimate }}" },
+            { "id": "6f1c2a10-0001-4c3e-9a01-0000000000e2", "name": "max_credits", "type": "number", "value": "={{ $('Script').item.json.max_credits }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000004",
+      "name": "Make UGC",
+      "type": "@n8n/n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1.1,
+      "position": [880, -100],
+      "parameters": {
+        "serverTransport": "httpStreamable",
+        "endpointUrl": "https://mcp.clipwright.io/mcp",
+        "authentication": "bearerAuth",
+        "tool": { "__rl": true, "mode": "id", "value": "make_ugc" },
+        "inputMode": "json",
+        "jsonInput": "={{ JSON.stringify({ script: $('Script').item.json.script }) }}",
+        "options": {}
+      },
+      "credentials": { "httpBearerAuth": { "id": "clipwright", "name": "Clipwright API key" } }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000005",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1100, -100],
+      "webhookId": "6f1c2a10-0001-4c3e-9a01-0000000000b1",
+      "parameters": { "resume": "timeInterval", "amount": 15, "unit": "seconds" }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000006",
+      "name": "Get run",
+      "type": "@n8n/n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1.1,
+      "position": [1320, -100],
+      "parameters": {
+        "serverTransport": "httpStreamable",
+        "endpointUrl": "https://mcp.clipwright.io/mcp",
+        "authentication": "bearerAuth",
+        "tool": { "__rl": true, "mode": "id", "value": "get_run" },
+        "inputMode": "json",
+        "jsonInput": "={{ JSON.stringify({ run_id: $('Make UGC').item.json.content[0].text.run_id }) }}",
+        "options": {}
+      },
+      "credentials": { "httpBearerAuth": { "id": "clipwright", "name": "Clipwright API key" } }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000007",
+      "name": "Finished?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1540, -100],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "6f1c2a10-0001-4c3e-9a01-0000000000c1",
+              "leftValue": "={{ $json.content[0].text.status }}",
+              "rightValue": "IN_PROGRESS",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6f1c2a10-0001-4c3e-9a01-000000000008",
+      "name": "Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1760, -200],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "6f1c2a10-0001-4c3e-9a01-0000000000d1", "name": "run_id", "type": "string", "value": "={{ $json.content[0].text.run_id }}" },
+            { "id": "6f1c2a10-0001-4c3e-9a01-0000000000d2", "name": "state", "type": "string", "value": "={{ $json.content[0].text.state }}" },
+            { "id": "6f1c2a10-0001-4c3e-9a01-0000000000d3", "name": "video_url", "type": "string", "value": "={{ $json.content[0].text.video_url ?? '' }}" },
+            { "id": "6f1c2a10-0001-4c3e-9a01-0000000000d4", "name": "error", "type": "string", "value": "={{ $json.content[0].text.error ?? '' }}" }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Start": { "main": [[{ "node": "Script", "type": "main", "index": 0 }]] },
+    "Script": { "main": [[{ "node": "Quote UGC", "type": "main", "index": 0 }]] },
+    "Quote UGC": { "main": [[{ "node": "Within budget?", "type": "main", "index": 0 }]] },
+    "Within budget?": {
+      "main": [
+        [{ "node": "Make UGC", "type": "main", "index": 0 }],
+        [{ "node": "Over budget", "type": "main", "index": 0 }]
+      ]
+    },
+    "Make UGC": { "main": [[{ "node": "Wait", "type": "main", "index": 0 }]] },
+    "Wait": { "main": [[{ "node": "Get run", "type": "main", "index": 0 }]] },
+    "Get run": { "main": [[{ "node": "Finished?", "type": "main", "index": 0 }]] },
+    "Finished?": {
+      "main": [
+        [{ "node": "Result", "type": "main", "index": 0 }],
+        [{ "node": "Wait", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

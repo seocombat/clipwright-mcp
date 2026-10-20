@@ -9,6 +9,11 @@ export const FACELESS_MIN_ESTIMATE_SEC = 21;
 export const facelessMaxEstimateFrames = (selectedFrames: number) => Math.min(selectedFrames + 125, 2250);
 /** A video may run a quarter past its selection, never past 90 s; the charge stays within the selection's quote (owner, 2026-10-07, #529). */
 export const facelessMaxOutputFrames = (selectedFrames: number) => Math.min(Math.floor(selectedFrames * 1.25), 2250);
+/** Pictures a public run may generate, the opener's first frame included (docs/70, clipwright#519). */
+export const FACELESS_PUBLIC_MAX_GENERATED_IMAGES = 31;
+/** One picture per two selected seconds plus four, never past the runtime's ceiling: the worker's beat limit and the admission cap read it. */
+export const facelessMaxGeneratedImages = (selectedFrames: number, imageCeiling = Infinity) =>
+  Math.min(imageCeiling, Math.floor(selectedFrames / 50) + 4);
 
 export const facelessQuote = z.object({
   outputFrames: z.number().int().min(FACELESS_MIN_OUTPUT_FRAMES).max(2250),

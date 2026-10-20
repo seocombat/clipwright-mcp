@@ -87,6 +87,21 @@ permissions.
 claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp --header "Authorization: Bearer cw_..."
 ```
 
+### n8n
+
+n8n's built-in **MCP Client** node calls one tool per node:
+
+- **Server Transport:** HTTP Streamable; **MCP Endpoint URL:** `https://mcp.clipwright.io/mcp`.
+- **Authentication:** Bearer Auth, with a credential whose token is your `cw_...` key.
+- **Tool:** pick from the list, for example `quote_ugc`; **Input Mode:** JSON.
+
+Verified live on 2026-10-20 with self-hosted n8n 2.43.8: `get_account`,
+`quote_ugc` and `get_run` returned through the node. A workflow to import,
+`n8n/clipwright-ugc.json` in [seocombat/clipwright-mcp](https://github.com/seocombat/clipwright-mcp),
+quotes a script, stops when the quote is above `max_credits`, starts `make_ugc`
+and polls `get_run` every 15 seconds. Its `make_ugc` step and n8n's OAuth
+credential have not been run against Clipwright yet.
+
 ### Local server over stdio
 
 ```bash

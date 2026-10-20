@@ -18,6 +18,29 @@ listed under.
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-20
+
+### Added
+
+- The public repository ships an n8n workflow, `n8n/clipwright-ugc.json`, built on n8n's own MCP Client node with
+  an API key; no community node is needed. It quotes a script, stops when the quote is above `max_credits`, starts the
+  render and polls `get_run` every 15 seconds until the run ends. The quote and polling steps ran in n8n 2.43.8; the
+  render step and n8n's OAuth credential have not been tried. Setup is in the `@clipwright/mcp-server` README.
+- The public repository is a Claude Code and Cursor plugin marketplace: `claude plugin marketplace add
+  seocombat/clipwright-mcp`, then `claude plugin install clipwright@clipwright`. The plugin connects the hosted server
+  at `https://mcp.clipwright.io/mcp`, which signs in with OAuth, and adds a skill that quotes before it spends credits.
+- `SKILL.md` in `@clipwright/mcp-server` carries OpenClaw frontmatter: it needs `node` and `npx` and reads
+  `CLIPWRIGHT_API_KEY`. The skill is on ClawHub as `seocombat/clipwright`.
+- The four packages name their source repository, `seocombat/clipwright-mcp`, in `package.json`.
+- `@clipwright/core` exports `facelessMaxGeneratedImages` and `FACELESS_PUBLIC_MAX_GENERATED_IMAGES` (31): how many
+  pictures a faceless video may generate, one per two selected seconds plus four.
+- *Server-side:* single generations are on since 2026-10-19: `quote_image`, `generate_image`, `quote_video` and
+  `generate_video` no longer answer `generations_disabled`. The 0.31.0 entry announced them as pending.
+- *Dashboard:* credits come in three one-time packs: 1,000 for $10, 2,750 for $25 and 6,000 for $50. The dashboard
+  has one buy button per pack, and a payment buys one pack.
+- *Dashboard:* the landing page is rebuilt. It starts with installing Clipwright in your agent, then shows the kinds
+  of video an agent can make with their prices, a quickstart, a real run, actors and voices, and the three packs.
+
 ## [0.31.0] - 2026-10-19
 
 ### Added

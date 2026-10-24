@@ -16,6 +16,9 @@ under the short name, so installing both in one project leaves only one of them 
 `node_modules/.bin` — silently. Use `clipwright-cli` where that matters. The commands
 above name the package with `-p`, so they resolve here either way.
 
+Recipes, each a prompt an agent turned into a video with the call it sent and
+the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/package/@clipwright/mcp-server).
+
 | Command | What it does |
 | --- | --- |
 | `quote --script <text>` | Estimates the credit cost. Spends nothing. |

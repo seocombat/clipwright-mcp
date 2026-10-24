@@ -31,6 +31,9 @@ import {
   type GenerationModels,
   generationQuote,
   type GenerationQuote,
+  TEMPLATE_SOUNDS_PATH,
+  templateSoundsList,
+  type TemplateSoundsList,
   makeFacelessInput,
   type MakeFacelessInputArgs,
   agentFailureReport,
@@ -90,9 +93,12 @@ import {
   ASSET_BYTES_PATH,
   ASSET_ITEM_PATH,
   ASSETS_PATH,
+  assetItemRead,
+  type AssetItemRead,
   assetListRead,
   type AssetListQuery,
   type AssetListRead,
+  type AssetPutMediaType,
   assetRead,
   type AssetRead,
   type AssetRole,
@@ -521,27 +527,29 @@ export class ClipwrightClient {
     return parseResponse(uploadItemRead, await this.#request(path, false), path, false);
   }
 
-  /** Saves an asset of the account from a generation, an upload, a url or base64. Free; a repeat within a day answers the same asset. */
-  async createAsset(input: CreateAssetRequest): Promise<AssetRead> {
+  /** Saves an asset of the account from a generation, an upload, a url, base64 or a PUT. Free; a repeat within a day answers the */
+  /** same asset. A clip by url and a PUT answer a pending asset: read it with `getAsset` until its state is ready or failed. */
+  async createAsset(input: CreateAssetRequest): Promise<AssetItemRead> {
     const body = await this.#request(ASSETS_PATH, true, {
       method: "POST",
       body: JSON.stringify(input),
       headers: { "Idempotency-Key": assetRequestIdempotencyKeyFor(input, this.#getClientId()) },
     });
-    return parseResponse(assetRead, body, ASSETS_PATH, true);
+    return parseResponse(assetItemRead, body, ASSETS_PATH, true);
   }
 
-  /** Saves a local PNG or JPEG as an asset; `rights_confirmed` states you may use the people and works in it. Free. */
+  /** Saves a local PNG or JPEG (10 MB) or MP4 (32 MB) as an asset; `rights_confirmed` states you may use the people and works in it. */
+  /** A clip answers a pending asset that the worker checks. Free. */
   async createAssetFromBytes(
     bytes: Uint8Array<ArrayBuffer>,
-    mediaType: UploadMediaType,
+    mediaType: AssetPutMediaType,
     meta: { role: AssetRole; name: string; rights_confirmed: true },
-  ): Promise<AssetRead> {
+  ): Promise<AssetItemRead> {
     const query = new URLSearchParams({ role: meta.role, name: meta.name, rights_confirmed: "true" }).toString();
     const key = assetBytesIdempotencyKeyFor({ role: meta.role, name: meta.name, bytes }, this.#getClientId());
     const path = `${ASSET_BYTES_PATH}?${query}`;
     const body = await this.#request(path, true, { method: "POST", body: bytes, headers: { "Content-Type": mediaType, "Idempotency-Key": key } });
-    return parseResponse(assetRead, body, ASSET_BYTES_PATH, true);
+    return parseResponse(assetItemRead, body, ASSET_BYTES_PATH, true);
   }
 
   /** The account's live assets, newest first, with its usage of the caps. Free. */
@@ -553,10 +561,10 @@ export class ClipwrightClient {
     return parseResponse(assetListRead, await this.#request(path, false), ASSETS_PATH, false);
   }
 
-  /** One asset with a link signed now. Free. */
-  async getAsset(assetIdValue: string): Promise<AssetRead> {
+  /** One asset with a link signed now, or its pending state; after a PUT this read hands the file to processing. Free. */
+  async getAsset(assetIdValue: string): Promise<AssetItemRead> {
     const path = ASSET_ITEM_PATH.replace(":id", encodeURIComponent(assetIdValue));
-    return parseResponse(assetRead, await this.#request(path, false), path, false);
+    return parseResponse(assetItemRead, await this.#request(path, false), path, false);
   }
 
   /** A new name or role for an asset. Free. */
@@ -709,6 +717,11 @@ export class ClipwrightClient {
   /** The generation models with their measured shapes and prices. Free. */
   async listGenerationModels(): Promise<GenerationModels> {
     return parseResponse(generationModels, await this.#request(GENERATION_MODELS_PATH, false), GENERATION_MODELS_PATH, false);
+  }
+
+  /** The template sounds a make_ugc run may name per beat, with each beat's default. Free. */
+  async listTemplateSounds(): Promise<TemplateSoundsList> {
+    return parseResponse(templateSoundsList, await this.#request(TEMPLATE_SOUNDS_PATH, false), TEMPLATE_SOUNDS_PATH, false);
   }
 
   /** What one image would cost and its size; spends no credits. */
@@ -907,6 +920,7 @@ export type { RunEditRead, RunShotsRead, SaveRunEditArgs };
 export type { RevisionQuoteRead, RevisionRequest };
 export type { CandidateQuoteRead, CandidateRequest, RunCandidatesRead };
 export type { GenerateImageRequest, GenerateVideoRequest, GenerationModels, GenerationQuote };
+export type { TemplateSoundsList };
 export type { UploadListRead };
 export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs,
   WorkflowCatalogRead, WorkflowMethodRead, WorkflowPlanRead, WorkflowQuoteRead, WorkflowLaunchRead, WorkflowRunRead };

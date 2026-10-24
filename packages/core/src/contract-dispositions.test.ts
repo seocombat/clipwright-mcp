@@ -18,6 +18,7 @@ import {
   FIELD_DISPOSITIONS,
   FINALIZATION_PROVEN_FIELDS,
   IMPLEMENTED_FIELDS,
+  legacyCaptionWarnings,
   makeUgcInput,
   makeUgcInputShape,
   offeredUgcInputShape,
@@ -59,9 +60,10 @@ describe("FIELD_DISPOSITIONS — completeness guard", () => {
     expect(Object.keys(FIELD_DISPOSITIONS).sort()).toEqual([...FIELDS].sort());
   });
 
-  it("the table matches today's contract (23 fields)", () => {
-    // Pinned: growing the shape is a deliberate contract change, not a side effect.
-    expect(FIELDS).toHaveLength(23);
+  it("the table matches today's contract (30 fields)", () => {
+    // Pinned: growing the shape is a deliberate contract change, not a side effect (caption_emphasis, caption_mode, overlays, layout_windows, templates,
+    // template_theme, template_sounds, #778).
+    expect(FIELDS).toHaveLength(30);
   });
 
   it("an incomplete registry does not compile", () => {
@@ -154,9 +156,20 @@ describe("dispositionWarnings — negative tests of the predicate", () => {
     expect(warnings[0]).toContain("look");
   });
 
-  it("captions=true warns, captions=false does not", () => {
-    expect(dispositionWarnings(parse({ captions: true }))).toHaveLength(1);
+  it("captions render now (#778): captions, a style and emphasis give no disposition warning", () => {
+    expect(dispositionWarnings(parse({ captions: true, caption_style: "headline", caption_emphasis: ["hello"] }))).toEqual([]);
     expect(dispositionWarnings(parse({ captions: false }))).toEqual([]);
+    expect(dispositionNote("captions")).toBeNull();
+    expect(dispositionNote("caption_style")).toBeNull();
+    expect(COMPOSITION_PROVEN_FIELDS).toEqual(expect.arrayContaining(["captions", "caption_style", "caption_emphasis", "caption_mode"]));
+  });
+
+  it("a run stored before captions rendered keeps the lines it was admitted with", () => {
+    expect(legacyCaptionWarnings({ captions: true, caption_style: "tiktok" })).toEqual([
+      "captions requested but not rendered in this prototype (stage-B)",
+      "caption_style is not honored: captions are not rendered in this prototype (stage-B)",
+    ]);
+    expect(legacyCaptionWarnings({ captions: false, caption_style: "hormozi" })).toEqual([]);
   });
 
   it("a purely optional field (person) warns on presence", () => {
@@ -177,7 +190,8 @@ describe("dispositionWarnings — negative tests of the predicate", () => {
     const warned = (Object.keys(FIELD_DISPOSITIONS) as ContractField[]).filter(
       (field) => FIELD_DISPOSITIONS[field].kind === "warned",
     );
-    expect(warned.length).toBeGreaterThan(3);
+    // person, name, look: captions and caption_style left this list when they began to render (#778).
+    expect(warned.length).toBeGreaterThanOrEqual(3);
 
     for (const field of warned) {
       const disposition = FIELD_DISPOSITIONS[field];

@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { buildFacelessVoiceWarnings } from "./faceless-voices.js";
-import { parseSkill, resolvedScript, storedUgcInput, type MakeUgcInput } from "./skills.js";
+import { compositionVersionOf, parseSkill, resolvedScript, storedUgcInput, type MakeUgcInput } from "./skills.js";
 import { storedCreateActorInput } from "./account-actors.js";
-import { dispositionWarnings } from "./contract-dispositions.js";
+import { dispositionWarnings, legacyCaptionWarnings } from "./contract-dispositions.js";
 import { buildSpeechModelWarnings, buildVoiceWarnings, TTS_MODELS } from "./voices.js";
 import { buildActorGenderWarnings, buildVoiceActorMatchWarnings, type Gender } from "./actors.js";
 import { resolveAspectRatio, upscaleWarning } from "./aspect.js";
+import { videoHoldWarnings } from "./ugc-video-media.js";
 import { DEFAULT_RESOLUTION } from "./skills.js";
 import {
   parseRunPreflight,
@@ -135,6 +136,8 @@ function ugcRunWarnings(
   // equal, not merely the same set.
   return [
     ...dispositionWarnings(input),
+    ...videoHoldWarnings(input, parsed.data.insert_assets),
+    ...(compositionVersionOf(parsed.data) === 1 ? legacyCaptionWarnings(input) : []),
     ...aspectFactWarnings(preflight.aspect, input),
     ...buildVoiceWarnings({ voice: input.voice, script: resolvedScript(input) }),
     ...buildActorGenderWarnings(input),

@@ -43,6 +43,7 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   quote_ugc: { readOnlyHint: true, destructiveHint: false },
   quote_actor: { readOnlyHint: true, destructiveHint: false },
   list_voices: { readOnlyHint: true, destructiveHint: false },
+  list_template_sounds: { readOnlyHint: true, destructiveHint: false },
   list_actors: { readOnlyHint: true, destructiveHint: false },
   get_actor_defaults: { readOnlyHint: true, destructiveHint: false },
   get_account: { readOnlyHint: true, destructiveHint: false },

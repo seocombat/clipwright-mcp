@@ -4,6 +4,8 @@ import { RESOLVED_TIMELINE_MAX_SLOTS } from "./long-form-profile.js";
 import { CANVAS_FPS, completeFrames, secondsToFrames } from "./media-timebase.js";
 import { coverWordOf } from "./semantic-inserts.js";
 import { MAX_INSERTS } from "./skills.js";
+import { LAYER_ENTERS, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS } from "./ugc-layers.js";
+import { MAX_TEMPLATES, TEMPLATE_PLACEMENTS, TEMPLATE_SOUND_BEATS } from "./templates/index.js";
 
 // The long-form timeline a render freezes into `runs/<id>/resolved-timeline.v1.json`: the worker writes it, the editor reads it.
 
@@ -21,13 +23,57 @@ const mediaSlot = z.object({ ...interval, kind: z.literal("media"), key: z.strin
   bytes: positive, width: positive, height: positive, durationSec: z.number().positive().finite(),
   mediaType: z.enum(["image", "video"]), contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]),
   insertId: z.string().min(1).optional() }).strict();
+const layerMedia = { id: z.string().min(1).max(64), startFrame: frame, endFrame: positive, enter: z.enum(LAYER_ENTERS),
+  key: z.string().min(1), sha256: digest, bytes: positive, width: positive, height: positive,
+  mediaType: z.enum(["image", "video"]), contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]) };
+/** An overlay or layout window drawn over the slots (#778 S2b); optional, so a timeline frozen without it keeps its hash. */
+const layerSlot = z.discriminatedUnion("kind", [
+  z.object({ ...layerMedia, kind: z.literal("overlay"), position: z.enum(OVERLAY_POSITIONS) }).strict(),
+  z.object({ ...layerMedia, kind: z.literal("window"), layout: z.enum(LAYOUT_WINDOW_KINDS), blurPresenter: z.boolean() }).strict(),
+]);
+/** A frozen template, in a long-form timeline or in a single take's `templates.json` (#840). */
+export const resolvedTimelineTemplate = z.object({ id: z.string().min(1).max(64), kind: z.string().min(1).max(64), kindVersion: positive,
+  placement: z.enum(TEMPLATE_PLACEMENTS), preset: z.string().min(1).max(64), startFrame: frame, endFrame: positive,
+  /** The run's accent as admitted (#778 S3a(iii)); absent draws the preset's own. */
+  accent: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  data: z.record(z.string(), z.unknown()),
+  /** A full frame's wipe, flash or zoom; absent is a cut. */
+  transition: z.enum(["wipe", "flash", "zoom"]).optional(),
+  /** Each beat's frame from its start, resolved from the words (#778 S3b(i)); absent when the kind has none. */
+  moments: z.array(frame).min(1).max(6).optional(),
+  /** The sound of each beat it plays, frozen at admission (#778 S3c); absent plays none, as every run before S3c. */
+  sounds: z.partialRecord(z.enum(TEMPLATE_SOUND_BEATS), z.string().regex(/^[a-z][a-z0-9_]{0,31}$/)).optional(),
+  /** The pinned bytes of each media slot (#778 S3a(ii)); absent when the template has none. */
+  media: z.array(z.object({ slot: z.string().min(1).max(32), key: z.string().min(1), sha256: digest, bytes: positive, width: positive, height: positive,
+    contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]) }).strict()).min(1).max(4).optional() }).strict();
 const contentSchema = z.object({ version: z.literal(1), mode: z.enum(["segments", "script_inserts"]),
   runId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/), accountId: z.string().min(1).max(200), inputHash: digest,
   fps: z.literal(CANVAS_FPS), outputFrames: positive, fullSpeechDurationSec: z.number().positive().finite(),
   slots: z.array(z.discriminatedUnion("kind", [actorSlot, mediaSlot])).min(1).max(RESOLVED_TIMELINE_MAX_SLOTS),
   warnings: z.array(z.string().max(2000)).max(100),
   narration: audioArtifact.extend({ alignmentHash: digest, semanticPlan: semanticPlanSchema }).strict().optional(),
+  layers: z.array(layerSlot).min(1).max(MAX_OVERLAYS + MAX_LAYOUT_WINDOWS).optional(),
+  /** Templates with the data as admitted and the kind version they were admitted at (#778 S3, D11); absent keeps the hash. */
+  templates: z.array(resolvedTimelineTemplate).min(1).max(MAX_TEMPLATES).optional(),
 }).strict().superRefine((value, context) => {
+  const ids = new Set<string>();
+  for (const [index, template] of (value.templates ?? []).entries()) {
+    if (value.mode !== "script_inserts" || template.endFrame <= template.startFrame || template.endFrame > value.outputFrames || ids.has(template.id) ||
+        template.moments?.some(moment => moment >= template.endFrame - template.startFrame) ||
+        value.layers?.some(layer => layer.id === template.id) || template.media?.some(media => !media.key.startsWith(`runs/${value.runId}/`))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["templates", index], message: "invalid template interval or identity" });
+    }
+    ids.add(template.id);
+  }
+  ids.clear();
+  for (const [index, layer] of (value.layers ?? []).entries()) {
+    if (value.mode !== "script_inserts" || layer.endFrame <= layer.startFrame || layer.endFrame > value.outputFrames || ids.has(layer.id) ||
+        !layer.key.startsWith(`runs/${value.runId}/`) || (layer.kind === "window" && layer.blurPresenter && layer.layout !== "card") ||
+        (layer.mediaType === "video") !== (layer.contentType === "video/mp4")) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["layers", index], message: "invalid layer interval, identity or artifact" });
+    }
+    ids.add(layer.id);
+  }
   let cursor = 0; let speech = 0; let actors = 0;
   const hashes = new Set<string>();
   for (const [index, slot] of value.slots.entries()) {
@@ -75,6 +121,8 @@ const contentSchema = z.object({ version: z.literal(1), mode: z.enum(["segments"
 
 export type ResolvedTimelineContent = z.infer<typeof contentSchema>;
 export type ResolvedTimeline = ResolvedTimelineContent & { hash: string };
+export type ResolvedTimelineLayer = NonNullable<ResolvedTimelineContent["layers"]>[number];
+export type ResolvedTimelineTemplate = NonNullable<ResolvedTimelineContent["templates"]>[number];
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;

@@ -19,11 +19,9 @@ const nativeFieldRequested = (input: Readonly<Record<string, unknown>>, field: s
     if (field === 'captions') return input[field] === true;
     if (input[field] === undefined) return false;
     if (skill === 'make_ugc' && field in FIELD_DISPOSITIONS) {
-        const key = field as keyof typeof FIELD_DISPOSITIONS, disposition = FIELD_DISPOSITIONS[key];
-        if (disposition.kind === 'warned' && disposition.triggersWhen === 'differs-from-default') {
-            const standard = makeUgcInputShape[key].safeParse(undefined);
-            return !standard.success || input[field] !== standard.data;
-        }
+        // A field left at its schema default requests nothing, whatever its disposition (caption_style became implemented, #778).
+        const standard = makeUgcInputShape[field as keyof typeof FIELD_DISPOSITIONS].safeParse(undefined);
+        if (standard.success && standard.data !== undefined) return input[field] !== standard.data;
     }
     return true;
 };
@@ -33,7 +31,10 @@ function nativeTransportPaths(native: WorkflowNativeInput): string[] {
     if (native.skill === 'make_ugc') {
         for (const field of ['image', 'broll_url'] as const) if (native.input[field] !== undefined) paths.push(field);
         for (const [index, segment] of (native.input.segments ?? []).entries()) if (segment.media_url !== undefined) paths.push(`segments.${index}.media_url`);
-        for (const [index] of (native.input.inserts ?? []).entries()) paths.push(`inserts.${index}.media_url`);
+        for (const [index, insert] of (native.input.inserts ?? []).entries()) if (insert.media_url !== undefined) paths.push(`inserts.${index}.media_url`);
+        for (const field of ['overlays', 'layout_windows'] as const) {
+            for (const [index, layer] of (native.input[field] ?? []).entries()) if (layer.media_url !== undefined) paths.push(`${field}.${index}.media_url`);
+        }
     } else {
         for (const field of ['style_reference', 'character_reference'] as const) if (native.input[field] !== undefined) paths.push(field);
         for (const [index] of (native.input.scene_images ?? []).entries()) paths.push(`scene_images.${index}.image_url`);
@@ -89,9 +90,9 @@ export function checkWorkflowBrief(methodId: string, input: unknown, capabilitie
             for (const path of nativeTransportPaths(brief.native)) add('unbound_native_source', `brief.native.input.${path}`, 'Use stable asset bindings; native transport URLs are resolved only by launch preflight.');
             if (brief.native.skill === 'make_ugc') {
                 const settings = brief.native.input;
-                if ((settings.inserts !== undefined || settings.segments !== undefined) &&
+                if ((settings.inserts !== undefined || settings.segments !== undefined || settings.overlays !== undefined || settings.layout_windows !== undefined) &&
                     (!executor?.features.includes('long_form') || ['warned', 'rejected', 'stored'].includes(executor.field_dispositions.long_form ?? ''))) {
-                    add('missing_capability', 'brief.native.input', 'Segments and inserts require native long-form qualification on this deployment.');
+                    add('missing_capability', 'brief.native.input', 'Segments, inserts, overlays and layout windows require native long-form qualification on this deployment.');
                 }
                 if (!executor?.formats.some(actual => actual.aspect_ratio === format.aspect_ratio && actual.resolution === format.resolution)) {
                     add('unsupported_format', 'brief.native.input', 'Native output settings are not qualified on this deployment.');

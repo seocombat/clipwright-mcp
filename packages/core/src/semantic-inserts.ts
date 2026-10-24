@@ -51,6 +51,22 @@ function tokenize(text: string): string[] {
   return normalized.match(/[\p{L}\p{N}][\p{L}\p{N}\p{M}]*(?:['-][\p{L}\p{N}][\p{L}\p{N}\p{M}]*|[.,](?<=\p{N}[.,])\p{N}+)*/gu) ?? [];
 }
 
+/** The words of `text` as quotes and anchors count them. */
+export function lexicalTokens(text: string): string[] {
+  return tokenize(text);
+}
+
+/** Every word range of `tokens` that `quote` matches, as an insert quote is matched. */
+export function quoteOccurrences(tokens: readonly string[], quote: string): Array<{ startWord: number; endWord: number }> {
+  const quoteTokens = tokenize(quote);
+  if (quoteTokens.length === 0) return [];
+  const matches: Array<{ startWord: number; endWord: number }> = [];
+  for (let i = 0; i <= tokens.length - quoteTokens.length; i++) {
+    if (quoteTokens.every((token, offset) => token === tokens[i + offset])) matches.push({ startWord: i, endWord: i + quoteTokens.length });
+  }
+  return matches;
+}
+
 function orderedAnchors(plan: SemanticInsertPlan): SemanticInsertAnchor[] {
   if (plan.sourceTokens.length === 0 || plan.sourceTokens.some(token =>
     typeof token !== "string" || tokenize(token).length !== 1 || tokenize(token)[0] !== token)) {
@@ -88,19 +104,14 @@ export function planSemanticInserts(script: string, instructions: readonly Seman
   }
   const sourceTokens = tokenize(script);
   function quoteRange(anchor: { quote: string; occurrence?: number }) {
-    const quoteTokens = tokenize(anchor.quote);
-    if (quoteTokens.length === 0) throw new Error("Semantic insert quote is empty");
-    const matches: number[] = [];
-    for (let i = 0; i <= sourceTokens.length - quoteTokens.length; i++) {
-      if (quoteTokens.every((token, offset) => token === sourceTokens[i + offset])) matches.push(i);
-    }
+    if (tokenize(anchor.quote).length === 0) throw new Error("Semantic insert quote is empty");
+    const matches = quoteOccurrences(sourceTokens, anchor.quote);
     if (anchor.occurrence === undefined && matches.length > 1) throw new Error("Semantic insert quote is ambiguous");
     const occurrence = anchor.occurrence ?? 0;
     if (!Number.isSafeInteger(occurrence) || occurrence < 0 || occurrence >= matches.length) {
       throw new Error("Semantic insert quote occurrence does not match source text");
     }
-    const startWord = matches[occurrence]!;
-    return { startWord, endWord: startWord + quoteTokens.length };
+    return matches[occurrence]!;
   }
   const inserts = instructions.map(({ insertId, mediaId, anchor, coverWords }): SemanticInsertAnchor => {
     const range = "startWord" in anchor

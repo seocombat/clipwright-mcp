@@ -433,7 +433,7 @@ describe("warnings from the preflight fact", () => {
   it("the order matches quote: dispositions, format, voice", () => {
     // `person` excludes `image`, and no format derives without a source, so another
     // registry disposition is used.
-    const input = withImage({ captions: true });
+    const input = withImage({ look: "commercial" });
     const warnings = composeRunWarnings([], input, {
       aspect: { kind: "failed", error_class: "timeout" },
       voice: { kind: "catalog_incomplete" },
@@ -449,6 +449,17 @@ describe("warnings from the preflight fact", () => {
 });
 
 // Run derivation ignores the pinned gender; correct while both genders' default voices share a model.
+describe("captions by composition version (#778)", () => {
+  const legacy = "captions requested but not rendered in this prototype (stage-B)";
+  it("a run stored before version 2 keeps the line it was admitted with", () => {
+    expect(derivedRunWarnings(stored({ captions: true }), NO_FACTS, "make_ugc")).toContain(legacy);
+  });
+  it("a version-2 run draws its captions and derives no captions line", () => {
+    const warnings = derivedRunWarnings({ ...stored({ captions: true, caption_style: "headline" }), composition_version: 2 }, NO_FACTS, "make_ugc");
+    expect(warnings.filter(line => line.includes("caption"))).toEqual([]);
+  });
+});
+
 describe("the speech-model warning does not depend on actor gender", () => {
   it.each(["привет", "hello world", "прИвет"])("script %s: female and male give the same", (script) => {
     expect(buildSpeechModelWarnings({ script }, "female")).toEqual(buildSpeechModelWarnings({ script }, "male"));

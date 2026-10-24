@@ -18,6 +18,150 @@ listed under.
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-24
+
+### Added
+
+- `@clipwright/core` exports `PUBLIC_MCP_URL`, the hosted MCP server address `https://mcp.clipwright.io/mcp`.
+- *Dashboard:* a public `/mcp` page answers "Yes, Clipwright has an MCP server": the hosted address with the
+  `claude mcp add` command (sign in, no key), the local package with a key, and the tool list. `llms.txt` names the
+  hosted MCP address, the `/mcp` page and the CLI. The home page and `/pricing` carry schema.org data with the price
+  of the cheapest credit pack, and the sitemap dates the comparison pages by the day their facts were checked.
+
+- *Server-side:* video assets. An MP4 in h264 or hevc up to 120 seconds and 100 MB comes from an own `generate_video`
+  run, a public url (`{ url, kind: "video" }`), a presigned PUT (`{ put: { media_type, bytes, sha256 } }`, also for
+  pictures) or `POST /v1/assets/bytes` up to 32 MB. A url or a PUT answers `202` with `state: "processing"` or
+  `"awaiting_upload"`; the worker task `ingest-asset-media` measures frames, fps, codec and `pix_fmt` from the bytes
+  and publishes the asset, and `GET /v1/assets/{id}` says `ready` or `failed` with the reason. Clips are kept for
+  assembly and are no generation reference.
+- MCP: `create_asset` takes `put` and a url clip; on stdio a local MP4 `path` is uploaded through a PUT.
+- `generate_video` and `quote_video` take an optional `camera`: `static`, `push_in`, `pull_back` or `pan`. It
+  becomes the first line of the prompt the model gets and does not change the price.
+- `GET /v1/generations/models` lists `duration_values` for a model that takes only some lengths inside its
+  `duration_s` range; the schema and the quote refuse the others. The resolution `360p` is part of the contract.
+- New clip models: `kling-3.0` at 720p in 9:16 and 16:9, 3 to 15 seconds, and `gemini-omni-flash-1.1` at 720p in both
+  formats and 360p 16:9, for 4, 6, 8 or 10 seconds. `seedance-2.5` adds 480p 9:16 and 720p 16:9.
+- *Server-side:* a clip refused for a real face in its input picture, or turned away as rate-limited before it was
+  accepted, is made by a second provider at the same quote where that row was measured there. A clip is always
+  delivered without an audio track.
+- *Dashboard:* the Assets page. It lists the account's pictures and clips in a grid of small, medium or large tiles,
+  with filters by role and kind, a name search and the usage of the 2,000 assets and 20 GB. A selected asset opens on
+  the right: rename it, change its role, copy its `asset_id`, open the file or delete it. Pictures up to 10 MB and MP4
+  clips up to 32 MB upload from the page; a clip shows as processing until it is checked.
+- *Server-side:* each asset gets a preview of at most 512 pixels on the long side, made by the worker after the asset
+  is saved and caught up hourly. The Assets page shows the preview, never the original, in its grid. The API does not
+  return the preview yet.
+- *Server-side:* more clip formats. `seedance-2.0` adds 480p in 9:16 and 16:9 at 18 credits a second and 720p 16:9;
+  `seedance-2.0-fast` adds 480p in both formats and 720p 16:9; `seedance-2.0-mini` and `seedance-2.5` add 480p 16:9.
+  The 480p clip of `seedance-2.0`, `-mini` and `-fast` is 496×864 or 864×496, and `warnings[]` says so.
+- A `make_ugc` image insert can name `asset_id` instead of `media_url`, exactly one of the two. The quote and the run
+  accept only a ready PNG or JPEG asset of the same account, with a `media_type` that matches it. A foreign, deleted
+  or unfinished asset answers `400 reference_not_usable` before any credits are reserved. The worker reads the
+  file admission recorded and checks its sha256, so a later delete does not change a started run.
+- `get_run` in the MCP server returns `created_actor` on a succeeded `create_actor` run, so an agent sees the
+  `actor_id` to pass to `make_ugc`.
+- `make_ugc` takes `overlays`: pictures anchored to words like inserts, drawn over the presenter in a corner or as a
+  band across the top or bottom, entering with `cut`, `fade`, `slide` or `tilt_in`. At most two show at once, and two
+  on screen together need positions that share no corner. Captions move to the middle or the bottom of the frame when
+  an overlay meets them, never up over the face, and hide when neither place is free. An overlay steps aside while a full-frame insert is on screen, and one wholly under inserts is refused.
+- `make_ugc` takes `layout_windows`: `split` puts the presenter in the top half and the picture in the bottom half with
+  captions on the seam (9:16 only); `card` shows the picture in a centred card, and `blur_presenter` blurs the
+  presenter behind it. Windows may not overlap one another or an insert.
+- Inserts take `transition`: `cut`, `wipe`, `flash` or `zoom`. It plays inside the insert's own frames and never moves
+  its start or end. A `caption_emphasis` item takes `punch_in: true` to zoom into the presenter while the quote is
+  spoken.
+- *Server-side:* overlays and layout windows follow the insert rules: `script`, long-form qualification, 1080p and
+  `broll_policy=anyone`, exactly one of `media_url` and `asset_id`, and ids unique across inserts, overlays and
+  windows. A script with overlays or windows alone runs as long form. They change
+  neither the presenter's slots nor the price: a blurred or covered presenter is billed face time. A run whose
+  composition is off, skipped or failed names undrawn overlays, windows, transitions and punch-in in `warnings[]`.
+- `make_ugc` inserts, overlays and layout windows take `media_type: "video"`, by `media_url` or by the `asset_id` of an
+  MP4 asset. The clip plays muted from its first frame and is cut by time where its words end, so a variable frame
+  rate does not shift it. A clip shorter than its words holds its last frame, and `warnings[]` names the insert or
+  layer: in the quote for an `asset_id` the slow speech edge may outlast, otherwise on the run. H.264 and HEVC in 8 bits
+  without HDR are accepted.
+- *Server-side:* a 10-bit video asset answers `400 reference_not_usable` before any credits are reserved. A
+  `media_url` clip, and the colour transfer of an asset clip, are measured by the worker before the first paid call:
+  another codec, 10 bits or more, or a PQ or HLG transfer fails the run uncharged with `media_source_rejected` naming
+  the insert or layer. A video `segments` item is still refused. Customer video costs nothing: the same script with a
+  picture or a clip quotes and bills the same face seconds.
+- *Server-side:* graphic templates on `make_ugc`. `templates[]` takes up to 12 items
+  `{ id, kind, anchor, cover_words?, placement?, transition?, data }` of three kinds: `tag` (a gradient pill, also
+  over an insert), `lower_third` (a name and role bar) and `end_card` (a site pill with an optional call to action);
+  captions are hidden under the last two and under a tag without `position`, which sits in the caption spot. Each kind
+  takes `size` small, medium (the default) or large, and long text shrinks to fit. Templates are accepted on any
+  `script` run without `segments` and never change its tariff or price: a plain run is billed 30 credits a second of
+  finished video, and a run with inserts, overlays or layout windows is billed long-form-v1 (#840). Text over its
+  limit (a wide CJK character counts 2), emoji, letters the run's fonts cannot draw, overlapping footprints and the
+  other refusals answer 400 with a path before any hold. `@clipwright/core` exports the catalog (`TEMPLATE_KINDS`)
+  and `@clipwright/mcp-server` offers a slim template item with the catalog in its description.
+- *Server-side:* full-frame templates and template pictures. `title_card` (a hook card: a title in up to two lines on
+  a white card, an optional logo picture shown whole and a gradient chip) and `quote` (up to four lines, an author and
+  an optional round photo) fill the frame; `stat` counts a number up from zero, on a full frame or over the presenter.
+  A full-frame template hides captions, overlays and over-presenter templates while it shows, takes a `wipe`, `flash`
+  or `zoom` drawn over the live presenter, and on a long-form run the presenter under it is still billed as face time.
+  `logo` and `photo` take `{ asset_id }`: pinned at admission under the template id and slot, a video or another
+  account's asset is refused 400 `reference_not_usable` before any hold, and a photo cut to its circle is named in
+  `warnings[]`. On a plain run a template picture needs explicit `broll_policy=anyone`, like a layer (#840).
+- *Server-side:* templates on a plain script run (#840). A `script` run without inserts, overlays or layout windows
+  takes `templates`, `template_theme` and `template_sounds` at 30 credits a second, with no minimum and no face
+  seconds. The templates are drawn over its one take; if they cannot be drawn, the video is delivered at the same
+  price and `warnings[]` says `templates was not drawn: <reason>`.
+- Quotes carry `tariff`: `ugc-per-second-v1` on a plain run, or long form's `pricingVersion` (`long-form-v1`). The
+  field is an optional string, so older clients and stored quotes still parse; templates never change it.
+- *Server-side:* the `callout` template and template looks. `callout` draws an arrow or a ring onto a point given
+  as `target { x, y }` in percent of the frame, pulses twice and rests, with an optional label pill below the point,
+  or above it when there is no room or the face is below; the point may sit anywhere, the face rule covers the label.
+  A run-level `template_theme { preset?, accent? }` picks `clean_light` (the default when absent) or `bold_dark`, and
+  `accent` takes a `#RRGGBB` colour for the pills and accent text. A customer accent under 3:1 against the colours it
+  meets is refused 400 at `template_theme.accent` before any hold, never shifted. The look freezes into the timeline,
+  so a resumed run draws what it was admitted with, and footprints come from the frozen kind version.
+- *Server-side:* three interactive templates with inner quotes. `checklist` draws 2–4 rows of switches or check boxes
+  that a cursor clicks in turn; `phone_call` rings an incoming call on a neutral phone at the side and answers it; and
+  `compare` sweeps an after picture in over a before picture on a diagonal, full frame. An inner quote
+  (`clicks[].quote`, `answer_at`, `reveal_at`) names words inside the template's own: the click, answer or reveal lands
+  on their first word, and a click without one is spread evenly. A quote missing from the script, outside the item's
+  words, out of the script's order, or on words an insert or full-frame template covers is refused 400 by its path
+  before any hold. `compare` takes two pictures, pinned apart as `before` and `after`. Templates still change no price.
+- *Server-side:* three more templates and three more looks. `notification` drops a phone notification (an icon, the
+  app, a title and a body line) into the band above the face, holds it at least 1.2 s and takes it away before its
+  span ends; `progress` completes 2–5 steps in turn, each on its `advance_at` quote (exactly one per step) or spread
+  evenly; `rating` fills five stars in turn up to a score in halves. `advance_at` is refused like the other inner
+  quotes, and a list of the wrong length too. `template_theme.preset` adds `neon`, `paper` and `mono`, and a customer
+  accent is checked against each look's own colours.
+- *Server-side:* templates play sounds, well under the voice, from a library of 31 bundled with the composition: a
+  checklist click and its switch landing, a phone ringing until it is answered and the answer, a notification dropping
+  in, each progress step and rating star, a compare reveal, and a full-frame wipe, zoom or flash. A run plays the
+  defaults; `template_sounds: { beat: name }` swaps a beat's sound and `template_sounds: false` plays none. An unknown
+  beat or name, or `template_sounds` without templates, is refused 400 by its path before any hold. `GET
+  /v1/template-sounds` and the MCP tool `list_template_sounds` list each beat, its default and its names, free. A run
+  frozen before this plays none. Sounds change no price. `@clipwright/sdk` adds `listTemplateSounds()`.
+
+### Changed
+
+- *Server-side:* in `mono` the callout's ring and arrow have a white outline, so they read over a dark suit.
+- *Server-side:* a template beat spoken before its template has entered (a checklist click before its rows and cursor are
+  in, or an answer, step or reveal during the enter) moves to the first frame after the enter, the beats after it keep
+  6 frames apart, and `warnings[]` names each move. Runs already rendered keep their frames.
+- *Server-side:* captions and the light template look are blue, with no purple: the two-tier and pill captions and the
+  `punch` keyword use the reference's periwinkle-to-sky blue, `clean_light` follows it, `bold_dark` sits on a neutral
+  near-black ground, `checklist` switches are green when on and red when off in every look, and the `phone_call` screen
+  is the device's own teal-to-blue.
+- *Server-side:* a template no longer moves captions. While it meets their band it hides them, as the checklist and
+  the phone do; a small one elsewhere, such as a notification at the top, leaves them on screen.
+- *Server-side:* `generate_image` and `generate_video` cost less. A `seedream-5.0-flash` image costs 5 credits instead
+  of 12 and a `flare` image 6 instead of 18; a second of `seedance-2.0-mini` at 720p costs 10 instead of 50,
+  `seedance-2.0` at 1080p 91 instead of 250, `kling-3.0` 17 instead of 50 and `gemini-omni-flash-1.1` 19 instead of 55.
+  A run already admitted keeps its quoted price.
+- *Server-side:* a second of `seedance-2.5` at 480p costs 25 credits instead of 34.
+- *Server-side:* every delivered video is encoded once, at a quality setting chosen by eye on text frames, so a
+  35-second 1080×1920 video is about 11 MB instead of 27 MB. The resolution is unchanged (#845).
+
+### Fixed
+
+- *Server-side:* a dropped connection while the worker checks on an ordered `make_ugc` clip no longer fails the run
+  and charges for it. The worker checks again until its wait deadline, and a run that stays cut off ends with no charge.
+
 ## [0.33.0] - 2026-10-20
 
 ### Added

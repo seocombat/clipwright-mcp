@@ -77,6 +77,8 @@ export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead[
             ...(run.final_output?.long_form_billing === undefined ? {} : { long_form_billing: run.final_output.long_form_billing }),
             ...(run.final_output?.speech_timing_gaps === undefined ? {} : { speech_timing_gaps: run.final_output.speech_timing_gaps }),
             ...(run.generation === undefined ? {} : { generation: run.generation }),
+            // A succeeded create_actor names the actor_id an agent passes to make_ugc (#778).
+            ...(run.created_actor === undefined ? {} : { created_actor: run.created_actor }),
             warnings: run.warnings,
           }),
         },

@@ -3,6 +3,7 @@
 import { ASSET_BYTES_PATH, ASSET_ITEM_PATH, ASSETS_PATH } from "./assets.js";
 import { ACTOR_DEFAULTS_PATH } from "./broll-policy.js";
 import { GENERATION_MODELS_PATH } from "./generations.js";
+import { TEMPLATE_SOUNDS_PATH } from "./templates/sounds.js";
 
 export const PUBLIC_WORKFLOWS_PATH = "/v1/public/workflows";
 export const PUBLIC_WORKFLOW_PATH = "/v1/public/workflows/:id";
@@ -36,6 +37,7 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "GET", path: "/", billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
   { method: "GET", path: "/robots.txt", billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
   { method: "GET", path: "/v1/voices", billed: false, onQuickstart: true, jsonBody: false, cabinet: false, mcp: true },
+  { method: "GET", path: TEMPLATE_SOUNDS_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   { method: "GET", path: "/v1/account", billed: false, onQuickstart: true, jsonBody: false, cabinet: false, mcp: true },
   { method: "POST", path: "/v1/skills/make_ugc/quote", billed: false, onQuickstart: true, jsonBody: true, cabinet: false, mcp: true },
   { method: "GET", path: "/v1/runs/:id", billed: false, onQuickstart: true, jsonBody: false, cabinet: true, mcp: true },

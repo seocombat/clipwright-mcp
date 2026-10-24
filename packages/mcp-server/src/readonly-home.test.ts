@@ -155,6 +155,7 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
         "list_actors",
         "list_assets",
         "list_generation_models",
+        "list_template_sounds",
         "list_voices",
         "list_workflows",
         "make_faceless",

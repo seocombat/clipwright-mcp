@@ -57,6 +57,32 @@ describe("closed script with semantic inserts", () => {
     expect(makeUgcInput.safeParse({ script: "Hello world", inserts: [{ ...insert, cover_words: 10000 }] }).success).toBe(true);
   });
 
+  describe("asset_id instead of media_url (#778 S2a)", () => {
+    const assetId = `ast_${"a".repeat(32)}`;
+    const { media_url: _url, ...byAsset } = { ...insert, asset_id: assetId };
+    const pinned = { insert_id: insert.id, asset_id: assetId, key: `assets/acc/${assetId}/${"b".repeat(64)}.png`, sha256: "b".repeat(64),
+      bytes: 10, kind: "image", media_type: "image/png", width: 1, height: 1 };
+
+    it("accepts exactly one of media_url or asset_id", () => {
+      expect(makeUgcInput.parse({ script: "Hello world", inserts: [byAsset] }).inserts![0]).toEqual(byAsset);
+      const { media_url: _gone, ...neither } = insert;
+      for (const bad of [{ ...insert, asset_id: assetId }, neither, { ...byAsset, asset_id: "ast_short" }]) {
+        expect(makeUgcInput.safeParse({ script: "Hello world", inserts: [bad] }).success).toBe(false);
+      }
+    });
+
+    /** Mutant: make the public insert loose, and a client could hand the worker a storage key of its choosing. */
+    it("refuses a storage key on a public insert; the pin lives only at the top of the stored input", () => {
+      for (const field of ["key", "r2_key", "sha256"]) {
+        expect(makeUgcInput.safeParse({ script: "Hello world", inserts: [{ ...byAsset, [field]: pinned.key }] }).success).toBe(false);
+      }
+      expect(contract.ACCEPTED_UGC_FIELDS).not.toContain("insert_assets");
+      const stored = contract.storedUgcInput.parse({ script: "Hello world", inserts: [byAsset], insert_assets: [pinned] });
+      expect(contract.pinnedInsertAssetOf(stored, insert.id)).toEqual(pinned);
+      expect(contract.pinnedInsertAssetOf(makeUgcInput.parse({ script: "Hello world", inserts: [byAsset] }), insert.id)).toBeUndefined();
+    });
+  });
+
   it("narrated-path caps are pinned as literals, not references", () => {
     // Literals on purpose: a reference to the constant would not kill a mutant.
     expect(MAX_INSERTS).toBe(49);
@@ -94,6 +120,9 @@ describe("makeUgcInput — script length gate", () => {
       "RATE_LIMIT_PAID_PER_MINUTE",
       "RATE_LIMIT_FREE_PER_MINUTE",
       "ACTOR_LIMIT_WINDOW_SECONDS", // the `create_actor` counting window: not video seconds, not money
+      // A stored clip's length and the worker's budget to check it (clipwright#724 F2 S3): assets are free, nothing is billed by them.
+      "ASSET_VIDEO_MAX_SECONDS",
+      "ASSET_INGEST_TASK_MAX_DURATION_SECONDS",
     ];
     const durationCaps = Object.keys(contract).filter(
       (name) =>

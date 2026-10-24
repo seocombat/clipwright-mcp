@@ -17,6 +17,9 @@ carry an idempotency key derived from the input and from this installation's
 id, so a retried request returns the original run instead of paying twice. Pass
 `idempotencyKey` explicitly when you deliberately want a fresh run.
 
+Recipes, each a prompt an agent turned into a video with the call it sent and
+the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/package/@clipwright/mcp-server).
+
 ## Workflow plans
 
 | Method | Request and result |

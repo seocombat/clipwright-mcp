@@ -185,9 +185,9 @@ Environment variables:
 | `CLIPWRIGHT_CLIENT_ID` | YES (see section 2) | Unique identifier of this INSTALLATION. |
 
 After connecting, restart or reopen the MCP host and confirm that `tools/list`
-returns 38 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
+returns 39 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
 `list_generation_models`, `quote_image`, `generate_image`, `quote_video`, `generate_video`, `quote_ugc`, `list_actors`,
-`list_voices`, `upload_image`, `create_upload`, `get_upload`, `create_asset`, `list_assets`, `get_asset`, `update_asset`,
+`list_voices`, `list_template_sounds`, `upload_image`, `create_upload`, `get_upload`, `create_asset`, `list_assets`, `get_asset`, `update_asset`,
 `delete_asset`, `get_account`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
 `set_actor_defaults`, `quote_faceless`, `make_faceless`, `list_workflows`, `get_workflow`, `prepare_workflow_plan`,
 `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`.

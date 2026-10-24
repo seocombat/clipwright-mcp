@@ -542,7 +542,8 @@ export interface AgentFailureReport {
 
 export const UPLOAD_NOT_FINISHED_NEXT_ACTION =
   "Finish the upload first: PUT the file to the put_url from create_upload with the given put_headers, confirm it " +
-  "with get_upload, then repeat this call. Nothing was charged and no run was created.";
+  "with get_upload, then repeat this call. If the message says the upload is finishing, the file is already there: " +
+  "wait a few seconds and repeat. Nothing was charged and no run was created.";
 
 export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
   const base = { message: failure.message,

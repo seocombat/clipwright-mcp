@@ -769,6 +769,11 @@ describe("upload_not_finished", () => {
     expect(UPLOAD_NOT_FINISHED_NEXT_ACTION).toMatch(/PUT the file to the put_url .*get_upload.*repeat this call/);
     expect(report.next_action).not.toMatch(/^STOP/);
   });
+
+  // The same 409 says "is finishing, retry in a few seconds" while another read holds the lease (#766): the file is there.
+  it("the finishing variant is named, so the agent waits instead of uploading again", async () => {
+    expect(UPLOAD_NOT_FINISHED_NEXT_ACTION).toMatch(/says the upload is finishing, the file is already there: wait a few seconds and repeat/);
+  });
 });
 
 /** Mutant: the branch dropped, and a closed door reads as http_503 to repeat in a few seconds. */

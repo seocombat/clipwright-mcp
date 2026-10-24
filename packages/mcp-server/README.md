@@ -127,6 +127,33 @@ These variables configure the local server.
 | `CLIPWRIGHT_CLIENT_ID` | recommended | Identifies this **installation** and enters the idempotency key, so two installations never collapse into one run. Left unset, the server keeps one in `~/.clipwright/client-id`, which suits a single laptop. Set it yourself where a home directory is shared, cloned or read-only — containers, CI, copied images — as `SKILL.md` §2 explains. |
 | `CLIPWRIGHT_API_URL` | no | Defaults to the hosted API. |
 
+## Recipes
+
+Each recipe is a prompt we gave an agent with this server connected, the call the
+agent sent, and what the video cost. The videos play at
+[clipwright.io/mcp](https://clipwright.io/mcp#examples).
+
+### 1. A creator reel with on-screen graphics
+
+One presenter on camera, with graphics over her that react to what she says: the format of talking-head reels that sell a product. One prompt, no editor.
+
+The prompt, given verbatim, with our actor id, screenshot link and site named
+alongside it:
+
+> Make a 30-second vertical reel for my AI receptionist with my presenter actor and the voice Hope. Script: "Every missed call is a lost deal. Your receptionist sleeps, takes breaks, and sometimes gets annoyed. This one doesn't. It answers calls all day, works around the clock, and never gets annoyed. Here's a real one: a customer calls at two in the morning to book a cleaning, and it handles everything, the time, the price, the confirmation text. Small businesses miss a third of their calls. Not anymore. Set it up in ten minutes and stop losing deals while you sleep."
+>
+> While she lists what it does, show a checklist with three switches ("answers calls" and "works 24/7" off, "gets annoyed" on) and have a cursor flip each one as she says it. When she gets to the 2 a.m. customer, show an incoming call from +1 (305) 555-0147 on the right and answer it on "handles". Put my dashboard screenshot in the top right corner while she says "Small businesses miss a third of their calls." End on a card with my site and "create your assistant". Caption only the key lines, in the highlighter style, and zoom in a little on "Not anymore." Quote it before you render.
+
+What the agent sent: one `make_ugc` quote with `templates` (checklist, phone_call,
+end_card), one `overlays` picture, `caption_mode: "highlights"`,
+`caption_style: "highlighter"` and a `punch_in` on one emphasis line. Click,
+switch and ring sounds come with the templates by default. We checked the prompt
+with a fresh agent on this server on 2026-10-24; the video was rendered from the
+same call.
+
+Price: 400 credits for 33 seconds. The quote named the price before
+anything was spent. [Watch it](https://clipwright.io/mcp#examples).
+
 ## Tools
 
 - `list_workflows` — read workflow methods and current availability. Free.
@@ -142,6 +169,8 @@ These variables configure the local server.
   sample where the voice has one. The seventeen narration voices of
   `make_faceless` are listed with `skill: "make_faceless"`. Free, spends no
   credits.
+- `list_template_sounds` — the sounds `make_ugc` templates play, by beat: where
+  each beat plays, its default and every name `template_sounds` takes. Free.
 - `list_actors` — ready-made faces with stable ids and verified formats. Free.
 - `quote_ugc` — estimated duration and price, plus a warning when `make_ugc`
   with the same input would be refused for money or access. Free.
@@ -184,10 +213,12 @@ These variables configure the local server.
   remote: PUT the file with curl, then use the `upload_id`. Free.
 - `get_upload` — one upload with a fresh url, its size and `usable_until`;
   after `create_upload` it confirms the PUT. Free.
-- `create_asset` — save a picture as an account asset, kept until you delete
-  it: from a `run_id`, an `upload_id`, a public `url` or `base64`, and a local
-  `path` on stdio. Your own material needs `rights_confirmed: true` once. Free;
-  2000 assets and 20 GB per account, 100 new ones per day.
+- `create_asset` — save a picture or an MP4 clip as an account asset, kept
+  until you delete it: from a `run_id`, an `upload_id`, a public `url` (a clip
+  with `kind: "video"`), `base64`, a presigned `put`, and a local `path` on
+  stdio. A clip is checked in the background: `get_asset` says when it is
+  ready. Your own material needs `rights_confirmed: true` once. Free; 2000
+  assets and 20 GB per account, 100 new ones per day.
 - `list_assets`, `get_asset` — the account's assets with fresh urls and the
   usage of the caps. Free.
 - `update_asset` — rename an asset or change its role. Free.

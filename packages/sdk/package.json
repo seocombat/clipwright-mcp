@@ -1,6 +1,6 @@
 {
   "name": "@clipwright/sdk",
-  "version": "0.33.0",
+  "version": "0.34.0",
   "description": "TypeScript client for the Clipwright UGC video API",
   "repository": { "type": "git", "url": "git+https://github.com/seocombat/clipwright-mcp.git", "directory": "packages/sdk" },
   "license": "MIT",
@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@clipwright/core": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.1.1"

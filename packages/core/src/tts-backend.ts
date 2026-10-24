@@ -94,3 +94,23 @@ export function charTimingsToWords(
 
   return words;
 }
+
+/** One speech model's alignment ends 80 ms past its decoded audio on every measured take (#779), */
+/** fresh and recovered alike; a tail up to this long is the model's, not a timing error. */
+export const ALIGNMENT_TAIL_TOLERANCE_SEC = 0.1;
+
+/** Word ends past the decoded audio pulled back to its end, or null when a word starts at */
+/** or after it or overshoots by more than the tolerance. `clippedSec` is the largest pull. */
+export function clampAlignmentTail(words: readonly WordTiming[], durationSec: number):
+  { words: WordTiming[]; clippedSec: number } | null {
+  let clippedSec = 0;
+  const clamped: WordTiming[] = [];
+  for (const word of words) {
+    if (word.endSec <= durationSec) { clamped.push({ ...word }); continue; }
+    const overshoot = word.endSec - durationSec;
+    if (!(word.startSec < durationSec) || overshoot > ALIGNMENT_TAIL_TOLERANCE_SEC + 1e-9) return null;
+    clippedSec = Math.max(clippedSec, overshoot);
+    clamped.push({ ...word, endSec: durationSec });
+  }
+  return { words: clamped, clippedSec };
+}

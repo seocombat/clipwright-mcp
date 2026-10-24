@@ -1,13 +1,15 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ClipwrightClient } from "@clipwright/sdk";
-// `offeredUgcInputShape`, not the full shape: fields the server rejects must not
+// `mcpUgcInputShape`, not the full shape: fields the server rejects must not
 // be offered to a caller who would get a 400 for using them.
 import {
-  offeredUgcInputShape,
+  mcpUgcInputShape,
+  type MakeUgcInputArgs,
   actorDefaultsInput,
   BROLL_POLICY_DESCRIPTION,
   CANDIDATE_CHARGE_TEXT,
@@ -44,6 +46,8 @@ import {
   sniffUploadMediaType,
   ASSET_KINDS,
   ASSET_LIST_MAX_LIMIT,
+  ASSET_VIDEO_MAX_BYTES,
+  pendingAssetRead,
   ASSET_ROLES,
   assetId,
   assetSource,
@@ -75,7 +79,26 @@ export const REMOTE_UPLOAD_REFUSAL =
 /** What `create_asset` answers a path on a server that reads no files. */
 export const REMOTE_ASSET_PATH_REFUSAL =
   "This Clipwright server is remote and cannot read files on your machine, so create_asset takes no path here. " +
-  "Pass source {url} or {base64, media_type}, or upload the file with create_upload and pass source {upload_id}.";
+  "Pass source {url} (add kind: \"video\" for an MP4) or {base64, media_type}, or pass {put: {media_type, bytes, sha256}} " +
+  "and PUT the file to the returned upload.put_url (for example with curl), then call get_asset.";
+
+/** A local MP4 as an asset (clipwright#724 F2 S3): declared by size and sha256, PUT to the signed url, then read once. */
+export async function putLocalClip(
+  client: ClipwrightClient, bytes: Uint8Array<ArrayBuffer>, path: string, meta: { role: z.infer<typeof createAssetRequest>["role"]; name: string },
+  put: typeof fetch = fetch,
+): Promise<unknown> {
+  if (bytes.byteLength > ASSET_VIDEO_MAX_BYTES) throw new Error(`${path} is ${bytes.byteLength} bytes; a clip may be ${ASSET_VIDEO_MAX_BYTES}`);
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const created = await client.createAsset({ source: { put: { media_type: "video/mp4", bytes: bytes.byteLength, sha256 } },
+    role: meta.role, name: meta.name, rights_confirmed: true });
+  const pending = pendingAssetRead.safeParse(created);
+  const upload = pending.success ? pending.data.upload : undefined;
+  if (upload === undefined) return created;
+  // fetch sends the content-length of the body itself, which is the declared size.
+  const answer = await put(upload.put_url, { method: "PUT", body: bytes, headers: { "content-type": upload.put_headers["content-type"] ?? "video/mp4" } });
+  if (!answer.ok) throw new Error(`the storage refused the PUT of ${path} with HTTP ${answer.status}; create the asset again`);
+  return client.getAsset(created.asset_id);
+}
 
 function uploadNextAction(upload: { width: number; height: number; expires_at: string }): string {
   return "Pass `url` as `image` to quote_ugc, then make_ugc, or the upload_id as {upload_id, rights_confirmed: true} in " +
@@ -100,15 +123,15 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description: `${MAKE_UGC_DESCRIPTION} ${MAKE_UGC_AGENT_PROTOCOL}`,
       // Flat schema: offered render input plus agent retry. The description must agree
       // with it, since an LLM reads the description before the schema.
-      inputSchema: { ...offeredUgcInputShape, ...agentRetryShape },
+      inputSchema: { ...mcpUgcInputShape, ...agentRetryShape },
     },
     async (args) =>
       withFailureReport(async () => {
         // `attempt` goes in SDK opts: inside `input` the schema would strip it,
         // and a retry would return the same run.
         const { attempt, ...input } = args;
-        // Return right after start (state≈"queued"), without waiting.
-        const run = await client.startUgc(input, { attempt });
+        // Return right after start (state≈"queued"), without waiting. Template data is checked strictly by the server (#778 S3, D3).
+        const run = await client.startUgc(input as MakeUgcInputArgs, { attempt });
         // Same formatter as `get_run`, so warnings reach the agent at once.
         return formatGetRun(run);
       }),
@@ -363,11 +386,11 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "Always call this first and show the user the price before make_ugc.",
       // Same core shape as make_ugc, so the quote prices exactly what make_ugc
       // would render.
-      inputSchema: offeredUgcInputShape,
+      inputSchema: mcpUgcInputShape,
     },
     async (args) =>
       withFailureReport(async () => {
-        const quote = await client.quoteUgc(args);
+        const quote = await client.quoteUgc(args as MakeUgcInputArgs);
         return { content: [{ type: "text", text: JSON.stringify(quote) }] };
       }),
   );
@@ -448,7 +471,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description: CREATE_ASSET_DESCRIPTION,
       inputSchema: {
         source: z.union([...assetSource.options, z.strictObject({ path: z.string().min(1)
-          .describe("Absolute or cwd-relative path to a PNG or JPEG file; only on a server running on your machine") })]),
+          .describe("Absolute or cwd-relative path to a PNG, JPEG or MP4 file; only on a server running on your machine") })]),
         role: createAssetRequest.shape.role,
         name: createAssetRequest.shape.name,
         rights_confirmed: createAssetRequest.shape.rights_confirmed,
@@ -461,6 +484,10 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       if (options.fileAccess !== "local") throw new Error(REMOTE_ASSET_PATH_REFUSAL);
       if (rights_confirmed !== true) throw new Error("A local file is your own material: pass rights_confirmed: true");
       const bytes = new Uint8Array(await readFile(source.path));
+      // A clip goes by PUT (up to 100 MB), then one read hands it to processing; a picture goes as the body.
+      if (Buffer.from(bytes.subarray(4, 8)).toString("latin1") === "ftyp") {
+        return assetText(putLocalClip(client, bytes, source.path, { role, name }));
+      }
       const mediaType = sniffUploadMediaType(bytes);
       if (mediaType === null || bytes.byteLength > UPLOAD_MAX_BYTES) {
         throw new Error(mediaType === null
@@ -557,6 +584,22 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         const voices = await client.listVoices(filters);
         return { content: [{ type: "text", text: JSON.stringify({ voices }) }] };
       }),
+  );
+
+  server.registerTool(
+    "list_template_sounds",
+    {
+      title: "List template sounds",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "List the sounds make_ugc templates play, by beat: where each beat plays, its default and every name it takes. " +
+        "A run plays the defaults; template_sounds { beat: name } swaps a beat's sound, and template_sounds=false plays none. " +
+        "Sounds never change the price. Free.",
+      inputSchema: {},
+    },
+    async () => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.listTemplateSounds()) }],
+    })),
   );
 
   server.registerTool("list_actors", {

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { makeUgcInputShape } from "./skills.js";
+import { makeUgcInputShape, mcpUgcTemplate, TEMPLATES_DESCRIPTION } from "./skills.js";
+import { MAX_TEMPLATES, mcpTemplateSounds, templateFaceWarnings } from "./templates/index.js";
 import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
 
 /** Disposition registry for `make_ugc` input fields: every field must have a recorded */
@@ -47,17 +48,11 @@ export const FIELD_DISPOSITIONS = {
     warning: "look is not honored yet: it does not reach the renderer",
     triggersWhen: "differs-from-default",
   },
-  captions: {
-    kind: "warned",
-    warning: "captions requested but not rendered in this prototype (stage-B)",
-    triggersWhen: "differs-from-default",
-  },
-  caption_style: {
-    kind: "warned",
-    warning:
-      "caption_style is not honored: captions are not rendered in this prototype (stage-B)",
-    triggersWhen: "differs-from-default",
-  },
+  // Drawn by composition; a worker with `CLIPWRIGHT_COMPOSE` off names the undrawn captions in the run's warnings.
+  captions: { kind: "implemented", provenBy: "composition" },
+  caption_style: { kind: "implemented", provenBy: "composition" },
+  caption_emphasis: { kind: "implemented", provenBy: "composition" },
+  caption_mode: { kind: "implemented", provenBy: "composition" },
 
   // Both reach the vendor from the request; egress tests require three resolutions
   // to produce three different request bodies.
@@ -73,6 +68,11 @@ export const FIELD_DISPOSITIONS = {
   // Offered to clients; deployment qualification gates admission below.
   segments: { kind: "implemented", provenBy: "composition" },
   inserts: { kind: "implemented", provenBy: "composition" },
+  overlays: { kind: "implemented", provenBy: "composition" },
+  layout_windows: { kind: "implemented", provenBy: "composition" },
+  templates: { kind: "implemented", provenBy: "composition" },
+  template_theme: { kind: "implemented", provenBy: "composition" },
+  template_sounds: { kind: "implemented", provenBy: "composition" },
   character: {
     kind: "rejected",
     message:
@@ -178,6 +178,38 @@ const COMPOSE_DISABLED: Disposition = {
     "background is not available: composition is disabled on this deployment. Request an aspect_ratio close to your image instead",
 };
 
+/** A run stored before captions were drawn (no `composition_version`) keeps the lines it was admitted with. */
+export function legacyCaptionWarnings(input: { captions?: boolean | undefined; caption_style?: string | undefined }): string[] {
+  return [
+    ...(input.captions === true ? ["captions requested but not rendered in this prototype (stage-B)"] : []),
+    ...(input.caption_style !== undefined && input.caption_style !== "hormozi"
+      ? ["caption_style is not honored: captions are not rendered in this prototype (stage-B)"] : []),
+  ];
+}
+
+/** Captions a version-2 run asked for and a worker with composition off could not draw; written by the run. */
+export const CAPTIONS_COMPOSE_DISABLED_WARNING = "captions were not drawn: composition is disabled on this deployment";
+
+/** The composition-only parts a run asked for (#778 S2b): a render without composition names them instead of dropping them. */
+export function compositionLayerFields(input: {
+  overlays?: unknown; layout_windows?: unknown; templates?: unknown; inserts?: readonly { transition?: string | undefined }[] | undefined;
+  caption_emphasis?: readonly (string | { punch_in?: boolean | undefined })[] | undefined;
+}): string[] {
+  return [
+    ...(input.overlays !== undefined ? ["overlays"] : []),
+    ...(input.layout_windows !== undefined ? ["layout_windows"] : []),
+    ...(input.templates !== undefined ? ["templates"] : []),
+    ...(input.inserts?.some(insert => insert.transition !== undefined && insert.transition !== "cut") ? ["transition"] : []),
+    ...(input.caption_emphasis?.some(item => typeof item !== "string" && item.punch_in === true) ? ["punch_in"] : []),
+  ];
+}
+
+/** The warning that names undrawn composition-only parts, or none. */
+export function compositionLayersNotDrawnWarnings(input: Parameters<typeof compositionLayerFields>[0], reason: string): string[] {
+  const fields = compositionLayerFields(input);
+  return fields.length ? [`${fields.join(", ")} ${fields.length === 1 ? "was" : "were"} not drawn: ${reason}`] : [];
+}
+
 /** Long-form prerequisites in ONE expression for all its fields: two copies could */
 /** open `segments` while `inserts` stay closed. */
 function longFormReady(flags: ContractFlags): boolean {
@@ -185,6 +217,9 @@ function longFormReady(flags: ContractFlags): boolean {
 }
 
 const LONG_FORM_DISABLED: Disposition = { kind: "rejected", message: LONG_FORM_DISABLED_MESSAGE };
+/** Templates draw on a plain run too, so their refusal names them and not the long-form fix (#840 D6). */
+const TEMPLATES_DISABLED: Disposition = { kind: "rejected",
+  message: "templates are disabled on this deployment; omit templates, template_theme and template_sounds" };
 
 /** Dispositions with flags applied: the base table says what the code can do, this */
 /** says what it offers right now. */
@@ -196,6 +231,11 @@ export function resolveDispositions(
     ...FIELD_DISPOSITIONS,
     segments: longForm ? FIELD_DISPOSITIONS.segments : LONG_FORM_DISABLED,
     inserts: longForm ? FIELD_DISPOSITIONS.inserts : LONG_FORM_DISABLED,
+    overlays: longForm ? FIELD_DISPOSITIONS.overlays : LONG_FORM_DISABLED,
+    layout_windows: longForm ? FIELD_DISPOSITIONS.layout_windows : LONG_FORM_DISABLED,
+    templates: longForm ? FIELD_DISPOSITIONS.templates : TEMPLATES_DISABLED,
+    template_theme: longForm ? FIELD_DISPOSITIONS.template_theme : TEMPLATES_DISABLED,
+    template_sounds: longForm ? FIELD_DISPOSITIONS.template_sounds : TEMPLATES_DISABLED,
     person: flags.actorGeneration === true ? PERSON_WITH_ACTOR_GENERATION : FIELD_DISPOSITIONS.person,
     image: flags.remoteFetch ? FIELD_DISPOSITIONS.image : REMOTE_FETCH_DISABLED,
     actor_id: flags.remoteFetch ? FIELD_DISPOSITIONS.actor_id : {
@@ -283,6 +323,11 @@ export const offeredUgcInputShape = Object.fromEntries(
 export const offeredUgcInput = z.object(offeredUgcInputShape);
 export type MakeUgcInputArgs = z.input<typeof offeredUgcInput>;
 
+/** The MCP offer: the same fields with the slim template item, which keeps tools/list small (#778 S3, D3). */
+export const mcpUgcInputShape = { ...offeredUgcInputShape,
+  templates: z.array(mcpUgcTemplate).min(1).max(MAX_TEMPLATES).optional().describe(TEMPLATES_DESCRIPTION),
+  template_sounds: mcpTemplateSounds.optional() };
+
 /** One rejected field found in the input: its name and the refusal reason. */
 export interface RejectedFieldHit {
   field: ContractField;
@@ -353,6 +398,8 @@ export function dispositionWarnings(
     }
     warnings.push(disposition.warning);
   }
+  // A template asked onto the face is drawn there and named, on the quote, the run and its record alike (#778 S3).
+  warnings.push(...templateFaceWarnings(input));
   return warnings;
 }
 

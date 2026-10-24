@@ -7,6 +7,9 @@ export const PUBLIC_API_BASE_URL = "https://api.clipwright.io";
 /** The dashboard; paths are appended to it. NOT `APP_ORIGIN`, which comes from the environment. */
 export const PUBLIC_APP_BASE_URL = "https://app.clipwright.io";
 
+/** The hosted MCP server; the `@clipwright/mcp-server` README names the same address. */
+export const PUBLIC_MCP_URL = "https://mcp.clipwright.io/mcp";
+
 /** npm packages the product is called through. The landing page, `--help` and docs print */
 /** these names, so they are contract, not page copy. */
 export const CLI_PACKAGE = "@clipwright/cli";

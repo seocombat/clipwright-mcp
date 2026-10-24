@@ -1,7 +1,7 @@
 {
   "name": "clipwright",
   "displayName": "Clipwright",
-  "version": "0.33.0",
+  "version": "0.34.0",
   "description": "Give your agent a video studio. Clipwright turns a script into a clip of an AI actor saying it, a faceless explainer, a single image or a short clip; it also builds your own actor and redoes one shot of a faceless video. It quotes the price for free, renders on its servers and returns the file; it does not publish anywhere.",
   "author": { "name": "Clipwright", "email": "support@clipwright.io", "url": "https://clipwright.io" },
   "homepage": "https://clipwright.io/?ref=claude-plugin",

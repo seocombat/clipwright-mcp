@@ -1,6 +1,6 @@
 {
   "name": "@clipwright/cli",
-  "version": "0.33.0",
+  "version": "0.34.0",
   "description": "Command-line client for the Clipwright UGC video API",
   "repository": { "type": "git", "url": "git+https://github.com/seocombat/clipwright-mcp.git", "directory": "packages/cli" },
   "keywords": [

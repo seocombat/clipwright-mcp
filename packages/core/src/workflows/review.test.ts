@@ -338,6 +338,9 @@ describe('WF-01 review: native source and tools-list boundaries', () => {
         const qualified = structuredClone(snapshot);
         qualified.executors[0]!.features.push('long_form');
         expect(kinds(checkWorkflowBrief('ugc-faq-answer', { ...document.brief, native }, qualified))).toContain('unbound_native_source');
+        const byAsset = { skill: 'make_ugc', input: { ...native.input, inserts: [{ id: 'detail', asset_id: `ast_${'a'.repeat(32)}`, media_type: 'image', anchor: { quote: 'finished MP4' } }] } };
+        // An asset id is no transport URL: native admission resolves it in the account's own assets (#778 S2a).
+        expect(kinds(checkWorkflowBrief('ugc-faq-answer', { ...document.brief, native: byAsset }, qualified))).not.toContain('unbound_native_source');
     });
     it('does not silently accept faceless asset bindings on a UGC workflow', () => {
         const document = plan();

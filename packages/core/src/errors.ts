@@ -415,6 +415,7 @@ const BARE_ERROR_CODES = [
   "generations_marking_pending",
   "idempotency_key_required",
   "idempotency_key_reused",
+  "ingest_enqueue_failed",
   "insufficient_scope",
   "internal_error",
   "invalid_image",

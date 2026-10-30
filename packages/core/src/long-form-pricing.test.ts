@@ -30,6 +30,7 @@ describe("long-form launch tariff", () => {
   it("uses stored future terms and detaches parsed snapshots", () => {
     const input = { ...core.LONG_FORM_LAUNCH_TARIFF, pricingVersion: "future-rate", rateCreditsPerFaceSecond: 12 };
     const tariff = core.faceBillingTariffSchema.parse(input);
+    if (tariff.version !== 2) throw new Error("a v2 tariff parsed as another version");
     input.rateCreditsPerFaceSecond = 99;
     expect(core.faceTariffRate(tariff)).toBe(12);
     expect(core.faceTariffPricingVersion(tariff)).toBe("future-rate");

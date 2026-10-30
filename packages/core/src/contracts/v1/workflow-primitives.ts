@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ASPECT_RATIOS, RESOLUTIONS } from '../../skills.js';
 
-export const WORKFLOW_METHOD_IDS = ['ugc-product-intro', 'ugc-faq-answer', 'faceless-explainer', 'product-image-story', 'website-proof-demo', 'kinetic-launch'] as const;
+export const WORKFLOW_METHOD_IDS = ['ugc-product-intro', 'ugc-faq-answer', 'faceless-explainer', 'product-image-story', 'website-proof-demo', 'kinetic-launch', 'reference-remake'] as const;
 export const workflowMethodId = z.enum(WORKFLOW_METHOD_IDS);
 export const workflowDigest = z.string().regex(/^[a-f0-9]{64}$/);
 export const workflowId = z.string().regex(/^wfp_[a-zA-Z0-9_-]{1,64}$/);

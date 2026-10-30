@@ -23,9 +23,9 @@ export const notification: TemplateKind<typeof data> = {
   slots: {},
   hidesCaptions: () => false,
   onInserts: false,
-  rect: (value, aspectRatio) => {
+  rect: (value, aspectRatio, _placement, framing) => {
     const canvas = frameCanvasOf(aspectRatio), { width: w, height: h } = canvas;
-    const top = Math.round(0.012 * h), room = Math.floor(faceZone(aspectRatio).top * h) - top;
+    const top = Math.round(0.012 * h), room = Math.floor(faceZone(aspectRatio, framing).top * h) - top;
     const em = Math.min(NOTIFICATION_FONT_PX * sizedScale(value.size, canvas), room / NOTIFICATION_EMS.height);
     const width = Math.round(Math.min(0.92 * w, NOTIFICATION_EMS.width * em)), height = Math.round(NOTIFICATION_EMS.height * em);
     return { left: Math.round((w - width) / 2) / w, top: top / h, width: width / w, height: height / h };

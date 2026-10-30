@@ -15,7 +15,9 @@ const descriptorShape = {
     id: workflowMethodId, version: workflowRevision, content_digest: workflowDigest, authoring_status: z.literal('ready'),
     title: workflowText(200), purpose: workflowText(2000), required_inputs: z.array(z.enum(['audience', 'message', 'script', 'question', 'product', 'topic', 'assets'])).min(1).max(10),
     required_features: z.array(workflowText(80)).min(1).max(30),
-    script_rules: z.strictObject({ structure: z.array(workflowText(80)).min(1).max(20), instructions: z.array(workflowText(2000)).min(1).max(20) }),
+    script_rules: z.strictObject({ structure: z.array(workflowText(80)).min(1).max(20), instructions: z.array(workflowText(2000)).min(1).max(20),
+        // revisits: a beat may return to an earlier role while its anchor moves forward; absent keeps the strict order.
+        role_order: z.enum(['strict', 'revisits']).optional() }),
     binding, output: z.strictObject({ formats: z.array(workflowFormat).min(1).max(20), timing: workflowText(2000) }),
     limitations: z.array(workflowText(2000)).min(1).max(30), qa_policy: z.array(workflowText(2000)).min(1).max(30),
     example: z.strictObject({ brief: workflowBrief, beats: z.array(workflowBeat).min(1).max(100) }),
@@ -25,7 +27,7 @@ export type MethodDescriptor = z.infer<typeof methodDescriptor>;
 export type MethodDescriptorArgs = z.input<typeof methodDescriptor>;
 export const methodDescriptorRead = z.looseObject({ ...descriptorShape,
     id: z.string(), authoring_status: z.string(), required_inputs: z.array(z.string()), required_features: z.array(z.string()),
-    script_rules: z.looseObject({ structure: z.array(z.string()), instructions: z.array(z.string()) }),
+    script_rules: z.looseObject({ structure: z.array(z.string()), instructions: z.array(z.string()), role_order: z.string().optional() }),
     binding: z.looseObject({ kind: z.string(), skill: z.string(), profile: z.string(), visual_beats: z.string().optional(), reasons: z.array(workflowIssueRead).optional() }),
     output: z.looseObject({ formats: z.array(workflowFormatRead), timing: z.string() }), example: z.looseObject({ brief: workflowBriefRead, beats: z.array(workflowBeatRead) }),
 });

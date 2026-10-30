@@ -5,7 +5,7 @@ import { runId } from "./runs.js";
 import { uploadResponse } from "./uploads.js";
 import { MAX_URL_LENGTH } from "./skills.js";
 import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
-import { FACELESS_MIN_OUTPUT_FRAMES, facelessQuote } from "./faceless-price.js";
+import { FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_MIN_SELECTED_SECONDS, facelessQuote } from "./faceless-price.js";
 import { DEFAULT_FACELESS_VOICE } from "./faceless-voices.js";
 import { VOICE_NAME_PATTERN } from "./voices.js";
 
@@ -30,7 +30,7 @@ export const facelessCustomerSceneImage = z.object({
 export type FacelessCustomerSceneImage = z.infer<typeof facelessCustomerSceneImage>;
 
 const common = {
-  duration_seconds: z.number().min(30).max(90).refine((seconds) => Number.isInteger(seconds * 25),
+  duration_seconds: z.number().min(FACELESS_MIN_SELECTED_SECONDS).max(FACELESS_MAX_SELECTED_SECONDS).refine((seconds) => Number.isInteger(seconds * 25),
     "duration_seconds must align to a 25 fps frame boundary"),
   style_reference: qualifiedImageUrl.optional(),
   character_reference: qualifiedImageUrl.optional(),

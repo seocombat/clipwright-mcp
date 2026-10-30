@@ -151,9 +151,9 @@ describe("formatGetRun — warnings in every branch", () => {
 /** schema, not copied here and in REST separately. */
 describe("formatGetRun — money is shown, not derived by subtraction", () => {
   const states = [
-    { name: "IN_PROGRESS", read: run("avatar", { credits_reserved: 240, credits_charged: null }) },
-    { name: "SUCCEEDED", read: run("succeeded", { credits_reserved: 240, credits_charged: 240 }) },
-    { name: "FAILED", read: run("failed", { credits_reserved: 240, credits_charged: 0, error: "boom" }) },
+    { name: "IN_PROGRESS", read: run("avatar", { credits_reserved: 240, credits_charged: null, balance_after_credits: null }) },
+    { name: "SUCCEEDED", read: run("succeeded", { credits_reserved: 240, credits_charged: 240, balance_after_credits: 4321 }) },
+    { name: "FAILED", read: run("failed", { credits_reserved: 240, credits_charged: 0, balance_after_credits: 4561, error: "boom" }) },
   ];
 
   it.each(states)("$name carries every contract money field with the same value", ({ read }) => {
@@ -167,6 +167,6 @@ describe("formatGetRun — money is shown, not derived by subtraction", () => {
   });
 
   it("the registry names exactly the fields the run schema carries", () => {
-    expect([...RUN_MONEY_FIELDS].sort()).toEqual(["credits_charged", "credits_reserved"]);
+    expect([...RUN_MONEY_FIELDS].sort()).toEqual(["balance_after_credits", "credits_charged", "credits_reserved"]);
   });
 });

@@ -119,7 +119,6 @@ const DRAFT_480P = {
 /** A route serves a row once a live measure of it adds that route (rule 4; measures of 19.10 and 21.10). */
 const BYTEPLUS = ["byteplus"] as const;
 const KIE = ["kie"] as const;
-const KIE_THEN_BYTEPLUS = ["kie", "byteplus"] as const;
 const BYTEPLUS_THEN_KIE = ["byteplus", "kie"] as const;
 const UNSERVED = [] as const;
 
@@ -141,13 +140,13 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     kind: "image",
     vendor: "byteplus",
     vendor_model: { text: "dola-seedream-5-0-flash-260915", reference: "dola-seedream-5-0-flash-260915" },
-    rows: [image("9:16", 1440, 2560, 5, true), image("16:9", 2560, 1440, 5, true), image("1:1", 2048, 2048, 5, true)],
+    rows: [image("9:16", 1440, 2560, 6, true), image("16:9", 2560, 1440, 6, true), image("1:1", 2048, 2048, 6, true)],
   },
   flare: {
     kind: "image",
     vendor: "fal",
     vendor_model: { text: "openai/gpt-image-2.5/flare/text-to-image", reference: "openai/gpt-image-2.5/flare/edit" },
-    rows: [image("9:16", 1008, 1792, 6, true), image("16:9", 1792, 1008, 6), image("1:1", 1024, 1024, 6)],
+    rows: [image("9:16", 1008, 1792, 8, true), image("16:9", 1792, 1008, 8), image("1:1", 1024, 1024, 8)],
   },
   "seedance-2.0": {
     kind: "video",
@@ -156,19 +155,19 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     modes: SEEDANCE_2_0_MODES,
     duration_s: { min: 4, max: 15 },
     // The second route measured only the 720p 9:16 row of 2.0 (21.10).
-    rows: [...draft480p(BYTEPLUS, 18),
-      ...only(video(BYTEPLUS, "720p", 720, 1280, 36, H264, { vertical: true, horizontal: true }), "9:16", { vendors: BYTEPLUS_THEN_KIE }),
-      ...video(BYTEPLUS, "1080p", 1080, 1920, 91, H264, { vertical: true, horizontal: true })],
+    rows: [...draft480p(BYTEPLUS, 22),
+      ...only(video(BYTEPLUS, "720p", 720, 1280, 46, H264, { vertical: true, horizontal: true }), "9:16", { vendors: BYTEPLUS_THEN_KIE }),
+      ...video(BYTEPLUS, "1080p", 1080, 1920, 114, H264, { vertical: true, horizontal: true })],
   },
   "seedance-2.0-mini": {
     kind: "video",
-    // kie first (owner, 21.10).
+    // Rows served by kie only (#800): BytePlus mini cost $0.076/s against kie's $0.041, so its fallback billed at ×1.09 over cost.
     routes: [{ vendor: "kie", vendor_model: "bytedance/seedance-2-mini" }, { vendor: "byteplus", vendor_model: "dreamina-seedance-2-0-mini-260615" }],
     fps: GENERATION_VIDEO_FPS,
     modes: { text: true, first_frame: true, reference: true },
     duration_s: { min: 4, max: 15 },
-    rows: [...draft480p(KIE_THEN_BYTEPLUS, 5),
-      ...video(KIE_THEN_BYTEPLUS, "720p", 720, 1280, 10, H264, { vertical: true, horizontal: true })],
+    rows: [...draft480p(KIE, 6),
+      ...video(KIE, "720p", 720, 1280, 13, H264, { vertical: true, horizontal: true })],
   },
   "seedance-2.0-fast": {
     kind: "video",
@@ -176,7 +175,7 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     fps: GENERATION_VIDEO_FPS,
     modes: SEEDANCE_2_0_MODES,
     duration_s: { min: 4, max: 15 },
-    rows: [...draft480p(BYTEPLUS, 14), ...video(BYTEPLUS, "720p", 720, 1280, 30, H264, { vertical: true, horizontal: true })],
+    rows: [...draft480p(BYTEPLUS, 18), ...video(BYTEPLUS, "720p", 720, 1280, 37, H264, { vertical: true, horizontal: true })],
   },
   "seedance-2.5": {
     kind: "video",
@@ -185,9 +184,9 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     modes: { text: false, first_frame: true, reference: false },
     duration_s: { min: 4, max: 30 },
     // 2.5 renders a true 480x854. The second route made its 480p 9:16 and 720p 16:9 (21.10); the first made every row.
-    rows: [...only(video(BYTEPLUS, "480p", 480, 854, 25, H264, { vertical: true, horizontal: true }), "9:16", { vendors: BYTEPLUS_THEN_KIE }),
-      ...only(video(BYTEPLUS, "720p", 720, 1280, 56, H264, { vertical: true, horizontal: true }), "16:9", { vendors: BYTEPLUS_THEN_KIE }),
-      ...video(BYTEPLUS, "1080p", 1080, 1920, 138, HEVC10, { vertical: true },
+    rows: [...only(video(BYTEPLUS, "480p", 480, 854, 32, H264, { vertical: true, horizontal: true }), "9:16", { vendors: BYTEPLUS_THEN_KIE }),
+      ...only(video(BYTEPLUS, "720p", 720, 1280, 71, H264, { vertical: true, horizontal: true }), "16:9", { vendors: BYTEPLUS_THEN_KIE }),
+      ...video(BYTEPLUS, "1080p", 1080, 1920, 173, HEVC10, { vertical: true },
         "seedance-2.5 at 1080p is HEVC 10-bit (yuv420p10le); some browsers and editors do not play it")],
   },
   "kling-3.0": {
@@ -196,7 +195,7 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     fps: GENERATION_VIDEO_FPS,
     modes: { text: true, first_frame: true, reference: false },
     duration_s: { min: 3, max: 15 },
-    rows: video(KIE, "720p", 720, 1280, 17, H264, { vertical: true, horizontal: true }),
+    rows: video(KIE, "720p", 720, 1280, 21, H264, { vertical: true, horizontal: true }),
   },
   // 360p 9:16 is not yet seen (live, 21.10).
   "gemini-omni-flash-1.1": {
@@ -206,8 +205,8 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     modes: { text: true, first_frame: true, reference: false },
     duration_s: { min: 4, max: 10 },
     duration_values: [4, 6, 8, 10],
-    rows: [...only(video(UNSERVED, "360p", 360, 640, 19, H264), "16:9", { measured: true, vendors: KIE }),
-      ...video(KIE, "720p", 720, 1280, 19, H264, { vertical: true, horizontal: true })],
+    rows: [...only(video(UNSERVED, "360p", 360, 640, 24, H264), "16:9", { measured: true, vendors: KIE }),
+      ...video(KIE, "720p", 720, 1280, 24, H264, { vertical: true, horizontal: true })],
   },
 });
 

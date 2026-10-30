@@ -74,7 +74,7 @@ export function reboundTimeline(timeline: ResolvedTimeline, runId: string): Reso
   const move = (key: string) => key.replace(`runs/${timeline.runId}/`, `runs/${runId}/`);
   return freezeResolvedTimeline({ ...content, runId,
     slots: content.slots.map((slot) => (slot.kind === "media" ? { ...slot, key: move(slot.key) }
-      : slot.audio ? { ...slot, audio: { ...slot.audio, key: move(slot.audio.key) } } : slot)),
+      : slot.kind === "actor" && slot.audio ? { ...slot, audio: { ...slot.audio, key: move(slot.audio.key) } } : slot)),
     ...(content.narration ? { narration: { ...content.narration, key: move(content.narration.key) } } : {}) });
 }
 

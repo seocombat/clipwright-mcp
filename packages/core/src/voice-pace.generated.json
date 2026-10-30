@@ -1,0 +1,72 @@
+{
+  "model": "eleven_v4",
+  "language": "en",
+  "measured_at": "2026-10-27T23:05:02.990Z",
+  "voices": [
+    {
+      "voice": "en_male_mark",
+      "gender": "male",
+      "words_per_second": 3.58
+    },
+    {
+      "voice": "eric",
+      "gender": "male",
+      "words_per_second": 3.52
+    },
+    {
+      "voice": "en_male_michael_c_vincent",
+      "gender": "male",
+      "words_per_second": 3.51
+    },
+    {
+      "voice": "en_female_cassidy",
+      "gender": "female",
+      "words_per_second": 3.48
+    },
+    {
+      "voice": "en_male_james",
+      "gender": "male",
+      "words_per_second": 3.36
+    },
+    {
+      "voice": "en_male_adam",
+      "gender": "male",
+      "words_per_second": 3.33
+    },
+    {
+      "voice": "sarah",
+      "gender": "female",
+      "words_per_second": 3.33
+    },
+    {
+      "voice": "en_female_amelia",
+      "gender": "female",
+      "words_per_second": 3.29
+    },
+    {
+      "voice": "en_female_jane",
+      "gender": "female",
+      "words_per_second": 3.28
+    },
+    {
+      "voice": "george",
+      "gender": "male",
+      "words_per_second": 3.27
+    },
+    {
+      "voice": "en_female_hope",
+      "gender": "female",
+      "words_per_second": 3.24
+    },
+    {
+      "voice": "en_female_jessica_anne_bogart",
+      "gender": "female",
+      "words_per_second": 3.19
+    },
+    {
+      "voice": "en_male_spuds_oxley",
+      "gender": "male",
+      "words_per_second": 3.09
+    }
+  ]
+}

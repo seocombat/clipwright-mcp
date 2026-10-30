@@ -6,6 +6,7 @@ import { facelessExplainer } from './methods/faceless-explainer.js';
 import { productImageStory } from './methods/product-image-story.js';
 import { websiteProofDemo } from './methods/website-proof-demo.js';
 import { kineticLaunch } from './methods/kinetic-launch.js';
+import { referenceRemake } from './methods/reference-remake.js';
 
 function freeze<T>(value: T): T {
     if (value !== null && typeof value === 'object') {
@@ -14,7 +15,7 @@ function freeze<T>(value: T): T {
     }
     return value;
 }
-export const WORKFLOW_METHODS: readonly MethodDescriptor[] = freeze([ugcProductIntro, ugcFaqAnswer, facelessExplainer, productImageStory, websiteProofDemo, kineticLaunch]);
+export const WORKFLOW_METHODS: readonly MethodDescriptor[] = freeze([ugcProductIntro, ugcFaqAnswer, facelessExplainer, productImageStory, websiteProofDemo, kineticLaunch, referenceRemake]);
 
 function methodResponse(descriptor: MethodDescriptor, snapshot: CapabilityProfile): WorkflowMethodResponse {
     const reasons: WorkflowIssue[] = [];

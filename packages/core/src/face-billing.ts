@@ -22,6 +22,26 @@ const legacyFaceBillingTariffSchema = z.object({
   rounding: z.literal("ceil_aggregate_seconds"),
 }).strict().readonly();
 
+/** The engines that render a presenter take; each has its own presenter-second price under a parts tariff (#800). */
+export const PRESENTER_ENGINES = ["heygen", "omnihuman"] as const;
+export type PresenterEngine = (typeof PRESENTER_ENGINES)[number];
+
+const tariffCredits = z.number().int().nonnegative().max(2_147_483_647);
+export const presenterRatesSchema = z.object({ heygen: tariffCredits.positive(), omnihuman: tariffCredits.positive() }).strict().readonly();
+
+/** A parts tariff (#800, owner 29.10): presenter seconds by engine, plus every second of the video, plus each live-avatar still. */
+export const partsFaceTariffSchema = z.object({
+  version: z.literal(3),
+  pricingVersion: identifier,
+  presenterCreditsPerSecond: presenterRatesSchema,
+  productionCreditsPerSecond: tariffCredits,
+  liveAvatarStillCredits: tariffCredits,
+  minimumCredits: tariffCredits,
+  rounding: z.literal("ceil_aggregate_seconds"),
+  failurePolicy: z.literal("verified_delivery_only"),
+}).strict().readonly();
+export type PartsFaceTariff = z.infer<typeof partsFaceTariffSchema>;
+
 export const faceBillingTariffSchema = z.union([
   legacyFaceBillingTariffSchema,
   z.object({
@@ -32,6 +52,7 @@ export const faceBillingTariffSchema = z.union([
     rounding: z.literal("ceil_aggregate_seconds"),
     failurePolicy: z.literal("verified_delivery_only"),
   }).strict().readonly(),
+  partsFaceTariffSchema,
 ]);
 export type FaceBillingTariff = z.infer<typeof faceBillingTariffSchema>;
 
@@ -40,6 +61,8 @@ const unitSchema = z.object({
   requestHash: hash,
   audioDurationSec: seconds,
   faceIntervals: z.array(faceBillingIntervalSchema).min(1).readonly(),
+  /** A unit the video may go without (S4d D8: a live take that fell back): charged only when accepted, never required for delivery. */
+  optional: z.literal(true).optional(),
 }).strict().readonly();
 
 const planShape = {
@@ -71,6 +94,8 @@ export const faceBillingAcceptanceSchema = z.object({
   planHash: hash,
   requestHash: hash,
   providerJobId: identifier,
+  /** A live take made from a photo avatar of its still: the avatar's job, witnessed by its paid `live_avatar` operation (#800). */
+  liveAvatarJobId: identifier.optional(),
 }).strict().readonly();
 
 export const faceBillingFactsSchema = z.object({
@@ -81,6 +106,8 @@ export const faceBillingFactsSchema = z.object({
   acceptedUnits: z.array(faceBillingAcceptanceSchema).readonly(),
   // Unknown vendor responses stay unresolved until authoritative reconciliation.
   unknownUnitIds: z.array(identifier).readonly(),
+  /** Read from the vendor witnesses at settlement, never frozen: the engine each accepted unit's operation was sent to. */
+  acceptedEngines: z.record(identifier, z.enum(PRESENTER_ENGINES)).readonly().optional(),
 }).strict().readonly();
 
 export const faceBillingOutcomeSchema = z.discriminatedUnion("runState", [

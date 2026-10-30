@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { actorIdScope } from "./account-actors.js";
 import { actorId, ASPECT_RATIOS } from "./skills.js";
 import { defaultVoiceOf, DEFAULT_VOICE_PRESET, speaksOwnVoices, VOICE_PRESETS } from "./voices.js";
 
@@ -114,6 +115,35 @@ export function buildActorGenderWarnings(input: VoiceGenderInput): string[] {
   return input.image !== undefined && explicit === undefined ? [imageDefaultVoiceWarning(input.tts_model)] : [];
 }
 
+/** The presenter's framing as rendered: the view admission pinned, close without one (#884 S5d). */
+export function renderedPresenterFraming(pin?: { asset?: { framing?: string | undefined } | undefined } | undefined): "close" | "wide" {
+  return pin?.asset?.framing === "wide" ? "wide" : "close";
+}
+
+/** What a wide or mic request did not get, one line each, read from the pin admission made: a view is pinned only when drawn (#884 S5d, rule 3). */
+export function presenterViewWarnings(
+  input: { presenter_framing?: string | undefined; presenter_mic?: boolean | undefined; aspect_ratio?: string | undefined },
+  pin?: { actor_id?: string | undefined; asset?: { aspect_ratio?: string | undefined; framing?: string | undefined; prop?: string | undefined } | undefined }
+    | undefined,
+): string[] {
+  const warnings: string[] = [];
+  const whose = pin?.actor_id === undefined ? undefined : `${actorIdScope(pin.actor_id) === "account" ? "personal actor" : "actor"} ${pin.actor_id}`;
+  if (input.presenter_framing === "wide" && renderedPresenterFraming(pin) !== "wide") {
+    const aspect = pin?.asset?.aspect_ratio ?? input.aspect_ratio ?? "9:16";
+    warnings.push(whose === undefined ? "presenter_framing wide needs an actor_id with a wide view (see list_actors): the presenter was rendered close"
+      : aspect !== "9:16" ? `presenter_framing wide is drawn in 9:16 only: the ${aspect} close portrait was used`
+      : `presenter_framing wide: ${whose} has no wide view yet; the close portrait was used`);
+  }
+  if (input.presenter_framing === "close" && renderedPresenterFraming(pin) === "wide") {
+    warnings.push(`presenter_framing close: ${whose ?? "the actor"} has only a wide view (made with framing wide); the wide view was used`);
+  }
+  if (input.presenter_mic === true && pin?.asset?.prop !== "mic") {
+    warnings.push(whose === undefined ? "presenter_mic needs an actor_id with a mic view (see list_actors): rendered without the mic"
+      : `presenter_mic: ${whose} has no ${renderedPresenterFraming(pin)} mic view (library mic views are wide); rendered without the mic`);
+  }
+  return warnings;
+}
+
 export const actorSelection = z.object({
   actor_id: actorId,
   version: z.number().int().positive(),
@@ -135,6 +165,8 @@ export const actorCatalogEntry = z.object({
     height: z.number().int().positive(),
     preview_url: z.url(),
     preview_expires_at: z.iso.datetime(),
+    framing: z.enum(["wide"]).optional().describe("wide: the presenter lower with room above, used by presenter_framing wide; absent is close."),
+    prop: z.enum(["mic"]).optional().describe("mic: the presenter holds a tiny handheld microphone, used by presenter_mic; absent is none."),
   })).min(1),
 });
 export const actorsResponse = z.object({ actors: z.array(actorCatalogEntry) });

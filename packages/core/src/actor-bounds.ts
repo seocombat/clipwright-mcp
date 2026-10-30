@@ -13,3 +13,7 @@ export const ACTOR_NAME_MAX_CHARS = 100;
 export const ACTOR_MIN_AGE = 18;
 export const ACTOR_MAX_AGE = 90;
 export const ACTOR_GENDERS_ACCEPTED = ["female", "male"] as const satisfies readonly ActorGender[];
+/** An actor derived from an actor (#898): two hands, so at most two held objects. */
+export const ACTOR_HOLDING_MAX_ITEMS = 2;
+export const ACTOR_HOLDING_DESCRIPTION_MAX_CHARS = 200;
+export const ACTOR_SETTING_MAX_CHARS = 300;

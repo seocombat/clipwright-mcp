@@ -1,5 +1,7 @@
 export * from "./skills.js";
 export * from "./ugc-layers.js";
+export * from "./ugc-framing.js";
+export * from "./ugc-call.js";
 export * from "./caption-language.js";
 export * from "./templates/index.js";
 export * from "./ugc-video-media.js";
@@ -48,6 +50,11 @@ export * from "./vendor-response.js";
 export * from "./public-endpoints.js";
 // API routes and their price: checked against `app.routes`, printed by the quickstart.
 export * from "./endpoints.js";
+// One sentence per route, shared by `/docs` and `/openapi.json`.
+export * from "./endpoint-notes.js";
+export * from "./public-responses.js";
+// The public price list (#927): derived from the constants billing charges by.
+export * from "./prices.js";
 // A run's static warnings are derived from its stored input: one answer for the API
 // and the dashboard in any run state.
 export * from "./run-static-warnings.js";
@@ -59,6 +66,7 @@ export * from "./speech-rhythm-contract.js";
 
 export * from "./face-billing.js";
 export * from "./long-form-pricing.js";
+export * from "./parts-pricing.js";
 export * from "./media-timebase.js";
 export * from "./billing-terms.js";
 
@@ -72,3 +80,8 @@ export * from "./workflows/index.js";
 export * from "./output-provenance.js";
 export * from "./generations.js";
 export * from "./generations-output.js";
+export * from "./reference-profile.js";
+export * from "./reference-staging.js";
+export * from "./reference-voice.js";
+export * from "./reference-analysis.js";
+export * from "./presenter-beats.js";

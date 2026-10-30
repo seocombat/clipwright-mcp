@@ -5,9 +5,12 @@ import type { Gender } from "./default-actor.js";
 /** it honored none of the stress-marking methods we measured. */
 export const TTS_MODELS = ["eleven_v3", "eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_v4", "gemini-3.8-flash-tts"] as const;
 export type TtsModelId = (typeof TTS_MODELS)[number];
-export const DEFAULT_TTS_MODEL: TtsModelId = "eleven_v3";
+/** All ElevenLabs speech goes to v4 since 2026-10-25 (owner): it covers every v3 language at the same price. */
+export const DEFAULT_TTS_MODEL: TtsModelId = "eleven_v4";
 /** What Russian speech goes to when the client names no model; `resolveTtsModel` decides what is Russian. */
 export const RUSSIAN_TTS_MODEL = "eleven_v4" satisfies TtsModelId;
+/** Models the contract still accepts but no longer speaks: a run naming one is served on its successor, named in warnings[]. */
+export const RETIRED_TTS_MODELS: Readonly<Partial<Record<TtsModelId, TtsModelId>>> = { eleven_v3: DEFAULT_TTS_MODEL };
 
 /** The model spoken by Google's adapter; contract texts name it through this constant. */
 export const GOOGLE_TTS_MODEL = "gemini-3.8-flash-tts" satisfies TtsModelId;
@@ -53,9 +56,11 @@ interface SpeechTextTraits {
   hasSpeedSetting: boolean;
 }
 export const TTS_MODEL_TEXT_TRAITS: Readonly<Record<TtsModelId, SpeechTextTraits>> = {
+  // Retired 2026-10-25. It took speed and ignored it: 0.8 and 1.2 ran within 3% (docs/63).
   eleven_v3: { readsStressMarks: true, pausesOnBreakTags: true, hasSpeedSetting: true },
   eleven_flash_v2_5: { readsStressMarks: false, pausesOnBreakTags: true, hasSpeedSetting: true },
   eleven_turbo_v2_5: { readsStressMarks: false, pausesOnBreakTags: true, hasSpeedSetting: true },
+  // No speed on v4 (vendor's v4 page; 28.10: 0.8, 1 and 1.2 ran within take noise on 13 voices, #890), so the voice sets the pace.
   eleven_v4: { readsStressMarks: true, pausesOnBreakTags: false, hasSpeedSetting: false },
   "gemini-3.8-flash-tts": { readsStressMarks: true, pausesOnBreakTags: false, hasSpeedSetting: false },
 };
@@ -66,11 +71,10 @@ const modelsWhere = (holds: (traits: SpeechTextTraits) => boolean): ReadonlySet<
 export const STRESS_MARK = String.fromCharCode(0x0301);
 export const STRESS_MARK_MODELS: ReadonlySet<TtsModelId> = modelsWhere((traits) => traits.readsStressMarks);
 const listed = (names: readonly string[]): string => names.join(", ").replace(/, ([^,]+)$/, " and $1");
-const STRESS_MARK_READERS = listed([...STRESS_MARK_MODELS]);
+const STRESS_MARK_READERS = listed([...STRESS_MARK_MODELS].filter((model) => RETIRED_TTS_MODELS[model] === undefined));
 
 /** Models that accept a speed setting and ignore it: a request to them carries none. */
 export const FIXED_PACE_MODELS: ReadonlySet<string> = modelsWhere((traits) => !traits.hasSpeedSetting);
-
 /** Models that give no pause for a break tag: the tag is cut from the text sent to them. */
 export const NO_BREAK_TAG_MODELS: ReadonlySet<TtsModelId> = modelsWhere((traits) => !traits.pausesOnBreakTags);
 
@@ -225,19 +229,19 @@ export const VOICE_PRESETS = {
     language: "en",
     gender: "female",
     description: "Soft, natural female voice (English)",
-    model: "eleven_v3",
+    model: DEFAULT_TTS_MODEL,
   },
   george: {
     language: "en",
     gender: "male",
     description: "Warm British storyteller, narrative pacing (English)",
-    model: "eleven_v3",
+    model: DEFAULT_TTS_MODEL,
   },
   eric: {
     language: "en",
     gender: "male",
     description: "Smooth American, conversational tone (English)",
-    model: "eleven_v3",
+    model: DEFAULT_TTS_MODEL,
   },
   daria_ru_female: {
     language: "ru",
@@ -281,6 +285,8 @@ export const voiceCatalogEntry = z.object({
   model: z.string().min(1),
   supported_models: z.array(z.string()).optional(),
   verified_models: z.array(z.string()).optional(),
+  words_per_second: z.number().positive().optional()
+    .describe("Measured English pace on eleven_v4, which has no speed setting; analyze_reference measures a presenter the same way."),
   // The signature is temporary; a missing pair means the voice has no sample.
   preview_url: z.url().optional(),
   preview_expires_at: z.iso.datetime().optional(),
@@ -424,8 +430,8 @@ export function resolveVoiceSelection(
 /** A catalog slug is `language_gender_name`: the prefix is the voice's language. */
 const RUSSIAN_CATALOG_SLUG_PREFIX = "ru_";
 
-/** Model: explicit `tts_model` → a raw `voice_id` by the script family → the model of a model's own */
-/** voice → the preset's model → a catalog voice by its slug language. `script` is the run's whole text. */
+/** Model: explicit `tts_model` (a retired one → its successor) → a raw `voice_id` by the script family → the model */
+/** of a model's own voice → the preset's model → a catalog voice by its slug language. `script` is the run's whole text. */
 export function resolveTtsModel(
   input: {
     voice?: string | undefined;
@@ -435,7 +441,7 @@ export function resolveTtsModel(
   },
   gender?: Gender | undefined,
 ): TtsModelId {
-  if (input.tts_model !== undefined) return input.tts_model;
+  if (input.tts_model !== undefined) return RETIRED_TTS_MODELS[input.tts_model] ?? input.tts_model;
   if (input.voice_id !== undefined) {
     return detectScriptFamily(input.script) === "cyrillic" ? RUSSIAN_TTS_MODEL : DEFAULT_TTS_MODEL;
   }
@@ -443,6 +449,21 @@ export function resolveTtsModel(
   if (isModelVoiceName(voice)) return MODEL_VOICE_MODEL;
   if (isVoicePresetName(voice)) return VOICE_PRESETS[voice].model;
   return voice.startsWith(RUSSIAN_CATALOG_SLUG_PREFIX) ? RUSSIAN_TTS_MODEL : DEFAULT_TTS_MODEL;
+}
+
+/** The model a run admitted before 2026-10-25 spoke: the same order, but a named model as is and eleven_v3 for */
+/** everything not Russian. Stored runs without `resolved_tts_model` are described by it, never by today's default. */
+export function ttsModelBeforeV4Default(
+  input: { voice?: string | undefined; voice_id?: string | undefined; tts_model?: TtsModelId | undefined; script: string },
+  gender?: Gender | undefined,
+): TtsModelId {
+  if (input.tts_model !== undefined) return input.tts_model;
+  const model = resolveTtsModel(input, gender);
+  if (model !== DEFAULT_TTS_MODEL) return model;
+  const voice = input.voice ?? defaultVoiceFor(gender);
+  const russian = input.voice_id !== undefined ? detectScriptFamily(input.script) === "cyrillic"
+    : isVoicePresetName(voice) ? VOICE_PRESETS[voice].language === "ru" : voice.startsWith(RUSSIAN_CATALOG_SLUG_PREFIX);
+  return russian ? RUSSIAN_TTS_MODEL : "eleven_v3";
 }
 
 /** Script family for the language warning: counts only Cyrillic vs Latin letters. Fewer than */
@@ -554,8 +575,8 @@ export function buildVoiceWarnings(input: {
   ];
 }
 
-/** A model that ignores stress marks or break tags on text that carries them. Silent on a */
-/** model that reads both. */
+/** A retired model named by the client, and a model that ignores stress marks or break tags on text that */
+/** carries them. Silent on a model that reads both. `model` is the one spoken: a stored run passes its own. */
 export function buildSpeechModelWarnings(
   input: {
     voice?: string | undefined;
@@ -564,34 +585,38 @@ export function buildSpeechModelWarnings(
     script: string;
   },
   gender?: Gender | undefined,
+  model: TtsModelId = resolveTtsModel(input, gender),
 ): string[] {
-  const model = resolveTtsModel(input, gender);
+  const retired = input.tts_model !== undefined && input.tts_model !== model && RETIRED_TTS_MODELS[input.tts_model] !== undefined
+    ? [`tts_model ${input.tts_model} is no longer used for speech: this run speaks ${model}`]
+    : [];
   const breaks = hasUncutBreakTag(input.script, model)
     ? [`break tags in the script are not sent to ${model}: the model gives no pause for them, so they are cut from the text`]
     : [];
-  if (STRESS_MARK_MODELS.has(model)) return breaks;
+  const first = [...retired, ...breaks];
+  if (STRESS_MARK_MODELS.has(model)) return first;
   // An explicit voice stays with its vendor: a reader of another vendor would refuse it.
   const keepsVoice = input.voice !== undefined || input.voice_id !== undefined;
-  const readers = listed(
-    [...STRESS_MARK_MODELS].filter((reader) => !keepsVoice || TTS_MODEL_BACKEND[reader] === TTS_MODEL_BACKEND[model]),
-  );
+  const readerModels = [...STRESS_MARK_MODELS].filter((reader) => RETIRED_TTS_MODELS[reader] === undefined &&
+    (!keepsVoice || TTS_MODEL_BACKEND[reader] === TTS_MODEL_BACKEND[model]));
+  const readers = `${listed(readerModels)} ${readerModels.length === 1 ? "reads" : "read"}`;
   // A mark after a Latin letter is a French or Spanish accent (NFD), not stress.
   const marked =
     CYRILLIC_STRESS_MARK.test(input.script) || stressMarksFromCapitals(input.script) !== input.script;
   if (marked) {
     return [
-      ...breaks,
+      ...first,
       `stress marks in the script (capital vowels or U+0301) are not read by ${model}: they are sent ` +
-        `unchanged, and a U+0301 can break the word it sits in; ${readers} read them`,
+        `unchanged, and a U+0301 can break the word it sits in; ${readers} them`,
     ];
   }
   const letters = scriptLetterCounts(input.script);
   if (detectScriptFamily(input.script) === "cyrillic" || (letters.cyrillic > 0 && letters.latin === 0)) {
     return [
-      ...breaks,
+      ...first,
       `Cyrillic script on ${model}: for Russian it places stress less reliably than eleven_v3 ` +
-        `and does not read stress marks; ${readers} read them`,
+        `and does not read stress marks; ${readers} them`,
     ];
   }
-  return breaks;
+  return first;
 }

@@ -41,8 +41,14 @@ export function rectsOverlap(a: LayerRect, b: LayerRect): boolean {
   return a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
 }
 
+/** How the presenter is framed: close as every portrait was, or wide, lower with room above, a 9:16 view only (#884 S5d). */
+export const PRESENTER_FRAMINGS = ["close", "wide"] as const;
+export type PresenterFraming = (typeof PRESENTER_FRAMINGS)[number];
+
 /** Where the presenter's face sits: 12–48% of the height and the middle 60% of a 9:16 clip, which other formats fit whole and centre (#778 S3). */
-export function faceZone(aspectRatio: string): LayerRect {
+/** A wide 9:16 view puts it at 33–58% and the middle half, as measured on a HeyGen render (#884 S5d). */
+export function faceZone(aspectRatio: string, framing: PresenterFraming = "close"): LayerRect {
+  if (framing === "wide" && aspectRatio === "9:16") return { left: 0.25, top: 0.33, width: 0.5, height: 0.25 };
   const { width, height } = frameCanvasOf(aspectRatio);
   const share = 0.6 * Math.min(1, (9 / 16) / (width / height));
   return { left: (1 - share) / 2, top: 0.12, width: share, height: 0.36 };

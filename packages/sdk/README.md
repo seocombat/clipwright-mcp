@@ -24,17 +24,18 @@ the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/pa
 
 | Method | Request and result |
 | --- | --- |
-| `listWorkflows()` | Six public methods and deployment availability. Free. |
+| `listWorkflows()` | Seven public methods and deployment availability. Free. |
 | `getWorkflow(methodId)` | One method's guidance, limitations and capability snapshot. Free. |
 | `createWorkflowPlan({ document })` | Store a complete account-owned document. Free; starts no run. |
+| `planReferenceRemake(request)` | The server compiles a reference profile and the exact script into a new `reference-remake` plan; its warnings name what it does not reproduce. Free; starts no run. |
 | `getWorkflowPlan(planId)` | Read the current revision, readiness issues and warnings. Free. |
 | `saveWorkflowPlan(planId, { base_version, document })` | Save an edited revision. Free; approval is separate. |
 | `approveWorkflowPlan(planId, { revision, content_digest })` | Explicitly approve that revision. Free; starts no run. |
 | `quoteWorkflowPlan(planId)` | Quote the approved revision with an empty POST body. Free. |
 | `runWorkflowPlan(planId, request)` | Start one paid intent and return its captured receipt and native run immediately. |
 
-The four native methods are `ugc-product-intro`, `ugc-faq-answer`,
-`faceless-explainer` and `product-image-story`. Their executors must each be
+The five native methods are `ugc-product-intro`, `ugc-faq-answer`,
+`faceless-explainer`, `product-image-story` and `reference-remake`. Their executors must each be
 configured, qualified and enabled. `website-proof-demo` and `kinetic-launch`
 remain `execution_blocked`; catalog availability grants no account permission.
 Use the method and capability pins from the method response in the document.

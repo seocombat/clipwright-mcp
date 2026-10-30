@@ -6,6 +6,7 @@ import { coverWordOf } from "./semantic-inserts.js";
 import { MAX_INSERTS } from "./skills.js";
 import { LAYER_ENTERS, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS } from "./ugc-layers.js";
 import { MAX_TEMPLATES, TEMPLATE_PLACEMENTS, TEMPLATE_SOUND_BEATS } from "./templates/index.js";
+import { FRAMING_SIZES, MAX_FRAMING } from "./ugc-framing.js";
 
 // The long-form timeline a render freezes into `runs/<id>/resolved-timeline.v1.json`: the worker writes it, the editor reads it.
 
@@ -23,6 +24,10 @@ const mediaSlot = z.object({ ...interval, kind: z.literal("media"), key: z.strin
   bytes: positive, width: positive, height: positive, durationSec: z.number().positive().finite(),
   mediaType: z.enum(["image", "video"]), contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]),
   insertId: z.string().min(1).optional() }).strict();
+/** A freeze of the take before it while others speak (reference-elements S3): no vendor renders it, and its still is cut after the takes are. */
+const holdSlot = z.object({ ...interval, kind: z.literal("hold"), sourcePosition: positive }).strict();
+/** The presenter listening between the take before it and the hold that freezes it (S4d, D1): a silent alpha take, billed as face seconds. */
+const liveSlot = z.object({ ...interval, kind: z.literal("live"), sourcePosition: positive, requestHash: digest }).strict();
 const layerMedia = { id: z.string().min(1).max(64), startFrame: frame, endFrame: positive, enter: z.enum(LAYER_ENTERS),
   key: z.string().min(1), sha256: digest, bytes: positive, width: positive, height: positive,
   mediaType: z.enum(["image", "video"]), contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]) };
@@ -49,13 +54,38 @@ export const resolvedTimelineTemplate = z.object({ id: z.string().min(1).max(64)
 const contentSchema = z.object({ version: z.literal(1), mode: z.enum(["segments", "script_inserts"]),
   runId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/), accountId: z.string().min(1).max(200), inputHash: digest,
   fps: z.literal(CANVAS_FPS), outputFrames: positive, fullSpeechDurationSec: z.number().positive().finite(),
-  slots: z.array(z.discriminatedUnion("kind", [actorSlot, mediaSlot])).min(1).max(RESOLVED_TIMELINE_MAX_SLOTS),
+  slots: z.array(z.discriminatedUnion("kind", [actorSlot, mediaSlot, holdSlot, liveSlot])).min(1).max(RESOLVED_TIMELINE_MAX_SLOTS),
   warnings: z.array(z.string().max(2000)).max(100),
   narration: audioArtifact.extend({ alignmentHash: digest, semanticPlan: semanticPlanSchema }).strict().optional(),
   layers: z.array(layerSlot).min(1).max(MAX_OVERLAYS + MAX_LAYOUT_WINDOWS).optional(),
   /** Templates with the data as admitted and the kind version they were admitted at (#778 S3, D11); absent keeps the hash. */
   templates: z.array(resolvedTimelineTemplate).min(1).max(MAX_TEMPLATES).optional(),
+  /** The edit sound a run with edit_sounds plays on its cuts, frozen at admission (reference-elements S1); absent keeps the hash and plays none. */
+  editSound: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
+  /** Presenter sizes by frame (reference-elements S2); absent keeps the hash, and a flash is the only transition written. */
+  framing: z.array(z.object({ id: z.string().min(1).max(64), startFrame: frame, endFrame: positive, size: z.enum(FRAMING_SIZES),
+    transition: z.literal("flash").optional() }).strict()).min(1).max(MAX_FRAMING).optional(),
+  /** A run's call (#857 S5, D2): its levelled audio, mixed into the narration's gap from its first word to its last; absent keeps the hash. */
+  call: audioArtifact.extend({ startFrame: frame, endFrame: positive }).strict().optional(),
+  /** The talking takes' crop (#910 S4d, #924), frozen so a resume asks for the same takes; absent keeps the hash and crops nothing. */
+  talkingCrop: z.object({ k: z.number().positive().finite(), anchor: z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]) }).strict().optional(),
 }).strict().superRefine((value, context) => {
+  if (value.call) {
+    const gap = value.slots.filter(slot => slot.kind === "live" || slot.kind === "hold");
+    if (value.mode !== "script_inserts" || !gap.some(slot => slot.kind === "hold") || value.call.key !== `runs/${value.runId}/narration/${value.call.sha256}.wav` ||
+        value.call.startFrame < gap[0]!.startFrame || value.call.endFrame <= value.call.startFrame || value.call.endFrame > gap.at(-1)!.endFrame) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["call"], message: "a call lies inside its hold's gap, as narration audio of the run" });
+    }
+  }
+  if (value.editSound !== undefined && value.mode !== "script_inserts") context.addIssue({ code: z.ZodIssueCode.custom, path: ["editSound"],
+    message: "an edit sound needs a narrated timeline" });
+  for (const [index, item] of (value.framing ?? []).entries()) {
+    const others = value.framing!.slice(0, index);
+    if (value.mode !== "script_inserts" || item.endFrame <= item.startFrame || item.endFrame > value.outputFrames ||
+        others.some(other => other.id === item.id || (other.startFrame < item.endFrame && item.startFrame < other.endFrame))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["framing", index], message: "invalid framing interval or identity" });
+    }
+  }
   const ids = new Set<string>();
   for (const [index, template] of (value.templates ?? []).entries()) {
     if (value.mode !== "script_inserts" || template.endFrame <= template.startFrame || template.endFrame > value.outputFrames || ids.has(template.id) ||
@@ -89,6 +119,16 @@ const contentSchema = z.object({ version: z.literal(1), mode: z.enum(["segments"
       hashes.add(slot.requestHash);
       check(value.mode === "segments" ? slot.audio === undefined : slot.audio !== undefined &&
         slot.audio.key === `runs/${value.runId}/narration/${slot.audio.sha256}.wav`, "actor_audio_binding");
+    } else if (slot.kind === "hold") {
+      check(value.mode === "script_inserts", "hold_mode");
+      check(slot.sourcePosition === slot.position - 1 && ["actor", "live"].includes(value.slots[index - 1]?.kind ?? ""), "hold_source");
+    } else if (slot.kind === "live") {
+      const next = value.slots[index + 1];
+      check(value.mode === "script_inserts", "live_mode");
+      check(slot.sourcePosition === slot.position - 1 && value.slots[index - 1]?.kind === "actor", "live_source");
+      check(next?.kind === "hold" && next.sourcePosition === slot.position, "live_hold");
+      check(!hashes.has(slot.requestHash), "duplicate_actor_request");
+      hashes.add(slot.requestHash);
     } else {
       let frames = 0;
       try { frames = slot.mediaType === "image" ? secondsToFrames(slot.durationSec, value.fps) : completeFrames(slot.durationSec, value.fps); }
@@ -123,6 +163,9 @@ export type ResolvedTimelineContent = z.infer<typeof contentSchema>;
 export type ResolvedTimeline = ResolvedTimelineContent & { hash: string };
 export type ResolvedTimelineLayer = NonNullable<ResolvedTimelineContent["layers"]>[number];
 export type ResolvedTimelineTemplate = NonNullable<ResolvedTimelineContent["templates"]>[number];
+export type ResolvedTimelineFraming = NonNullable<ResolvedTimelineContent["framing"]>[number];
+export type ResolvedTimelineHold = Extract<ResolvedTimelineContent["slots"][number], { kind: "hold" }>;
+export type ResolvedTimelineLive = Extract<ResolvedTimelineContent["slots"][number], { kind: "live" }>;
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -160,11 +203,13 @@ export function readResolvedTimeline(value: unknown): ResolvedTimeline {
   return result;
 }
 
-/** The face-billing units of a timeline: each actor slot is one unit whose face shows over its whole interval. */
+/** The face-billing units of a timeline: each actor slot is one unit whose face shows over its whole interval; a hold is none (owner 25.10).
+ *  A live slot is one too (S4d, C9), optional: a take that falls back (D8) is neither shown nor charged. */
 export function faceBillingUnitsOf(timeline: ResolvedTimelineContent) {
-  return timeline.slots.flatMap(slot => slot.kind === "actor" ? [{ unitId: `segment:${slot.position}`,
+  return timeline.slots.flatMap(slot => slot.kind === "actor" || slot.kind === "live" ? [{
+    unitId: slot.kind === "live" ? `live:${slot.position}` : `segment:${slot.position}`,
     requestHash: slot.requestHash, audioDurationSec: (slot.endFrame - slot.startFrame) / timeline.fps,
-    faceIntervals: [{ startFrame: slot.startFrame, endFrame: slot.endFrame }] }] : []);
+    faceIntervals: [{ startFrame: slot.startFrame, endFrame: slot.endFrame }], ...(slot.kind === "live" ? { optional: true as const } : {}) }] : []);
 }
 
 /** Where a run's resolved timeline is stored, and the most bytes it may take there. */

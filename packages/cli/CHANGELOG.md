@@ -18,6 +18,113 @@ listed under.
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-30
+
+### Changed
+
+- The texts an agent reads describe the `parts-v1` tariff (#933). The `call` field says the call adds production
+  seconds and that a live-avatar still has its own price; the templates description and the remake plan's tariff
+  note drop the retired per-second rate. The MCP server's SKILL.md and the CLI README point to `list_prices` and the
+  quotes instead of fixed faceless prices, and the `quote_ugc` example shows `price_lines` for 12 s.
+- *Dashboard:* /pricing lists only the presenter a request can get, and prints single images and clips as price
+  ranges per resolution without model names (#800). Two comparison pages are rewritten from the other products'
+  sites as read on 2026-10-30.
+
+- *Server-side:* `make_ugc` is priced by its parts, one tariff `parts-v1` for short and long videos (#800): 12 credits
+  for every second a presenter take fills on HeyGen (22 on OmniHuman), plus 1 for every second of the finished video,
+  plus 400 for each live-avatar still of a call, at least 50 for a delivered video. A plain 35 s video costs 455
+  instead of 1 050. The quote itemizes it in `price_lines` and names `minimum_credits`; the terms are frozen at
+  admission, so a run admitted before keeps its own.
+- *Server-side:* `analyze_reference` costs 70 credits (#927): held at the start and charged once the analysis
+  succeeds; a failed analysis costs nothing, and starting it again on the same asset answers the same analysis for
+  free. The analysis carries `credits_reserved`, `credits_charged` and `balance_after_credits`.
+- *Server-side:* single generations are priced at ×2.5 of their cheapest route instead of ×2: an image from 6 credits,
+  a clip from 6 credits a second. `seedance-2.0-mini` is rendered by one route only.
+- *Server-side:* `make_faceless` is priced by its parts, tariff `faceless-parts-v1` (#800): 7 credits for each picture
+  we generate, the opening clip's still included, 49 for the opening clip and 1 for every second of the delivered
+  video, at least 50. Your own pictures are not charged. The quote is the most a selection is charged: 212 at 30 s,
+  356 at 90 s, instead of 350 and 420. `faceless_billing` names `images` and `imageCredits`; a run admitted before
+  keeps its tariff.
+- *Server-side:* edits and personal actors are repriced at ×2.5 of their cost (#800): a revision's new picture 7, clip
+  49, clip with a new picture 56, render 13, and a shot candidate the same unit prices; an actor's portrait 4 and each
+  other format 8 at `medium`, 12 and 18 at `high`. Runs admitted before keep their snapshot.
+
+### Added
+
+- *Server-side:* `POST /v1/reference-analyses/quote`, the `quote_analysis` tool and `ClipwrightClient.quoteAnalysis()`
+  price an analysis before it starts (#927).
+- *Server-side:* every settled run carries `balance_after_credits`, the account's balance read in the transaction
+  that settled it (#927).
+
+- *Server-side:* `GET /v1/public/prices` lists the price of every action in credits, without a key: one entry per tool
+  and variant, its price as lines of credits per unit plus a minimum, or a formula; free tools are listed at 0. No price
+  changed (#927).
+- The `list_prices` tool and `ClipwrightClient.listPrices()` read that list, and the description of every paid tool
+  ends with its price line, built from the same list.
+- `@clipwright/core` exports `PRICE_LIST`, `priceLine` and `pricesResponse`, with the constants the list reads:
+  `CREDITS_PER_SECOND`, `ACTOR_UNIT_CREDITS`, `EDIT_UNIT_PRICES`, `EDIT_RENDER_PRICE`, `EDIT_ZERO_UNIT_PRICE` and the
+  numbers of the faceless tariff.
+
+- *Server-side:* `GET /openapi.json` serves an OpenAPI 3.1 description of the REST API without a key: every public
+  route with its request and response schemas, the error envelope and `warnings[]`. The API's own tests check
+  their real responses against it.
+- `@clipwright/core/openapi` exports `buildOpenApiDocument()` and the route marking `OPENAPI_ROUTES`;
+  `@clipwright/core` exports `ENDPOINT_NOTES`, `healthResponse` and `publicSkillsResponse`.
+- `make_ugc` takes `voice_pace` (0.7–1.2): `eleven_flash_v2_5` and `eleven_turbo_v2_5` get it as their speed,
+  `gemini-3.8-flash-tts` as a "speaking rapidly" or "speaking slowly" style with a warning. `eleven_v4` has no speed
+  setting: it gets no speed, and a `voice_pace` other than 1 is named in `warnings[]` (#890).
+- `list_voices` gives each English voice on `eleven_v4` its measured pace, `words_per_second`. On that model the voice
+  sets the pace, so pick the voice nearest a reference presenter's pace (#890).
+- *Server-side:* all ElevenLabs speech goes to `eleven_v4`, now the model of every preset, catalog voice and raw
+  `voice_id`. `tts_model: "eleven_v3"` is still accepted: the run speaks `eleven_v4` and `warnings[]` says so.
+  `eleven_v4` gives no pause for a `<break>` tag, so the tag is cut with a warning on the default path too.
+- `make_ugc` takes `pause_trim`, targets in seconds per gap class: after synthesis a pause longer than its target is cut
+  down to it inside silence only, with a crossfade, and word timings move with the audio. A joint that would click is
+  kept and named in `warnings[]`.
+- *Server-side:* a reference analysis measures the presenter's voice from the words it already transcribes: pace,
+  pauses in three layers, hinge pauses, pitch and loudness range, in the profile's new `voice` section.
+  `plan_reference_remake` sets `voice_pace` from it on a model with a speed. On `eleven_v4` it sets none and, when
+  the voice is more than 5% off the presenter, names the measured voices nearer the presenter's pace (#890).
+- `@clipwright/core` exports `referenceVoice`, the schema of that section, and `narrationPaceFromVoice`.
+
+- *Dashboard:* a public `/captions` page plays every caption style on the same presenter and the same words, each
+  with the description `tools/list` gives it; the `caption_style` description links to the page.
+- `SKILL.md` names every caption style and tells the agent to ask whether the user wants captions, to offer three
+  or four fitting styles with the gallery link, and to take the style closest to a reference video's captions.
+- *Server-side:* `hormozi` now matches the canonical look: Montserrat Black uppercase, white with a thick black outline,
+  one yellow (`#FFD93D`) keyword per cue, up to three words. The previous look (condensed Oswald, orange keyword, no
+  outline) is the new style `accent`. `hormozi` stays the default; there are 24 styles.
+- *Server-side:* `make_ugc` takes `edit_sounds: true` on a run with `inserts` or `layout_windows`: a low sound plays on
+  every cut, to or from an insert, at a full-frame template's cut in or out and at a layout window's in and out, with
+  its peak on the cut. `template_sounds.edit` picks it from `swell_hit` (default), `whoosh_deep`, `whoosh_low`,
+  `boom_low`, `sub_drop`, `riser_boom` and `riser_hit`. A cut that already plays a template's whoosh or flash gets no
+  second sound. Without the field a run plays no edit sounds, as before; `edit_sounds` with nothing to cut, with
+  `template_sounds: false`, or `template_sounds.edit` without `edit_sounds`, is refused 400 by its path before any
+  hold. The price does not change.
+- *Server-side:* new template sounds: a `pop` (`plop`) when a `tag` or a `callout` pops in, a `hangup` (`phone`) just
+  before an answered `phone_call` leaves, and `money` (`cash_register`, `coins`) when a `stat` with a currency sign in
+  its prefix or suffix counts up. `answer` adds `pickup`, `whoosh` adds `slide_quick` and `flash` adds `swish`.
+  `list_template_sounds` lists them. A run frozen before them keeps its sounds.
+- *Server-side:* `make_ugc` takes `framing`, presenter sizes on their words: `close` (1.18 times larger about the face)
+  or `medium`, each a hard cut that settles over 8 frames, or with `transition: "flash"` a warm light leak over the cut.
+  It needs long-form qualification, works without captions, refuses overlap with inserts, layout windows and other framing,
+  and names in `warnings[]` a framing wholly under full-frame templates. With `edit_sounds`, each framing cut plays the
+  edit sound. `plan_reference_remake` turns a `punch_in` camera into a close framing and a flash into a speaking beat
+  into a flashed one.
+- `create_actor` takes `from_actor_id` with `framing: "wide"`, `holding` (one or two objects, each with words, an
+  optional image asset of the object and a hand) or `setting`: it derives a new personal actor from a library actor or
+  your own, with the same face checked against the source. A face that does not match costs nothing. The price is the
+  usual per-image units. *Server-side:* the fields are open only where `CLIPWRIGHT_ACTOR_VIEWS` is on; elsewhere they
+  are refused 400 `rejected_field`. A wide derived actor's 9:16 is listed with `framing: "wide"`, and `make_ugc`
+  renders it as a wide view. `@clipwright/core` exports `storedActorSource`, `storedHoldingItem`,
+  `createActorDispositions`, `createActorRejectedFields` and `isActorViewsEnabled`.
+
+### Changed
+
+- *Server-side:* the template sound library is re-recorded from CC0 sounds the owner chose by ear: 25 of the 31 files
+  play a new recording under the same name; the rings, `glitch`, `switch_heavy` and `paper_swipe` stay as they were.
+  Every source is named in `THIRD_PARTY_NOTICES`.
+
 ## [0.34.0] - 2026-10-24
 
 ### Added

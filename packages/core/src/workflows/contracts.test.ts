@@ -40,6 +40,13 @@ describe('workflow write and read boundaries', () => {
         expect(workflowQuoteBindingRead.parse(known).native_quote.skill).toBe('make_faceless');
         expect(workflowQuoteBindingRead.safeParse({ ...known, native_quote: { skill: 'make_faceless', quote: { ...known.native_quote.quote, totalCredits: -1 } } }).success).toBe(false);
     });
+    // Mutant: give the quote's launch its own looser shape, and a launch passed on unchanged can carry what the run route refuses (#884).
+    it('a quote carries launch, which is exactly the run body; a quote from before it still reads', () => {
+        expect(workflowQuoteBinding.shape.launch).toBe(launchWorkflow);
+        const older = { v: 1, quote_id: 'wq_123', plan_id: 'wfp_123', revision: 1, content_digest: digest, method: pin,
+            semantic_input_digest: 'b'.repeat(64), expires_at: '2026-10-14T12:00:00Z', native_quote: { skill: 'future_executor', quote: {} } };
+        expect(workflowQuoteBindingRead.parse(older).launch).toBeUndefined();
+    });
     it('preserves exact submitted script in schema and thin DTO', () => {
         expect(workflowBrief.parse(brief).script).toBe('  Export your MP4.\n');
         expect(WorkflowBriefDto.parse(brief).value.script).toBe('  Export your MP4.\n');

@@ -88,12 +88,22 @@ export const assetSource = z.union([
 ]);
 export type AssetSource = z.infer<typeof assetSource>;
 
-/** `rights_confirmed` is required for the customer's own material and states once, at creation, that it may be used. */
+/** Why a render or generation refuses an analysis-only asset (#884); the caller prefixes the field and the id. */
+export const ANALYSIS_ONLY_ASSET_REFUSAL = "is an analysis-only asset: analyze_reference reads it, but it never reaches a render or a " +
+  "generation; to use the material, create it again with rights_confirmed: true";
+
+/** The customer's own material needs `rights_confirmed` (stated once, at creation) or `analysis_only`, which keeps it out of every render. */
 export const createAssetRequest = z.strictObject({
   source: assetSource,
   role: z.enum(ASSET_ROLES),
   name: assetName,
   rights_confirmed: z.literal(true).optional(),
+  analysis_only: z.literal(true).optional()
+    .describe("Keep it for analyze_reference only, without rights_confirmed: it never reaches a render or a generation."),
+}).refine((request) => !(request.rights_confirmed && request.analysis_only), {
+  path: ["analysis_only"], message: "pass rights_confirmed or analysis_only, not both",
+}).refine((request) => !(request.analysis_only && "run_id" in request.source), {
+  path: ["analysis_only"], message: "a generation of this account is already yours to use; analysis_only is for your own material",
 });
 export type CreateAssetRequest = z.infer<typeof createAssetRequest>;
 
@@ -102,6 +112,7 @@ export const assetBytesQuery = z.strictObject({
   role: z.enum(ASSET_ROLES),
   name: assetName,
   rights_confirmed: z.literal("true").optional(),
+  analysis_only: z.literal("true").optional(),
 });
 
 export const updateAssetRequest = z.strictObject({
@@ -134,6 +145,8 @@ export const asset = z.strictObject({
   pix_fmt: z.string().min(1).nullable(),
   content_digest: sha256Hex,
   source_type: z.enum(ASSET_SOURCE_TYPES),
+  /** Kept for analysis only (#884): no render or generation takes it. */
+  analysis_only: z.boolean(),
   url: z.string().url().startsWith("https://"),
   expires_at: z.string().datetime(),
   created_at: z.string().datetime(),
@@ -158,6 +171,7 @@ export const pendingAsset = z.strictObject({
   role: z.enum(ASSET_ROLES),
   name: z.string().min(1),
   source_type: z.enum(ASSET_SOURCE_TYPES),
+  analysis_only: z.boolean(),
   error: z.strictObject({ code: z.string().min(1), message: z.string().min(1) }).nullable(),
   processing_deadline: z.string().datetime().nullable(),
   created_at: z.string().datetime(),
@@ -212,10 +226,12 @@ export type AssetList = z.infer<typeof assetList>;
 // What installed clients parse: open strings for the enums, and unknown keys are kept.
 export const assetRead = asset.extend({
   state: z.literal("ready"), kind: z.string().min(1), role: z.string().min(1), media_type: z.string().min(1), source_type: z.string().min(1),
+  analysis_only: z.boolean().optional(),
 }).loose();
 export type AssetRead = z.infer<typeof assetRead>;
 export const pendingAssetRead = pendingAsset.extend({
   state: z.string().min(1), kind: z.string().min(1), role: z.string().min(1), source_type: z.string().min(1),
+  analysis_only: z.boolean().optional(),
   error: z.object({ code: z.string().min(1), message: z.string() }).loose().nullable(),
   upload: assetPutUpload.extend({ put_headers: z.record(z.string(), z.string()) }).loose().optional(),
 }).loose();
@@ -248,7 +264,9 @@ export const CREATE_ASSET_DESCRIPTION =
   `or hevc, up to ${ASSET_VIDEO_MAX_SECONDS} seconds and 100 MB; a url clip or a PUT is checked in the background, ` +
   "so the answer says state: \"processing\" (or \"awaiting_upload\") and get_asset says ready or failed within " +
   "minutes. For your own material (upload_id, url, base64, put, path) pass rights_confirmed: true, which states once " +
-  "that you may use the people and works in it. Use a picture's asset_id as {asset_id} in references, first_frame or " +
+  "that you may use the people and works in it. A reference you only want analysed, such as someone else's ad for " +
+  "analyze_reference, takes analysis_only: true instead: no rights claim, and no render or generation ever takes it. " +
+  "Use a picture's asset_id as {asset_id} in references, first_frame or " +
   "last_frame of quote_image, generate_image, quote_video and generate_video; clips are kept for assembly and are " +
   "no generation reference yet. " + ASSET_TOOL_TERMS;
 

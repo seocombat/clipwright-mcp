@@ -26,14 +26,17 @@ import {
   actorPricingSnapshot,
   admittedActorPricingSnapshot,
   createActorAdmissionWarnings,
+  createActorDispositions,
   createActorInput,
   createActorQuote,
+  createActorRejectedFields,
   createActorRunError,
   createdActor,
   newPersonalActorId,
   producedCreatedActor,
   storedCreateActorInput,
 } from "./account-actors.js";
+import { isActorViewsEnabled } from "./contract-dispositions.js";
 import { run, runRead } from "./runs.js";
 import { resolveAspectRatio } from "./aspect.js";
 import { derivedRunWarnings, UNREADABLE_CREATE_ACTOR_INPUT_WARNING } from "./run-static-warnings.js";
@@ -123,17 +126,35 @@ describe("createActorInput — strict input", () => {
 // this is the biometrics boundary.
 describe("create_actor input stays TEXTUAL", () => {
   /** The list is checked against the schema's own shape: a new field turns it red and forces a boundary review. */
+  /** #898 review: `from_actor_id` names our own actor, and a held object's picture is an asset id, never scored for a face. */
   const TEXT_ONLY_KEYS = [
     "approximate_age",
     "aspect_ratios",
     "description",
+    "framing",
+    "from_actor_id",
     "gender",
+    "holding",
     "name",
     "quality",
+    "setting",
   ];
 
-  it("there are EXACTLY SIX keys, all read from the schema", () => {
+  it("there are EXACTLY TEN keys, all read from the schema", () => {
     expect(Object.keys(createActorInput.shape).sort()).toEqual(TEXT_ONLY_KEYS);
+  });
+
+  it("a derived actor takes no image carrier either, and a held object's picture only as an asset id", () => {
+    const derived = { name: "Anna wide", from_actor_id: "actor_anna", framing: "wide" };
+    for (const key of ["from_actor_id", "framing", "holding", "setting"]) {
+      for (const [label, carrier] of CARRIERS) {
+        expect(createActorInput.safeParse({ ...derived, [key]: carrier }).success, `${key}: ${label}`).toBe(false);
+        expect(createActorInput.safeParse({ ...derived, holding: [{ description: "a mug", reference: carrier }] }).success, label)
+          .toBe(false);
+      }
+    }
+    const asset = { asset_id: `ast_${"a".repeat(32)}` };
+    expect(createActorInput.safeParse({ ...derived, holding: [{ description: "a mug", reference: asset }] }).success).toBe(true);
   });
 
   /** An image carrier: bytes, a link or an upload id. Tried against EVERY field. */
@@ -519,10 +540,13 @@ describe("dispositions and admission warnings", () => {
     expect(createActorAdmissionWarnings({}, table)).toEqual([]);
   });
 
-  it("there are exactly nine failure codes; each starts its text and promises zero charge", () => {
+  it("there are exactly twelve failure codes; each starts its text and promises zero charge", () => {
     expect([...CREATE_ACTOR_RUN_ERROR_CODES].sort()).toEqual(
       [
         "actor_generation_disabled",
+        "actor_identity_not_kept",
+        "actor_source_unreadable",
+        "actor_views_disabled",
         "actor_portrait_not_delivered",
         "actor_run_interrupted",
         "actor_portrait_unusable",
@@ -577,5 +601,90 @@ describe("run skills", () => {
     expect(MAKE_UGC_DESCRIPTION).not.toContain("person (described in words)");
     expect(MAKE_UGC_DESCRIPTION).not.toMatch(/\bperson\b/);
     expect(MAKE_UGC_DESCRIPTION).toContain("actor_id");
+  });
+});
+
+// #898 C1: an actor derived from an actor takes its words, gender and age from the source; none is dropped silently.
+describe("an actor derived from an actor", () => {
+  const DERIVED = { name: "Anna wide", from_actor_id: "actor_anna", framing: "wide" } as const;
+  const ASSET = `ast_${"b".repeat(32)}`;
+  const issues = (body: unknown) => {
+    const result = createActorInput.safeParse(body);
+    expect(result.success).toBe(false);
+    return (result.error?.issues ?? []).map((issue) => `${issue.path.join(".")}: ${issue.message}`);
+  };
+
+  it("passes with a name, a source and one change, defaults filled", () => {
+    expect(createActorInput.parse(DERIVED)).toEqual({ ...DERIVED, quality: ACTOR_DEFAULT_QUALITY, aspect_ratios: [...ASPECT_RATIOS] });
+    for (const change of [{ holding: [{ description: "a coffee mug" }] }, { setting: "a bright studio" }]) {
+      expect(createActorInput.safeParse({ name: "Anna", from_actor_id: `actor_u_${"a".repeat(26)}`, ...change }).success).toBe(true);
+    }
+  });
+
+  it("refuses description, gender and age next to from_actor_id, each by name", () => {
+    for (const [field, value] of [["description", "a woman"], ["gender", "female"], ["approximate_age", 30]] as const) {
+      expect(issues({ ...DERIVED, [field]: value })).toEqual([`${field}: ${field} comes from the source actor with from_actor_id; omit it`]);
+    }
+  });
+
+  it("refuses a source without a change, and a change without a source", () => {
+    expect(issues({ name: "Anna", from_actor_id: "actor_anna" })).toEqual(["from_actor_id: from_actor_id needs a change: framing, holding or setting"]);
+    for (const [field, value] of [["framing", "wide"], ["holding", [{ description: "a mug" }]], ["setting", "a studio"]] as const) {
+      expect(issues({ ...VALID, [field]: value })).toEqual([
+        `${field}: ${field} needs from_actor_id: create the actor first, then derive a view of it with from_actor_id`]);
+    }
+  });
+
+  it("a described actor still needs its words, gender and age, named", () => {
+    expect(issues({ name: "Mira" }).map((line) => line.split(":")[0])).toEqual(["description", "gender", "approximate_age"]);
+  });
+
+  it("holds one or two objects, one per hand, with bounded words", () => {
+    const item = (hand?: "left" | "right") => ({ description: "a mug", ...(hand ? { hand } : {}) });
+    expect(createActorInput.safeParse({ ...DERIVED, holding: [item("left"), item("right")] }).success).toBe(true);
+    expect(createActorInput.safeParse({ ...DERIVED, holding: [item(), item()] }).success).toBe(true);
+    expect(issues({ ...DERIVED, holding: [item("left"), item("left")] })).toEqual(["holding: holding names the same hand twice: one object per hand"]);
+    expect(createActorInput.safeParse({ ...DERIVED, holding: [item(), item(), item()] }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...DERIVED, holding: [] }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...DERIVED, holding: [{ description: "x".repeat(200) }] }).success).toBe(true);
+    expect(createActorInput.safeParse({ ...DERIVED, holding: [{ description: "x".repeat(201) }] }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...DERIVED, setting: "x".repeat(300) }).success).toBe(true);
+    expect(createActorInput.safeParse({ ...DERIVED, setting: "x".repeat(301) }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...DERIVED, holding: [{ description: "a mug", hand: "both" }] }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...DERIVED, framing: "close" }).success).toBe(false);
+  });
+
+  it("the unknown-field refusal names the view fields", () => {
+    expect(refusal(createActorInput.safeParse({ ...DERIVED, prop: "mic" }))).toBe(
+      "unknown field(s) prop: create_actor accepts description, gender, approximate_age, name, quality, aspect_ratios, " +
+        "from_actor_id, framing, holding, setting");
+  });
+
+  it("the stored input reads only with the source admission resolved and each picture it found", () => {
+    const snapshot = { quality: "medium", unit_credits: { portrait: 10, variant: 10 }, requested_aspects: ["9:16"] } as const;
+    const source = { actor_id: "actor_anna", scope: "clipwright", key: "candidates/anna.png", sha256: "c".repeat(64), width: 941,
+      height: 1672, framing: "close" } as const;
+    const stored = { ...DERIVED, description: "Fictional adult woman", gender: "female", approximate_age: 27, aspect_ratios: ["9:16"],
+      quality: "medium", pricing_snapshot: snapshot, source_actor: source,
+      holding: [{ description: "a mug", reference: { asset_id: ASSET }, picture: { asset_id: ASSET, key: "assets/k.png", mime: "image/png" } }] };
+    expect(storedCreateActorInput.safeParse(stored).success).toBe(true);
+    const { source_actor: _source, ...withoutSource } = stored;
+    expect(storedCreateActorInput.safeParse(withoutSource).success).toBe(false);
+    expect(storedCreateActorInput.safeParse({ ...stored, source_actor: { ...source, actor_id: "actor_maya" } }).success).toBe(false);
+    expect(storedCreateActorInput.safeParse({ ...stored, holding: [{ description: "a mug", reference: { asset_id: ASSET } }] }).success).toBe(false);
+  });
+
+  it("with CLIPWRIGHT_ACTOR_VIEWS off the view fields are rejected by name, and nothing else", () => {
+    const off = createActorDispositions(false);
+    expect(createActorRejectedFields(createActorInput.parse(VALID), off)).toEqual([]);
+    expect(createActorRejectedFields({ ...DERIVED, setting: "a studio" }, off).map((hit) => hit.field)).toEqual(["from_actor_id", "framing", "setting"]);
+    expect(createActorRejectedFields({ ...DERIVED, setting: "a studio" }, createActorDispositions(true))).toEqual([]);
+    expect(createActorAdmissionWarnings({ ...DERIVED }, off)).toEqual([]);
+  });
+
+  it("the switch needs generation and the fetch surface as well", () => {
+    const on = { CLIPWRIGHT_ACTOR_VIEWS: "1", CLIPWRIGHT_ACTOR_GENERATION: "1", CLIPWRIGHT_REMOTE_FETCH: "1" };
+    expect(isActorViewsEnabled(on)).toBe(true);
+    for (const key of Object.keys(on)) expect(isActorViewsEnabled({ ...on, [key]: "0" }), key).toBe(false);
   });
 });

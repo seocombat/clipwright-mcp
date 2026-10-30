@@ -1,11 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ClipwrightClient } from '@clipwright/sdk';
+import { priceLine } from '@clipwright/core';
 import { workflowToolInputs, WORKFLOW_TOOL_DESCRIPTIONS } from '@clipwright/core/workflows';
 import { formatGetRun, withFailureReport, type McpToolResponse } from './format.js';
 
 const json = (value: unknown): McpToolResponse => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
 const config = <Name extends keyof typeof workflowToolInputs>(name: Name, title: string, readOnlyHint: boolean) => ({
-    title, description: WORKFLOW_TOOL_DESCRIPTIONS[name], inputSchema: workflowToolInputs[name],
+    title, description: [WORKFLOW_TOOL_DESCRIPTIONS[name], priceLine(name)].filter((part) => part !== null).join(' '),
+    inputSchema: workflowToolInputs[name],
     annotations: { readOnlyHint, destructiveHint: false },
 });
 export function registerWorkflowTools(server: McpServer, client: ClipwrightClient): void {
@@ -17,6 +19,8 @@ export function registerWorkflowTools(server: McpServer, client: ClipwrightClien
         async ({ document, plan_id, base_version }) => withFailureReport(async () => json(plan_id === undefined
             ? await client.createWorkflowPlan({ document })
             : await client.saveWorkflowPlan(plan_id, { document, base_version: base_version! }))));
+    server.registerTool('plan_reference_remake', config('plan_reference_remake', 'Compile a reference remake plan', false),
+        async request => withFailureReport(async () => json(await client.planReferenceRemake(request))));
     server.registerTool('get_workflow_plan', config('get_workflow_plan', 'Read a workflow plan', true),
         async ({ plan_id }) => withFailureReport(async () => json(await client.getWorkflowPlan(plan_id))));
     server.registerTool('approve_workflow_plan', config('approve_workflow_plan', 'Approve a workflow revision', false),

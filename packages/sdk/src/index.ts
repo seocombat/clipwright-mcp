@@ -31,9 +31,21 @@ import {
   type GenerationModels,
   generationQuote,
   type GenerationQuote,
+  PRICES_PATH,
+  pricesResponseRead,
+  type PricesResponseRead,
   TEMPLATE_SOUNDS_PATH,
   templateSoundsList,
   type TemplateSoundsList,
+  REFERENCE_ANALYSES_PATH,
+  REFERENCE_ANALYSIS_PATH,
+  REFERENCE_ANALYSIS_QUOTE_PATH,
+  analysisQuoteResponse,
+  type AnalysisQuoteResponse,
+  analyzeReferenceRequest,
+  type AnalyzeReferenceRequest,
+  referenceAnalysisRead,
+  type ReferenceAnalysisRead,
   makeFacelessInput,
   type MakeFacelessInputArgs,
   agentFailureReport,
@@ -50,6 +62,7 @@ import {
   PUBLIC_WORKFLOW_PATH,
   WORKFLOW_PLANS_PATH,
   WORKFLOW_PLAN_PATH,
+  WORKFLOW_REFERENCE_REMAKE_PATH,
   WORKFLOW_REVISIONS_PATH,
   WORKFLOW_APPROVE_PATH,
   WORKFLOW_QUOTE_PATH,
@@ -126,7 +139,7 @@ import {
   assetBytesIdempotencyKeyFor,
   assetRequestIdempotencyKeyFor,
 } from "@clipwright/core/idempotency";
-import { createWorkflowPlan, saveWorkflowPlan, approveWorkflowPlan, launchWorkflow,
+import { createWorkflowPlan, saveWorkflowPlan, approveWorkflowPlan, launchWorkflow, planReferenceRemake, type PlanReferenceRemakeArgs,
   workflowCatalogResponseRead, workflowMethodResponseRead, workflowPlanRead, workflowQuoteBindingRead,
   workflowLaunchResponseRead, workflowRunRead, workflowRunIdentityRead, type CreateWorkflowPlanArgs, type SaveWorkflowPlanArgs,
   type ApproveWorkflowPlanArgs, type LaunchWorkflowArgs, type WorkflowCatalogRead, type WorkflowMethodRead,
@@ -538,15 +551,18 @@ export class ClipwrightClient {
     return parseResponse(assetItemRead, body, ASSETS_PATH, true);
   }
 
-  /** Saves a local PNG or JPEG (10 MB) or MP4 (32 MB) as an asset; `rights_confirmed` states you may use the people and works in it. */
-  /** A clip answers a pending asset that the worker checks. Free. */
+  /** Saves a local PNG or JPEG (10 MB) or MP4 (32 MB) as an asset; `rights_confirmed` states you may use the people and works in it, */
+  /** `analysis_only` keeps it for analyzeReference alone. A clip answers a pending asset that the worker checks. Free. */
   async createAssetFromBytes(
     bytes: Uint8Array<ArrayBuffer>,
     mediaType: AssetPutMediaType,
-    meta: { role: AssetRole; name: string; rights_confirmed: true },
+    meta: { role: AssetRole; name: string } & ({ rights_confirmed: true } | { analysis_only: true }),
   ): Promise<AssetItemRead> {
-    const query = new URLSearchParams({ role: meta.role, name: meta.name, rights_confirmed: "true" }).toString();
-    const key = assetBytesIdempotencyKeyFor({ role: meta.role, name: meta.name, bytes }, this.#getClientId());
+    const analysis = "analysis_only" in meta && meta.analysis_only === true;
+    const query = new URLSearchParams({ role: meta.role, name: meta.name, ...(analysis ? { analysis_only: "true" } : { rights_confirmed: "true" }) })
+      .toString();
+    const key = assetBytesIdempotencyKeyFor({ role: meta.role, name: meta.name, bytes, ...(analysis ? { analysis_only: true } : {}) },
+      this.#getClientId());
     const path = `${ASSET_BYTES_PATH}?${query}`;
     const body = await this.#request(path, true, { method: "POST", body: bytes, headers: { "Content-Type": mediaType, "Idempotency-Key": key } });
     return parseResponse(assetItemRead, body, ASSET_BYTES_PATH, true);
@@ -719,9 +735,35 @@ export class ClipwrightClient {
     return parseResponse(generationModels, await this.#request(GENERATION_MODELS_PATH, false), GENERATION_MODELS_PATH, false);
   }
 
+  /** The price of every action in credits, a fixed number per unit or a formula. Free, and answered without a key. */
+  async listPrices(): Promise<PricesResponseRead> {
+    return parseResponse(pricesResponseRead, await this.#request(PRICES_PATH, false), PRICES_PATH, false);
+  }
+
   /** The template sounds a make_ugc run may name per beat, with each beat's default. Free. */
   async listTemplateSounds(): Promise<TemplateSoundsList> {
     return parseResponse(templateSoundsList, await this.#request(TEMPLATE_SOUNDS_PATH, false), TEMPLATE_SOUNDS_PATH, false);
+  }
+
+  /** What analyzeReference would hold and charge for this asset now: 0 when a live analysis of it would answer. Free. */
+  async quoteAnalysis(request: AnalyzeReferenceRequest): Promise<AnalysisQuoteResponse> {
+    const body = await this.#request(REFERENCE_ANALYSIS_QUOTE_PATH, false,
+      { method: "POST", body: JSON.stringify(analyzeReferenceRequest.parse(request)) });
+    return parseResponse(analysisQuoteResponse, body, REFERENCE_ANALYSIS_QUOTE_PATH, false);
+  }
+
+  /** Starts reading an MP4 asset into a reference profile, answered at once (state=queued); the same asset answers the */
+  /** same analysis unless it failed, so a retry needs no key. Paid: the price is held now and charged once it succeeds. */
+  async analyzeReference(request: AnalyzeReferenceRequest): Promise<ReferenceAnalysisRead> {
+    const body = await this.#request(REFERENCE_ANALYSES_PATH, true,
+      { method: "POST", body: JSON.stringify(analyzeReferenceRequest.parse(request)) });
+    return parseResponse(referenceAnalysisRead, body, REFERENCE_ANALYSES_PATH, true);
+  }
+
+  /** One reference analysis: queued, analyzing, succeeded with its profile and warnings, or failed with its error. Free. */
+  async getReferenceAnalysis(analysisIdValue: string): Promise<ReferenceAnalysisRead> {
+    const path = REFERENCE_ANALYSIS_PATH.replace(":id", encodeURIComponent(analysisIdValue));
+    return parseResponse(referenceAnalysisRead, await this.#request(path, false), path, false);
   }
 
   /** What one image would cost and its size; spends no credits. */
@@ -788,6 +830,11 @@ export class ClipwrightClient {
   }
   async createWorkflowPlan(input: CreateWorkflowPlanArgs): Promise<WorkflowPlanRead> {
     const parsed = createWorkflowPlan.parse(input), path = WORKFLOW_PLANS_PATH;
+    return parseResponse(workflowPlanRead, await this.#request(path, false, { method: 'POST', body: JSON.stringify(parsed) }), path, false);
+  }
+  /** Free: the server compiles a reference profile and the accepted script into a new plan; its warnings name what it does not reproduce. */
+  async planReferenceRemake(input: PlanReferenceRemakeArgs): Promise<WorkflowPlanRead> {
+    const parsed = planReferenceRemake.parse(input), path = WORKFLOW_REFERENCE_REMAKE_PATH;
     return parseResponse(workflowPlanRead, await this.#request(path, false, { method: 'POST', body: JSON.stringify(parsed) }), path, false);
   }
   async getWorkflowPlan(planId: string): Promise<WorkflowPlanRead> {
@@ -921,6 +968,8 @@ export type { RevisionQuoteRead, RevisionRequest };
 export type { CandidateQuoteRead, CandidateRequest, RunCandidatesRead };
 export type { GenerateImageRequest, GenerateVideoRequest, GenerationModels, GenerationQuote };
 export type { TemplateSoundsList };
+export type { PricesResponseRead };
+export type { AnalyzeReferenceRequest, ReferenceAnalysisRead };
 export type { UploadListRead };
-export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs,
+export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs, PlanReferenceRemakeArgs,
   WorkflowCatalogRead, WorkflowMethodRead, WorkflowPlanRead, WorkflowQuoteRead, WorkflowLaunchRead, WorkflowRunRead };

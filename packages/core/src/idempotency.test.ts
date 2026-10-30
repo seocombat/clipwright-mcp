@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  actorIdempotencyKeyFor, candidateIdempotencyKeyFor, facelessIdempotencyKeyFor, idempotencyKeyFor, requestHash, revisionIdempotencyKeyFor,
+  actorIdempotencyKeyFor, assetBytesIdempotencyKeyFor, assetRequestIdempotencyKeyFor, assetRequestIdentity, candidateIdempotencyKeyFor,
+  facelessIdempotencyKeyFor, idempotencyKeyFor, requestHash, revisionIdempotencyKeyFor,
 } from "./idempotency.js";
 
 /** Every paid-run key: a new key builder must join this table, not get its own ad hoc test. */
@@ -199,5 +200,20 @@ describe("requestHash — canonicalizing a segment array", () => {
     const first = requestHash({ segments: [{ kind: "actor" }, { kind: "media" }] });
     const second = requestHash({ segments: [{ kind: "media" }, { kind: "actor" }] });
     expect(first).not.toBe(second);
+  });
+});
+
+describe("asset keys (#884)", () => {
+  // Mutant: leave analysis_only out of an asset's identity, and one key serves both claims about the same material.
+  it("an analysis-only asset is another request than the same material with its rights confirmed; a confirmed one keeps its key", () => {
+    const source = { base64: "iVBORw0KGgo=", media_type: "image/png" as const };
+    const confirmed = { source, role: "other", name: "Ad", rights_confirmed: true };
+    const analysis = { source, role: "other", name: "Ad", analysis_only: true };
+    expect(assetRequestIdempotencyKeyFor(analysis, "c")).not.toBe(assetRequestIdempotencyKeyFor(confirmed, "c"));
+    expect(assetRequestIdentity(confirmed)).toEqual({ kind: "asset", role: "other", name: "Ad",
+      source: { base64_sha256: expect.stringMatching(/^[a-f0-9]{64}$/), media_type: "image/png" } });
+    const bytes = new Uint8Array([1, 2, 3]);
+    expect(assetBytesIdempotencyKeyFor({ role: "other", name: "Ad", bytes, analysis_only: true }, "c"))
+      .not.toBe(assetBytesIdempotencyKeyFor({ role: "other", name: "Ad", bytes }, "c"));
   });
 });

@@ -4,6 +4,7 @@ import {
   ACTOR_QUALITIES_ACCEPTED,
   ACTOR_QUALITIES_KNOWN,
   type ActorQuality,
+  type ActorQualityAccepted,
 } from "./actor-qualities.js";
 import {
   ACTOR_AGE_FLOOR,
@@ -11,11 +12,15 @@ import {
   ACTOR_DESCRIPTION_MAX_CHARS,
   ACTOR_GENDERS_ACCEPTED,
   ACTOR_GENDERS_KNOWN,
+  ACTOR_HOLDING_DESCRIPTION_MAX_CHARS,
+  ACTOR_HOLDING_MAX_ITEMS,
   ACTOR_MAX_AGE,
   ACTOR_MIN_AGE,
   ACTOR_NAME_MAX_CHARS,
+  ACTOR_SETTING_MAX_CHARS,
 } from "./actor-bounds.js";
-import { ASPECT_RATIOS, type AspectRatio } from "./skills.js";
+import { assetId } from "./asset-identity.js";
+import { actorId, ASPECT_RATIOS, type AspectRatio } from "./skills.js";
 
 /** Personal actors of an account. */
 
@@ -27,9 +32,12 @@ export {
   ACTOR_DESCRIPTION_MAX_CHARS,
   ACTOR_GENDERS_ACCEPTED,
   ACTOR_GENDERS_KNOWN,
+  ACTOR_HOLDING_DESCRIPTION_MAX_CHARS,
+  ACTOR_HOLDING_MAX_ITEMS,
   ACTOR_MAX_AGE,
   ACTOR_MIN_AGE,
   ACTOR_NAME_MAX_CHARS,
+  ACTOR_SETTING_MAX_CHARS,
 } from "./actor-bounds.js";
 export type { ActorAspectKnown, ActorGender } from "./actor-bounds.js";
 
@@ -82,27 +90,45 @@ export const ACTOR_SIZE_SET = {
 const includesPortrait = (ratios: readonly string[]) => ratios.includes(ACTOR_PORTRAIT_ASPECT);
 const hasNoRepeats = (ratios: readonly string[]) => new Set(ratios).size === ratios.length;
 
+export const ACTOR_VIEW_FRAMINGS = ["wide"] as const;
+export const ACTOR_HANDS = ["left", "right"] as const;
+
+/** One held object: words, and optionally a picture of the object itself. */
+const holdingItem = z.strictObject({
+  description: z.string().min(1).max(ACTOR_HOLDING_DESCRIPTION_MAX_CHARS).describe("The object, e.g. \"a white coffee mug\"."),
+  reference: z
+    .strictObject({ asset_id: assetId })
+    .optional()
+    .describe("A PNG or JPEG picture of the object: an image asset of this account (upload, URL import or a found picture, rights_confirmed)."),
+  hand: z.enum(ACTOR_HANDS).optional().describe("left | right; omitted lets the edit choose."),
+});
+
 /** Strict input fields without quality. Bounds come from actor-bounds.ts; read schemas do not use them. */
+/** Words, gender and age are required without `from_actor_id` and refused with it (`checkActorSource`). */
 const actorFieldShape = {
   description: z
     .string()
     .min(1)
     .max(ACTOR_DESCRIPTION_MAX_CHARS)
+    .optional()
     .describe(
       "Words describing a fictional adult: appearance, clothing, setting. Naming a real person or a likeness " +
-        "to one is refused before any charge (actor_prompt_refused).",
+        "to one is refused before any charge (actor_prompt_refused). Required unless from_actor_id is given.",
     ),
   gender: z
     .enum(ACTOR_GENDERS_ACCEPTED)
+    .optional()
     .describe(
-      `${ACTOR_GENDERS_ACCEPTED.join(" | ")}. Fixes the actor's gender and the default voice of videos with this actor.`,
+      `${ACTOR_GENDERS_ACCEPTED.join(" | ")}. Fixes the actor's gender and the default voice of videos with this actor. ` +
+        "Required unless from_actor_id is given.",
     ),
   approximate_age: z
     .number()
     .int()
     .min(ACTOR_MIN_AGE)
     .max(ACTOR_MAX_AGE)
-    .describe(`Approximate age in years, ${ACTOR_MIN_AGE} to ${ACTOR_MAX_AGE}: actors are adults.`),
+    .optional()
+    .describe(`Approximate age in years, ${ACTOR_MIN_AGE} to ${ACTOR_MAX_AGE}: actors are adults. Required unless from_actor_id is given.`),
   name: z.string().min(1).max(ACTOR_NAME_MAX_CHARS).describe("Name shown in list_actors."),
   aspect_ratios: z
     .array(z.enum(ASPECT_RATIOS))
@@ -117,15 +143,74 @@ const actorFieldShape = {
       `Formats to create: ${ASPECT_RATIOS.join(" | ")}, always including ${ACTOR_PORTRAIT_ASPECT}. Omitted means all ` +
         "three. Formats that fail the identity check are not charged and are named in warnings.",
     ),
+  from_actor_id: actorId
+    .optional()
+    .describe(
+      "Derive a new personal actor from this one (a library actor or your own): the same face, gender and age, " +
+        "with the view changed by framing, holding or setting. Omit description, gender and approximate_age.",
+    ),
+  framing: z
+    .enum(ACTOR_VIEW_FRAMINGS)
+    .optional()
+    .describe("wide: the camera further back, the head lower with room above; make_ugc then renders it as a wide view."),
+  holding: z
+    .array(holdingItem)
+    .min(1)
+    .max(ACTOR_HOLDING_MAX_ITEMS)
+    .optional()
+    .describe(`Up to ${ACTOR_HOLDING_MAX_ITEMS} objects the presenter holds, one per hand.`),
+  setting: z
+    .string()
+    .min(1)
+    .max(ACTOR_SETTING_MAX_CHARS)
+    .optional()
+    .describe("The room or background to put the presenter in, in words."),
 } as const;
+
+/** The fields of a view derived from an actor (#898). */
+export const ACTOR_VIEW_FIELDS = ["from_actor_id", "framing", "holding", "setting"] as const;
+const ACTOR_VIEW_CHANGES = ["framing", "holding", "setting"] as const;
+const ACTOR_SOURCE_FIELDS = ["description", "gender", "approximate_age"] as const;
+
+type ActorSourceInput = Partial<Record<(typeof ACTOR_VIEW_FIELDS | typeof ACTOR_SOURCE_FIELDS)[number], unknown>> & {
+  holding?: readonly { hand?: string | undefined }[] | undefined;
+};
+
+/** A described actor needs its words, a derived one takes them from the source: neither is silently dropped (rule 3). */
+function checkActorSource(input: ActorSourceInput, ctx: z.RefinementCtx): void {
+  const refuse = (field: string, message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message });
+  if (input.from_actor_id === undefined) {
+    for (const field of ACTOR_SOURCE_FIELDS) {
+      if (input[field] === undefined) {
+        refuse(field, `${field} is required: describe a fictional adult, or pass from_actor_id to derive a view of an existing actor`);
+      }
+    }
+    for (const field of ACTOR_VIEW_CHANGES) {
+      if (input[field] !== undefined) {
+        refuse(field, `${field} needs from_actor_id: create the actor first, then derive a view of it with from_actor_id`);
+      }
+    }
+    return;
+  }
+  for (const field of ACTOR_SOURCE_FIELDS) {
+    if (input[field] !== undefined) refuse(field, `${field} comes from the source actor with from_actor_id; omit it`);
+  }
+  if (ACTOR_VIEW_CHANGES.every((field) => input[field] === undefined)) {
+    refuse("from_actor_id", "from_actor_id needs a change: framing, holding or setting");
+  }
+  const hands = (input.holding ?? []).flatMap((item) => (item.hand === undefined ? [] : [item.hand]));
+  if (new Set(hands).size !== hands.length) refuse("holding", "holding names the same hand twice: one object per hand");
+}
 
 type AcceptedQualities = readonly [ActorQuality, ...ActorQuality[]];
 
 function unknownFieldsRefusal(keys: readonly string[]): string {
   if (keys.includes("image")) {
-    return "create_actor takes no image or other reference: describe a fictional adult in description";
+    return "create_actor takes no image of a person: describe a fictional adult in description, or derive a view of " +
+      "an existing actor with from_actor_id; a held object's picture goes in holding[].reference";
   }
-  return `unknown field(s) ${keys.join(", ")}: create_actor accepts description, gender, approximate_age, name, quality, aspect_ratios`;
+  return `unknown field(s) ${keys.join(", ")}: create_actor accepts description, gender, approximate_age, name, quality, ` +
+    "aspect_ratios, from_actor_id, framing, holding, setting";
 }
 
 /** The input for a given set of accepted qualities. */
@@ -147,7 +232,7 @@ export function createActorInputWith<const Q extends AcceptedQualities>(accepted
     {
       error: (issue) => (issue.code === "unrecognized_keys" ? unknownFieldsRefusal(issue.keys) : undefined),
     },
-  );
+  ).superRefine(checkActorSource);
 }
 
 export const createActorInput = createActorInputWith(ACTOR_QUALITIES_ACCEPTED, ACTOR_DEFAULT_QUALITY);
@@ -164,6 +249,14 @@ export const actorUnitCredits = z.object({
   portrait: z.number().int().positive(),
   variant: z.number().int().positive(),
 });
+
+/** Unit prices of a personal actor (owner's decision, clipwright#120). Admission copies them into the */
+/** run's snapshot and settlement reads the snapshot, so a change here leaves old runs alone. ×2.5 over the S0 costs (owner, 29.10, */
+/** #800): a portrait is a generate call ($0.0103 medium, $0.039 high), another format an edit ($0.024, $0.0581). */
+export const ACTOR_UNIT_CREDITS: Readonly<Record<ActorQualityAccepted, z.infer<typeof actorUnitCredits>>> = {
+  medium: { portrait: 4, variant: 8 },
+  high: { portrait: 12, variant: 18 },
+};
 
 /** Read schemas depend only on what could have been written: the known sets and the DB check. */
 /** Intake bounds stay out, so narrowing intake never breaks old runs. */
@@ -192,6 +285,29 @@ function sameFormats(left: readonly string[], right: readonly string[]): boolean
   return a.size === b.size && [...a].every((ratio) => b.has(ratio));
 }
 
+const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/);
+
+/** The source image admission resolved for `from_actor_id`: the worker reads these bytes, not a payload. */
+export const storedActorSource = z.object({
+  actor_id: z.string().min(1),
+  scope: z.enum(ACTOR_SCOPES),
+  key: z.string().min(1),
+  sha256: sha256Hex,
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  framing: z.enum(["close", "wide"]),
+});
+export type StoredActorSource = z.infer<typeof storedActorSource>;
+
+/** A held object as admitted: a `reference` carries the asset row admission found. */
+export const storedHoldingItem = z.object({
+  description: z.string().min(1),
+  hand: z.enum(ACTOR_HANDS).optional(),
+  reference: z.object({ asset_id: z.string().min(1) }).optional(),
+  picture: z.object({ asset_id: z.string().min(1), key: z.string().min(1), mime: z.enum(["image/png", "image/jpeg"]) }).optional(),
+});
+export type StoredHoldingItem = z.infer<typeof storedHoldingItem>;
+
 /** A stored run input. Quality and formats must match the snapshot, or generation would diverge */
 /** from the charge, so such a run does not read (`run_input_unreadable`, zero credits). */
 export const storedCreateActorInput = z
@@ -203,6 +319,11 @@ export const storedCreateActorInput = z
     aspect_ratios: storedAspects,
     quality: z.enum(ACTOR_QUALITIES_KNOWN),
     pricing_snapshot: actorPricingSnapshot,
+    from_actor_id: z.string().min(1).optional(),
+    source_actor: storedActorSource.optional(),
+    framing: z.enum(ACTOR_VIEW_FRAMINGS).optional(),
+    holding: z.array(storedHoldingItem).optional(),
+    setting: z.string().min(1).optional(),
   })
   .refine((input) => input.quality === input.pricing_snapshot.quality, {
     error: "stored quality differs from pricing_snapshot.quality",
@@ -211,6 +332,16 @@ export const storedCreateActorInput = z
   .refine((input) => sameFormats(input.aspect_ratios, input.pricing_snapshot.requested_aspects), {
     error: "stored aspect_ratios differ from pricing_snapshot.requested_aspects",
     path: ["aspect_ratios"],
+  })
+  .refine((input) => (input.from_actor_id === undefined) === (input.source_actor === undefined)
+    && (input.source_actor === undefined || input.source_actor.actor_id === input.from_actor_id), {
+    error: "stored from_actor_id and source_actor disagree",
+    path: ["source_actor"],
+  })
+  .refine((input) => (input.holding ?? []).every((item) => (item.reference === undefined) === (item.picture === undefined)
+    && (item.picture === undefined || item.picture.asset_id === item.reference?.asset_id)), {
+    error: "a stored holding reference has no admitted picture",
+    path: ["holding"],
   });
 export type StoredCreateActorInput = z.infer<typeof storedCreateActorInput>;
 
@@ -247,7 +378,8 @@ export const producedCreatedActor = createdActor.extend({
 /** Decision for a `create_actor` input field; kinds mean what they do in the `make_ugc` registry. */
 export type CreateActorDisposition =
   | { kind: "implemented"; provenBy: "egress" | "listing" }
-  | { kind: "warned"; warning: string; triggersWhen: "present" };
+  | { kind: "warned"; warning: string; triggersWhen: "present" }
+  | { kind: "rejected"; message: string };
 
 type CreateActorField = keyof typeof createActorInput.shape;
 
@@ -258,7 +390,30 @@ export const CREATE_ACTOR_FIELD_DISPOSITIONS = {
   name: { kind: "implemented", provenBy: "listing" },
   quality: { kind: "implemented", provenBy: "egress" },
   aspect_ratios: { kind: "implemented", provenBy: "egress" },
+  from_actor_id: { kind: "implemented", provenBy: "egress" },
+  framing: { kind: "implemented", provenBy: "egress" },
+  holding: { kind: "implemented", provenBy: "egress" },
+  setting: { kind: "implemented", provenBy: "egress" },
 } as const satisfies Record<CreateActorField, CreateActorDisposition>;
+
+export const ACTOR_VIEWS_DISABLED_MESSAGE =
+  "is switched off on this deployment: deriving an actor from an actor is not available; create an actor from a description instead";
+
+/** The registry with `CLIPWRIGHT_ACTOR_VIEWS` applied: switched off, the view fields are refused, not ignored. */
+export function createActorDispositions(viewsEnabled: boolean): Record<CreateActorField, CreateActorDisposition> {
+  if (viewsEnabled) return CREATE_ACTOR_FIELD_DISPOSITIONS;
+  const rejected = (field: string): CreateActorDisposition => ({ kind: "rejected", message: `${field} ${ACTOR_VIEWS_DISABLED_MESSAGE}` });
+  return { ...CREATE_ACTOR_FIELD_DISPOSITIONS, ...Object.fromEntries(ACTOR_VIEW_FIELDS.map((field) => [field, rejected(field)])) };
+}
+
+/** Present fields whose disposition is `rejected`, in registry order, for `rejectedFieldBody`. */
+export function createActorRejectedFields(
+  input: Readonly<Record<string, unknown>>,
+  dispositions: Readonly<Record<string, CreateActorDisposition>>,
+): { field: string; message: string }[] {
+  return Object.entries(dispositions).flatMap(([field, disposition]) =>
+    disposition.kind === "rejected" && input[field] !== undefined ? [{ field, message: disposition.message }] : []);
+}
 
 /** Admission warnings come only from the registry; written to `runs.warnings`, not recomputed on read. */
 export function createActorAdmissionWarnings(
@@ -288,6 +443,12 @@ export const CREATE_ACTOR_RUN_ERRORS = {
   actor_run_interrupted: "the run stopped before it finished; no actor was created and nothing was charged",
   actor_spend_refused:
     "our spend guard refused the paid call; no actor was created and nothing was charged. Retry later",
+  actor_identity_not_kept:
+    "the edited portrait did not keep the source actor's face; no actor was created and nothing was charged",
+  actor_source_unreadable:
+    "the source actor or a held object's picture could not be read; no actor was created and nothing was charged",
+  actor_views_disabled:
+    "deriving an actor from an actor is disabled right now; no actor was created and nothing was charged",
 } as const;
 export type CreateActorRunErrorCode = keyof typeof CREATE_ACTOR_RUN_ERRORS;
 export const CREATE_ACTOR_RUN_ERROR_CODES = Object.keys(CREATE_ACTOR_RUN_ERRORS) as CreateActorRunErrorCode[];
@@ -323,4 +484,7 @@ export const CREATE_ACTOR_DESCRIPTION =
   "one face, plus the other requested formats edited from it. Returns a run_id immediately; poll get_run until " +
   "'succeeded' (created_actor.actor_id, then pass it as actor_id to make_ugc) or 'failed'. Each published image is " +
   "charged at the price quote shows; refused descriptions and unusable portraits cost nothing. When generation is " +
-  "switched off the call fails with actor_generation_disabled.";
+  "switched off the call fails with actor_generation_disabled. With from_actor_id it derives a new personal actor " +
+  "from a library or own actor: the same face (checked; a mismatch costs nothing), with framing wide, objects in " +
+  "holding or a new setting. A held object's picture is an image asset (upload, URL import or a found picture, " +
+  "rights_confirmed).";

@@ -400,6 +400,7 @@ export const MALFORMED_BODY_MESSAGE =
 /** Codes with a bare envelope, in one registry: the published list of error codes is */
 /** declared exhaustive. */
 const BARE_ERROR_CODES = [
+  "analysis_enqueue_failed",
   "aspect_conflict",
   "actor_unavailable",
   "actor_format_unavailable",
@@ -409,6 +410,7 @@ const BARE_ERROR_CODES = [
   "asset_cap_exceeded",
   "asset_ingest_cap_exceeded",
   "asset_not_found",
+  "asset_not_ready",
   "assets_disabled",
   "editing_window_not_set",
   "generations_disabled",
@@ -425,6 +427,10 @@ const BARE_ERROR_CODES = [
   "not_found",
   "paid_render_disabled",
   "payload_too_large",
+  "reference_analysis_disabled",
+  "reference_analysis_limited",
+  "reference_analysis_not_found",
+  "reference_not_analyzable",
   "reference_not_usable",
   "revision_needs_generated_unit",
   "rights_not_confirmed",

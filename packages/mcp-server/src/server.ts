@@ -57,6 +57,12 @@ import {
   GET_ASSET_DESCRIPTION,
   LIST_ASSETS_DESCRIPTION,
   UPDATE_ASSET_DESCRIPTION,
+  ANALYZE_REFERENCE_DESCRIPTION,
+  QUOTE_ANALYSIS_DESCRIPTION,
+  analyzeReferenceRequest,
+  GET_REFERENCE_ANALYSIS_DESCRIPTION,
+  referenceAnalysisId,
+  withPriceLine,
 } from "@clipwright/core";
 import { formatGetRun, withFailureReport } from "./format.js";
 import { registerWorkflowTools } from './workflow-tools.js';
@@ -84,13 +90,14 @@ export const REMOTE_ASSET_PATH_REFUSAL =
 
 /** A local MP4 as an asset (clipwright#724 F2 S3): declared by size and sha256, PUT to the signed url, then read once. */
 export async function putLocalClip(
-  client: ClipwrightClient, bytes: Uint8Array<ArrayBuffer>, path: string, meta: { role: z.infer<typeof createAssetRequest>["role"]; name: string },
+  client: ClipwrightClient, bytes: Uint8Array<ArrayBuffer>, path: string,
+  meta: { role: z.infer<typeof createAssetRequest>["role"]; name: string; analysis_only?: true },
   put: typeof fetch = fetch,
 ): Promise<unknown> {
   if (bytes.byteLength > ASSET_VIDEO_MAX_BYTES) throw new Error(`${path} is ${bytes.byteLength} bytes; a clip may be ${ASSET_VIDEO_MAX_BYTES}`);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const created = await client.createAsset({ source: { put: { media_type: "video/mp4", bytes: bytes.byteLength, sha256 } },
-    role: meta.role, name: meta.name, rights_confirmed: true });
+    role: meta.role, name: meta.name, ...(meta.analysis_only ? { analysis_only: true } : { rights_confirmed: true }) });
   const pending = pendingAssetRead.safeParse(created);
   const upload = pending.success ? pending.data.upload : undefined;
   if (upload === undefined) return created;
@@ -120,7 +127,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     {
       title: "Make a talking-actor video",
       annotations: { readOnlyHint: false, destructiveHint: false },
-      description: `${MAKE_UGC_DESCRIPTION} ${MAKE_UGC_AGENT_PROTOCOL}`,
+      description: withPriceLine("make_ugc", `${MAKE_UGC_DESCRIPTION} ${MAKE_UGC_AGENT_PROTOCOL}`),
       // Flat schema: offered render input plus agent retry. The description must agree
       // with it, since an LLM reads the description before the schema.
       inputSchema: { ...mcpUgcInputShape, ...agentRetryShape },
@@ -217,7 +224,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     {
       title: "Revise a run",
       annotations: { readOnlyHint: false, destructiveHint: false },
-      description:
+      description: withPriceLine("revise_run",
         "Start a revision of a run made by make_faceless (paid): a NEW run that renders the video again with the " +
         "shots you change, by changes (a shot and what to generate for it) or by document (the whole edited " +
         "document); pass exactly one. Call quote_revision first and show the user the price. An identical request " +
@@ -226,7 +233,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "original has a limit on revisions running at once and on revisions failed or unfinished, and paid edits " +
         "of it close some days after it finished; a refusal names which. While paid edits are closed it answers " +
         "editing_disabled and charges nothing. The result is a new run: poll it with get_run; once it succeeded " +
-        "it is editable under its own run_id.",
+        "it is editable under its own run_id."),
       inputSchema: { ...revisionShape, ...agentRetryShape },
     },
     async ({ run_id, attempt, ...request }) =>
@@ -269,7 +276,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     {
       title: "Make a shot candidate",
       annotations: { readOnlyHint: false, destructiveHint: false },
-      description:
+      description: withPriceLine("create_candidate",
         "Make a shot candidate of a run made by make_faceless (paid): a NEW run of skill edit_shot that generates one " +
         "picture or clip for one shot, to keep or discard in a later revision. Call quote_candidate first and show the " +
         `user the price. ${CANDIDATE_CHARGE_TEXT} An identical request returns the same run it started before, so a ` +
@@ -277,7 +284,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "purpose, pass take 2. An original has a limit on candidates running at once and on candidates failed or " +
         "unfinished, apart from its revisions; a refusal names which. While shot candidates are closed it answers " +
         "editing_disabled and charges nothing. The result is a new run: poll it with get_run; once it succeeded, its " +
-        "candidate.preview_url shows what was made.",
+        "candidate.preview_url shows what was made."),
       inputSchema: candidateShape,
     },
     async ({ run_id, ...request }) =>
@@ -334,10 +341,10 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     {
       title: "Generate an image",
       annotations: { readOnlyHint: false, destructiveHint: false },
-      description:
+      description: withPriceLine("generate_image",
         "Generate one image from a prompt (paid): a NEW run of skill generate_image, charged the quoted credits per image " +
         "once it is delivered. Call quote_image first and show the user the price. Poll the run with get_run; once it " +
-        "succeeded, generation.url is the image and its run_id can be a reference of a later generation. " + generationTerms,
+        "succeeded, generation.url is the image and its run_id can be a reference of a later generation. " + generationTerms),
       inputSchema: imageRunTool,
     },
     async ({ attempt, ...request }) =>
@@ -365,11 +372,11 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     {
       title: "Generate a clip",
       annotations: { readOnlyHint: false, destructiveHint: false },
-      description:
+      description: withPriceLine("generate_video",
         "Generate one silent clip (paid): a NEW run of skill generate_video, charged unit_credits per second of duration_s " +
         "once it is delivered. Modes: text; first_frame (first_frame, optional last_frame, of the requested aspect ratio " +
         "within 2%); reference (1 to 4 references). Call quote_video first and show the user the price. Poll the run with " +
-        "get_run; once it succeeded, generation.url is the clip. " + generationTerms,
+        "get_run; once it succeeded, generation.url is the clip. " + generationTerms),
       inputSchema: videoRunTool,
     },
     async ({ attempt, ...request }) =>
@@ -475,18 +482,23 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         role: createAssetRequest.shape.role,
         name: createAssetRequest.shape.name,
         rights_confirmed: createAssetRequest.shape.rights_confirmed,
+        analysis_only: createAssetRequest.shape.analysis_only,
       },
     },
-    async ({ source, role, name, rights_confirmed }) => withFailureReport(async () => {
+    async ({ source, role, name, rights_confirmed, analysis_only }) => withFailureReport(async () => {
       if (!("path" in source)) {
-        return assetText(client.createAsset({ source, role, name, ...(rights_confirmed === undefined ? {} : { rights_confirmed }) }));
+        return assetText(client.createAsset({ source, role, name, ...(rights_confirmed === undefined ? {} : { rights_confirmed }),
+          ...(analysis_only === undefined ? {} : { analysis_only }) }));
       }
       if (options.fileAccess !== "local") throw new Error(REMOTE_ASSET_PATH_REFUSAL);
-      if (rights_confirmed !== true) throw new Error("A local file is your own material: pass rights_confirmed: true");
+      if (rights_confirmed === analysis_only) {
+        throw new Error("A local file is your own material: pass rights_confirmed: true, or analysis_only: true to keep it for analyze_reference alone");
+      }
       const bytes = new Uint8Array(await readFile(source.path));
+      const claim = analysis_only ? { analysis_only } : { rights_confirmed: true as const };
       // A clip goes by PUT (up to 100 MB), then one read hands it to processing; a picture goes as the body.
       if (Buffer.from(bytes.subarray(4, 8)).toString("latin1") === "ftyp") {
-        return assetText(putLocalClip(client, bytes, source.path, { role, name }));
+        return assetText(putLocalClip(client, bytes, source.path, { role, name, ...(analysis_only ? { analysis_only } : {}) }));
       }
       const mediaType = sniffUploadMediaType(bytes);
       if (mediaType === null || bytes.byteLength > UPLOAD_MAX_BYTES) {
@@ -494,7 +506,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
           ? `${source.path} is not a PNG or JPEG file (checked by signature, not by extension)`
           : `${source.path} is ${bytes.byteLength} bytes; the ceiling is ${UPLOAD_MAX_BYTES}`);
       }
-      return assetText(client.createAssetFromBytes(bytes, mediaType, { role, name, rights_confirmed: true }));
+      return assetText(client.createAssetFromBytes(bytes, mediaType, { role, name, ...claim }));
     }),
   );
 
@@ -549,6 +561,46 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       return { content: [{ type: "text", text: JSON.stringify({ deleted: asset_id }) }] };
     }),
   );
+
+  // Reference analysis (reference-to-video S1c): paid since #927; the profile is read with get_reference_analysis once it is ready.
+  server.registerTool(
+    "quote_analysis",
+    {
+      title: "Quote a reference analysis",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: QUOTE_ANALYSIS_DESCRIPTION,
+      inputSchema: analyzeReferenceRequest.shape,
+    },
+    async (request) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.quoteAnalysis(request)) }],
+    })),
+  );
+
+  server.registerTool(
+    "analyze_reference",
+    {
+      title: "Analyse a reference ad",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      description: withPriceLine("analyze_reference", ANALYZE_REFERENCE_DESCRIPTION),
+      inputSchema: analyzeReferenceRequest.shape,
+    },
+    async (request) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.analyzeReference(request)) }],
+    })),
+  );
+
+  server.registerTool(
+    "get_reference_analysis",
+    {
+      title: "Get a reference analysis",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: GET_REFERENCE_ANALYSIS_DESCRIPTION,
+      inputSchema: { analysis_id: referenceAnalysisId },
+    },
+    async ({ analysis_id }) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.getReferenceAnalysis(analysis_id)) }],
+    })),
+  );
   server.registerTool(
     "list_voices",
     {
@@ -575,7 +627,8 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "spoken by that voice with that model; play it to the user before a paid render instead of judging a " +
         "voice by its description. A model_voice sample is in English, or in the language you filter by. " +
         "It expires at `preview_expires_at`: call this tool again for a fresh link, " +
-        "never store it. A voice without `preview_url` has no sample yet. Free. " + SCRIPT_LENGTH_DESCRIPTION,
+        "never store it. A voice without `preview_url` has no sample yet. `words_per_second` is an English voice's measured pace; " +
+        "eleven_v4 has no speed setting, so to match a reference presenter pick the voice nearest its pace. Free. " + SCRIPT_LENGTH_DESCRIPTION,
       inputSchema: voicesQueryShape,
     },
     async (filters) =>
@@ -594,6 +647,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description:
         "List the sounds make_ugc templates play, by beat: where each beat plays, its default and every name it takes. " +
         "A run plays the defaults; template_sounds { beat: name } swaps a beat's sound, and template_sounds=false plays none. " +
+        "The edit beat plays on every cut only with make_ugc edit_sounds=true. " +
         "Sounds never change the price. Free.",
       inputSchema: {},
     },
@@ -636,7 +690,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     {
       title: "Create a personal actor",
       annotations: { readOnlyHint: false, destructiveHint: false },
-      description: CREATE_ACTOR_DESCRIPTION,
+      description: withPriceLine("create_actor", CREATE_ACTOR_DESCRIPTION),
       inputSchema: { ...createActorInputShape, ...agentRetryShape },
     },
     async (args) =>
@@ -671,7 +725,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     {
       title: "Make a faceless video",
       annotations: { readOnlyHint: false, destructiveHint: false },
-      description: `${MAKE_FACELESS_DESCRIPTION} ${MAKE_FACELESS_AGENT_PROTOCOL}`,
+      description: withPriceLine("make_faceless", `${MAKE_FACELESS_DESCRIPTION} ${MAKE_FACELESS_AGENT_PROTOCOL}`),
       inputSchema: offeredFacelessInput.extend(agentRetryShape),
     },
     async (args) =>
@@ -729,6 +783,19 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     inputSchema: {},
   }, async () => withFailureReport(async () => ({
     content: [{ type: "text", text: JSON.stringify(await client.getAccount()) }],
+  })));
+
+  server.registerTool("list_prices", {
+    title: "List prices",
+    annotations: { readOnlyHint: true, destructiveHint: false },
+    description:
+      "List what every Clipwright tool costs in credits. Free, spends nothing. Each entry names the tool, its REST route " +
+      "and its price: lines of credits per unit (call, second of video, second the presenter is in the video, image, clip, second of " +
+      "clip), added up, with minimum_credits when there is one; or, where the price depends on the input, a formula. " +
+      "Free tools cost 0. For the exact number of a paid call, use the quote tool the entry names.",
+    inputSchema: {},
+  }, async () => withFailureReport(async () => ({
+    content: [{ type: "text", text: JSON.stringify(await client.listPrices()) }],
   })));
 
   return server;

@@ -130,13 +130,12 @@ each voice: play it before you pay for a render, and reuse the same name next ti
 `--language` filters by a voice's native language; any voice speaks any supported
 language.
 
-The voice decides the speech model. The Russian presets `owner_ru_clone` and
-`daria_ru_female` and the catalog voices named `ru_*` speak `eleven_v4`; every other
-preset and catalog voice speaks `eleven_v3`. A `--voice-id` voice speaks `eleven_v4` when
-the script is mostly Cyrillic and `eleven_v3` otherwise. `--tts-model` overrides the
-choice: `eleven_flash_v2_5` and `eleven_turbo_v2_5` cost less but misread Russian stress
-marks. In a Russian script, mark stress with a capital vowel inside the word: `потОм`.
-`eleven_v4`, `eleven_v3` and `gemini-3.8-flash-tts` read it as stress. `eleven_v4` and
+The voice decides the speech model: every preset, catalog voice and `--voice-id` voice
+speaks `eleven_v4`. `--tts-model` overrides the choice: `eleven_flash_v2_5` and
+`eleven_turbo_v2_5` cost less but misread Russian stress marks. `--tts-model eleven_v3` is
+still accepted, but the run speaks `eleven_v4` and warns about it. In a Russian script, mark
+stress with a capital vowel inside the word: `потОм`. `eleven_v4` and
+`gemini-3.8-flash-tts` read it as stress. `eleven_v4` and
 `gemini-3.8-flash-tts` give no pause for a `<break time="…" />` tag: the tag is cut from
 the text, and the response warns about it.
 
@@ -154,7 +153,7 @@ ends with the narration, runs at least 25 seconds and may exceed the selection
 by up to a quarter, never beyond 90 seconds; a video more than 5 seconds longer
 says so in `warnings[]`. A script is accepted when its estimated length is 21
 seconds to the selection plus 5, at most 90. The charge follows the delivered duration and never exceeds the quote;
-the minimum remains 200 base credits plus 150 for the opening clip.
+the rates and the minimum are on [clipwright.io/pricing](https://clipwright.io/pricing?ref=npm).
 Captions are on; `--no-captions`
 turns them off. `--style-reference <url>` and `--character-reference <url>` take
 public https images. `--voice <name>` picks the narration voice: take a name

@@ -29,8 +29,8 @@ export const progress: TemplateKind<typeof data> = {
   slots: {},
   hidesCaptions: () => false,
   onInserts: false,
-  rect: (value, aspectRatio) => {
-    const canvas = frameCanvasOf(aspectRatio), { width: w, height: h } = canvas, margin = Math.round(0.04 * Math.min(w, h)), face = faceZone(aspectRatio);
+  rect: (value, aspectRatio, _placement, framing) => {
+    const canvas = frameCanvasOf(aspectRatio), { width: w, height: h } = canvas, margin = Math.round(0.04 * Math.min(w, h)), face = faceZone(aspectRatio, framing);
     const ems = value.steps.length * PROGRESS_EMS.row + 2 * PROGRESS_EMS.pad, below = Math.round((face.top + face.height + 0.01) * h);
     const wide = w > h, room = wide ? h - 2 * margin : h - margin - below;
     // The size scales the card, and a frame without room under the face shrinks it to fit.

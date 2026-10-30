@@ -17,7 +17,9 @@ edit: `runShots`, `runEdit` and `saveRunEdit` are what the API emits and takes;
 that a name a later API adds does not break it.
 
 The `./idempotency` subpath export is separate because it pulls in a Node
-built-in and would otherwise break bundlers targeting the browser.
+built-in and would otherwise break bundlers targeting the browser. So is
+`./openapi`: `buildOpenApiDocument()` builds the OpenAPI 3.1 document the API
+serves at `GET /openapi.json` from the route registry and these schemas.
 
 ## Changelog
 

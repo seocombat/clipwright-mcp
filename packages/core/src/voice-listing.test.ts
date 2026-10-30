@@ -72,7 +72,7 @@ describe("listVoices — contents and order", () => {
       description: null,
     });
     const entry = listVoices({}, withVoices(voice)).voices.find((row) => row.name === voice.slug)!;
-    expect(entry).toMatchObject({ kind: "catalog", age: "middle_aged", description: voice.name, model: "eleven_v3" });
+    expect(entry).toMatchObject({ kind: "catalog", age: "middle_aged", description: voice.name, model: "eleven_v4" });
     expect(entry.gender).toBeUndefined();
     expect(entry.use_case).toBeUndefined();
     expect(entry.locale).toBeUndefined();
@@ -93,7 +93,7 @@ describe("listVoices — contents and order", () => {
   });
 
   // Mutant: a listing that sets a catalog or model voice's model without `resolveTtsModel` fails here.
-  it("every listed voice names the model a run with that voice speaks: ru_* voices eleven_v4, the model's own voices their model, the rest eleven_v3 (B7)", () => {
+  it("every listed voice names the model a run with that voice speaks: the model's own voices their model, every catalog voice eleven_v4 (B7)", () => {
     for (const entry of all.voices) {
       expect(entry.model, entry.name).toBe(resolveTtsModel({ voice: entry.name, script: "Hello there" }));
     }
@@ -104,7 +104,7 @@ describe("listVoices — contents and order", () => {
     const russian = catalog.filter((entry) => entry.language === "ru");
     expect(russian.length).toBeGreaterThan(0);
     expect(new Set(russian.map((entry) => entry.model))).toEqual(new Set(["eleven_v4"]));
-    expect(new Set(catalog.filter((entry) => entry.language !== "ru").map((entry) => entry.model))).toEqual(new Set(["eleven_v3"]));
+    expect(new Set(catalog.filter((entry) => entry.language !== "ru").map((entry) => entry.model))).toEqual(new Set(["eleven_v4"]));
   });
 
   it("supported_models are the models whose languages include the voice's language", () => {

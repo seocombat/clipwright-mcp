@@ -123,6 +123,15 @@ describe("makeUgcInput — script length gate", () => {
       // A stored clip's length and the worker's budget to check it (clipwright#724 F2 S3): assets are free, nothing is billed by them.
       "ASSET_VIDEO_MAX_SECONDS",
       "ASSET_INGEST_TASK_MAX_DURATION_SECONDS",
+      // The free reference analysis task's ceiling (reference-to-video S1c): nothing is billed by it.
+      "REFERENCE_ANALYSIS_TASK_MAX_DURATION_SECONDS",
+      // The longest call admitted (#857 S5): a refusal before money; the call adds no face seconds, so it caps no price.
+      "MAX_CALL_SEC",
+      // The staged call phone's rise and its lead before the freeze (#914 D1e): drawing bounds on a schema field, not video length or price.
+      "CALL_STAGE_MAX_ENTER_SEC",
+      "CALL_STAGE_MAX_LEAD_SEC",
+      // The longest faceless length a caller selects (#927): the quote is priced from the selection, so it caps no bill below it.
+      "FACELESS_MAX_SELECTED_SECONDS",
     ];
     const durationCaps = Object.keys(contract).filter(
       (name) =>

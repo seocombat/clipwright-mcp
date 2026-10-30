@@ -151,14 +151,15 @@ switch and ring sounds come with the templates by default. We checked the prompt
 with a fresh agent on this server on 2026-10-24; the video was rendered from the
 same call.
 
-Price: 400 credits for 33 seconds. The quote named the price before
-anything was spent. [Watch it](https://clipwright.io/mcp#examples).
+The quote named the price before anything was spent; list_prices names every
+rate. [Watch it](https://clipwright.io/mcp#examples).
 
 ## Tools
 
 - `list_workflows` — read workflow methods and current availability. Free.
 - `get_workflow` — read one method's required inputs, script rules, evidence and limitations. Free.
 - `prepare_workflow_plan` — create with a complete document, or save with both `plan_id` and `base_version`. Free; starts no run.
+- `plan_reference_remake` — the server compiles a reference ad's profile and your exact script into a new plan; its warnings name what the plan does not reproduce. Free; starts no run and generates nothing.
 - `get_workflow_plan` — read the current owned plan, revision and readiness. Free.
 - `approve_workflow_plan` — explicitly approve a chosen revision and content digest. Free; starts no run.
 - `quote_workflow_plan` — quote the approved revision without spending credits.
@@ -175,6 +176,9 @@ anything was spent. [Watch it](https://clipwright.io/mcp#examples).
 - `quote_ugc` — estimated duration and price, plus a warning when `make_ugc`
   with the same input would be refused for money or access. Free.
 - `get_account` — balance, debt and holds of the account. Free.
+- `list_prices` — what every tool costs in credits: a number per unit, or a
+  formula where the price depends on the input; free tools are listed at 0.
+  Free.
 - `make_ugc` — **renders a clip; this is the call that costs money.** Returns a
   `run_id` immediately instead of blocking, because a render takes minutes.
 - `get_run` — status of a run. Free; poll it every few seconds.
@@ -224,6 +228,15 @@ anything was spent. [Watch it](https://clipwright.io/mcp#examples).
 - `update_asset` — rename an asset or change its role. Free.
 - `delete_asset` — delete an asset; a daily cleanup removes its file once 7 days
   have passed. Free.
+- `quote_analysis` — price of a reference analysis of an asset: 70 credits, or 0
+  when the asset's analysis would answer. Free.
+- `analyze_reference` — read a reference ad (an MP4 asset, up to 120 s) into a
+  `reference_profile`: beats, graphics in our template vocabulary, captions,
+  pacing and what we cannot draw. Returns at once; poll
+  `get_reference_analysis`. 70 credits held and charged once it succeeds; a
+  failed analysis costs nothing. 10 new analyses per hour.
+- `get_reference_analysis` — the state of an analysis, with the profile and its
+  warnings once it succeeded. Free.
 - `quote_actor` — price of a personal actor before creating one. Free.
 - `create_actor` — **creates a personal actor from a description; this costs
   money.** Each requested format is a separate charged image. Returns a `run_id`

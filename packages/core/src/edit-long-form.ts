@@ -83,9 +83,9 @@ function wordRange(words: PlannedRunShots["narration"]["words"], fps: number, st
   return inside.length === 0 ? [null, null] : [inside[0]!.index, inside.at(-1)!.index + 1];
 }
 
-/** The shot id of a timeline slot: a take by its position, an insert by its position. */
+/** The shot id of a timeline slot: a take, an insert, a listening take or a hold by its position. */
 export const longFormSlotShotId = (slot: ResolvedTimeline["slots"][number]): string =>
-  `${slot.kind === "actor" ? "take" : "insert"}-${slot.position}`;
+  `${slot.kind === "actor" ? "take" : slot.kind === "media" ? "insert" : slot.kind}-${slot.position}`;
 
 /** The planned view of a long-form run: each actor slot a presenter take, each media slot an insert, together tiling the output. */
 /** An overlay named after an insert replaces it on the visual track; any other overlay is a cover added by a revision. */
@@ -105,6 +105,16 @@ export function longFormRunShots(timeline: ResolvedTimeline, words: PlannedRunSh
       return [{ ...placed(slot.startFrame, slot.endFrame), id, track: "presenter", kind: "presenter",
         preview_url: preview(longFormTakeKey(timeline.runId, slot.position)), source: "generated",
         media_frames: slot.endFrame - slot.startFrame, media_offset_frames: 0, operations: offered(["cover"]) }];
+    }
+    // A hold is a still of the take before it (reference-elements S3): a picture, not face time, and the editor offers nothing on it yet.
+    if (slot.kind === "hold") {
+      return [{ ...placed(slot.startFrame, slot.endFrame), id, track: "visual", kind: "picture", preview_url: null, source: "generated",
+        media_frames: null, media_offset_frames: null, operations: [] }];
+    }
+    // The listening take (S4d) is face time the run is billed for, and the editor offers nothing on it yet.
+    if (slot.kind === "live") {
+      return [{ ...placed(slot.startFrame, slot.endFrame), id, track: "presenter", kind: "presenter", preview_url: null, source: "generated",
+        media_frames: slot.endFrame - slot.startFrame, media_offset_frames: 0, operations: [] }];
     }
     if (replaced.has(id)) return [];
     const clip = slot.mediaType === "video";

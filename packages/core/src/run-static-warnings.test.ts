@@ -9,7 +9,7 @@ import {
 } from "./run-static-warnings.js";
 import { storedRevisionInputFixture } from "./__fixtures__/edit-views.fixture.js";
 import { buildFacelessVoiceWarnings, FACELESS_VOICE_NAMES, FACELESS_VOICES } from "./faceless-voices.js";
-import { makeUgcInput } from "./skills.js";
+import { makeUgcInput, storedUgcInput } from "./skills.js";
 import { dispositionWarnings } from "./contract-dispositions.js";
 import { resolveAspectRatio } from "./aspect.js";
 import {
@@ -133,10 +133,25 @@ describe("derivedRunWarnings", () => {
     const bySegments = makeUgcInput.parse({ segments, voice_id: "abcdefghij123456" });
     expect(derivedRunWarnings(bySegments, NO_FACTS, "make_ugc")).toEqual([cut]);
     expect(derivedRunWarnings(stored({ script: tagged, voice: "owner_ru_clone" }), NO_FACTS, "make_ugc")).toEqual([cut]);
-    expect(derivedRunWarnings(stored({ script: tagged, voice: "owner_ru_clone", tts_model: "eleven_v3" }), NO_FACTS, "make_ugc"))
-      .toEqual([]);
-    expect(derivedRunWarnings(stored({ script: 'First part. <break time="2.0s" /> Second part.', voice_id: "abcdefghij123456" }), NO_FACTS, "make_ugc"))
-      .toEqual([]);
+    expect(derivedRunWarnings(stored({ script: tagged, voice: "owner_ru_clone", tts_model: "eleven_flash_v2_5" }), NO_FACTS, "make_ugc"))
+      .not.toContain(cut);
+  });
+
+  /** Mutant: derive an old run's model by today's default, and a run spoken on eleven_v3 claims eleven_v4 (rule 3). */
+  it("a run admitted before 2026-10-25 keeps the warnings of the model it spoke; a pinned run shows the substitution", () => {
+    const cut = "break tags in the script are not sent to eleven_v4: the model gives no pause for them, so they are cut from the text";
+    const tagged = 'Первая часть фразы. <break time="2.0s" /> Вторая часть фразы.';
+    const latin = 'First part. <break time="2.0s" /> Second part.';
+    const pinned = (extra: Record<string, unknown>) => ({ ...stored(extra), resolved_tts_model: "eleven_v4" });
+    for (const extra of [{ script: tagged, voice: "owner_ru_clone", tts_model: "eleven_v3" }, { script: latin, voice_id: "abcdefghij123456" },
+      { script: latin, voice: "george" }, { script: latin }]) {
+      expect(derivedRunWarnings(stored(extra), NO_FACTS, "make_ugc"), JSON.stringify(extra)).toEqual([]);
+    }
+    expect(derivedRunWarnings(pinned({ script: tagged, voice: "owner_ru_clone", tts_model: "eleven_v3" }), NO_FACTS, "make_ugc"))
+      .toEqual(["tts_model eleven_v3 is no longer used for speech: this run speaks eleven_v4", cut]);
+    expect(derivedRunWarnings(pinned({ script: latin, voice: "george" }), NO_FACTS, "make_ugc")).toEqual([cut]);
+    // A Russian voice already spoke eleven_v4 before the switch: its old run keeps the cut.
+    expect(derivedRunWarnings(stored({ script: tagged, voice: "owner_ru_clone" }), NO_FACTS, "make_ugc")).toEqual([cut]);
   });
 
   it("a voice/face gender mismatch reaches the run, including via the actor snapshot", () => {
@@ -457,6 +472,49 @@ describe("captions by composition version (#778)", () => {
   it("a version-2 run draws its captions and derives no captions line", () => {
     const warnings = derivedRunWarnings({ ...stored({ captions: true, caption_style: "headline" }), composition_version: 2 }, NO_FACTS, "make_ugc");
     expect(warnings.filter(line => line.includes("caption"))).toEqual([]);
+  });
+});
+
+// #884 S5d, C1: the run names a wide request that rendered close, from the view the pin holds, and judges templates against that face.
+describe("presenter framing in a run's warnings", () => {
+  const pin = (framing?: "wide", actor_id = "actor_alex", aspect_ratio = "9:16") =>
+    ({ gender: "male", actor_id, asset: { aspect_ratio, ...(framing ? { framing } : {}) } });
+  const run = (extra: Record<string, unknown>, snapshot?: unknown) =>
+    derivedRunWarnings({ ...stored({ actor_id: "actor_alex", ...extra }), ...(snapshot ? { actor_snapshot: snapshot } : {}) }, NO_FACTS, "make_ugc")
+      .filter(line => line.includes("presenter_framing") || line.includes("presenter's face"));
+
+  /** Mutant: read the requested framing instead of the pin, and a run that rendered close stays silent. */
+  it("names a close render of a wide request, and nothing when the wide view was pinned or close was asked", () => {
+    expect(run({ presenter_framing: "wide" }, pin())).toEqual(["presenter_framing wide: actor actor_alex has no wide view yet; the close portrait was used"]);
+    expect(run({ presenter_framing: "wide" }, pin("wide"))).toEqual([]);
+    expect(run({}, pin())).toEqual([]);
+    expect(run({ presenter_framing: "close" }, pin())).toEqual([]);
+    const personal = `actor_u_${"a".repeat(26)}`;
+    expect(run({ actor_id: personal, presenter_framing: "wide" }, pin(undefined, personal)))
+      .toEqual([`presenter_framing wide: personal actor ${personal} has no wide view yet; the close portrait was used`]);
+    expect(run({ presenter_framing: "wide", aspect_ratio: "1:1" }, pin(undefined, "actor_alex", "1:1")))
+      .toEqual(["presenter_framing wide is drawn in 9:16 only: the 1:1 close portrait was used"]);
+  });
+
+  /** Mutant: widen `storedUgcInput.actor_snapshot` to the view, and a long-form run reopened across the deploy fails its timeline digest after paid work. */
+  it("reads the pinned view beside the stored input, whose snapshot parse stays gender-only", () => {
+    expect(storedUgcInput.parse({ ...stored({ actor_id: "actor_alex" }), actor_snapshot: pin("wide") }).actor_snapshot).toEqual({ gender: "male" });
+  });
+
+  /** Mutant: drop `prop` from the run's pin schema, and a run that drew the mic says it did not, unlike its quote. */
+  it("names a dropped mic from the pin, and nothing when the mic view was pinned", () => {
+    const mic = (view: Record<string, string>) => derivedRunWarnings({ ...stored({ actor_id: "actor_alex", presenter_framing: "wide", presenter_mic: true }),
+      actor_snapshot: { ...pin("wide"), asset: { aspect_ratio: "9:16", ...view } } }, NO_FACTS, "make_ugc").filter(line => line.startsWith("presenter_mic"));
+    expect(mic({ framing: "wide", prop: "mic" })).toEqual([]);
+    expect(mic({ framing: "wide" })).toEqual([expect.stringContaining("has no wide mic view")]);
+  });
+
+  it("judges a template against the face as rendered: a top tag clears a pinned wide view and sits on a close one", () => {
+    const script = "One two three four five six";
+    const tag = { templates: [{ id: "t", kind: "tag", anchor: { startWord: 0, endWord: 2 }, data: { text: "sounds natural", position: "top" } }], script };
+    expect(run({ ...tag, presenter_framing: "wide" }, pin("wide"))).toEqual([]);
+    expect(run({ ...tag, presenter_framing: "wide" }, pin())).toEqual([expect.stringContaining("template \"t\" is drawn over the presenter's face"),
+      "presenter_framing wide: actor actor_alex has no wide view yet; the close portrait was used"]);
   });
 });
 

@@ -32,8 +32,8 @@ export const checklist: TemplateKind<typeof data> = {
   slots: {},
   hidesCaptions: () => false,
   onInserts: false,
-  rect: (value, aspectRatio) => {
-    const canvas = frameCanvasOf(aspectRatio), { width: w, height: h } = canvas, margin = Math.round(0.04 * Math.min(w, h)), face = faceZone(aspectRatio);
+  rect: (value, aspectRatio, _placement, framing) => {
+    const canvas = frameCanvasOf(aspectRatio), { width: w, height: h } = canvas, margin = Math.round(0.04 * Math.min(w, h)), face = faceZone(aspectRatio, framing);
     const rows = value.items.length, ems = rows * CHECKLIST_EMS.row + (rows - 1) * CHECKLIST_EMS.gap + CHECKLIST_EMS.cursor;
     const wide = w > h, room = wide ? h - 2 * margin : h - margin - Math.round((face.top + face.height + 0.01) * h);
     // The size scales the list, and a frame without room under the face shrinks it to fit.

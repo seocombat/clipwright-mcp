@@ -14,11 +14,11 @@ const script = "Missed calls cost you money. Our receptionist answers every call
 const insert = { id: "calls", media_url: "https://example.com/a.png", media_type: "image" as const, anchor: { quote: "Missed calls" } };
 
 describe("caption contract", () => {
-  it("offers 23 presets with one-line descriptions, hormozi first as the default, and minimal as an alias", () => {
-    expect(CAPTION_PRESET_IDS).toHaveLength(23);
+  it("offers 24 presets with one-line descriptions, hormozi first as the default, and minimal as an alias", () => {
+    expect(CAPTION_PRESET_IDS).toHaveLength(24);
     expect(CAPTION_PRESET_IDS[0]).toBe("hormozi");
     expect(CAPTION_PRESET_IDS).toEqual(expect.arrayContaining(["tiktok", "youtube", "instagram", "minimalist", "neon", "genz", "headline", "promo",
-      "highlighter", "punch"]));
+      "highlighter", "punch", "accent"]));
     for (const id of CAPTION_PRESET_IDS) expect(CAPTION_PRESETS[id]).toMatch(/^[^\n]{20,240}$/);
     expect(CAPTION_STYLES).toEqual([...CAPTION_PRESET_IDS, "minimal"]);
     expect(captionPresetOf("hormozi")).toBe("hormozi");
@@ -85,6 +85,17 @@ describe("caption contract", () => {
     }
     expect(makeUgcInput.safeParse({ script, captions: true, caption_mode: "highlights", caption_emphasis: ["money"] }).success).toBe(true);
     expect(makeUgcInput.parse({ script, captions: true }).caption_mode).toBeUndefined();
+  });
+
+  // #884: the reference's captions sat at the bottom and ours at the preset's 65%.
+  it("takes caption_position with captions only, and leaves it unset when omitted", () => {
+    expect(makeUgcInput.parse({ script, captions: true, caption_position: "bottom" }).caption_position).toBe("bottom");
+    expect(makeUgcInput.parse({ script, captions: true }).caption_position).toBeUndefined();
+    for (const position of ["top", "middle", "lower", "bottom"]) {
+      expect(makeUgcInput.safeParse({ script, caption_position: position }).error?.issues[0]?.path).toEqual(["caption_position"]);
+      expect(makeUgcInput.safeParse({ script, captions: false, caption_position: position }).success).toBe(false);
+    }
+    expect(makeUgcInput.safeParse({ script, captions: true, caption_position: "floor" }).success).toBe(false);
   });
 
   it("finds every occurrence of a quote", () => {

@@ -11,6 +11,7 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   list_workflows: { readOnlyHint: true, destructiveHint: false },
   get_workflow: { readOnlyHint: true, destructiveHint: false },
   prepare_workflow_plan: { readOnlyHint: false, destructiveHint: false },
+  plan_reference_remake: { readOnlyHint: false, destructiveHint: false },
   get_workflow_plan: { readOnlyHint: true, destructiveHint: false },
   approve_workflow_plan: { readOnlyHint: false, destructiveHint: false },
   quote_workflow_plan: { readOnlyHint: true, destructiveHint: false },
@@ -27,6 +28,9 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   get_asset: { readOnlyHint: true, destructiveHint: false },
   update_asset: { readOnlyHint: false, destructiveHint: false },
   delete_asset: { readOnlyHint: false, destructiveHint: true },
+  quote_analysis: { readOnlyHint: true, destructiveHint: false },
+  analyze_reference: { readOnlyHint: false, destructiveHint: false },
+  get_reference_analysis: { readOnlyHint: true, destructiveHint: false },
   set_actor_defaults: { readOnlyHint: false, destructiveHint: false },
   delete_actor: { readOnlyHint: false, destructiveHint: true },
   get_run: { readOnlyHint: true, destructiveHint: false },
@@ -47,6 +51,7 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   list_actors: { readOnlyHint: true, destructiveHint: false },
   get_actor_defaults: { readOnlyHint: true, destructiveHint: false },
   get_account: { readOnlyHint: true, destructiveHint: false },
+  list_prices: { readOnlyHint: true, destructiveHint: false },
 };
 
 /** Mutants: the retry field unnamed, a resend described as a new paid run, or a discarded candidate described as free. */

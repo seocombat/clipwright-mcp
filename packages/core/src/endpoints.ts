@@ -3,16 +3,22 @@
 import { ASSET_BYTES_PATH, ASSET_ITEM_PATH, ASSETS_PATH } from "./assets.js";
 import { ACTOR_DEFAULTS_PATH } from "./broll-policy.js";
 import { GENERATION_MODELS_PATH } from "./generations.js";
+import { PRICES_PATH } from "./prices.js";
+import { REFERENCE_ANALYSES_PATH, REFERENCE_ANALYSIS_PATH, REFERENCE_ANALYSIS_QUOTE_PATH } from "./reference-analysis.js";
 import { TEMPLATE_SOUNDS_PATH } from "./templates/sounds.js";
 
 export const PUBLIC_WORKFLOWS_PATH = "/v1/public/workflows";
 export const PUBLIC_WORKFLOW_PATH = "/v1/public/workflows/:id";
 export const WORKFLOW_PLANS_PATH = "/v1/workflow-plans";
 export const WORKFLOW_PLAN_PATH = "/v1/workflow-plans/:id";
+/** A reference remake compiled into a new plan (#857): free, it starts nothing. */
+export const WORKFLOW_REFERENCE_REMAKE_PATH = "/v1/workflow-plans/reference-remake";
 export const WORKFLOW_REVISIONS_PATH = "/v1/workflow-plans/:id/revisions";
 export const WORKFLOW_APPROVE_PATH = "/v1/workflow-plans/:id/approve";
 export const WORKFLOW_QUOTE_PATH = "/v1/workflow-plans/:id/quote";
 export const WORKFLOW_RUN_PATH = "/v1/workflow-plans/:id/run";
+/** The OpenAPI 3.1 document, built from this registry and served without a key (owner decision 2026-10-26). */
+export const OPENAPI_PATH = "/openapi.json";
 
 export interface ApiEndpoint {
   method: "GET" | "POST" | "DELETE";
@@ -36,6 +42,7 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "GET", path: "/health", billed: false, onQuickstart: true, jsonBody: false, cabinet: false, mcp: false },
   { method: "GET", path: "/", billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
   { method: "GET", path: "/robots.txt", billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
+  { method: "GET", path: OPENAPI_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
   { method: "GET", path: "/v1/voices", billed: false, onQuickstart: true, jsonBody: false, cabinet: false, mcp: true },
   { method: "GET", path: TEMPLATE_SOUNDS_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   { method: "GET", path: "/v1/account", billed: false, onQuickstart: true, jsonBody: false, cabinet: false, mcp: true },
@@ -51,6 +58,7 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "GET", path: "/v1/runs/:id/candidates", billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: false },
   { method: "POST", path: "/v1/skills/make_ugc/run", billed: true, onQuickstart: true, jsonBody: true, cabinet: false, mcp: true },
   { method: "GET", path: "/v1/public/skills", billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
+  { method: "GET", path: PRICES_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
   { method: "GET", path: "/v1/actors", billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   { method: "DELETE", path: "/v1/actors/:id", billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   { method: "GET", path: ACTOR_DEFAULTS_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
@@ -74,6 +82,7 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "GET", path: PUBLIC_WORKFLOW_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: false },
   { method: "POST", path: WORKFLOW_PLANS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "GET", path: WORKFLOW_PLAN_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: true },
+  { method: "POST", path: WORKFLOW_REFERENCE_REMAKE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: WORKFLOW_REVISIONS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: WORKFLOW_APPROVE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: WORKFLOW_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
@@ -83,6 +92,10 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "POST", path: "/v1/skills/generate_image/run", billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: "/v1/skills/generate_video/quote", billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: "/v1/skills/generate_video/run", billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  // Reference analysis (reference-to-video S1c): paid since #927; its own hourly cap stands in the handler too.
+  { method: "POST", path: REFERENCE_ANALYSIS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: REFERENCE_ANALYSES_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "GET", path: REFERENCE_ANALYSIS_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
 ];
 
 /** `GET /v1/runs/{id}`: the human notation, with the parameter in curly braces. */

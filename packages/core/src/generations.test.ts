@@ -24,14 +24,15 @@ const video = (overrides: Partial<GenerateVideoRequest> = {}): GenerateVideoRequ
 });
 
 // D1 of #761 (owner 21.10): credits per image and per second; service-core's pricing test derives the same numbers.
-const D1_IMAGE = { "seedream-5.0-flash": 5, flare: 6 } as const;
+// ×2.5 since 29.10 (#800); the two 21.10 overrides went with it.
+const D1_IMAGE = { "seedream-5.0-flash": 6, flare: 8 } as const;
 const D1_VIDEO: Record<string, Partial<Record<string, number>>> = {
-  "seedance-2.0-mini": { "480p": 5, "720p": 10 },
-  "seedance-2.0-fast": { "480p": 14, "720p": 30 },
-  "seedance-2.0": { "480p": 18, "720p": 36, "1080p": 91 },
-  "seedance-2.5": { "480p": 25, "720p": 56, "1080p": 138 },
-  "kling-3.0": { "720p": 17 },
-  "gemini-omni-flash-1.1": { "360p": 19, "720p": 19 },
+  "seedance-2.0-mini": { "480p": 6, "720p": 13 },
+  "seedance-2.0-fast": { "480p": 18, "720p": 37 },
+  "seedance-2.0": { "480p": 22, "720p": 46, "1080p": 114 },
+  "seedance-2.5": { "480p": 32, "720p": 71, "1080p": 173 },
+  "kling-3.0": { "720p": 21 },
+  "gemini-omni-flash-1.1": { "360p": 24, "720p": 24 },
 };
 
 describe("capability table", () => {
@@ -58,13 +59,14 @@ describe("capability table", () => {
       "kling-3.0": ["kie kling-3.0/video"],
       "gemini-omni-flash-1.1": ["kie google/gemini-omni-flash-1-1"],
     });
-    // kie serves exactly the rows it made live on 21.10; every other Seedance row is BytePlus only.
+    // kie serves exactly the rows it made live on 21.10; every other Seedance row is BytePlus only. Mini is kie only since #800:
+    // its BytePlus fallback cost $0.076/s against kie's $0.041.
     const KIE_ROWS: Record<string, string[]> = {
       "seedance-2.0 9:16 720p": ["byteplus", "kie"],
-      "seedance-2.0-mini 9:16 480p": ["kie", "byteplus"],
-      "seedance-2.0-mini 16:9 480p": ["kie", "byteplus"],
-      "seedance-2.0-mini 9:16 720p": ["kie", "byteplus"],
-      "seedance-2.0-mini 16:9 720p": ["kie", "byteplus"],
+      "seedance-2.0-mini 9:16 480p": ["kie"],
+      "seedance-2.0-mini 16:9 480p": ["kie"],
+      "seedance-2.0-mini 9:16 720p": ["kie"],
+      "seedance-2.0-mini 16:9 720p": ["kie"],
       "seedance-2.5 9:16 480p": ["byteplus", "kie"],
       "seedance-2.5 16:9 720p": ["byteplus", "kie"],
       "kling-3.0 9:16 720p": ["kie"],
@@ -153,11 +155,11 @@ describe("capability table", () => {
 
 describe("findCapabilityRow and priceGeneration", () => {
   it("prices measured rows from the table", () => {
-    expect(priceGeneration(video())).toEqual({ unit_credits: 10, units: 4, credits: 40 });
-    expect(priceGeneration(video({ camera: "pan" }))).toEqual({ unit_credits: 10, units: 4, credits: 40 });
-    expect(priceGeneration(video({ model: "seedance-2.0", resolution: "1080p", duration_s: 15 }))).toEqual({ unit_credits: 91, units: 15, credits: 1365 });
-    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "9:16" })).toEqual({ unit_credits: 6, units: 1, credits: 6 });
-    expect(priceGeneration({ prompt: "x", model: "seedream-5.0-flash", aspect_ratio: "9:16" })).toEqual({ unit_credits: 5, units: 1, credits: 5 });
+    expect(priceGeneration(video())).toEqual({ unit_credits: 13, units: 4, credits: 52 });
+    expect(priceGeneration(video({ camera: "pan" }))).toEqual({ unit_credits: 13, units: 4, credits: 52 });
+    expect(priceGeneration(video({ model: "seedance-2.0", resolution: "1080p", duration_s: 15 }))).toEqual({ unit_credits: 114, units: 15, credits: 1710 });
+    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "9:16" })).toEqual({ unit_credits: 8, units: 1, credits: 8 });
+    expect(priceGeneration({ prompt: "x", model: "seedream-5.0-flash", aspect_ratio: "9:16" })).toEqual({ unit_credits: 6, units: 1, credits: 6 });
   });
 
   it.each([
@@ -177,10 +179,10 @@ describe("findCapabilityRow and priceGeneration", () => {
   // Mutant: check only the range in `findCapabilityRow`, and a 5 s Omni clip that skips the schema is priced.
   it("prices Omni only at its listed lengths, past the schema too", () => {
     const omni = (duration_s: number) => video({ model: "gemini-omni-flash-1.1", duration_s });
-    expect(priceGeneration(omni(4))).toEqual({ unit_credits: 19, units: 4, credits: 76 });
-    expect(priceGeneration(omni(10))).toEqual({ unit_credits: 19, units: 10, credits: 190 });
+    expect(priceGeneration(omni(4))).toEqual({ unit_credits: 24, units: 4, credits: 96 });
+    expect(priceGeneration(omni(10))).toEqual({ unit_credits: 24, units: 10, credits: 240 });
     expect(findCapabilityRow(omni(5))).toBeNull();
-    expect(priceGeneration(video({ model: "kling-3.0", aspect_ratio: "16:9" }))).toEqual({ unit_credits: 17, units: 4, credits: 68 });
+    expect(priceGeneration(video({ model: "kling-3.0", aspect_ratio: "16:9" }))).toEqual({ unit_credits: 21, units: 4, credits: 84 });
   });
 
   it.each(["16:9", "1:1"] as const)("refuses an unmeasured %s image", (aspect_ratio) => {
@@ -285,12 +287,12 @@ describe("models list", () => {
     expect(listed.find((one) => one.model === "seedance-2.0")).toEqual({
       model: "seedance-2.0", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 4, max: 15 }, max_references: 0,
       rows: [
-        { aspect_ratio: "9:16", resolution: "480p", width: 496, height: 864, unit_credits: 18 },
-        { aspect_ratio: "16:9", resolution: "480p", width: 864, height: 496, unit_credits: 18 },
-        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 36 },
-        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 36 },
-        { aspect_ratio: "9:16", resolution: "1080p", width: 1080, height: 1920, unit_credits: 91 },
-        { aspect_ratio: "16:9", resolution: "1080p", width: 1920, height: 1080, unit_credits: 91 },
+        { aspect_ratio: "9:16", resolution: "480p", width: 496, height: 864, unit_credits: 22 },
+        { aspect_ratio: "16:9", resolution: "480p", width: 864, height: 496, unit_credits: 22 },
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 46 },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 46 },
+        { aspect_ratio: "9:16", resolution: "1080p", width: 1080, height: 1920, unit_credits: 114 },
+        { aspect_ratio: "16:9", resolution: "1080p", width: 1920, height: 1080, unit_credits: 114 },
       ],
     });
     expect(listed.find((one) => one.model === "seedance-2.5")?.modes).toEqual(["first_frame"]);
@@ -303,17 +305,17 @@ describe("models list", () => {
     expect(listed.find((one) => one.model === "kling-3.0")).toEqual({
       model: "kling-3.0", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 3, max: 15 }, max_references: 0,
       rows: [
-        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 17 },
-        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 17 },
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 21 },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 21 },
       ],
     });
     expect(listed.find((one) => one.model === "gemini-omni-flash-1.1")).toEqual({
       model: "gemini-omni-flash-1.1", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 4, max: 10 },
       duration_values: [4, 6, 8, 10], max_references: 0,
       rows: [
-        { aspect_ratio: "16:9", resolution: "360p", width: 640, height: 360, unit_credits: 19 },
-        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 19 },
-        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 19 },
+        { aspect_ratio: "16:9", resolution: "360p", width: 640, height: 360, unit_credits: 24 },
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 24 },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 24 },
       ],
     });
     expect(listed.find((one) => one.model === "seedance-2.5")?.rows.map((row) => `${row.aspect_ratio} ${row.resolution}`))

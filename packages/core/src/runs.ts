@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { longFormBillingSummarySchema } from "./long-form-pricing.js";
+import { partsBillingSummarySchema } from "./parts-pricing.js";
 import { speechRhythmResult } from "./speech-rhythm-contract.js";
 import { actorSelection } from "./actors.js";
 import { createdActor } from "./account-actors.js";
@@ -110,6 +111,8 @@ export const run = z.object({
   state: runState,
   credits_reserved: z.number().int().nonnegative(),
   credits_charged: z.number().int().nonnegative().nullable(),
+  /** The account's balance right after this run's charge was settled, read in the settling transaction; `null` until then. */
+  balance_after_credits: z.number().int().nullable().optional(),
   billing_terms: faceBillingAdmissionTermsSchema.optional(),
   faceless_billing: facelessQuote.optional(),
   /** A revision of another run: its family, the credits held at admission, and its frozen price (`null` once redacted). */
@@ -138,6 +141,8 @@ export const run = z.object({
       character_id: z.string().optional(),
       duration_seconds: z.number().positive(),
       long_form_billing: longFormBillingSummarySchema.optional(),
+      /** A long-form video on a parts tariff (#800): its charge by part. */
+      parts_billing: partsBillingSummarySchema.optional(),
       face_duration_seconds: z.number().nonnegative().optional(),
       full_speech_duration_seconds: z.number().positive().optional(),
       face_credits_per_second: z.number().int().positive().optional(),
@@ -178,10 +183,10 @@ export type RunRead = z.infer<typeof runRead>;
 
 /** A money field of a run. Names are derived FROM THE SCHEMA: a hand list next to the MCP */
 /** formatter kept losing them. */
-export type RunMoneyField = Extract<keyof RunRead, `credits_${string}`>;
+export type RunMoneyField = Extract<keyof RunRead, `credits_${string}` | "balance_after_credits">;
 
 export const RUN_MONEY_FIELDS: readonly RunMoneyField[] = Object.keys(run.shape).filter(
-  (field): field is RunMoneyField => field.startsWith("credits_"),
+  (field): field is RunMoneyField => field.startsWith("credits_") || field === "balance_after_credits",
 );
 
 /** A run's money fields as one object, for surfaces that build their own response. */

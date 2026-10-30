@@ -19,7 +19,7 @@ it('loads the actual browser bundle without Node globals or crypto polyfills', (
     } };
     runInNewContext(output.outputFiles[0]!.text, sandbox);
     const catalog = sandbox.Workflows!.queryWorkflowCatalog({ v: 1, content_digest: 'a'.repeat(64), executors: [] });
-    expect(catalog.methods).toHaveLength(6);
+    expect(catalog.methods).toHaveLength(7);
     expect(catalog.methods.every(method => method.availability.status === 'execution_blocked')).toBe(true);
     expect(sandbox.Workflows!.workflowBrief.parse({ audience: 'Users', message: 'Teach export', script: '  Export MP4.\n' }).script).toBe('  Export MP4.\n');
     expect(sandbox.Workflows!.isActorGenerationEnabled()).toBe(false);

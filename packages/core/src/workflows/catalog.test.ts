@@ -21,11 +21,13 @@ function document(methodId = 'ugc-faq-answer') {
 }
 
 describe('original workflow methods and measured capabilities', () => {
-    it('offers all six cards with distinct script structures and native bindings', () => {
+    it('offers all seven cards with distinct script structures and native bindings', () => {
         const cards = queryWorkflowCatalog(capabilities).methods;
-        expect(cards.map(card => card.descriptor.id)).toEqual(['ugc-product-intro', 'ugc-faq-answer', 'faceless-explainer', 'product-image-story', 'website-proof-demo', 'kinetic-launch']);
-        expect(cards.map(card => card.availability.status)).toEqual(['available', 'available', 'available', 'available', 'execution_blocked', 'execution_blocked']);
-        expect(new Set(WORKFLOW_METHODS.map(card => card.script_rules.structure.join(','))).size).toBe(6);
+        expect(cards.map(card => card.descriptor.id)).toEqual(['ugc-product-intro', 'ugc-faq-answer', 'faceless-explainer', 'product-image-story', 'website-proof-demo',
+            'kinetic-launch', 'reference-remake']);
+        expect(cards.map(card => card.availability.status)).toEqual(['available', 'available', 'available', 'available', 'execution_blocked', 'execution_blocked', 'execution_blocked']);
+        expect(cards[6]!.availability.reasons.map(reason => reason.message)).toEqual(['Required capability long_form is unavailable.']);
+        expect(new Set(WORKFLOW_METHODS.map(card => card.script_rules.structure.join(','))).size).toBe(7);
         expect(cards[0]!.descriptor.binding.skill).toBe('make_ugc');
         expect(cards[2]!.descriptor.binding.skill).toBe('make_faceless');
         expect(cards[4]!.availability.reasons.map(reason => reason.kind)).toContain('composition_not_qualified');

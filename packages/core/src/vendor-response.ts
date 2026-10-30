@@ -88,6 +88,20 @@ export function vendorJobVerdict(error: unknown): VendorJobVerdict | undefined {
   return value === "succeeded" || value === "failed" ? value : undefined;
 }
 
+const VENDOR_JOB_UNBILLED = "clipwrightVendorJobUnbilled";
+
+/** Marks a failed job the vendor itself reports as not billed (kie: no `creditsConsumed`, #857 S3). */
+/** Only the adapter that read the vendor's answer sets it; no mark means the job may be billed. */
+export function markVendorJobUnbilled<E>(error: E): E {
+  if (typeof error !== "object" || error === null) return error;
+  Object.defineProperty(error, VENDOR_JOB_UNBILLED, { value: true, enumerable: false, writable: false, configurable: true });
+  return error;
+}
+
+export function vendorJobUnbilled(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as Record<string, unknown>)[VENDOR_JOB_UNBILLED] === true;
+}
+
 /** Whose fault a vendor refusal is. `unknown` is the honest answer and keeps the previous */
 /** behavior (not zero). */
 export type VendorRefusalClass = "account_standing" | "vendor" | "unknown";

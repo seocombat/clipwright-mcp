@@ -9,7 +9,7 @@ import { calloutParts, contrastRatio, TEMPLATE_KIND_IDS, TEMPLATE_KINDS, TEMPLAT
   templateFieldValues, templateKindAt, templateMediaOf, templateMoments, templateRefusals, templateTheme, textUnits, withTemplateField,
   type TemplateKind } from "./index.js";
 import { callout } from "./callout.js";
-import { faceZone, rectsOverlap } from "../ugc-layers.js";
+import { faceZone, rectsOverlap, type LayerRect } from "../ugc-layers.js";
 import { dispositionWarnings } from "../contract-dispositions.js";
 import { tag } from "./tag.js";
 
@@ -104,6 +104,81 @@ describe("over-presenter templates keep off the face (#778 S3)", () => {
   });
 });
 
+describe("a wide presenter moves the face zone and every footprint that reads it (#884 S5d, C2)", () => {
+  it("puts the wide 9:16 face at 33–58% and the middle half, and keeps close geometry for close and every other format", () => {
+    expect(faceZone("9:16", "wide")).toEqual({ left: 0.25, top: 0.33, width: 0.5, height: 0.25 });
+    for (const aspect of ASPECT_RATIOS) expect(faceZone(aspect, "close")).toEqual(faceZone(aspect));
+    for (const aspect of ASPECT_RATIOS.filter(entry => entry !== "9:16")) expect(faceZone(aspect, "wide")).toEqual(faceZone(aspect));
+  });
+
+  /** Mutant: lay a callout's parts out for the close face inside a wide footprint, and the label falls outside it and is clipped unseen. */
+  it("keeps every part of a callout inside its footprint in both framings", () => {
+    const inside = (part: LayerRect, rect: LayerRect) => part.left >= rect.left - 1e-9 && part.top >= rect.top - 1e-9
+      && part.left + part.width <= rect.left + rect.width + 1e-9 && part.top + part.height <= rect.top + rect.height + 1e-9;
+    for (const framing of ["close", "wide"] as const) {
+      for (const target of [{ x: 50, y: 38 }, { x: 80, y: 38 }, { x: 20, y: 70 }]) {
+        const footprint = templateFootprint({ kind: "callout", placement: "over", data: { target, style: "ring", text: "tap here" } }, "9:16",
+          undefined, undefined, framing);
+        for (const [name, part] of Object.entries(footprint.parts ?? {})) expect(inside(part, footprint.rect), `${framing} ${target.x},${target.y} ${name}`).toBe(true);
+        expect(Object.keys(footprint.parts ?? {}).length, framing).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  /** As the close test above: a kind's default place, only its required fields, every value of a required enum. */
+  it("places every over-presenter kind inside the frame and off the wide face by default, at every size", () => {
+    for (const kind of TEMPLATE_KINDS.filter(entry => entry.placements.includes("over"))) {
+      const shape = Object.entries(kind.data.shape) as [string, z.ZodType][];
+      const required = Object.fromEntries(shape.filter(([, schema]) => !schema.safeParse(undefined).success)
+        .map(([key]) => [key, (kind.sample as Record<string, unknown>)[key]]));
+      const variants = shape.filter(([key, schema]) => key in required && (schema as unknown as { options?: string[] }).options)
+        .flatMap(([key, schema]) => (schema as unknown as { options: string[] }).options.map(option => ({ ...required, [key]: option })));
+      for (const data of variants.length ? variants : [required]) for (const size of [...TEMPLATE_SIZES, undefined]) {
+        const value = { ...data, ...(size ? { size } : {}) }, rect = kind.rect(value, "9:16", "over", "wide");
+        const guarded = kind.faceRect ? kind.faceRect(value, "9:16", "wide") : rect;
+        expect({ kind: kind.kind, data, size, inside: rect.left >= 0 && rect.top >= 0 && rect.left + rect.width <= 1 + 1e-9 && rect.top + rect.height <= 1 + 1e-9,
+          onFace: guarded !== undefined && rectsOverlap(guarded, faceZone("9:16", "wide")) }).toEqual({ kind: kind.kind, data, size, inside: true, onFace: false });
+      }
+    }
+  });
+
+  it("draws the notification in the taller band above the wide face and the phone under it", () => {
+    const at = (kind: string, framing?: "close" | "wide") => {
+      const entry = TEMPLATE_KINDS.find(item => item.kind === kind)!;
+      return templateFootprint({ kind, placement: "over", data: entry.sample as Record<string, unknown> }, "9:16", undefined, undefined, framing).rect;
+    };
+    expect(at("notification", "close")).toEqual(at("notification"));
+    expect(at("notification", "wide").top + at("notification", "wide").height).toBeLessThanOrEqual(0.33);
+    expect(at("phone_call", "wide").top).toBeGreaterThanOrEqual(0.58);
+    expect(at("phone_call").top).toBeLessThan(0.58);
+  });
+
+  it("warns of a template on the wide face, and not of a top tag that clears it", () => {
+    const face = (templates: unknown[], presenter_framing?: string) => templateFaceWarnings({ templates, presenter_framing });
+    expect(face([tagAt("t", 0, 2, "top")], "wide")).toEqual([]);
+    expect(face([tagAt("t", 0, 2, "top")])).toEqual([expect.stringContaining("template \"t\" is drawn over the presenter's face")]);
+    expect(face([tagAt("t", 0, 2, "center")], "wide")).toEqual([expect.stringContaining("template \"t\" is drawn over the presenter's face")]);
+  });
+
+  it("refuses an overlay that clashes with a template in either framing, since a wide request may render close", () => {
+    // The callout's label clears the wide face only above its target, where it meets the top-left overlay it misses in the close frame.
+    const body = { ...longForm, overlays: [overlay("o", 0, 3, "top_left")], templates: [{ id: "c", kind: "callout", anchor: { startWord: 0, endWord: 3 },
+      data: { target: { x: 80, y: 38 }, style: "ring", text: "tap here" } }] };
+    expect(refusals(body)).toEqual([]);
+    expect(refusals({ ...body, actor_id: "actor_alex", presenter_framing: "wide" })).toEqual([expect.stringContaining("shares the screen with \"o\"")]);
+  });
+
+  /** Mutant: check the wide footprint whenever wide is asked, and a run that can only render close is refused for a clash it never draws. */
+  it("checks the wide footprint only where wide can render: an actor and 9:16", () => {
+    const body = { ...longForm, overlays: [overlay("o", 0, 3, "top_left")], templates: [{ id: "c", kind: "callout", anchor: { startWord: 0, endWord: 3 },
+      data: { target: { x: 80, y: 38 }, style: "ring", text: "tap here" } }], presenter_framing: "wide" };
+    expect(refusals(body)).toEqual([]);
+    // Outside 9:16 wide adds nothing to what the close frame refuses.
+    const square = { ...body, actor_id: "actor_alex", aspect_ratio: "1:1" };
+    expect(refusals(square)).toEqual(refusals({ ...square, presenter_framing: undefined }));
+  });
+});
+
 describe("one registry, two schemas (D3)", () => {
   it("REST checks data by kind and names the field; MCP takes any object and the server refuses it", () => {
     expect(refusals({ ...longForm, templates: [tagAt("t", 0, 2, "middle")] })).toEqual([expect.stringMatching(/^templates\.0\.data\.position: /)]);
@@ -130,8 +205,10 @@ describe("one registry, two schemas (D3)", () => {
   it("tells an agent templates take any script run and never change its tariff", () => {
     const text = templateCatalogText();
     expect(text).not.toContain("Long form only");
-    expect(text).toContain("On any script run. Templates never change the price: a plain run is billed per second of finished video (30/s); " +
-      "a run with inserts, overlays or layout_windows is billed long-form-v1, and a covered presenter there is still face time.");
+    expect(text).toContain("On any script run. Templates never change the price: every run is billed by its parts as list_prices " +
+      "states them, and a presenter a template covers is still presenter time.");
+    // parts-v1 (#800) retired the per-second rate: no figure here can go stale against the price list.
+    expect(text).not.toMatch(/\d+\/s\b|credits a second/);
   });
 });
 

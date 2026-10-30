@@ -81,7 +81,7 @@ export function readLongFormRevisionRecord(stored: string | Uint8Array, expected
   if (record.run_id !== expected.runId || record.account_id !== expected.accountId) failures.push("the record belongs to another run or account");
   if (record.run_id === record.source_run_id) failures.push("the revision names itself as its source");
   if (base.runId !== record.run_id || base.accountId !== record.account_id) failures.push("the timeline names another run or account");
-  const keys = [...base.slots.flatMap((slot) => (slot.kind === "media" ? [slot.key] : slot.audio ? [slot.audio.key] : [])),
+  const keys = [...base.slots.flatMap((slot) => (slot.kind === "media" ? [slot.key] : slot.kind === "actor" && slot.audio ? [slot.audio.key] : [])),
     ...(base.narration ? [base.narration.key] : []), ...record.visual.map((overlay) => overlay.object.key)];
   if (!keys.every((key) => longFormOwnKey(key, record.run_id))) failures.push("a key leaves the run's prefix");
 

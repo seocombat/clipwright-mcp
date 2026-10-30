@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { faceZone, frameCanvasOf, type LayerRect, rectsOverlap } from "../ugc-layers.js";
+import { faceZone, frameCanvasOf, type LayerRect, type PresenterFraming, rectsOverlap } from "../ugc-layers.js";
 import type { TemplateKind } from "./index.js";
 import { sizedScale, templateSize } from "./size.js";
 
@@ -15,7 +15,7 @@ const data = z.object({ target: z.object({ x: percent, y: percent }).strict(), s
 type Data = z.infer<typeof data>;
 
 /** The pointer's square centred on the target, uncropped, and the label's band below it, else above it, off the face when a side allows (D5). */
-export function calloutParts(value: Data, aspectRatio: string): { pointer: LayerRect; label: LayerRect } {
+export function calloutParts(value: Data, aspectRatio: string, framing: PresenterFraming = "close"): { pointer: LayerRect; label: LayerRect } {
   const canvas = frameCanvasOf(aspectRatio), { width: w, height: h } = canvas, scale = sizedScale(value.size, canvas);
   const side = Math.round(CALLOUT_POINTER_EMS * CALLOUT_FONT_PX * scale), band = Math.round(CALLOUT_LABEL_EMS * CALLOUT_FONT_PX * scale);
   const width = Math.round(Math.min(0.9 * w, 0.8 * Math.min(w, h) * scale));
@@ -24,13 +24,13 @@ export function calloutParts(value: Data, aspectRatio: string): { pointer: Layer
   const share = (l: number, t: number, rw: number, rh: number): LayerRect => ({ left: l / w, top: t / h, width: rw / w, height: rh / h });
   const sides = [y + Math.round(side / 2), y - Math.round(side / 2) - band].map(top => share(left, top, width, band));
   const fits = (rect: LayerRect) => rect.top >= 0 && rect.top + rect.height <= 1;
-  const label = sides.find(rect => fits(rect) && !rectsOverlap(rect, faceZone(aspectRatio))) ?? sides.find(fits) ?? sides[0]!;
+  const label = sides.find(rect => fits(rect) && !rectsOverlap(rect, faceZone(aspectRatio, framing))) ?? sides.find(fits) ?? sides[0]!;
   return { pointer: share(x - Math.round(side / 2), y - Math.round(side / 2), side, side), label };
 }
 
 /** The footprint: the pointer's square cropped to the frame, and the label's band when there is text. */
-function footprint(value: Data, aspectRatio: string): LayerRect {
-  const { pointer, label } = calloutParts(value, aspectRatio);
+function footprint(value: Data, aspectRatio: string, _placement?: unknown, framing?: PresenterFraming): LayerRect {
+  const { pointer, label } = calloutParts(value, aspectRatio, framing);
   const boxes = [pointer, ...(value.text ? [label] : [])];
   const left = Math.max(0, Math.min(...boxes.map(box => box.left))), top = Math.max(0, Math.min(...boxes.map(box => box.top)));
   const right = Math.min(1, Math.max(...boxes.map(box => box.left + box.width))), bottom = Math.min(1, Math.max(...boxes.map(box => box.top + box.height)));
@@ -50,7 +50,7 @@ export const callout: TemplateKind<typeof data> = {
   hidesCaptions: () => false,
   onInserts: true,
   rect: footprint,
-  parts: (value, aspectRatio) => calloutParts(value, aspectRatio),
-  faceRect: (value, aspectRatio) => (value.text ? calloutParts(value, aspectRatio).label : undefined),
+  parts: (value, aspectRatio, framing) => calloutParts(value, aspectRatio, framing),
+  faceRect: (value, aspectRatio, framing) => (value.text ? calloutParts(value, aspectRatio, framing).label : undefined),
   sample: { target: { x: 50, y: 70 }, style: "ring", text: "tap to answer" },
 };

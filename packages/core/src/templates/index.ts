@@ -2,7 +2,7 @@ import { z } from "zod";
 import { captionLanguageOf } from "../caption-language.js";
 import { lexicalTokens, quoteOccurrences } from "../semantic-inserts.js";
 import { type AnchoredItem, faceZone, frameCanvasOf, type LayerRect, type LayerRefusal, layerWordRange, MAX_OVERLAYS_AT_ONCE, overlayRect,
-  type OverlayPosition, rectsOverlap, type WordRange } from "../ugc-layers.js";
+  type OverlayPosition, type PresenterFraming, rectsOverlap, type WordRange } from "../ugc-layers.js";
 import { callout } from "./callout.js";
 import { checklist } from "./checklist.js";
 import { compare } from "./compare.js";
@@ -50,11 +50,12 @@ export interface TemplateKind<D extends z.ZodObject = z.ZodObject> {
   /** Drawn on full-frame insert frames too; other over-presenter kinds step aside there. */
   onInserts: boolean;
   /** Where it draws, in shares of the frame: over the presenter its footprint, on a full frame the area its content takes. */
-  rect(data: z.infer<D>, aspectRatio: string, placement?: TemplatePlacement): LayerRect;
+  /** `framing` is the presenter's as rendered, close when absent (#884 S5d). */
+  rect(data: z.infer<D>, aspectRatio: string, placement?: TemplatePlacement, framing?: PresenterFraming): LayerRect;
   /** Named parts the composition draws in, in shares of the frame; they may reach past it, where the footprint crops them (A7). */
-  parts?(data: z.infer<D>, aspectRatio: string): Record<string, LayerRect>;
+  parts?(data: z.infer<D>, aspectRatio: string, framing?: PresenterFraming): Record<string, LayerRect>;
   /** The part the face rule applies to, or none; absent is the whole footprint. */
-  faceRect?(data: z.infer<D>, aspectRatio: string): LayerRect | undefined;
+  faceRect?(data: z.infer<D>, aspectRatio: string, framing?: PresenterFraming): LayerRect | undefined;
   sample: z.infer<D>;
 }
 
@@ -62,8 +63,9 @@ export const TEMPLATE_KINDS: readonly TemplateKind[] = [tag, lowerThird, endCard
   notification, progress, rating] as unknown as readonly TemplateKind[];
 export const TEMPLATE_KIND_IDS = ["tag", "lower_third", "end_card", "title_card", "quote", "stat", "callout", "checklist", "phone_call", "compare",
   "notification", "progress", "rating"] as const;
-/** Earlier versions of kinds a frozen timeline may still name, each with its own footprint (A8, #819); every kind is at its first version. */
-export const TEMPLATE_KIND_HISTORY: readonly TemplateKind[] = [];
+/** Earlier versions of kinds a frozen timeline may still name, each with its own footprint (A8, #819). The phone's version 2 (#857 S5) only adds
+ *  optional fields, so version 1 keeps its geometry. */
+export const TEMPLATE_KIND_HISTORY: readonly TemplateKind[] = [{ ...phoneCall, kindVersion: 1 } as TemplateKind];
 
 /** A kind as it was at `version`: the current entry or one from its history; a version neither holds has no footprint to draw. */
 export function templateKindAt(kind: string, version: number | undefined, kinds: readonly TemplateKind[] = TEMPLATE_KINDS,
@@ -76,7 +78,7 @@ export function templateKindAt(kind: string, version: number | undefined, kinds:
   return past;
 }
 export { TEMPLATE_SIZES } from "./size.js";
-export { DEFAULT_TEMPLATE_SOUNDS, listTemplateSounds, mcpTemplateSounds, TEMPLATE_KIND_SOUNDS, TEMPLATE_SOUND_BEATS, TEMPLATE_SOUNDS, TEMPLATE_SOUNDS_PATH, templateSoundBeats, templateSoundMap,
+export { DEFAULT_TEMPLATE_SOUNDS, editSoundRefusals, editSounds, listTemplateSounds, mcpTemplateSounds, TEMPLATE_KIND_SOUNDS, TEMPLATE_SOUND_BEATS, TEMPLATE_SOUNDS, TEMPLATE_SOUNDS_PATH, templateSoundBeats, templateSoundMap,
   templateSounds, templateSoundsList, type TemplateSoundBeat, type TemplateSoundMap, type TemplateSounds, type TemplateSoundsList } from "./sounds.js";
 export { TAG_RECT_EMS } from "./tag.js";
 export { END_CARD_RECT_EMS } from "./end-card.js";
@@ -239,26 +241,27 @@ export interface TemplateItem extends AnchoredItem { kind: string; placement?: T
 
 /** Where a template draws and what it does to captions, at a format; a frozen `kindVersion` reads that version's geometry (#819). */
 export function templateFootprint(item: { kind: string; kindVersion?: number | undefined; placement: TemplatePlacement; data: Record<string, unknown> },
-  aspectRatio: string, kinds: readonly TemplateKind[] = TEMPLATE_KINDS, history: readonly TemplateKind[] = TEMPLATE_KIND_HISTORY):
-  { rect: LayerRect; hidesCaptions: boolean; onInserts: boolean; content?: LayerRect; parts?: Record<string, LayerRect> } {
+  aspectRatio: string, kinds: readonly TemplateKind[] = TEMPLATE_KINDS, history: readonly TemplateKind[] = TEMPLATE_KIND_HISTORY,
+  framing: PresenterFraming = "close"): { rect: LayerRect; hidesCaptions: boolean; onInserts: boolean; content?: LayerRect; parts?: Record<string, LayerRect> } {
   const kind = templateKindAt(item.kind, item.kindVersion, kinds, history);
   if (item.placement === "full") {
-    return { rect: { left: 0, top: 0, width: 1, height: 1 }, hidesCaptions: true, onInserts: false, content: kind.rect(item.data, aspectRatio, "full") };
+    return { rect: { left: 0, top: 0, width: 1, height: 1 }, hidesCaptions: true, onInserts: false, content: kind.rect(item.data, aspectRatio, "full", framing) };
   }
-  return { rect: kind.rect(item.data, aspectRatio), hidesCaptions: kind.hidesCaptions(item.data), onInserts: kind.onInserts,
-    ...(kind.parts ? { parts: kind.parts(item.data, aspectRatio) } : {}) };
+  return { rect: kind.rect(item.data, aspectRatio, undefined, framing), hidesCaptions: kind.hidesCaptions(item.data), onInserts: kind.onInserts,
+    ...(kind.parts ? { parts: kind.parts(item.data, aspectRatio, framing) } : {}) };
 }
 
 /** Over-presenter templates whose footprint meets the face: drawn as asked, and named (rule 3); every kind's default stays off it. */
-export function templateFaceWarnings(input: { templates?: unknown; aspect_ratio?: unknown }): string[] {
+export function templateFaceWarnings(input: { templates?: unknown; aspect_ratio?: unknown; presenter_framing?: unknown }): string[] {
   if (!Array.isArray(input.templates)) return [];
   const aspect = typeof input.aspect_ratio === "string" ? input.aspect_ratio : "9:16";
+  const framing = input.presenter_framing === "wide" ? "wide" : "close";
   return (input.templates as { id?: unknown; kind?: unknown; placement?: unknown; data?: unknown }[]).flatMap(item => {
     const kind = TEMPLATE_KINDS.find(entry => entry.kind === item.kind);
     const placement = item.placement ?? kind?.placements[0];
     if (!kind || placement !== "over" || !kind.data.safeParse(item.data).success) return [];
-    const guarded = kind.faceRect ? kind.faceRect(item.data as never, aspect) : kind.rect(item.data as never, aspect, "over");
-    return guarded && rectsOverlap(guarded, faceZone(aspect))
+    const guarded = kind.faceRect ? kind.faceRect(item.data as never, aspect, framing) : kind.rect(item.data as never, aspect, "over", framing);
+    return guarded && rectsOverlap(guarded, faceZone(aspect, framing))
       ? [`template "${String(item.id)}" is drawn over the presenter's face: its ${kind.kind}${kind.faceRect ? " label" : ""} sits there as asked; ` +
         "move it or use the kind's default place to keep the face clear"]
       : [];
@@ -289,8 +292,8 @@ export function templateCatalogText(kinds: readonly TemplateKind[] = TEMPLATE_KI
     return options ? `${key} ${options.join("|")}` : `${key} ≤ ${kind.text[path]}`;
   };
   return "Graphic templates, each { id, kind, anchor, cover_words?, placement?, transition?, data }. On any script run. Templates never " +
-    "change the price: a plain run is billed per second of finished video (30/s); a run with inserts, overlays or layout_windows is billed " +
-    "long-form-v1, and a covered presenter there is still face time. Ids are unique across inserts, overlays, layout_windows " +
+    "change the price: every run is billed by its parts as list_prices states them, and a presenter a template covers is still " +
+    "presenter time. Ids are unique across inserts, overlays, layout_windows " +
     "and templates. Text is one line of Latin or the script's own letters, digits and common punctuation, with no emoji; a wide CJK glyph " +
     "counts 2 toward a limit, and long text shrinks to fit the kind's width. size small|medium|large scales a kind; absent is medium. " +
     "A media field takes { asset_id } of a ready asset of the kind it names. An inner quote names words inside the template's own words, after " +
@@ -313,19 +316,29 @@ export interface TemplateCheckInput {
   script?: string | undefined;
   segments?: unknown;
   aspect_ratio?: string | undefined;
+  presenter_framing?: PresenterFraming | undefined;
+  actor_id?: string | undefined;
   inserts?: readonly (AnchoredItem & { transition?: string | undefined })[] | undefined;
   overlays?: readonly (AnchoredItem & { position: OverlayPosition })[] | undefined;
   layout_windows?: readonly AnchoredItem[] | undefined;
   templates?: readonly TemplateItem[] | undefined;
   template_theme?: { preset?: TemplatePreset | undefined; accent?: string | undefined } | undefined;
   template_sounds?: unknown;
+  edit_sounds?: boolean | undefined;
+  call?: unknown;
 }
 
 /** Every refusal of `templates`, `template_theme` and `template_sounds` against the run, named by path; empty when they render (D4, D5, D6, D8, D10, A5, A6). */
 export function templateRefusals(input: TemplateCheckInput, kinds: readonly TemplateKind[] = TEMPLATE_KINDS): LayerRefusal[] {
   if (input.templates === undefined) {
+    // The edit sound alone needs no templates; it and `false` beside edit_sounds are judged by `editSoundRefusals`.
+    const sounds = input.template_sounds;
+    const editOnly = (sounds === false && input.edit_sounds === true) ||
+      (typeof sounds === "object" && sounds !== null && Object.keys(sounds).length > 0 && Object.keys(sounds).every(beat => beat === "edit"));
+    // A call brings its own phone (#857 S5), which the run's theme and sounds style as any template.
+    if (input.call !== undefined) return [];
     return [...(input.template_theme === undefined ? [] : [{ path: ["template_theme"], message: "template_theme styles templates: add templates or drop it" }]),
-      ...(input.template_sounds === undefined ? [] : [{ path: ["template_sounds"], message: "template_sounds sounds templates: add templates or drop it" }])];
+      ...(sounds === undefined || editOnly ? [] : [{ path: ["template_sounds"], message: "template_sounds sounds templates: add templates or drop it" }])];
   }
   if (input.script === undefined || input.segments !== undefined) {
     return [{ path: ["templates"], message: "templates require script and cannot be combined with segments" }];
@@ -341,8 +354,11 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
   const ranged = <T extends AnchoredItem>(items: readonly T[] | undefined) =>
     (items ?? []).flatMap(item => { const range = layerWordRange(tokens, item); return typeof range === "string" ? [] : [{ item, range }]; });
   const inserts = ranged(input.inserts), windows = ranged(input.layout_windows);
-  const overlays = ranged(input.overlays).map(entry => ({ ...entry, rect: overlayRect(entry.item.position, frameCanvasOf(aspect)) }));
-  const placed: { index: number; id: string; placement: TemplatePlacement; transition?: string | undefined; range: WordRange; rect: LayerRect;
+  // A wide request may render close when the actor has no wide view, so footprints are checked in both framings; wide needs an actor and 9:16.
+  const wideCanRender = input.presenter_framing === "wide" && input.actor_id !== undefined && aspect === "9:16";
+  const framings: PresenterFraming[] = wideCanRender ? ["close", "wide"] : ["close"];
+  const overlays = ranged(input.overlays).map(entry => ({ ...entry, rects: framings.map(() => overlayRect(entry.item.position, frameCanvasOf(aspect))) }));
+  const placed: { index: number; id: string; placement: TemplatePlacement; transition?: string | undefined; range: WordRange; rects: LayerRect[];
     onInserts: boolean; beats: { path: (string | number)[]; word: number }[] }[] = [];
   for (const [index, item] of input.templates.entries()) {
     const at = (...rest: (string | number)[]) => ["templates", index, ...rest];
@@ -367,8 +383,9 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
     if (typeof range === "string") { refusals.push({ path: at("anchor"), message: `template "${item.id}": ${range}` }); continue; }
     const beats = templateMomentWords(kind, parsed.data, tokens, range);
     for (const beat of beats) if (beat.refusal) refusals.push({ path: at("data", ...beat.path), message: `template "${item.id}" ${beat.path.join(".")} ${beat.refusal}` });
-    const { rect, onInserts } = templateFootprint({ kind: item.kind, placement, data: parsed.data as Record<string, unknown> }, aspect, kinds);
-    placed.push({ index, id: item.id, placement, transition: item.transition, range, rect, onInserts,
+    const footprints = framings.map(framing => templateFootprint({ kind: item.kind, placement, data: parsed.data as Record<string, unknown> }, aspect, kinds,
+      undefined, framing));
+    placed.push({ index, id: item.id, placement, transition: item.transition, range, rects: footprints.map(footprint => footprint.rect), onInserts: footprints[0]!.onInserts,
       beats: beats.flatMap(beat => (beat.word === undefined ? [] : [{ path: beat.path, word: beat.word }])) });
   }
   const fulls = placed.filter(entry => entry.placement === "full"), overs = placed.filter(entry => entry.placement === "over");
@@ -399,9 +416,9 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
     if (covers.some(other => overlaps(other, entry.range)) && coveredBy(entry.range, covers)) {
       refuse("lies wholly under full-frame inserts or templates: it draws over the presenter, who is not on screen there");
     }
-    const together = [...overlays.map(other => ({ id: other.item.id, range: other.range, rect: other.rect })),
+    const together = [...overlays.map(other => ({ id: other.item.id, range: other.range, rects: other.rects })),
       ...overs.filter(other => other.index < entry.index)].filter(other => overlaps(other.range, entry.range));
-    const clash = together.find(other => rectsOverlap(other.rect, entry.rect));
+    const clash = together.find(other => other.rects.some((rect, at) => rectsOverlap(rect, entry.rects[at]!)));
     if (clash) { refuse(`shares the screen with "${clash.id}" at the same time on an overlapping footprint: move one of them or its words`); continue; }
     const crowd = together.flatMap((a, i) => together.slice(i + 1).filter(b => Math.max(a.range.startWord, b.range.startWord, entry.range.startWord) <
       Math.min(a.range.coverWord, b.range.coverWord, entry.range.coverWord)).map(b => [a, b] as const))[0];

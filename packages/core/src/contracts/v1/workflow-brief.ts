@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { makeUgcInput, ugcSegment } from '../../skills.js';
 import { makeFacelessInput } from '../../faceless-public.js';
+import { referenceProfile, referenceProfileRead } from '../../reference-profile.js';
 import { workflowEvidenceSource } from './workflow-evidence.js';
 import { workflowFormat, workflowFormatRead, workflowText } from './workflow-primitives.js';
 
@@ -30,6 +31,8 @@ const briefShape = {
     question: workflowText(2000).optional(), product: workflowText(2000).optional(), topic: workflowText(2000).optional(), brand_intent: workflowText(2000).optional(),
     required_terms: z.array(workflowText(200)).max(100).default([]), requirements: z.array(workflowRequirement).max(100).default([]),
     requested_format: workflowFormat.optional(), native: workflowNativeInput.optional(), references: z.array(workflowEvidenceSource).max(100).default([]),
+    // The reference's style the plan was compiled from; the document byte bound holds it (A1).
+    reference_profile: referenceProfile.optional(),
 };
 export const workflowBrief = z.strictObject(briefShape);
 export type WorkflowBrief = z.infer<typeof workflowBrief>;
@@ -37,5 +40,6 @@ export type WorkflowBriefArgs = z.input<typeof workflowBrief>;
 export const workflowBriefRead = z.looseObject({ ...briefShape,
     requested_format: workflowFormatRead.optional(), native: z.looseObject({ skill: z.string(), input: z.record(z.string(), z.unknown()) }).optional(),
     requirements: z.array(z.looseObject({ feature: z.string(), required: z.boolean() })).default([]),
+    reference_profile: referenceProfileRead.optional(),
     references: z.array(z.looseObject({ kind: z.string(), reference: z.string(), url: z.string().optional(), observed_at: z.string().optional(), product_state: z.string().optional() })).default([]),
 });

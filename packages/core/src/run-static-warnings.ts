@@ -3,8 +3,8 @@ import { buildFacelessVoiceWarnings } from "./faceless-voices.js";
 import { compositionVersionOf, parseSkill, resolvedScript, storedUgcInput, type MakeUgcInput } from "./skills.js";
 import { storedCreateActorInput } from "./account-actors.js";
 import { dispositionWarnings, legacyCaptionWarnings } from "./contract-dispositions.js";
-import { buildSpeechModelWarnings, buildVoiceWarnings, TTS_MODELS } from "./voices.js";
-import { buildActorGenderWarnings, buildVoiceActorMatchWarnings, type Gender } from "./actors.js";
+import { buildSpeechModelWarnings, buildVoiceWarnings, TTS_MODELS, ttsModelBeforeV4Default } from "./voices.js";
+import { buildActorGenderWarnings, buildVoiceActorMatchWarnings, presenterViewWarnings, renderedPresenterFraming, type Gender } from "./actors.js";
 import { resolveAspectRatio, upscaleWarning } from "./aspect.js";
 import { videoHoldWarnings } from "./ugc-video-media.js";
 import { DEFAULT_RESOLUTION } from "./skills.js";
@@ -111,6 +111,10 @@ function facelessRunWarnings(storedInput: unknown): string[] {
   return parsed.success ? buildFacelessVoiceWarnings(parsed.data) : [];
 }
 
+/** The pinned view, read beside `storedUgcInput`: widening that schema would change the timeline digest of runs admitted earlier. */
+const pinnedView = z.object({ gender: z.enum(["female", "male"]).optional(), actor_id: z.string().optional(),
+  asset: z.object({ aspect_ratio: z.string().optional(), framing: z.string().optional(), prop: z.string().optional() }).optional() });
+
 // The disposition registry and the preset language warning; the raw `voice_id` warning
 // is quote-only, since the run verifies the id itself.
 function ugcRunWarnings(
@@ -128,23 +132,29 @@ function ugcRunWarnings(
       ...voiceFactWarnings(preflight.voice),
     ];
   }
-  const { tts_model: storedModel, actor_snapshot: pin, ...rest } = parsed.data;
+  const { tts_model: storedModel, actor_snapshot: _snapshot, ...rest } = parsed.data;
+  const pin = pinnedView.safeParse((storedInput as { actor_snapshot?: unknown }).actor_snapshot).data;
   const ttsModel = TTS_MODELS.find((model) => model === storedModel);
   // A removed model (`eleven_multilingual_v2`) reads as no model named: the voice's own one.
   const input: MakeUgcInput = { ...rest, tts_model: ttsModel };
+  // The model admission pinned; a run admitted before it was pinned spoke what the rules of its day chose.
+  const spokenModel = TTS_MODELS.find((model) => model === parsed.data.resolved_tts_model)
+    ?? ttsModelBeforeV4Default({ ...input, script: resolvedScript(input) }, input.actor_gender);
   // The same ORDER as `quote`: dispositions, format, voice, so the two surfaces are
   // equal, not merely the same set.
   return [
-    ...dispositionWarnings(input),
+    // Templates are judged against the face as rendered, the view the pin holds (#884 S5d).
+    ...dispositionWarnings({ ...input, presenter_framing: renderedPresenterFraming(pin) }),
     ...videoHoldWarnings(input, parsed.data.insert_assets),
     ...(compositionVersionOf(parsed.data) === 1 ? legacyCaptionWarnings(input) : []),
     ...aspectFactWarnings(preflight.aspect, input),
+    ...presenterViewWarnings(input, pin),
     ...buildVoiceWarnings({ voice: input.voice, script: resolvedScript(input) }),
     ...buildActorGenderWarnings(input),
     ...buildVoiceActorMatchWarnings(input, voiceGenderOf, pin?.gender),
     // The pinned gender does not feed MODEL choice: both genders' default voices share a
     // model. If they diverge, a test in run-static-warnings.test.ts turns red.
-    ...buildSpeechModelWarnings({ ...input, script: resolvedScript(input) }, input.actor_gender),
+    ...buildSpeechModelWarnings({ ...input, script: resolvedScript(input) }, input.actor_gender, spokenModel),
     ...voiceFactWarnings(preflight.voice),
   ];
 }

@@ -1,13 +1,20 @@
 import { z } from "zod";
 import { ASSET_KINDS, ASSET_MEDIA_TYPES, assetId } from "./asset-identity.js";
 import { longFormQuoteSchema } from "./long-form-pricing.js";
+import { partsLineSchema } from "./parts-pricing.js";
 import { RESOLVED_TIMELINE_MAX_SLOTS } from "./long-form-profile.js";
 import { brollPolicy } from "./broll-policy.js";
 import { countWords } from "./pacing.js";
+import { pauseTrim, VOICE_PACE_MAX, VOICE_PACE_MIN } from "./reference-voice.js";
 import { lexicalTokens, quoteOccurrences } from "./semantic-inserts.js";
 import { INSERT_TRANSITIONS, LAYER_ENTERS, layerRefusals, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS,
-  OVERLAY_POSITIONS } from "./ugc-layers.js";
-import { MAX_TEMPLATE_MEDIA, MAX_TEMPLATES, TEMPLATE_KIND_IDS, TEMPLATE_PLACEMENTS, templateCatalogText, templateRefusals, templateSounds, templateTheme } from "./templates/index.js";
+  OVERLAY_POSITIONS, PRESENTER_FRAMINGS } from "./ugc-layers.js";
+import { FRAMING_SIZES, FRAMING_TRANSITIONS, framingRefusals, MAX_FRAMING } from "./ugc-framing.js";
+import { stagingFaceRect, stagingRect } from "./reference-staging.js";
+import { CALL_PHONE_DEFAULTS, CALL_SPEAKERS, CALL_STAGE_MAX_ENTER_SEC, CALL_STAGE_MAX_LEAD_SEC, CALL_STAGE_SIDES, callRefusals, DEFAULT_CALL_VOICES, MAX_CALL_CHARS,
+  MAX_CALL_LINE_CHARS, MAX_CALL_LINES, MAX_CALL_SEC } from "./ugc-call.js";
+import { editSoundRefusals, editSounds, MAX_TEMPLATE_MEDIA, MAX_TEMPLATES, TEMPLATE_KIND_IDS, TEMPLATE_PLACEMENTS, templateCatalogText, templateRefusals,
+  templateSounds, templateTheme } from "./templates/index.js";
 import { callout } from "./templates/callout.js";
 import { checklist } from "./templates/checklist.js";
 import { compare } from "./templates/compare.js";
@@ -29,7 +36,6 @@ import {
   MODEL_DEFAULT_VOICE_BY_GENDER,
   MODEL_VOICE_MODEL,
   resolveTtsModel,
-  RUSSIAN_TTS_MODEL,
   MAX_SCRIPT_CHARS,
   SCRIPT_LENGTH_DESCRIPTION,
   speaksOwnVoices,
@@ -44,8 +50,10 @@ import {
 
 /** Caption looks the renderer draws, each a fixed font, colours, placement and word animation. */
 export const CAPTION_PRESETS = {
-  hormozi: "the default: condensed bold uppercase, two to four white words per cue mid-lower in the frame, one keyword per cue in " +
-    "orange (the emphasised words, or else the cue's longest word that is not a stop-word); Latin and Cyrillic in one font",
+  hormozi: "the default: heavy white uppercase with a thick black outline, up to three words per cue, one keyword per cue in yellow " +
+    "(emphasised, else the longest non-stop-word)",
+  accent: "condensed bold white uppercase, no outline, up to three words per cue, one keyword per cue in orange " +
+    "(emphasised, else the longest non-stop-word)",
   tiktok: "bold rounded uppercase, one or two words at a time; the spoken word turns yellow and grows",
   youtube: "clean bold sans-serif, five words on a dark rounded box near the bottom; words fade in, the spoken word in red",
   instagram: "comic uppercase with a pink outline, two words at a time; the spoken word pops in orange",
@@ -85,7 +93,8 @@ export function captionPresetOf(style: CaptionStyleName): CaptionPresetId {
 
 const CAPTION_STYLE_DESCRIPTION = "Caption look when captions=true. " +
   CAPTION_PRESET_IDS.map((id) => `${id}: ${CAPTION_PRESETS[id]}.`).join(" ") +
-  " Alias: minimal draws minimalist. A font that cannot draw the script's letters is replaced by a plain sans-serif.";
+  " Alias: minimal draws minimalist. A font that cannot draw the script's letters is replaced by a plain sans-serif." +
+  " Previews: https://clipwright.io/captions";
 
 export const MAX_CAPTION_EMPHASIS = 20;
 export const MAX_CAPTION_EMPHASIS_CHARS = 40;
@@ -93,6 +102,10 @@ export const MAX_CAPTION_EMPHASIS_CHARS = 40;
 /** `full` captions every spoken word; `highlights` only the windows around `caption_emphasis` quotes. */
 export const CAPTION_MODES = ["full", "highlights"] as const;
 export type CaptionMode = (typeof CAPTION_MODES)[number];
+/** Where captions sit, as a percentage of the height: above the middle the top edge, below it the bottom edge (#884). */
+export const CAPTION_POSITION_VERTICAL = { top: 20, middle: 50, lower: 70, bottom: 80 } as const;
+export const CAPTION_POSITIONS = Object.keys(CAPTION_POSITION_VERTICAL) as (keyof typeof CAPTION_POSITION_VERTICAL)[];
+export type CaptionPosition = (typeof CAPTION_POSITIONS)[number];
 /** `punch`: a small lead-in line over the quote as a large glowing keyword; `pill`: the quote alone in a rounded pill; */
 /** `color`: the quote in the style's accent colour, same size. */
 export const CAPTION_EMPHASIS_LOOKS = ["punch", "pill", "color"] as const;
@@ -294,6 +307,17 @@ export const ugcLayoutWindow = z.object({
 });
 export type UgcLayoutWindow = z.infer<typeof ugcLayoutWindow>;
 
+/** A presenter size on its words (reference-elements S2): a hard cut in, settled over a few frames, back to the take at its end. */
+export const ugcFraming = z.object({
+  id: insertId.describe("Unique across inserts, overlays, layout_windows, templates and framing."),
+  anchor: layerMedia.anchor,
+  cover_words: z.number().int().positive().max(10000).optional()
+    .describe("How many spoken words the size holds, counted from the first word of its anchor. Omitted means the anchored words only."),
+  size: z.enum(FRAMING_SIZES).default("close").describe("close: the presenter 1.18 times larger about the face; medium: the take as rendered."),
+  transition: z.enum(FRAMING_TRANSITIONS).default("cut").describe("cut: a hard cut to the size; flash: a warm light leak over the cut."),
+}).strict();
+export type UgcFraming = z.infer<typeof ugcFraming>;
+
 const templateEnvelope = {
   id: insertId.describe("Unique across inserts, overlays, layout_windows and templates."),
   anchor: layerMedia.anchor,
@@ -317,6 +341,43 @@ export type UgcTemplate = z.infer<typeof ugcTemplate>;
 export const mcpUgcTemplate = z.object({ ...templateEnvelope, kind: z.enum(TEMPLATE_KIND_IDS),
   data: z.record(z.string(), z.unknown()).describe("The kind's fields, as its catalog line in templates names them.") }).strict();
 export const TEMPLATES_DESCRIPTION = templateCatalogText();
+
+const callVoice = z.string().regex(VOICE_NAME_PATTERN, "a call voice is a voice name from list_voices").optional();
+/** The call phone's measured place and rise (#914 D1e): the worker maps `rect_face` onto our presenter's face when it finds one, else uses `rect`. */
+export const callStage = z.strictObject({
+  rect: stagingRect.refine(rect => rect.width > 0 && rect.height > 0 && rect.left + rect.width <= 1 + 1e-6 && rect.top + rect.height <= 1 + 1e-6,
+    "the phone's rect must lie inside the frame").describe("Where the phone settles, in shares of the frame."),
+  rect_face: stagingFaceRect.optional().describe("The same place relative to the presenter's face: origin the face centre, unit the face height."),
+  enter: z.strictObject({
+    from: z.enum(CALL_STAGE_SIDES),
+    displacement: z.tuple([z.number().min(-1).max(1), z.number().min(-1).max(1)]).describe("Settled minus first position, in shares of width and height."),
+    duration_s: z.number().min(0.1).max(CALL_STAGE_MAX_ENTER_SEC),
+    anchor: z.strictObject({ id: z.literal("freeze_start#1"), offset_s: z.number().min(-CALL_STAGE_MAX_LEAD_SEC).max(0) })
+      .describe("When the rise starts: seconds from the call's freeze, negative before it."),
+  }).optional(),
+  layer: z.enum(["behind_presenter"]).optional(),
+});
+export type CallStage = z.infer<typeof callStage>;
+/** A phone call after a quote (#857 S5): the presenter listens, then freezes, while the agent and the caller speak; then resumes. */
+export const ugcCall = z.strictObject({
+  after: wordAnchor.describe("The words the call follows: the presenter stops after the quote's last word and resumes on the next one."),
+  lines: z.array(z.strictObject({ speaker: z.enum(CALL_SPEAKERS),
+    text: z.string().min(1).max(MAX_CALL_LINE_CHARS).refine(text => text.trim().length > 0, "a call line needs words") }))
+    .min(2, "a call needs at least two lines").max(MAX_CALL_LINES)
+    .describe(`The call's turns in order, from both speakers; at most ${MAX_CALL_CHARS} characters and about ${MAX_CALL_SEC} s in all.`),
+  voices: z.strictObject({ agent: callVoice, caller: callVoice }).optional()
+    .describe(`Voice names from list_voices; omitted means ${DEFAULT_CALL_VOICES.agent} for the agent and ${DEFAULT_CALL_VOICES.caller} for the caller.`),
+  phone: z.strictObject({ caller: z.string().min(1).max(24).optional(), banner: z.string().min(1).max(32).optional(),
+    banner_note: z.string().min(1).max(48).optional(), mask_number: z.boolean().optional() }).optional()
+    .describe(`The in-call phone drawn over the call when no phone_call template covers it; omitted fields are ${CALL_PHONE_DEFAULTS.caller} ` +
+      `with its digits after the area code masked, "${CALL_PHONE_DEFAULTS.banner}" and "${CALL_PHONE_DEFAULTS.banner_note}".`),
+  stage: callStage.optional().describe("Where the in-call phone settles and how it rises, as a reference measured them (plan_reference_remake writes it); " +
+    "omitted is the reference call scene's own place and rise."),
+});
+export type UgcCall = z.infer<typeof ugcCall>;
+/** The slim MCP call, which keeps tools/list under its ceiling: the server checks it strictly, as the template items (D3). */
+export const mcpUgcCall = z.record(z.string(), z.unknown())
+  .describe(`A call the presenter listens to: { after: { quote }, lines: [{ speaker: agent|caller, text }] (2–${MAX_CALL_LINES}), voices?, phone? }.`);
 
 /** What admission pins for an `asset_id` insert; the worker reads this key and checks this hash, never the asset row.
  * Server-only: it lives at the top of the stored input, and a public body naming it is refused as an unknown field. */
@@ -378,9 +439,18 @@ export const makeUgcInputShape = {
   layout_windows: z.array(ugcLayoutWindow).min(1).max(MAX_LAYOUT_WINDOWS).optional()
     .describe("Text-anchored reframings of the presenter: split (9:16 only) or card. Windows may not overlap one another or an insert. " +
       "Same requirements as inserts. A covered or blurred presenter is still delivered vendor work and is billed as face time."),
+  framing: z.array(ugcFraming).min(1).max(MAX_FRAMING).optional()
+    .describe("Text-anchored presenter sizes: each cuts to close or medium on its words and back to the take where they end. Items may not overlap " +
+      "one another, an insert or a layout window. A framing drawn wholly under full-frame templates is named in warnings[]. Where a punch_in " +
+      "emphasis meets a framing, the framing is drawn. Requires script and long-form qualification on the server; the price does not change."),
   templates: z.array(ugcTemplate).min(1).max(MAX_TEMPLATES).optional().describe(TEMPLATES_DESCRIPTION),
   template_theme: templateTheme.optional().describe("The look of every template in the run: a preset and an optional accent; only with templates."),
   template_sounds: templateSounds.optional(),
+  edit_sounds: editSounds.optional(),
+  call: ugcCall.optional().describe("A phone call after a quote: the presenter listens, then freezes while the call plays as a phone line, " +
+    "with a ring first, and an in-call phone beside them shows it (a phone_call template covering the call is used instead). Needs script, " +
+    "a 9:16 frame and words after it. The frozen presenter and the call add production seconds, not presenter seconds, and a live-avatar " +
+    "still shown on the call has its own price in list_prices. Long-form qualification on the server."),
   person: z.string().min(1).max(500).optional(),
   actor_id: actorId
     .optional()
@@ -388,6 +458,12 @@ export const makeUgcInputShape = {
       "Saved Clipwright actor ID from list_actors. Choose actor_id, image, or person; do not combine them. " +
         "Without voice or voice_id the voice follows the actor's gender. Do not combine with actor_gender.",
     ),
+  presenter_framing: z.enum(PRESENTER_FRAMINGS).optional().describe(
+    "close (default) or wide: presenter lower, room above. Needs the actor's wide view (list_actors), 9:16 only; else close plus warnings[].",
+  ),
+  presenter_mic: z.boolean().optional().describe(
+    "true: presenter holds a tiny mic. Needs the actor's mic view in that framing (list_actors; library ones are wide); else no mic plus warnings[].",
+  ),
   // https URLs only: the vendor takes URLs, and storage URLs are never passed to vendors,
   // so a `data:` URI is refused on input rather than accepted and dropped.
   image: z
@@ -426,7 +502,7 @@ export const makeUgcInputShape = {
       "Key words or short phrases to emphasise, each quoted from script and matched as an insert quote is (case and punctuation " +
       "ignored). An item is the quote, or { quote, look }: look punch shows a small lead-in line from the same sentence over the " +
       "quote as a large glowing keyword, look pill shows the quote alone in a rounded pill, look color shows it in the accent " +
-      "colour at the same size. Without a look, punch draws punch, hormozi draws color, and other presets draw the quote larger " +
+      "colour at the same size. Without a look, punch draws punch, hormozi and accent draw color, and other presets draw the quote larger " +
       "in their highlight colour. Every occurrence is emphasised. Requires " +
       "captions=true and script; a quote absent from script is refused before any charge.",
     ),
@@ -434,6 +510,9 @@ export const makeUgcInputShape = {
     "full (default when omitted): every spoken word is captioned. highlights: captions appear only around caption_emphasis " +
     "quotes (lead-in, quote, short tail) and nowhere else; requires caption_emphasis. In both modes captions are hidden while a " +
     "full-frame insert is on screen or a template meets their band.",
+  ),
+  caption_position: z.enum(CAPTION_POSITIONS as [CaptionPosition, ...CaptionPosition[]]).optional().describe(
+    "Where captions sit: top, middle, lower or bottom (80% of the height). Omitted means the caption_style's own place. Requires captions=true.",
   ),
   look: z.enum(LOOKS).default("natural"),
   // No .default(), so the resolver tells silence (snap with a warning) from an explicit
@@ -485,19 +564,26 @@ export const makeUgcInputShape = {
     .optional()
     .describe(
       `Speech model: ${TTS_MODELS.join(" | ")}. Omitted means the model of the chosen voice ` +
-        `(list_voices shows it): ${RUSSIAN_TTS_MODEL} for the Russian presets and for catalog voices named ru_*, ` +
-        `${MODEL_VOICE_MODEL} for its own voices, ` +
-        `${DEFAULT_TTS_MODEL} for every other preset and catalog voice. A raw voice_id speaks ${RUSSIAN_TTS_MODEL} ` +
-        `when the script is mostly Cyrillic and ${DEFAULT_TTS_MODEL} otherwise. An explicit tts_model always wins. ` +
-        `eleven_v4, eleven_v3 and ${GOOGLE_TTS_MODEL} read stress marks ` +
+        `(list_voices shows it): ${MODEL_VOICE_MODEL} for its own voices, ${DEFAULT_TTS_MODEL} for every preset, ` +
+        `catalog voice and raw voice_id. An explicit tts_model wins, except eleven_v3: it is no longer spoken, ` +
+        `and a run naming it speaks ${DEFAULT_TTS_MODEL} with a warning. ` +
+        `${DEFAULT_TTS_MODEL} and ${GOOGLE_TTS_MODEL} read stress marks ` +
         "(a capital vowel inside a Russian word, \"потОм\", becomes one; see script); " +
         "eleven_flash_v2_5 and eleven_turbo_v2_5 are cheaper alternatives for languages other than " +
         `Russian. ${GOOGLE_TTS_MODEL} speaks only its own voices (list_voices with model=${GOOGLE_TTS_MODEL}; without ` +
         `voice, ${MODEL_DEFAULT_VOICE_BY_GENDER.female} for a female actor and ${MODEL_DEFAULT_VOICE_BY_GENDER.male} otherwise) ` +
         "and returns no word timings: a preset or catalog voice, voice_id, captions=true, " +
-        "segments and inserts are refused with it before any charge. Audio tags in square brackets are an " +
-        "eleven_v3 and eleven_v4 convention and are not measured on it. " + SCRIPT_LENGTH_DESCRIPTION,
+        "segments and inserts are refused with it before any charge. Audio tags in square brackets are a " +
+        "convention of the other speech models and are not measured on it. " + SCRIPT_LENGTH_DESCRIPTION,
     ),
+  voice_pace: z
+    .number()
+    .min(VOICE_PACE_MIN)
+    .max(VOICE_PACE_MAX)
+    .optional()
+    .describe(`Narration speed; 1 is the voice's own. ${GOOGLE_TTS_MODEL} gets a style hint instead; ${DEFAULT_TTS_MODEL} has no speed, ` +
+      "so pick a voice by list_voices words_per_second; both named in warnings[]."),
+  pause_trim: pauseTrim.optional().describe("Shorten narration pauses longer than these seconds, cutting silence only."),
   webhook_url: z.string().url().max(MAX_URL_LENGTH).optional(),
   /** Removed visible label (clipwright#488). The key stays in the shape so that the refusal */
   /** names its reason instead of answering `unknown_field`. */
@@ -537,9 +623,20 @@ export const makeUgcInput = z
     }
     for (const refusal of layerRefusals({ ...v, script: v.script })) context.addIssue({ code: z.ZodIssueCode.custom, ...refusal });
   })
+  .superRefine((v, context) => {
+    if (v.framing === undefined) return;
+    if (v.script === undefined || v.segments !== undefined) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["framing"], message: "framing requires script and cannot be combined with segments" });
+      return;
+    }
+    for (const refusal of framingRefusals({ ...v, script: v.script })) context.addIssue({ code: z.ZodIssueCode.custom, ...refusal });
+  })
   // Template refusals sit in the schema, so REST, quote_ugc and MCP refuse alike before any hold (D4, A9).
   .superRefine((v, context) => {
-    for (const refusal of templateRefusals(v)) context.addIssue({ code: z.ZodIssueCode.custom, ...refusal });
+    for (const refusal of [...templateRefusals(v), ...editSoundRefusals(v)]) context.addIssue({ code: z.ZodIssueCode.custom, ...refusal });
+  })
+  .superRefine((v, context) => {
+    for (const refusal of callRefusals(v)) context.addIssue({ code: z.ZodIssueCode.custom, ...refusal });
   })
   .refine(v => !v.captions || v.segments === undefined, {
     path: ["captions"], message: "captions are not available with segments: pass script, with inserts for cutaways, or captions=false",
@@ -548,6 +645,9 @@ export const makeUgcInput = z
     if (v.caption_mode === "highlights" && (!v.captions || v.caption_emphasis === undefined)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["caption_mode"],
         message: "caption_mode=highlights requires captions=true and caption_emphasis: highlights are drawn only around the quotes you emphasise" });
+    }
+    if (v.caption_position !== undefined && !v.captions) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["caption_position"], message: "caption_position requires captions=true: it places the burned captions" });
     }
     if (v.caption_emphasis === undefined) return;
     if (!v.captions || v.script === undefined) {
@@ -650,7 +750,7 @@ function modelUnknownToClient(v: { voice?: string | undefined; tts_model?: strin
 }
 
 export interface SpeechModelRefusal {
-  field: "voice" | "voice_id" | "captions" | "segments" | "inserts" | "overlays" | "layout_windows";
+  field: "voice" | "voice_id" | "captions" | "segments" | "inserts" | "overlays" | "layout_windows" | "framing" | "call";
   message: string;
 }
 
@@ -665,6 +765,8 @@ export function speechModelRefusals(input: {
   inserts?: unknown;
   overlays?: unknown;
   layout_windows?: unknown;
+  framing?: unknown;
+  call?: unknown;
 }): SpeechModelRefusal[] {
   // The model the voice name selects, by the function quote and the worker call; a script never decides it.
   const model = input.tts_model ?? resolveTtsModel({ voice: input.voice, script: "" });
@@ -697,6 +799,10 @@ export function speechModelRefusals(input: {
       `overlays are not available with ${model}: it returns no word timings to anchor them; omit overlays, ${otherModel}`],
     ["layout_windows", input.layout_windows !== undefined,
       `layout_windows are not available with ${model}: it returns no word timings to anchor them; omit layout_windows, ${otherModel}`],
+    ["framing", input.framing !== undefined,
+      `framing is not available with ${model}: it returns no word timings to anchor it; omit framing, ${otherModel}`],
+    ["call", input.call !== undefined,
+      `call is not available with ${model}: it returns no word timings to open the call after its quote; omit call, ${otherModel}`],
   ];
   return candidates.filter(([, refused]) => refused).map(([field, , message]) => ({ field, message }));
 }
@@ -708,6 +814,14 @@ export function serverUgcInputWith(voiceRefusal: (voice: string) => string | und
     .refine((v) => v.voice === undefined || voiceRefusal(v.voice) === undefined, {
       path: ["voice"],
       error: (issue) => voiceRefusal((issue.input as { voice: string }).voice)!,
+    })
+    // A call speaks ElevenLabs catalog voices only: a model's own voice has no dialogue.
+    .superRefine((v, context) => {
+      for (const speaker of CALL_SPEAKERS) {
+        const name = v.call?.voices?.[speaker];
+        const why = name === undefined ? undefined : isModelVoiceName(name) ? `"${name}" is a voice of ${MODEL_VOICE_MODEL}, which speaks no call` : voiceRefusal(name);
+        if (why) context.addIssue({ code: z.ZodIssueCode.custom, path: ["call", "voices", speaker], message: why });
+      }
     })
     // The cap the client skipped: the server knows the model of an admitted catalog voice.
     .refine(
@@ -723,18 +837,22 @@ export function serverUgcInputWith(voiceRefusal: (voice: string) => string | und
 }
 
 /** A stored run input already passed admission; a model or cap change must not make an */
-/** old run unreadable. The snapshot keeps the actor's gender. */
+/** old run unreadable. The snapshot keeps the actor's gender: the parse feeds the timeline digest, so it stays this narrow. */
 export const storedUgcInput = z.object({
   ...makeUgcInputShape,
   tts_model: z.string().optional(),
   actor_snapshot: z.object({ gender: z.enum(["female", "male"]).optional() }).optional(),
   insert_assets: z.array(pinnedInsertAsset).min(1).max(MAX_INSERTS + MAX_OVERLAYS + MAX_LAYOUT_WINDOWS + MAX_TEMPLATE_MEDIA).optional(),
   composition_version: z.literal(UGC_COMPOSITION_VERSION).optional(),
+  /** The model admission resolved; absent on runs admitted before 2026-10-25. */
+  resolved_tts_model: z.string().optional(),
 });
 
-/** Whether a run takes the narrated long-form path: one script with inserts, overlays or layout windows. */
-export function isNarratedUgcInput(input: { segments?: unknown; inserts?: unknown; overlays?: unknown; layout_windows?: unknown }): boolean {
-  return input.segments === undefined && (input.inserts !== undefined || input.overlays !== undefined || input.layout_windows !== undefined);
+/** Whether a run takes the narrated long-form path: one script with inserts, overlays, layout windows, framing or a call. */
+export function isNarratedUgcInput(input: { segments?: unknown; inserts?: unknown; overlays?: unknown; layout_windows?: unknown; framing?: unknown;
+  call?: unknown }): boolean {
+  return input.segments === undefined && (input.inserts !== undefined || input.overlays !== undefined || input.layout_windows !== undefined ||
+    input.framing !== undefined || input.call !== undefined);
 }
 
 /** The pinned asset of an `asset_id` insert, overlay, layout window or template slot in a stored input; a public input has none. */
@@ -777,14 +895,19 @@ export type MakeUgcInput = z.infer<typeof makeUgcInput>;
 // The INPUT type (`MakeUgcInputArgs`) lives in `contract-dispositions.ts`: it comes from the
 // OFFERED shape, so SDK autocomplete does not show rejected fields.
 
-/** A plain run's tariff: 30 credits per second of finished video, known by the absence of `run_billing_terms` (#840 D2). */
+/** A plain run's tariff before parts-v1 (#800): 30 credits per second of finished video, known by the absence of `run_billing_terms` (#840 D2). */
 export const UGC_PER_SECOND_TARIFF = "ugc-per-second-v1";
+/** That tariff's rate (docs/06): runs admitted before parts-v1 settle at it; service-core rounds the duration up before multiplying. */
+export const CREDITS_PER_SECOND = 30;
 
 export const quoteResponse = z.object({
   long_form_pricing: longFormQuoteSchema.optional(),
   /** The tariff the run is admitted at: `ugc-per-second-v1`, or long form's `pricingVersion` (#840 D3). A string, not an enum: a */
   /** tariff the client does not know yet must not break `quote`; optional, so a quote stored before it still reads. */
   tariff: z.string().min(1).max(200).optional(),
+  /** The estimate by part (#800): presenter seconds by engine, production seconds, live-avatar stills; the minimum applies after. */
+  price_lines: z.array(partsLineSchema).optional(),
+  minimum_credits: z.number().int().nonnegative().optional(),
   skill: z.string(),
   credits_estimate: z.number().int().nonnegative(),
   duration_estimate_sec: z.number().positive(),

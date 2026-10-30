@@ -9,7 +9,8 @@ describe("25-second delivered output", () => {
   it("prices, parses and decodes 625 frames and refuses 624", () => {
     expect(FACELESS_MIN_OUTPUT_FRAMES).toBe(625);
     const quote = quoteFaceless({ outputFrames: 625, captions: true });
-    expect(quote).toMatchObject({ outputFrames: 625, baseCredits: 200, totalCredits: 350 });
+    // 16 pictures at 7, 25 production seconds, the opening clip at 49.
+    expect(quote).toMatchObject({ outputFrames: 625, baseCredits: 137, totalCredits: 186, images: 16 });
     expect(() => quoteFaceless({ outputFrames: 624, captions: true })).toThrow();
     expect(facelessQuote.safeParse({ ...quote, outputFrames: 624 }).success).toBe(false);
     const planner = { script: "one two", outputFrames: 625, captions: true, words: [{ word: "one", startSec: 0, endSec: .4 }] };
@@ -46,14 +47,15 @@ describe("facelessMaxGeneratedImages", () => {
 });
 
 describe("quoteFaceless", () => {
-  it.each([[750, 350], [1522, 350], [2250, 420]])("quotes %i frames at %i credits", (outputFrames, totalCredits) => {
+  // Every picture the selection may generate at 7, every second at 1 rounded up once, the opening clip at 49 (#800).
+  it.each([[750, 212], [938, 241], [1522, 327], [2250, 356]])("quotes %i frames at %i credits", (outputFrames, totalCredits) => {
     expect(quoteFaceless({ outputFrames, captions: true }).totalCredits).toBe(totalCredits);
   });
 
   it("does not change price when captions are off", () => {
     expect(quoteFaceless({ outputFrames: 750, captions: false })).toEqual({
-      outputFrames: 750, baseCredits: 200, openerCredits: 150, totalCredits: 350,
-      tariffId: "faceless-image-i2v-v1", captions: false,
+      outputFrames: 750, baseCredits: 163, openerCredits: 49, totalCredits: 212,
+      tariffId: "faceless-parts-v1", captions: false, images: 19, imageCredits: 7,
     });
   });
 

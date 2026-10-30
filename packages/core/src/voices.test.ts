@@ -10,6 +10,7 @@ import {
   DEFAULT_VOICE_BY_GENDER,
   DEFAULT_VOICE_PRESET,
   detectScriptFamily,
+  FIXED_PACE_MODELS,
   makeUgcInput,
   makeUgcInputShape,
   MODEL_DEFAULT_VOICE_BY_GENDER,
@@ -123,13 +124,13 @@ describe("makeUgcInput — voice selection validation", () => {
     }
   });
 
-  it("for a catalog voice without tts_model the server, not the client, checks the eleven_v3 cap", () => {
+  it("for a catalog voice without tts_model the server, not the client, checks the eleven_v4 cap", () => {
     const script = `${"я ".repeat(2500)}я`;
     expect(script.length).toBe(5001);
     expect(makeUgcInput.safeParse({ script, voice: LIVE_SLUG }).success).toBe(true);
     expect(makeUgcInput.safeParse({ script, voice: LIVE_SLUG, tts_model: "eleven_v3" }).success).toBe(false);
     const result = serverUgcInput.safeParse({ script, voice: LIVE_SLUG });
-    expect(result.error?.issues).toMatchObject([{ path: ["script"], message: expect.stringMatching(/eleven_v3 allows at most 5000/) }]);
+    expect(result.error?.issues).toMatchObject([{ path: ["script"], message: expect.stringMatching(/eleven_v4 allows at most 5000/) }]);
     expect(serverUgcInput.safeParse({ script: script.slice(1), voice: LIVE_SLUG }).success).toBe(true);
     expect(serverUgcInput.safeParse({ script, voice: LIVE_SLUG, tts_model: "eleven_flash_v2_5" }).success).toBe(true);
   });
@@ -549,5 +550,24 @@ describe("buildVoiceVerificationWarnings", () => {
     expect(buildVoiceVerificationWarnings(asked, undefined, catalog)).toEqual([]);
     expect(buildVoiceVerificationWarnings({ voice: "george", script }, undefined, catalog)).toEqual([]);
     expect(buildVoiceVerificationWarnings({ voice_id: "abcdefghijklmnop", script }, undefined, catalog)).toEqual([]);
+  });
+});
+
+describe("speed setting per model", () => {
+  /** Mutant: give v4 a speed, and a voice_pace the vendor ignores goes out with no warning (#890: 0.8–1.2 within take noise). */
+  it("eleven_v4 and the Gemini model have no numeric speed", () => {
+    expect([...FIXED_PACE_MODELS]).toEqual(["eleven_v4", "gemini-3.8-flash-tts"]);
+  });
+  it("make_ugc takes voice_pace within the vendor's speed range only", () => {
+    const pace = (voice_pace: unknown) => makeUgcInput.safeParse({ script: "Hello there.", voice_pace }).success;
+    expect([0.7, 1, 1.2].map(pace)).toEqual([true, true, true]);
+    expect([0.69, 1.21, "1.1", Number.NaN].map(pace)).toEqual([false, false, false, false]);
+  });
+
+  /** Mutant: accept an empty or zero target, and pause trimming is switched on with nothing to aim at or collapses a pause. */
+  it("make_ugc takes pause_trim as per-class targets of 0.05–2 s, at least one", () => {
+    const trim = (pause_trim: unknown) => makeUgcInput.safeParse({ script: "Hello there.", pause_trim }).success;
+    expect([{ sentence_end_s: 0.18 }, { sentence_end_s: 0.18, comma_s: 0.22, mid_phrase_s: 0.06 }].map(trim)).toEqual([true, true]);
+    expect([{}, { comma_s: 0.01 }, { comma_s: 3 }, { pause_s: 0.2 }].map(trim)).toEqual([false, false, false, false]);
   });
 });

@@ -100,22 +100,26 @@ export function uploadRequestIdempotencyKeyFor(kind: "import" | "intent", input:
 
 /** What identifies an asset creation: role, name and source; inline base64 by its digest, and the confirmation is no part. */
 export function assetRequestIdentity(input: unknown): unknown {
-  const { source, role, name } = createAssetRequest.parse(input);
+  const { source, role, name, analysis_only } = createAssetRequest.parse(input);
   const named = "base64" in source
     ? { base64_sha256: createHash("sha256").update(source.base64).digest("hex"), media_type: source.media_type } : source;
-  return { kind: "asset", role, name, source: named };
+  // Named only when set, so every key minted before analysis_only stays the same.
+  return { kind: "asset", role, name, source: named, ...(analysis_only ? { analysis_only } : {}) };
 }
 
 /** The identity of `POST /v1/assets/bytes`: the picture's digest with its role and name. */
-export function assetBytesIdentity(input: { role: string; name: string; sha256: string }): unknown {
-  return { kind: "asset_bytes", role: input.role, name: input.name.trim(), sha256: input.sha256 };
+export function assetBytesIdentity(input: { role: string; name: string; sha256: string; analysis_only?: boolean | undefined }): unknown {
+  return { kind: "asset_bytes", role: input.role, name: input.name.trim(), sha256: input.sha256,
+    ...(input.analysis_only ? { analysis_only: true } : {}) };
 }
 
 /** The key of `POST /v1/assets/bytes` for these bytes, as the server derives their identity. */
-export function assetBytesIdempotencyKeyFor(input: { role: string; name: string; bytes: Uint8Array }, clientId: string): string {
+export function assetBytesIdempotencyKeyFor(input: { role: string; name: string; bytes: Uint8Array; analysis_only?: boolean },
+  clientId: string): string {
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
   return createHash("sha256")
-    .update(clientId + JSON.stringify(canonicalize(assetBytesIdentity({ role: input.role, name: input.name, sha256 }))))
+    .update(clientId + JSON.stringify(canonicalize(assetBytesIdentity({ role: input.role, name: input.name, sha256,
+      analysis_only: input.analysis_only }))))
     .digest("hex");
 }
 

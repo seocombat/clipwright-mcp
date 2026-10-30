@@ -7,13 +7,10 @@ export const LONG_FORM_LAUNCH_TARIFF = Object.freeze({
   minimumCredits: 400, rounding: "ceil_aggregate_seconds", failurePolicy: "verified_delivery_only",
 } as const satisfies FaceBillingTariff);
 
-/** Active face tariffs as a LIST: public text walks it, not two known constants, so a */
-/** third tariff cannot ship silently. */
-export const FACE_BILLING_TARIFFS: readonly FaceBillingTariff[] = Object.freeze([
-  LONG_FORM_LAUNCH_TARIFF,
-]);
+/** A face-seconds tariff, as `calculateFaceCharge` prices it; a parts tariff goes through `calculatePartsCharge`. */
+export type FaceSecondsTariff = Exclude<FaceBillingTariff, { version: 3 }>;
 
-export function faceTariffRate(tariff: FaceBillingTariff): number {
+export function faceTariffRate(tariff: FaceSecondsTariff): number {
   return tariff.version === 1 ? tariff.creditsPerSecond : tariff.rateCreditsPerFaceSecond;
 }
 export function faceTariffPricingVersion(tariff: FaceBillingTariff): string {
@@ -23,13 +20,11 @@ export function faceTariffMinimum(tariff: FaceBillingTariff): number {
   return tariff.version === 1 ? 0 : tariff.minimumCredits;
 }
 export function isDeliveryOnlyFaceTariff(tariff: FaceBillingTariff): boolean {
-  return tariff.version === 2 && tariff.failurePolicy === "verified_delivery_only";
+  return tariff.version !== 1 && tariff.failurePolicy === "verified_delivery_only";
 }
 
-/** Exact union and one aggregate rounding; customer failure policy is applied by settlement. */
-export function calculateFaceCharge(intervals: readonly FaceBillingInterval[], fps: number, tariff: FaceBillingTariff) {
-  const terms = faceBillingTariffSchema.parse(tariff);
-  const frameRate = BigInt(z.number().int().positive().max(Number.MAX_SAFE_INTEGER).parse(fps));
+/** Frames covered by the union of the intervals: an overlap counts once. */
+export function unionFaceFrames(intervals: readonly FaceBillingInterval[]): bigint {
   const sorted = z.array(faceBillingIntervalSchema).parse(intervals)
     .sort((a, b) => a.startFrame - b.startFrame || a.endFrame - b.endFrame);
   let end = 0n;
@@ -40,6 +35,16 @@ export function calculateFaceCharge(intervals: readonly FaceBillingInterval[], f
     if (nextEnd > start) frames += nextEnd - start;
     if (nextEnd > end) end = nextEnd;
   }
+  return frames;
+}
+
+/** Exact union and one aggregate rounding; customer failure policy is applied by settlement. */
+export function calculateFaceCharge(intervals: readonly FaceBillingInterval[], fps: number, tariff: FaceBillingTariff) {
+  const terms = faceBillingTariffSchema.parse(tariff);
+  // A parts tariff prices engines, the video's length and stills, which these arguments do not carry.
+  if (terms.version === 3) throw new TypeError("a parts tariff is priced by calculatePartsCharge");
+  const frameRate = BigInt(z.number().int().positive().max(Number.MAX_SAFE_INTEGER).parse(fps));
+  const frames = unionFaceFrames(intervals);
   const seconds = (frames + frameRate - 1n) / frameRate;
   const usageCredits = seconds * BigInt(faceTariffRate(terms));
   const minimum = BigInt(faceTariffMinimum(terms));

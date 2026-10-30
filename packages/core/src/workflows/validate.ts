@@ -8,6 +8,7 @@ import { resolveFacelessCustomerAnchors } from '../faceless-customer-anchors.js'
 import type { FacelessSceneAnchor } from '../faceless-public.js';
 import { FIELD_DISPOSITIONS } from '../contract-dispositions.js';
 import { makeUgcInputShape } from '../skills.js';
+import { referenceProfileWarnings } from '../reference-profile.js';
 import { queryWorkflowMethod } from './catalog.js';
 import { workflowProductReferenceWarnings } from './product-references.js';
 
@@ -90,9 +91,10 @@ export function checkWorkflowBrief(methodId: string, input: unknown, capabilitie
             for (const path of nativeTransportPaths(brief.native)) add('unbound_native_source', `brief.native.input.${path}`, 'Use stable asset bindings; native transport URLs are resolved only by launch preflight.');
             if (brief.native.skill === 'make_ugc') {
                 const settings = brief.native.input;
-                if ((settings.inserts !== undefined || settings.segments !== undefined || settings.overlays !== undefined || settings.layout_windows !== undefined) &&
+                if ((settings.inserts !== undefined || settings.segments !== undefined || settings.overlays !== undefined || settings.layout_windows !== undefined ||
+                    settings.framing !== undefined) &&
                     (!executor?.features.includes('long_form') || ['warned', 'rejected', 'stored'].includes(executor.field_dispositions.long_form ?? ''))) {
-                    add('missing_capability', 'brief.native.input', 'Segments, inserts, overlays and layout windows require native long-form qualification on this deployment.');
+                    add('missing_capability', 'brief.native.input', 'Segments, inserts, overlays, layout windows and framing require native long-form qualification on this deployment.');
                 }
                 if (!executor?.formats.some(actual => actual.aspect_ratio === format.aspect_ratio && actual.resolution === format.resolution)) {
                     add('unsupported_format', 'brief.native.input', 'Native output settings are not qualified on this deployment.');
@@ -124,7 +126,7 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
     const document = parsed.data;
     const readiness = checkWorkflowBrief(document.method.method_id, document.brief, capabilities);
     const { issues, warnings } = readiness;
-    warnings.push(...workflowProductReferenceWarnings(document.method.method_id, document.assets));
+    warnings.push(...workflowProductReferenceWarnings(document.method.method_id, document.assets), ...referenceProfileWarnings(document.brief.reference_profile));
     const add = (code: string, path: string, message: string) => issues.push({ kind: code, path, message });
     const method = queryWorkflowMethod(document.method.method_id, capabilities)!;
     if (document.method.version !== method.descriptor.version || document.method.content_digest !== method.descriptor.content_digest) {
@@ -139,11 +141,12 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
     }
     const script = document.brief.script;
     const faceless = method.descriptor.binding.kind === 'native' && method.descriptor.binding.skill === 'make_faceless';
+    const revisits = method.descriptor.script_rules.role_order === 'revisits';
     let previousRole = -1;
     let previousWord = -1;
     for (const beat of document.beats) {
         const role = method.descriptor.script_rules.structure.indexOf(beat.role);
-        if (role < 0 || role < previousRole) add('invalid_method_structure', `beats.${beat.id}.role`, 'Beat roles must follow this method script structure in order.');
+        if (role < 0 || (!revisits && role < previousRole)) add('invalid_method_structure', `beats.${beat.id}.role`, 'Beat roles must follow this method script structure in order.');
         previousRole = role;
         if (beat.visual !== undefined && method.descriptor.binding.kind === 'native') {
             if (beat.required) add('unsupported_visual_directive', `beats.${beat.id}`, 'The native binding does not enforce authored visual directions.');

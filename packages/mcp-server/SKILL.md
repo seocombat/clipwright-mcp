@@ -185,12 +185,12 @@ Environment variables:
 | `CLIPWRIGHT_CLIENT_ID` | YES (see section 2) | Unique identifier of this INSTALLATION. |
 
 After connecting, restart or reopen the MCP host and confirm that `tools/list`
-returns 39 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
+returns 44 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
 `list_generation_models`, `quote_image`, `generate_image`, `quote_video`, `generate_video`, `quote_ugc`, `list_actors`,
 `list_voices`, `list_template_sounds`, `upload_image`, `create_upload`, `get_upload`, `create_asset`, `list_assets`, `get_asset`, `update_asset`,
-`delete_asset`, `get_account`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
+`delete_asset`, `quote_analysis`, `analyze_reference`, `get_reference_analysis`, `get_account`, `list_prices`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
 `set_actor_defaults`, `quote_faceless`, `make_faceless`, `list_workflows`, `get_workflow`, `prepare_workflow_plan`,
-`get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`.
+`plan_reference_remake`, `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`.
 
 Workflow calls are explicit steps: list/read a method, prepare its complete
 document, read all readiness issues and warnings, approve the chosen revision,
@@ -448,34 +448,32 @@ is, the contract MINUS the rejected fields: they simply are not there, and listi
 them here would mean offering what the server punishes you for (section 3).
 
 `script` (required while `segments` is rejected; length is limited by the resolved
-TTS model, as reported by `tools/list`: `eleven_v3`, `eleven_v4` and `gemini-3.8-flash-tts`
+TTS model, as reported by `tools/list`: `eleven_v4` and `gemini-3.8-flash-tts`
 allow 5000 characters, `eleven_flash_v2_5` and `eleven_turbo_v2_5` allow 10000. Spaces, audio tags and stress
 marks count; emoji may count as two characters. There is no word-count limit or fixed
-duration implied by it), `tts_model` (omit it and the voice decides: the Russian presets
-`owner_ru_clone` and `daria_ru_female` and the catalog voices named `ru_*` speak
-`eleven_v4`, a voice of kind `model_voice` speaks its own model `gemini-3.8-flash-tts`,
-every other preset and catalog voice speaks `eleven_v3`; a raw `voice_id`
-speaks `eleven_v4` when at least 60% of the script's Cyrillic and Latin letters are
-Cyrillic, and `eleven_v3` otherwise; an explicit `tts_model` always wins;
+duration implied by it), `tts_model` (omit it and the voice decides: a voice of kind
+`model_voice` speaks its own model `gemini-3.8-flash-tts`, every preset, catalog voice and
+raw `voice_id` speaks `eleven_v4`; an explicit `tts_model` wins, except `eleven_v3`,
+which is no longer spoken: a run naming it speaks `eleven_v4` and says so in `warnings[]`;
 `eleven_flash_v2_5` and `eleven_turbo_v2_5` cost less and suit
 languages other than Russian), optionally `person` OR
 `image` (a public `https` URL) with `actor_gender` (`female`/`male`, only next to
 `image`), plus `name`, `captions` (defaults to `false` —
-**captions are opt-in, ASK THE USER FIRST**), `caption_style`
-(`hormozi`/`tiktok`/`minimal`), `look` (`natural`/`commercial`/`raw_iphone`),
+**captions are opt-in, ASK THE USER FIRST**), `caption_style` and
+`caption_emphasis` (see *Captions* under `make_ugc`), `look` (`natural`/`commercial`/`raw_iphone`),
 `aspect_ratio` (`9:16`/`1:1`, with NO default — silence and an explicit choice
 differ), `resolution` (`720p`/`1080p`/`4k`), `voice`/`voice_id`.
 
 **Russian stress marks.** Tell a user who writes in Russian that they can fix stress:
 write the stressed vowel as a capital inside a lowercase word — `потОм`, `зАмок` — and
-Clipwright sends `eleven_v4`, `eleven_v3` and `gemini-3.8-flash-tts` the stress mark U+0301
+Clipwright sends `eleven_v4` and `gemini-3.8-flash-tts` the stress mark U+0301
 (`пото́м`). A capital that starts a
 word stays a capital, a word with a second capital or an inner capital consonant
 (`ВУЗы`, all caps) stays as written, and a U+0301 typed directly is kept. A single
 inner capital vowel always reads as stress, so `ЯндексЕда` needs a space. Keep Russian
-scripts on one of those three models: the 2.5 models misread the mark, so a script
+scripts on one of those two models: the 2.5 models misread the mark, so a script
 carrying it draws a warning there, and so does any Cyrillic script. With a preset, a
-catalog voice or `voice_id` the choice is `eleven_v4` or `eleven_v3`, because
+catalog voice or `voice_id` the choice is `eleven_v4`, because
 `gemini-3.8-flash-tts` speaks only its own voices. Retrying never
 fixes stress; only the text does.
 
@@ -490,19 +488,30 @@ The exact list is always available from the tool schema itself: `tools/list` is
 generated from the same shape, and fields that are not honoured carry
 `NOT HONORED YET` right in their own `description`.
 
-Spends no credits. The response is the raw `quote` in full:
+Spends no credits. The response is the raw `quote`; its price fields for a
+12-second script read:
 
 ```json
 {
   "skill": "make_ugc",
-  "credits_estimate": 360,
+  "credits_estimate": 156,
   "duration_estimate_sec": 12,
+  "tariff": "parts-v1",
+  "price_lines": [
+    { "label": "presenter, HeyGen Avatar IV", "unit": "face_second", "quantity": 12, "unit_credits": 12, "credits": 144 },
+    { "label": "production (voice and render)", "unit": "second", "quantity": 12, "unit_credits": 1, "credits": 12 }
+  ],
+  "minimum_credits": 50,
   "warnings": []
 }
 ```
 
+Show the user `credits_estimate` and the lines; prices change, so never repeat
+them from this page.
+
 `warnings[]` IS present here (passed through unfiltered) — read it: parameters
-that will not be honoured (for example, `captions` ignored in this build) are
+that will not be honoured (for example, a `caption_emphasis` quote spoken entirely
+under a full-frame insert, where no captions are drawn) are
 declared there rather than dropped silently.
 
 **Always call `quote_ugc` first and show the user the price before `make_ugc`**
@@ -534,6 +543,32 @@ an ignored field is announced.
 After that you MUST poll `get_run` with that `run_id` every ~5–10 seconds until it
 reaches a terminal state. Do not tell the user the video is ready until you have a
 `video_url`.
+
+#### Captions (`captions`, `caption_style`, `caption_emphasis`)
+
+`make_ugc` burns word-timed captions into the video when `captions: true`. They
+are off by default and do not change the price. Whether a video has them is the
+user's call:
+
+1. **Ask whether they want captions** before the quote. Never turn them on
+   unprompted.
+2. **If yes, pick a style with them.** When the user gave a reference video, take
+   its look: bold uppercase cues with one coloured keyword is `hormozi`, one or
+   two words popping in colour is `tiktok`, a sentence on a dark box is `youtube`
+   or `lecture`. Otherwise offer three or four styles that fit the video, one line
+   each, and link the gallery, which shows every style on the same clip:
+   https://clipwright.io/captions. Without a choice the server draws `hormozi`.
+3. **Mark key words with `caption_emphasis`**: quotes from `script` drawn larger or
+   in the style's accent colour. `caption_mode: "highlights"` captions only the
+   lines around those quotes.
+
+The styles: `hormozi` (the default), `accent`, `tiktok`, `youtube`, `instagram`,
+`minimalist`, `neon`, `genz`, `campfire`, `midnight`, `plottwist`, `headline`,
+`promo`, `lecture`, `highlighter`, `studio`, `broadcast`, `arcade`, `clutch`,
+`bubblegum`, `crayon`, `lyrics`, `bassdrop`, `punch`; `minimal` is an older name
+for `minimalist`. Each style's description is in `caption_style` of `tools/list`:
+quote that, not your memory of it. Captions are refused with `segments` and with
+`gemini-3.8-flash-tts`, which returns no word timings.
 
 #### Choosing a voice (`voice` / `voice_id`)
 
@@ -585,8 +620,8 @@ Two mutually exclusive optional fields in the `make_ugc` input:
 When the user sends a photo and asks for no particular voice, pass the gender of
 the person in it as `actor_gender`. Ask the user only when you cannot tell.
 
-For a Russian script, leave `tts_model` out or name `eleven_v4` or `eleven_v3` — both
-read stress marks — and mark stress with a capital vowel (see **Russian stress marks**
+For a Russian script, leave `tts_model` out or name `eleven_v4` — it reads stress
+marks — and mark stress with a capital vowel (see **Russian stress marks**
 above). A Russian voice speaks `eleven_v4` on its own. A `model_voice` voice reads
 stress marks too, on its own model `gemini-3.8-flash-tts`.
 
@@ -641,8 +676,8 @@ different sentences. Pass it to the user as written when they ask how to label t
 `SUCCEEDED`, `FAILED`) carries the run's `warnings` — parameters that were not
 honoured are always declared, never dropped silently. `make_ugc` shares the
 formatter, so its first response carries them too. Read it on the terminal
-response without fail: for instance, missing captions in the prototype are
-announced exactly there.
+response without fail: for instance, captions laid out evenly because the speech
+model returned no word timings are announced exactly there.
 
 **An unknown terminal status on the server** (say a hypothetical `"canceled"` that
 is not in `TERMINAL_STATES`) is a deliberate degradation: `isTerminal` returns
@@ -841,6 +876,15 @@ would be refused for money or access, so a render rarely needs this call first.
 Call it when the user asks how many credits are left, or to show the numbers
 behind such a warning.
 
+### `list_prices` — free, no input
+
+Returns the body of `GET /v1/public/prices`: one entry per tool and variant with
+its price as `lines` of `credits` per `unit`, added up, and `minimum_credits`
+when there is one; where the price depends on the input, `lines` is empty and
+`formula` states the rule. Free tools are listed at 0. Each paid tool's description ends with
+the same price line. For the exact number of one call, use the quote tool the
+entry names in `quote_tool`.
+
 ### `quote_faceless` — free, and `make_faceless` — paid, creates a run
 
 A faceless video is narration over an opening animated clip and image scenes,
@@ -856,7 +900,7 @@ Give the narration one of two ways, and name which with `input_mode`:
   `duration_seconds` by up to a quarter, never beyond 90 seconds; a video more
   than 5 seconds longer says so in `warnings[]`. A script is accepted when its
   estimated length is 21 seconds to `duration_seconds` plus 5, at most 90. The charge follows the delivered duration and never
-  exceeds the quote; the minimum is 200 base credits plus 150 for the opener.
+  exceeds the quote; `list_prices` gives the rates and the minimum.
 - `input_mode: "brief"` with `brief` — a short description; the narration is
   written from it.
 
@@ -1104,8 +1148,8 @@ run as often as you like without making a new paid call.
    exists.
 2. Generate a unique `CLIPWRIGHT_CLIENT_ID` (section 2) and put it, together with
    `CLIPWRIGHT_API_KEY`, into the MCP host config (section 1.3).
-3. Restart the host and confirm `tools/list` returns 4 tools (`make_ugc`,
-   `quote_ugc`, `get_run`, `list_voices`).
+3. Restart the host and confirm `tools/list` returns every tool named in
+   section 1.3.
 4. `quote_ugc` with a script → show the price AND read `source`,
    `resolved_aspect_ratio`, `warnings[]` (section 3).
 5. `make_ugc` → get a `run_id` immediately.

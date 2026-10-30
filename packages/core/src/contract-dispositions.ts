@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { makeUgcInputShape, mcpUgcTemplate, TEMPLATES_DESCRIPTION } from "./skills.js";
+import { makeUgcInputShape, mcpUgcCall, mcpUgcTemplate, TEMPLATES_DESCRIPTION } from "./skills.js";
 import { MAX_TEMPLATES, mcpTemplateSounds, templateFaceWarnings } from "./templates/index.js";
+import { framingWarnings } from "./ugc-framing.js";
+import { callWarnings } from "./ugc-call.js";
 import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
 
 /** Disposition registry for `make_ugc` input fields: every field must have a recorded */
@@ -30,6 +32,10 @@ export const FIELD_DISPOSITIONS = {
   voice: { kind: "implemented", provenBy: "egress" },
   voice_id: { kind: "implemented", provenBy: "egress" },
   tts_model: { kind: "implemented", provenBy: "egress" },
+  // Speed models get it as speed; eleven_v4 drops it and Gemini gets a style hint, both with a warning (#890; egress tests).
+  voice_pace: { kind: "implemented", provenBy: "egress" },
+  // The trimmed take is what the avatar vendor receives; a skipped joint or a take without timings is named in warnings[].
+  pause_trim: { kind: "implemented", provenBy: "egress" },
 
   // Fields that do not reach the render and are reported as not honored.
   person: {
@@ -53,6 +59,7 @@ export const FIELD_DISPOSITIONS = {
   caption_style: { kind: "implemented", provenBy: "composition" },
   caption_emphasis: { kind: "implemented", provenBy: "composition" },
   caption_mode: { kind: "implemented", provenBy: "composition" },
+  caption_position: { kind: "implemented", provenBy: "composition" },
 
   // Both reach the vendor from the request; egress tests require three resolutions
   // to produce three different request bodies.
@@ -62,6 +69,10 @@ export const FIELD_DISPOSITIONS = {
   // Gated by `CLIPWRIGHT_REMOTE_FETCH`: `resolveDispositions` rejects it when the flag is off.
   image: { kind: "implemented", provenBy: "egress" },
   actor_id: { kind: "implemented", provenBy: "egress" },
+  // Picks the actor's wide view for the vendor; a request without one renders close and says so in warnings[] (#884 S5d).
+  presenter_framing: { kind: "implemented", provenBy: "egress" },
+  // Picks the actor's view with a handheld mic the same way.
+  presenter_mic: { kind: "implemented", provenBy: "egress" },
   actor_gender: { kind: "implemented", provenBy: "egress" },
   broll_policy: { kind: "stored", message: BROLL_POLICY_DESCRIPTION },
 
@@ -70,9 +81,13 @@ export const FIELD_DISPOSITIONS = {
   inserts: { kind: "implemented", provenBy: "composition" },
   overlays: { kind: "implemented", provenBy: "composition" },
   layout_windows: { kind: "implemented", provenBy: "composition" },
+  framing: { kind: "implemented", provenBy: "composition" },
   templates: { kind: "implemented", provenBy: "composition" },
   template_theme: { kind: "implemented", provenBy: "composition" },
   template_sounds: { kind: "implemented", provenBy: "composition" },
+  edit_sounds: { kind: "implemented", provenBy: "composition" },
+  // Mixed into the narration and rung by the phone over the hold (#857 S5).
+  call: { kind: "implemented", provenBy: "composition" },
   character: {
     kind: "rejected",
     message:
@@ -136,6 +151,11 @@ export function isActorGenerationEnabled(env: Record<string, string | undefined>
   return env.CLIPWRIGHT_ACTOR_GENERATION === "1" && env.CLIPWRIGHT_REMOTE_FETCH === "1";
 }
 
+/** An actor derived from an actor (#898) rides on generation and has its own switch. */
+export function isActorViewsEnabled(env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env): boolean {
+  return env.CLIPWRIGHT_ACTOR_VIEWS === "1" && isActorGenerationEnabled(env);
+}
+
 /** `create_actor` builds a face from words, so with generation on the advice points there. */
 const PERSON_WITH_ACTOR_GENERATION: Disposition = {
   kind: "warned",
@@ -192,15 +212,17 @@ export const CAPTIONS_COMPOSE_DISABLED_WARNING = "captions were not drawn: compo
 
 /** The composition-only parts a run asked for (#778 S2b): a render without composition names them instead of dropping them. */
 export function compositionLayerFields(input: {
-  overlays?: unknown; layout_windows?: unknown; templates?: unknown; inserts?: readonly { transition?: string | undefined }[] | undefined;
-  caption_emphasis?: readonly (string | { punch_in?: boolean | undefined })[] | undefined;
+  overlays?: unknown; layout_windows?: unknown; framing?: unknown; templates?: unknown; inserts?: readonly { transition?: string | undefined }[] | undefined;
+  caption_emphasis?: readonly (string | { punch_in?: boolean | undefined })[] | undefined; edit_sounds?: boolean | undefined;
 }): string[] {
   return [
     ...(input.overlays !== undefined ? ["overlays"] : []),
     ...(input.layout_windows !== undefined ? ["layout_windows"] : []),
+    ...(input.framing !== undefined ? ["framing"] : []),
     ...(input.templates !== undefined ? ["templates"] : []),
     ...(input.inserts?.some(insert => insert.transition !== undefined && insert.transition !== "cut") ? ["transition"] : []),
     ...(input.caption_emphasis?.some(item => typeof item !== "string" && item.punch_in === true) ? ["punch_in"] : []),
+    ...(input.edit_sounds === true ? ["edit_sounds"] : []),
   ];
 }
 
@@ -233,9 +255,12 @@ export function resolveDispositions(
     inserts: longForm ? FIELD_DISPOSITIONS.inserts : LONG_FORM_DISABLED,
     overlays: longForm ? FIELD_DISPOSITIONS.overlays : LONG_FORM_DISABLED,
     layout_windows: longForm ? FIELD_DISPOSITIONS.layout_windows : LONG_FORM_DISABLED,
+    framing: longForm ? FIELD_DISPOSITIONS.framing : LONG_FORM_DISABLED,
     templates: longForm ? FIELD_DISPOSITIONS.templates : TEMPLATES_DISABLED,
     template_theme: longForm ? FIELD_DISPOSITIONS.template_theme : TEMPLATES_DISABLED,
     template_sounds: longForm ? FIELD_DISPOSITIONS.template_sounds : TEMPLATES_DISABLED,
+    edit_sounds: longForm ? FIELD_DISPOSITIONS.edit_sounds : LONG_FORM_DISABLED,
+    call: longForm ? FIELD_DISPOSITIONS.call : LONG_FORM_DISABLED,
     person: flags.actorGeneration === true ? PERSON_WITH_ACTOR_GENERATION : FIELD_DISPOSITIONS.person,
     image: flags.remoteFetch ? FIELD_DISPOSITIONS.image : REMOTE_FETCH_DISABLED,
     actor_id: flags.remoteFetch ? FIELD_DISPOSITIONS.actor_id : {
@@ -326,7 +351,7 @@ export type MakeUgcInputArgs = z.input<typeof offeredUgcInput>;
 /** The MCP offer: the same fields with the slim template item, which keeps tools/list small (#778 S3, D3). */
 export const mcpUgcInputShape = { ...offeredUgcInputShape,
   templates: z.array(mcpUgcTemplate).min(1).max(MAX_TEMPLATES).optional().describe(TEMPLATES_DESCRIPTION),
-  template_sounds: mcpTemplateSounds.optional() };
+  template_sounds: mcpTemplateSounds.optional(), call: mcpUgcCall.optional() };
 
 /** One rejected field found in the input: its name and the refusal reason. */
 export interface RejectedFieldHit {
@@ -399,7 +424,7 @@ export function dispositionWarnings(
     warnings.push(disposition.warning);
   }
   // A template asked onto the face is drawn there and named, on the quote, the run and its record alike (#778 S3).
-  warnings.push(...templateFaceWarnings(input));
+  warnings.push(...templateFaceWarnings(input), ...framingWarnings(input), ...callWarnings(input));
   return warnings;
 }
 

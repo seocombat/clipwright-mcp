@@ -12,6 +12,7 @@ import {
 } from "./voice-catalog.js";
 import { TTS_MODEL_LANGUAGES, VOICE_CATALOG } from "./voice-catalog-data.js";
 import { FACELESS_SPEECH_MODEL, FACELESS_VOICE_NAMES, FACELESS_VOICES } from "./faceless-voices.js";
+import { measuredPaceOf, VOICE_PACE } from "./voice-pace.js";
 import {
   ELEVENLABS_TTS_MODELS,
   GOOGLE_TTS_MODEL,
@@ -130,8 +131,14 @@ export function listVoices(
       return entry[field] === wanted;
     });
 
+  // A pace holds for the model it was measured on (#890).
+  const withPace = (entry: VoiceCatalogEntry): VoiceCatalogEntry => {
+    const measured = entry.model === VOICE_PACE.model ? measuredPaceOf(entry.name) : undefined;
+    return measured ? { ...entry, words_per_second: measured.words_per_second } : entry;
+  };
+
   return {
-    voices: [...presets, ...modelVoices, ...facelessVoices, ...catalogVoices].filter(matches),
+    voices: [...presets, ...modelVoices, ...facelessVoices, ...catalogVoices].filter(matches).map(withPace),
     models: TTS_MODELS.map((id) => ({
       id,
       char_limit: TTS_MODEL_CHAR_CAP[id],

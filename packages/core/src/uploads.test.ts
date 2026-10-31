@@ -96,6 +96,6 @@ describe("caps and codes are declared by the contract", () => {
       expect(offeredUgcInputShape[field].description, field).toBeTruthy();
     }
     expect(offeredUgcInputShape.aspect_ratio.description).toContain("9:16 | 1:1 | 16:9");
-    expect(offeredUgcInputShape.voice.description).toContain("owner_ru_clone");
+    expect(offeredUgcInputShape.voice.description).toContain("daria_ru_female");
   });
 });

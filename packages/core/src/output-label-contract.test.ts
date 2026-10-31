@@ -24,7 +24,7 @@ it.each([true, false])("refuses explicit visible_ai_label=%s while output markin
   const table = resolveDispositions({ remoteFetch: false, compose: false });
   expect(table.visible_ai_label.kind).toBe("rejected");
   expect(rejectedFields({ visible_ai_label: value })).toEqual([
-    { field: "visible_ai_label", message: expect.stringContaining("output marking is disabled") },
+    { field: "visible_ai_label", message: expect.stringContaining("visible_ai_label is not available right now") },
   ]);
 });
 it("opens the label option only with explicit output marking activation", () => {

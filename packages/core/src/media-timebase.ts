@@ -1,8 +1,8 @@
 export const CANVAS_FPS = 25;
 export const NARRATION_SAMPLE_RATE = 48_000;
 
-// The composition keeps its own copy of these two (`apps/web/remotion/timeline.ts`): its bundler resolves no other package.
-// `apps/web/remotion/timeline-parity.test.ts` holds the two copies equal.
+// The composition keeps its own copy of these two: its bundler resolves no other package.
+// A parity test holds the two copies equal.
 
 /** A duration in canvas frames, rounded up: one frame too few cuts the end of a line, one too many shows a still frame. */
 export function secondsToFrames(seconds: number, fps: number): number {

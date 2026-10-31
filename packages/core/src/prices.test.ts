@@ -86,6 +86,9 @@ describe("each price is the constant billing charges by", () => {
     expect(part(only("analyze_reference"))).toEqual(["call", REFERENCE_ANALYSIS_CREDITS]);
     expect(only("analyze_reference").quote_tool).toBe("quote_analysis");
     expect(part(only("quote_analysis"))).toEqual(["call", 0]);
+    // The data mode (#930 S4): its own row at 10 a call, as a literal so that a changed price turns this red.
+    expect(part(only("analyze_reference", "data mode"))).toEqual(["call", 10]);
+    expect(only("analyze_reference", "data mode").quote_tool).toBe("quote_analysis");
   });
 
   it("make_faceless: the quote at the shortest and longest selection", () => {

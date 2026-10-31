@@ -25,6 +25,7 @@ the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/pa
 | `make --script <text>` | Renders a clip and waits for it. **Costs credits.** Prints the video URL to stdout, progress and warnings to stderr. |
 | `upload <path>` | Uploads a local PNG/JPEG and prints the https url to pass as `--image`. Free. |
 | `runs <id>` | Prints the state of one run. |
+| `feedback --kind <kind> --text <text>` | Tells us what is missing, confusing, wrong or slow; `--run <id>` names the run it is about. We read every one. Free. |
 | `voices` | Lists voices for `--voice` on `make`: the presets, the voices of `gemini-3.8-flash-tts`, then the catalog. `--skill make_faceless` lists the narration voices for `make-faceless` instead. Narrow it with `--language`, `--gender`, `--age`, `--use-case` and `--model`. Free. |
 | `actors` | Lists the actors this account can use: the Clipwright catalog and your own. Free. |
 | `quote-actor` | Estimates the cost of a personal actor. Spends nothing. |
@@ -53,8 +54,8 @@ the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/pa
 ## Workflow files and explicit purchases
 
 The four native methods are `ugc-product-intro`, `ugc-faq-answer`,
-`faceless-explainer` and `product-image-story`, subject to their executor's
-configuration, qualification and activation. `website-proof-demo` and
+`faceless-explainer` and `product-image-story`, where the server lists them as
+available. `website-proof-demo` and
 `kinetic-launch` remain `execution_blocked` with reasons.
 
 Workflow commands print JSON to stdout; API refusal messages, including all
@@ -120,7 +121,7 @@ are refused. See the [workflow API contract](https://clipwright.io/docs).
 without it a landscape photo renders vertical, with a warning.
 
 Pick a voice with `--voice <name>` from that catalog, or `--voice-id <id>` for a
-vendor voice outside it (a cloned one, for instance). Set neither and the voice
+voice outside it (a cloned one, for instance). Set neither and the voice
 follows the actor's gender: `sarah` for a woman, `george` for a man. The gender
 comes from the `--actor-id` catalog entry, or from `--actor-gender female|male`
 next to `--image`. The default actor speaks `george`. `--image` without
@@ -186,8 +187,7 @@ than the one you pass with `--file`.
 `--retake`, `--new-picture <description>` or `--animate [motion]`, or
 `--document <path>`, a file `edit-show` printed whose edited `document` is the
 whole revision. A revision that delivers is charged its quoted total; one that
-fails is charged nothing, even when its paid work was already done. The same
-request sent again returns the run it started; `--retry 2` starts a second
+fails is charged nothing. The same request sent again returns the run it started; `--retry 2` starts a second
 revision. While paid edits are closed on the server, both commands answer
 `editing_disabled`.
 
@@ -195,8 +195,7 @@ revision. While paid edits are closed on the server, both commands answer
 `--new-picture <description>` or `--animate [motion]`, and `--take <n>`, 1 by
 default. `candidate` prints the price first and starts nothing without `--yes`.
 A delivered candidate is charged its one unit whether it is kept or discarded;
-one that fails is charged nothing, even when its paid work was already done.
-The same request and take sent again return the run they started; `--take 2`
+one that fails is charged nothing. The same request and take sent again return the run they started; `--take 2`
 makes another candidate, charged again. While shot candidates are closed on the
 server, the three commands answer `editing_disabled`.
 
@@ -216,5 +215,6 @@ production.
 
 ## Changelog
 
-What changed in each release, and what was removed, is in `CHANGELOG.md` inside
-this package. Read its **Breaking:** entries before upgrading.
+What changed in each release, and what was removed, is at
+[clipwright.io/changelog](https://clipwright.io/changelog). Read its **Breaking:** entries
+before upgrading.

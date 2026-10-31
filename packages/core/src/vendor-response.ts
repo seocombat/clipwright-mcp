@@ -90,7 +90,7 @@ export function vendorJobVerdict(error: unknown): VendorJobVerdict | undefined {
 
 const VENDOR_JOB_UNBILLED = "clipwrightVendorJobUnbilled";
 
-/** Marks a failed job the vendor itself reports as not billed (kie: no `creditsConsumed`, #857 S3). */
+/** Marks a failed job the vendor itself reports as not billed (#857 S3). */
 /** Only the adapter that read the vendor's answer sets it; no mark means the job may be billed. */
 export function markVendorJobUnbilled<E>(error: E): E {
   if (typeof error !== "object" || error === null) return error;

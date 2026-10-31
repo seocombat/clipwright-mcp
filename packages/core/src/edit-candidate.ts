@@ -27,7 +27,7 @@ export const candidateQuote = z.strictObject({
 });
 export type CandidateQuote = z.infer<typeof candidateQuote>;
 
-/** The input a candidate run stores: the request, and what admission resolved for the worker. */
+/** The input a candidate run stores: the request, and what admission resolved for the run. */
 export const storedCandidateInput = z.strictObject({
   source_run_id: runId,
   ...candidateRequest.shape,
@@ -72,7 +72,7 @@ export type RunCandidatesRead = z.infer<typeof runCandidatesRead>;
 
 /** The one sentence every client and the docs page state a shot candidate's charge by. */
 export const CANDIDATE_CHARGE_TEXT =
-  "A delivered candidate is charged its one unit whether it is kept or discarded; one that fails is charged nothing, even when its paid work was already done.";
+  "A delivered candidate is charged its one unit whether it is kept or discarded; one that fails is charged nothing.";
 
 /** The paths of a run's candidate quote, start and list. The id is encoded, since it comes from the caller. */
 export const runCandidatesQuotePath = (id: string): string => `/v1/runs/${encodeURIComponent(id)}/candidates/quote`;

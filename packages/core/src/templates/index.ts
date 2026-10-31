@@ -148,7 +148,7 @@ export function templateMomentWords(kind: TemplateKind, data: unknown, tokens: r
 export const TEMPLATE_BEAT_GAP = 6;
 
 /** Each beat's frame from the template's start, frozen in the timeline; the renderer reads frames only (D11). A beat spoken before the kind's
- * `beatsFrom` moves there, the beats after it keep `TEMPLATE_BEAT_GAP`, and each move is a warning (rule 3, owner 23.10). */
+ * `beatsFrom` moves there, the beats after it keep `TEMPLATE_BEAT_GAP`, and each move is a warning. */
 export function templateMoments(kind: TemplateKind, data: unknown, tokens: readonly string[], range: WordRange,
   words: readonly { word: string; startSec: number }[], fps: number, span: { startFrame: number; endFrame: number }, id = "template"):
   { moments: number[]; warnings: string[] } {

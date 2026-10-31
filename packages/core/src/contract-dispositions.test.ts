@@ -430,7 +430,7 @@ describe("script/segments — exactly one of the two", () => {
     expect(hit).toBeDefined();
     if (!hit) return;
     expect(hit.field).toBe("segments");
-    expect(hit.message).toContain("disabled");
+    expect(hit.message).toContain("not available right now");
     expect(hit.message).toContain("script");
   });
 

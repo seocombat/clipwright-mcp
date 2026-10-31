@@ -12,7 +12,7 @@ const fields = {
 /** Two 1024-sample AAC-LC frames bound the qualified encoder's audio tail. */
 const AAC_MAX_TAIL_SAMPLES = 2048;
 
-/** Internal worker proof; v1 remains readable, v2 separates stream timing from the container. */
+/** The run's delivery proof; v1 remains readable, v2 separates stream timing from the container. */
 export const ugcDeliveryEvidenceSchema = z.discriminatedUnion("version", [
   z.strictObject({ version: z.literal(1), ...fields }),
   z.strictObject({ version: z.literal(2), ...fields, videoDurationSec: z.number().positive().finite(),

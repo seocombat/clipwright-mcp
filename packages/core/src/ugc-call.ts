@@ -2,7 +2,7 @@ import { lexicalTokens } from "./semantic-inserts.js";
 import { type AnchoredItem, type LayerRefusal, layerWordRange } from "./ugc-layers.js";
 
 // A phone call over a hold (#857 S5): two voices after a quote, the presenter listening, then frozen, until the call ends.
-// Numbers are the reference's, measured in `.make-feature/refel-s5b-call/scene-spec-call.json`.
+// Numbers are the reference's, as measured on it.
 
 export const CALL_SPEAKERS = ["agent", "caller"] as const;
 export type CallSpeaker = (typeof CALL_SPEAKERS)[number];
@@ -20,7 +20,7 @@ export const SECOND_CALL_AGENT = "sarah";
 /** The reference's in-call screen (D8): a US number shown only to its area code and the hold banner, generic phone UI. */
 export const CALL_PHONE_DEFAULTS = Object.freeze({ caller: "+1 (305) 555-0147", banner: "Hold This Call?", banner_note: "You'll be notified to pick up.",
   mask_number: true });
-/** The phone the worker draws over a call: an id no client template can spell, so it never meets one. */
+/** The phone the run draws over a call: an id no client template can spell, so it never meets one. */
 export const CALL_PHONE_ID = "call.phone";
 
 /** The ring starts this long after the phone enters, rings for CALL_RING_SEC (the `ring_double` file) and the first word follows it. */

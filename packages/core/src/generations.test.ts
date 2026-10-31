@@ -24,15 +24,15 @@ const video = (overrides: Partial<GenerateVideoRequest> = {}): GenerateVideoRequ
 });
 
 // D1 of #761 (owner 21.10): credits per image and per second; service-core's pricing test derives the same numbers.
-// ×2.5 since 29.10 (#800); the two 21.10 overrides went with it.
-const D1_IMAGE = { "seedream-5.0-flash": 6, flare: 8 } as const;
+// ×2.5 since 29.10 (#800), the two 21.10 overrides going with it; ×1.3 since 30.10 (#935).
+const D1_IMAGE = { "seedream-5.0-flash": 3, flare: 4 } as const;
 const D1_VIDEO: Record<string, Partial<Record<string, number>>> = {
-  "seedance-2.0-mini": { "480p": 6, "720p": 13 },
-  "seedance-2.0-fast": { "480p": 18, "720p": 37 },
-  "seedance-2.0": { "480p": 22, "720p": 46, "1080p": 114 },
-  "seedance-2.5": { "480p": 32, "720p": 71, "1080p": 173 },
-  "kling-3.0": { "720p": 21 },
-  "gemini-omni-flash-1.1": { "360p": 24, "720p": 24 },
+  "seedance-2.0-mini": { "480p": 3, "720p": 7 },
+  "seedance-2.0-fast": { "480p": 9, "720p": 20 },
+  "seedance-2.0": { "480p": 12, "720p": 24, "1080p": 59 },
+  "seedance-2.5": { "480p": 17, "720p": 37, "1080p": 90 },
+  "kling-3.0": { "720p": 11 },
+  "gemini-omni-flash-1.1": { "360p": 13, "720p": 13 },
 };
 
 describe("capability table", () => {
@@ -45,45 +45,6 @@ describe("capability table", () => {
       const prices = D1_VIDEO[model]!;
       for (const row of GENERATION_CAPABILITIES[model].rows) expect(row.unit_credits, `${model} ${row.resolution}`).toBe(prices[row.resolution]);
       expect(Object.keys(prices).sort()).toEqual([...new Set(GENERATION_CAPABILITIES[model].rows.map((row) => row.resolution))].sort());
-    }
-  });
-
-  it("orders the routes by the owner's 21.10 decision and serves every row only from a route it lists", () => {
-    const routes = Object.fromEntries(GENERATION_VIDEO_MODELS.map((model) =>
-      [model, GENERATION_CAPABILITIES[model].routes.map((route) => `${route.vendor} ${route.vendor_model}`)]));
-    expect(routes).toEqual({
-      "seedance-2.0": ["byteplus dreamina-seedance-2-0-260128", "kie bytedance/seedance-2"],
-      "seedance-2.0-mini": ["kie bytedance/seedance-2-mini", "byteplus dreamina-seedance-2-0-mini-260615"],
-      "seedance-2.0-fast": ["byteplus dreamina-seedance-2-0-fast-260128"],
-      "seedance-2.5": ["byteplus dreamina-seedance-2-5-260628", "kie bytedance/seedance-2-5"],
-      "kling-3.0": ["kie kling-3.0/video"],
-      "gemini-omni-flash-1.1": ["kie google/gemini-omni-flash-1-1"],
-    });
-    // kie serves exactly the rows it made live on 21.10; every other Seedance row is BytePlus only. Mini is kie only since #800:
-    // its BytePlus fallback cost $0.076/s against kie's $0.041.
-    const KIE_ROWS: Record<string, string[]> = {
-      "seedance-2.0 9:16 720p": ["byteplus", "kie"],
-      "seedance-2.0-mini 9:16 480p": ["kie"],
-      "seedance-2.0-mini 16:9 480p": ["kie"],
-      "seedance-2.0-mini 9:16 720p": ["kie"],
-      "seedance-2.0-mini 16:9 720p": ["kie"],
-      "seedance-2.5 9:16 480p": ["byteplus", "kie"],
-      "seedance-2.5 16:9 720p": ["byteplus", "kie"],
-      "kling-3.0 9:16 720p": ["kie"],
-      "kling-3.0 16:9 720p": ["kie"],
-      "gemini-omni-flash-1.1 16:9 360p": ["kie"],
-      "gemini-omni-flash-1.1 9:16 360p": [],
-      "gemini-omni-flash-1.1 9:16 720p": ["kie"],
-      "gemini-omni-flash-1.1 16:9 720p": ["kie"],
-    };
-    for (const model of GENERATION_VIDEO_MODELS) {
-      const capability = GENERATION_CAPABILITIES[model];
-      for (const row of capability.rows) {
-        const name = `${model} ${row.aspect_ratio} ${row.resolution}`;
-        for (const vendor of row.vendors) expect(capability.routes.map((route) => route.vendor), model).toContain(vendor);
-        expect(row.vendors, name).toEqual(KIE_ROWS[name] ?? ["byteplus"]);
-        if (row.measured) expect(row.vendors.length, name).toBeGreaterThan(0);
-      }
     }
   });
 
@@ -139,12 +100,10 @@ describe("capability table", () => {
     }
   });
 
-  it("names the vendor model ids and duration bounds", () => {
-    expect(GENERATION_CAPABILITIES["seedance-2.0-fast"].routes).toEqual([{ vendor: "byteplus", vendor_model: "dreamina-seedance-2-0-fast-260128" }]);
+  it("names the duration bounds", () => {
     expect(GENERATION_CAPABILITIES["seedance-2.5"].duration_s).toEqual({ min: 4, max: 30 });
     expect(GENERATION_CAPABILITIES["gemini-omni-flash-1.1"].duration_values).toEqual([4, 6, 8, 10]);
     expect(GENERATION_CAPABILITIES["seedance-2.0"].duration_s).toEqual({ min: 4, max: 15 });
-    expect(GENERATION_CAPABILITIES.flare.vendor_model.reference).toBe("openai/gpt-image-2.5/flare/edit");
   });
 
   it("is frozen to the rows", () => {
@@ -155,11 +114,11 @@ describe("capability table", () => {
 
 describe("findCapabilityRow and priceGeneration", () => {
   it("prices measured rows from the table", () => {
-    expect(priceGeneration(video())).toEqual({ unit_credits: 13, units: 4, credits: 52 });
-    expect(priceGeneration(video({ camera: "pan" }))).toEqual({ unit_credits: 13, units: 4, credits: 52 });
-    expect(priceGeneration(video({ model: "seedance-2.0", resolution: "1080p", duration_s: 15 }))).toEqual({ unit_credits: 114, units: 15, credits: 1710 });
-    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "9:16" })).toEqual({ unit_credits: 8, units: 1, credits: 8 });
-    expect(priceGeneration({ prompt: "x", model: "seedream-5.0-flash", aspect_ratio: "9:16" })).toEqual({ unit_credits: 6, units: 1, credits: 6 });
+    expect(priceGeneration(video())).toEqual({ unit_credits: 7, units: 4, credits: 28 });
+    expect(priceGeneration(video({ camera: "pan" }))).toEqual({ unit_credits: 7, units: 4, credits: 28 });
+    expect(priceGeneration(video({ model: "seedance-2.0", resolution: "1080p", duration_s: 15 }))).toEqual({ unit_credits: 59, units: 15, credits: 885 });
+    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "9:16" })).toEqual({ unit_credits: 4, units: 1, credits: 4 });
+    expect(priceGeneration({ prompt: "x", model: "seedream-5.0-flash", aspect_ratio: "9:16" })).toEqual({ unit_credits: 3, units: 1, credits: 3 });
   });
 
   it.each([
@@ -179,10 +138,10 @@ describe("findCapabilityRow and priceGeneration", () => {
   // Mutant: check only the range in `findCapabilityRow`, and a 5 s Omni clip that skips the schema is priced.
   it("prices Omni only at its listed lengths, past the schema too", () => {
     const omni = (duration_s: number) => video({ model: "gemini-omni-flash-1.1", duration_s });
-    expect(priceGeneration(omni(4))).toEqual({ unit_credits: 24, units: 4, credits: 96 });
-    expect(priceGeneration(omni(10))).toEqual({ unit_credits: 24, units: 10, credits: 240 });
+    expect(priceGeneration(omni(4))).toEqual({ unit_credits: 13, units: 4, credits: 52 });
+    expect(priceGeneration(omni(10))).toEqual({ unit_credits: 13, units: 10, credits: 130 });
     expect(findCapabilityRow(omni(5))).toBeNull();
-    expect(priceGeneration(video({ model: "kling-3.0", aspect_ratio: "16:9" }))).toEqual({ unit_credits: 21, units: 4, credits: 84 });
+    expect(priceGeneration(video({ model: "kling-3.0", aspect_ratio: "16:9" }))).toEqual({ unit_credits: 11, units: 4, credits: 44 });
   });
 
   it.each(["16:9", "1:1"] as const)("refuses an unmeasured %s image", (aspect_ratio) => {
@@ -287,12 +246,12 @@ describe("models list", () => {
     expect(listed.find((one) => one.model === "seedance-2.0")).toEqual({
       model: "seedance-2.0", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 4, max: 15 }, max_references: 0,
       rows: [
-        { aspect_ratio: "9:16", resolution: "480p", width: 496, height: 864, unit_credits: 22 },
-        { aspect_ratio: "16:9", resolution: "480p", width: 864, height: 496, unit_credits: 22 },
-        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 46 },
-        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 46 },
-        { aspect_ratio: "9:16", resolution: "1080p", width: 1080, height: 1920, unit_credits: 114 },
-        { aspect_ratio: "16:9", resolution: "1080p", width: 1920, height: 1080, unit_credits: 114 },
+        { aspect_ratio: "9:16", resolution: "480p", width: 496, height: 864, unit_credits: 12 },
+        { aspect_ratio: "16:9", resolution: "480p", width: 864, height: 496, unit_credits: 12 },
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 24 },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 24 },
+        { aspect_ratio: "9:16", resolution: "1080p", width: 1080, height: 1920, unit_credits: 59 },
+        { aspect_ratio: "16:9", resolution: "1080p", width: 1920, height: 1080, unit_credits: 59 },
       ],
     });
     expect(listed.find((one) => one.model === "seedance-2.5")?.modes).toEqual(["first_frame"]);
@@ -305,17 +264,17 @@ describe("models list", () => {
     expect(listed.find((one) => one.model === "kling-3.0")).toEqual({
       model: "kling-3.0", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 3, max: 15 }, max_references: 0,
       rows: [
-        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 21 },
-        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 21 },
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 11 },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 11 },
       ],
     });
     expect(listed.find((one) => one.model === "gemini-omni-flash-1.1")).toEqual({
       model: "gemini-omni-flash-1.1", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 4, max: 10 },
       duration_values: [4, 6, 8, 10], max_references: 0,
       rows: [
-        { aspect_ratio: "16:9", resolution: "360p", width: 640, height: 360, unit_credits: 24 },
-        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 24 },
-        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 24 },
+        { aspect_ratio: "16:9", resolution: "360p", width: 640, height: 360, unit_credits: 13 },
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 13 },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 13 },
       ],
     });
     expect(listed.find((one) => one.model === "seedance-2.5")?.rows.map((row) => `${row.aspect_ratio} ${row.resolution}`))

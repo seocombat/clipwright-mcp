@@ -31,6 +31,11 @@ import {
   type GenerationModels,
   generationQuote,
   type GenerationQuote,
+  FEEDBACK_PATH,
+  feedbackRequest,
+  type FeedbackRequest,
+  feedbackResponse,
+  type FeedbackResponse,
   PRICES_PATH,
   pricesResponseRead,
   type PricesResponseRead,
@@ -552,7 +557,7 @@ export class ClipwrightClient {
   }
 
   /** Saves a local PNG or JPEG (10 MB) or MP4 (32 MB) as an asset; `rights_confirmed` states you may use the people and works in it, */
-  /** `analysis_only` keeps it for analyzeReference alone. A clip answers a pending asset that the worker checks. Free. */
+  /** `analysis_only` keeps it for analyzeReference alone. A clip answers a pending asset that is checked before use. Free. */
   async createAssetFromBytes(
     bytes: Uint8Array<ArrayBuffer>,
     mediaType: AssetPutMediaType,
@@ -758,6 +763,13 @@ export class ClipwrightClient {
     const body = await this.#request(REFERENCE_ANALYSES_PATH, true,
       { method: "POST", body: JSON.stringify(analyzeReferenceRequest.parse(request)) });
     return parseResponse(referenceAnalysisRead, body, REFERENCE_ANALYSES_PATH, true);
+  }
+
+  /** Tells Clipwright what is missing, confusing, wrong or slow; we read every one. Free; the same feedback within 24 h */
+  /** answers the same feedback_id, so a retry files nothing twice. */
+  async sendFeedback(request: FeedbackRequest): Promise<FeedbackResponse> {
+    const body = await this.#request(FEEDBACK_PATH, true, { method: "POST", body: JSON.stringify(feedbackRequest.parse(request)) });
+    return parseResponse(feedbackResponse, body, FEEDBACK_PATH, true);
   }
 
   /** One reference analysis: queued, analyzing, succeeded with its profile and warnings, or failed with its error. Free. */
@@ -969,6 +981,7 @@ export type { CandidateQuoteRead, CandidateRequest, RunCandidatesRead };
 export type { GenerateImageRequest, GenerateVideoRequest, GenerationModels, GenerationQuote };
 export type { TemplateSoundsList };
 export type { PricesResponseRead };
+export type { FeedbackRequest, FeedbackResponse };
 export type { AnalyzeReferenceRequest, ReferenceAnalysisRead };
 export type { UploadListRead };
 export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs, PlanReferenceRemakeArgs,

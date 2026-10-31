@@ -1,4 +1,4 @@
-// Copies of `apps/web/remotion/fit.ts`, which the composition cannot import; `timeline-parity.test.ts` holds them equal.
+// The composition keeps its own copy of these, since it cannot import this package; a parity test holds them equal.
 
 /** Ratios this close, in absolute difference, fill the canvas with no bars. */
 export const EXACT_FIT_EPSILON = 0.002;

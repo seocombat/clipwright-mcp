@@ -63,6 +63,8 @@ import {
   GET_REFERENCE_ANALYSIS_DESCRIPTION,
   referenceAnalysisId,
   withPriceLine,
+  feedbackRequest,
+  SEND_FEEDBACK_DESCRIPTION,
 } from "@clipwright/core";
 import { formatGetRun, withFailureReport } from "./format.js";
 import { registerWorkflowTools } from './workflow-tools.js';
@@ -296,7 +298,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     "A reference is {upload_id, rights_confirmed: true} for a picture from upload_image or create_upload (rights_confirmed states you may use " +
     "the people and works in it), {run_id} of a succeeded generate_image run of this account until its reusable_until, " +
     "or {asset_id} of a picture asset from create_asset, whose rights were confirmed when it was made. " +
-    "A generation that fails is charged nothing, even when the vendor was already paid. An identical request returns the " +
+    "A generation that fails is charged nothing. An identical request returns the " +
     "same run it started before, so a call repeated after a lost answer starts nothing new; to make another one with the " +
     "same request on purpose, pass attempt 2. While generations are closed it answers generations_disabled or " +
     "generations_marking_pending and charges nothing.";
@@ -796,6 +798,15 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     inputSchema: {},
   }, async () => withFailureReport(async () => ({
     content: [{ type: "text", text: JSON.stringify(await client.listPrices()) }],
+  })));
+
+  server.registerTool("send_feedback", {
+    title: "Send feedback",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    description: SEND_FEEDBACK_DESCRIPTION,
+    inputSchema: feedbackRequest.shape,
+  }, async (request) => withFailureReport(async () => ({
+    content: [{ type: "text", text: JSON.stringify(await client.sendFeedback(request)) }],
   })));
 
   return server;

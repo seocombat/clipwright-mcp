@@ -147,7 +147,7 @@ describe("listVoices — contents and order", () => {
     expect(ttsModelLanguagesFile.safeParse({ models: [{ id: GOOGLE_TTS_MODEL, languages: ["en"] }] }).success).toBe(false);
     for (const model of all.models) expect(model.languages.length, model.id).toBeGreaterThan(0);
     expect(all.models.find((model) => model.id === "eleven_v4")?.languages).toContain("ru");
-    expect(all.voices.find((entry) => entry.name === "owner_ru_clone")?.supported_models).toContain("eleven_v4");
+    expect(all.voices.find((entry) => entry.name === "daria_ru_female")?.supported_models).toContain("eleven_v4");
   });
 
   it("models[] lists every contract model with its TTS_MODEL_CHAR_CAP; languages from the snapshot, or the measured ones", () => {

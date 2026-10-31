@@ -44,6 +44,18 @@ it("a succeeded generation carries its generation block; a run without one adds 
   expect(payload(formatGetRun(run("succeeded")))).toHaveProperty("video_url_check");
 });
 
+/** Mutant: the candidate block dropped from the success branch, and create_candidate over MCP never shows its preview. */
+it("a succeeded shot candidate carries its candidate block and no video fields; a run without one adds no key", () => {
+  const candidate = { source_run_id: "run_src1", root_run_id: "run_root1", shot_id: "shot_03", kind: "picture",
+    operation_mode: null, take: 1, preview_url: "https://cdn.example/runs/run_c/candidate/unit.png?sig=1",
+    usable_until: new Date().toISOString() } as const;
+  const shown = payload(formatGetRun(run("succeeded", { skill: "edit_shot", candidate, final_output: null })));
+  expect(shown.candidate).toEqual(candidate);
+  expect(shown).not.toHaveProperty("video_url");
+  expect(shown).toHaveProperty("url_check");
+  expect(payload(formatGetRun(run("succeeded")))).not.toHaveProperty("candidate");
+});
+
 /** Parsed JSON from the single content block. */
 function payload(res: { content: { text: string }[] }): Record<string, unknown> {
   return JSON.parse(res.content[0]!.text) as Record<string, unknown>;

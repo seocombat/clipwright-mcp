@@ -6,12 +6,12 @@ import { actorSelection } from "./actors.js";
 import { createdActor } from "./account-actors.js";
 import { faceBillingAdmissionTermsSchema } from "./billing-terms.js";
 import { brollPolicy } from "./broll-policy.js";
-import { facelessQuote } from "./faceless-price.js";
+import { facelessRunBilling } from "./faceless-price.js";
 import { revisionBilling } from "./edit-billing.js";
 import { SHOT_OPERATION_MODES, shotId } from "./edit-operations.js";
 import { runGeneration } from "./generations-output.js";
 
-/** Shared run stages; skill-specific workers use the stages they need. */
+/** Shared run stages; each skill uses the stages it needs. */
 export const RUN_STATES = [
   "queued",
   "generating",
@@ -114,7 +114,7 @@ export const run = z.object({
   /** The account's balance right after this run's charge was settled, read in the settling transaction; `null` until then. */
   balance_after_credits: z.number().int().nullable().optional(),
   billing_terms: faceBillingAdmissionTermsSchema.optional(),
-  faceless_billing: facelessQuote.optional(),
+  faceless_billing: facelessRunBilling.optional(),
   /** A revision of another run: its family, the credits held at admission, and its frozen price (`null` once redacted). */
   revision: z.object({
     source_run_id: runId, root_run_id: runId,

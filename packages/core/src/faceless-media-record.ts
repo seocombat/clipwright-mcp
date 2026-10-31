@@ -16,7 +16,7 @@ export const storedObject = z.strictObject({
 });
 export type StoredObject = z.infer<typeof storedObject>;
 
-/** The media a faceless run was made from, written by the worker beside the plan. */
+/** The media a faceless run was made from, written by the run beside the plan. */
 export const facelessMediaRecord = z.strictObject({
   v: z.literal(1),
   shots: z.array(z.strictObject({ id: shotId, source: z.enum(["generated", "customer"]),

@@ -29,6 +29,12 @@ describe("reference staging (#914 D1a, C1)", () => {
     expect(referenceStaging.parse(GANESH).elements[0]!.entry).toMatchObject({ style: "slide", from: "bottom", anchors: [{ id: "freeze_start#1" }] });
   });
 
+  /** Mutant (Codex 930-s2 r1): lower the element cap to 39, and the analysis keeping the 40 it promises fails to parse. */
+  it("holds 40 elements and refuses 41", () => {
+    const of = (count: number) => ({ ...GANESH, elements: Array.from({ length: count }, (_, at) => ({ ...GANESH.elements[0], id: `e${at + 1}` })) });
+    expect([referenceStaging.safeParse(of(40)).success, referenceStaging.safeParse(of(41)).success]).toEqual([true, false]);
+  });
+
   /** Mutant: drop the anchor lookup, and an element names a freeze that no list holds, which the compiler would place at zero. */
   it("refuses an anchor id that staging.anchors does not hold, and a malformed one", () => {
     const missing = copy();

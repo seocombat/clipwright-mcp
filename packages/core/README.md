@@ -23,5 +23,6 @@ serves at `GET /openapi.json` from the route registry and these schemas.
 
 ## Changelog
 
-What changed in each release, and what was removed, is in `CHANGELOG.md` inside
-this package. The four Clipwright packages share one version.
+What changed in each release, and what was removed, is at
+[clipwright.io/changelog](https://clipwright.io/changelog). The four Clipwright packages
+share one version.

@@ -10,7 +10,7 @@ import {
 import { PRESENTER_ENGINES } from "./face-billing.js";
 import { listGenerationModels } from "./generations.js";
 import { PARTS_FACE_TARIFF, PRESENTER_ENGINE_LABELS } from "./parts-pricing.js";
-import { REFERENCE_ANALYSIS_CREDITS } from "./reference-analysis.js";
+import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS } from "./reference-analysis.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
 export const PRICES_PATH = "/v1/public/prices";
@@ -70,6 +70,7 @@ const paid = (entry: Paid): PriceEntry => ({
 const FREE_TOOLS: Readonly<Record<string, string>> = {
   list_prices: `GET ${PRICES_PATH}`,
   get_account: "GET /v1/account",
+  send_feedback: "POST /v1/feedback",
   quote_ugc: "POST /v1/skills/make_ugc/quote",
   quote_analysis: "POST /v1/reference-analyses/quote",
   quote_faceless: "POST /v1/skills/make_faceless/quote",
@@ -146,6 +147,9 @@ function buildPriceList(): PriceEntry[] {
     paid({ tool: "analyze_reference", route: "POST /v1/reference-analyses", unit: "call", credits: REFERENCE_ANALYSIS_CREDITS,
       quote_tool: "quote_analysis", notes: "Held at the start and charged once the analysis succeeds; a failed one costs nothing. " +
         "Starting it again on the same asset answers the same analysis for free." }),
+    paid({ tool: "analyze_reference", route: "POST /v1/reference-analyses", variant: "data mode", unit: "call", credits: REFERENCE_DATA_CREDITS,
+      quote_tool: "quote_analysis", notes: "mode: \"data\": duration, size, timed transcript, hook and a frame sheet, without the vision pass. " +
+        "Held at the start and charged once it succeeds; a failed one costs nothing." }),
     paid({ tool: "make_faceless", route: "POST /v1/skills/make_faceless/run", quote_tool: "quote_faceless",
       lines: [{ label: "generated picture", unit: "image", credits: FACELESS_IMAGE_CREDITS },
         { label: "opening clip", unit: "clip", credits: FACELESS_OPENER_CREDITS },

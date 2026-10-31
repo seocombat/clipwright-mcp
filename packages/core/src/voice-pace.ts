@@ -3,7 +3,7 @@ import { z } from "zod";
 import paceJson from "./voice-pace.generated.json" with { type: "json" };
 
 // English make_ugc voices on eleven_v4, which has no speed (#890): words/s over sentence spans, as the reference presenter is measured.
-// Source: docs/assets/measurements/voice-pace-2026-10-28.json (apps/web/scripts/voice-pace-probe.mts); two takes differ by up to 11%.
+// Measured on live takes; two takes differ by up to 11%.
 
 export const voicePaceFile = z.strictObject({
   model: z.string().min(1),

@@ -21,6 +21,7 @@ import { ENDPOINT_NOTES } from "./endpoint-notes.js";
 import { API_ERROR_CODES } from "./errors.js";
 import { API_ENDPOINTS, type ApiEndpoint, endpointLabel } from "./endpoints.js";
 import { facelessQuoteResponse } from "./faceless-public.js";
+import { feedbackRequest, feedbackResponse } from "./feedback.js";
 import { generateImageRequest, generateVideoRequest, generationModels, generationQuote } from "./generations.js";
 import { pricesResponse } from "./prices.js";
 import { PUBLIC_API_BASE_URL, PUBLIC_APP_BASE_URL } from "./public-endpoints.js";
@@ -37,7 +38,7 @@ import { serverVoicesQuery } from "./voice-listing.js";
 import { voicesResponse } from "./voices.js";
 import { planReferenceRemake } from "./workflows/reference-remake.js";
 
-/** `/openapi.json` (owner decision 2026-10-26): every registry route is marked public or excluded, and a */
+/** `/openapi.json`: every registry route is marked public or excluded, and a */
 /** public route names its request and response schemas; API tests parse their real responses with them. */
 
 type SuccessStatus = 200 | 201 | 202 | 204;
@@ -75,10 +76,11 @@ const TAGS = {
   Catalogs: "Voices, template sounds, generation models, skills and prices.",
   "Reference analysis": "A reference video read into a profile a remake plan takes.",
   Account: "Balance, debt and holds.",
+  Feedback: "What is missing, confusing, wrong or slow; we read every one.",
 } as const;
 export type OpenApiTag = keyof typeof TAGS;
 
-/** The shared refusal (`docs/03-api.md` §6): `code` is a registered one, typed refusals add their own fields. */
+/** The shared refusal: `code` is a registered one, typed refusals add their own fields. */
 export const errorEnvelope = z.object({
   error: z.looseObject({ code: z.enum(API_ERROR_CODES as [string, ...string[]]), message: z.string().min(1) }),
 });
@@ -204,6 +206,9 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
     responses: { 202: named("ReferenceAnalysis", referenceAnalysis), 200: named("ReferenceAnalysis", referenceAnalysis) } },
   "GET /v1/reference-analyses/{id}": { exposure: "public", operationId: "getReferenceAnalysis", tag: "Reference analysis", params: { id: referenceAnalysisId },
     responses: { 200: named("ReferenceAnalysis", referenceAnalysis) } },
+  "POST /v1/feedback": { exposure: "public", operationId: "sendFeedback", tag: "Feedback",
+    body: named("FeedbackRequest", feedbackRequest),
+    responses: { 201: named("Feedback", feedbackResponse), 200: named("Feedback", feedbackResponse) } },
 };
 
 function routeOf(endpoint: ApiEndpoint): OpenApiRoute {

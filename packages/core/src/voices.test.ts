@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildVoiceActorMatchWarnings,
   buildVoiceWarnings,
-  DEFAULT_ACTOR_GENDER,
   DEFAULT_VOICE_BY_GENDER,
   DEFAULT_VOICE_PRESET,
   detectScriptFamily,
@@ -24,6 +23,7 @@ import {
   voiceActorGenderWarning,
   voicesResponse,
   type VoicePresetName,
+  addServiceVoicePresets,
 } from "@clipwright/core";
 import {
   buildVoiceVerificationWarnings,
@@ -37,12 +37,10 @@ import { VOICE_CATALOG } from "./voice-catalog-data.js";
 const LIVE_SLUG = VOICE_CATALOG.voices.find((entry) => entry.retired_at === undefined)!.slug;
 const TOMBSTONE = { ...VOICE_CATALOG.voices[0]!, slug: "es_female_retired_fixture", retired_at: "2026-09-20T10:00:00.000Z" };
 
-/** Preset catalog. All five carry a gender: the vendor gives four, and we give our own */
-/** clone's, since it is our voice. */
+/** Preset catalog. All four carry a gender; a server's private preset lives outside this package (#966). */
 describe("VOICE_PRESETS — the starter set", () => {
-  it("contains exactly the 5 presets", () => {
+  it("contains exactly the 4 published presets", () => {
     expect(VOICE_PRESET_NAMES).toEqual([
-      "owner_ru_clone",
       "sarah",
       "george",
       "eric",
@@ -55,14 +53,11 @@ describe("VOICE_PRESETS — the starter set", () => {
     expect(VOICE_PRESET_NAMES).toContain(DEFAULT_VOICE_PRESET);
   });
 
-  // We speak about our own clone first-hand, whatever the vendor says.
-  it("owner_ru_clone is labeled male: the gender of our clone is our fact", () => {
-    expect(VOICE_PRESETS.owner_ru_clone.gender).toBe("male");
-    expect(VOICE_PRESETS.owner_ru_clone.language).toBe("ru");
-  });
-
-  it("the clone matches the default actor, so there is nothing to dispute", () => {
-    expect(VOICE_PRESETS.owner_ru_clone.gender).toBe(DEFAULT_ACTOR_GENDER);
+  // #966: a server adds its private presets; it cannot replace a published preset or a model's own voice.
+  it("a server preset cannot take a published name", () => {
+    const preset = { language: "en", description: "x", model: "eleven_v4" } as const;
+    expect(() => addServiceVoicePresets({ george: preset })).toThrow('voice preset "george" is already published');
+    expect(() => addServiceVoicePresets({ kore: preset })).toThrow('voice preset "kore" is already published');
   });
 
   it("the English presets carry a gender label", () => {
@@ -338,13 +333,13 @@ describe("buildVoiceWarnings — admissibility test", () => {
     }
   });
 
-  it("explicit owner_ru_clone (ru) + English script → one language warning", () => {
+  it("explicit daria_ru_female (ru) + English script → one language warning", () => {
     const warnings = buildVoiceWarnings({
-      voice: "owner_ru_clone",
+      voice: "daria_ru_female",
       script: "This is a fully english marketing script about our product.",
     });
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("owner_ru_clone");
+    expect(warnings[0]).toContain("daria_ru_female");
     expect(warnings[0]).toContain("ru");
     // This generator does not discuss voice gender: that is `buildActorGenderWarnings`.
     expect(warnings[0]).not.toMatch(/gender|пол/i);
@@ -396,10 +391,10 @@ describe("buildVoiceWarnings — admissibility test", () => {
     expect(buildVoiceWarnings({ voice: "daria_ru_female", script: "15 3 8 2" })).toEqual([]);
   });
 
-  it("explicit owner_ru_clone (ru) + Russian script → none (language matches)", () => {
+  it("explicit daria_ru_female (ru) + Russian script → none (language matches)", () => {
     expect(
       buildVoiceWarnings({
-        voice: "owner_ru_clone",
+        voice: "daria_ru_female",
         script: "Это полностью русский рекламный скрипт о нашем продукте.",
       }),
     ).toEqual([]);
@@ -407,7 +402,7 @@ describe("buildVoiceWarnings — admissibility test", () => {
 
   it("explicit preset + neutral/mixed script → none (no data)", () => {
     expect(
-      buildVoiceWarnings({ voice: "owner_ru_clone", script: "12345 !?.,-100%" }),
+      buildVoiceWarnings({ voice: "daria_ru_female", script: "12345 !?.,-100%" }),
     ).toEqual([]);
     expect(
       buildVoiceWarnings({ voice: "george", script: "abcd абвг" }),
@@ -436,7 +431,7 @@ describe("buildVoiceWarnings — admissibility test", () => {
   it("the language generator says nothing about gender: buildActorGenderWarnings does", () => {
     const samples = [
       buildVoiceWarnings({ script: "Hello english script here." }),
-      buildVoiceWarnings({ voice: "owner_ru_clone", script: "English script here." }),
+      buildVoiceWarnings({ voice: "daria_ru_female", script: "English script here." }),
       buildVoiceWarnings({ voice: "sarah", script: "Это русский скрипт целиком." }),
       buildVoiceWarnings({ voice_id: "EXAVITQu4vr4xnSDxMaL", script: "x" }),
     ].flat();
@@ -493,7 +488,7 @@ describe("/v1/voices response schema", () => {
 
   it("a missing `gender` is legal: the vendor does not always provide it", () => {
     const parsed = voicesResponse.parse({
-      voices: [{ name: "owner_ru_clone", language: "ru", description: "клон", model: "eleven_v3" }],
+      voices: [{ name: "daria_ru_female", language: "ru", description: "клон", model: "eleven_v3" }],
     });
     expect(parsed.voices[0]?.gender).toBeUndefined();
   });

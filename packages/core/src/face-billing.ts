@@ -16,9 +16,9 @@ export const faceBillingIntervalSchema = z.object({
 const legacyFaceBillingTariffSchema = z.object({
   version: z.literal(1),
   id: identifier,
-  // Integer credits match the existing ledger. Fractional rates need a separate policy.
+  // Credits are whole numbers. Fractional rates need a separate policy.
   creditsPerSecond: z.number().int().positive().max(2_147_483_647),
-  // Explicit caller choice; not a default or a claim of owner approval.
+  // An explicit caller choice, not a default.
   rounding: z.literal("ceil_aggregate_seconds"),
 }).strict().readonly();
 
@@ -29,7 +29,7 @@ export type PresenterEngine = (typeof PRESENTER_ENGINES)[number];
 const tariffCredits = z.number().int().nonnegative().max(2_147_483_647);
 export const presenterRatesSchema = z.object({ heygen: tariffCredits.positive(), omnihuman: tariffCredits.positive() }).strict().readonly();
 
-/** A parts tariff (#800, owner 29.10): presenter seconds by engine, plus every second of the video, plus each live-avatar still. */
+/** A parts tariff: presenter seconds by engine, plus every second of the video, plus each live-avatar still. */
 export const partsFaceTariffSchema = z.object({
   version: z.literal(3),
   pricingVersion: identifier,

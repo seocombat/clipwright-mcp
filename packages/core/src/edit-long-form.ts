@@ -10,7 +10,7 @@ import type { AspectRatio } from "./skills.js";
 // The shots view of a long-form run (#604 S7), read from its resolved timeline and its word timings, or from a revision's record.
 // A shot lists operations only while the run states `editable`.
 
-/** The shortest picture over presenter time (owner, Q22: one second). */
+/** The shortest picture over presenter time: one second. */
 export const LONG_FORM_COVER_MIN_FRAMES = 25;
 
 /** What a long-form timeline allows. Without a background nothing paints the bars, so an upload must fill the canvas (rule 4). */
@@ -42,7 +42,7 @@ export function longFormTimingKeys(timeline: ResolvedTimeline): string[] {
     : timeline.slots.flatMap((slot) => (slot.kind === "actor" ? [`runs/${timeline.runId}/seg${slot.position}/timings.json`] : []));
 }
 
-/** The canvas of a long-form run: the short side is 1080 at every aspect ratio (`apps/web/remotion/canvas.ts`). */
+/** The canvas of a long-form run: the short side is 1080 at every aspect ratio. */
 export function longFormFrame(aspect: AspectRatio): PlannedRunShots["frame"] {
   if (aspect === "16:9") return { width: 1920, height: 1080, aspect_ratio: aspect };
   if (aspect === "1:1") return { width: 1080, height: 1080, aspect_ratio: aspect };

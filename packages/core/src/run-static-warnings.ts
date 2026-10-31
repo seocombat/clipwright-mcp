@@ -153,7 +153,7 @@ function ugcRunWarnings(
     ...buildActorGenderWarnings(input),
     ...buildVoiceActorMatchWarnings(input, voiceGenderOf, pin?.gender),
     // The pinned gender does not feed MODEL choice: both genders' default voices share a
-    // model. If they diverge, a test in run-static-warnings.test.ts turns red.
+    // model. If they diverge, a test turns red.
     ...buildSpeechModelWarnings({ ...input, script: resolvedScript(input) }, input.actor_gender, spokenModel),
     ...voiceFactWarnings(preflight.voice),
   ];

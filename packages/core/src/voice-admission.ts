@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { serverUgcInputWith } from "./skills.js";
 import type { Gender } from "./default-actor.js";
 import { makeFacelessInput } from "./faceless-public.js";
@@ -10,7 +12,8 @@ import {
   isVoicePresetName,
   MODEL_VOICES,
   resolveTtsModel,
-  VOICE_PRESETS,
+  voicePresetOf,
+  withPublishedPresetsOnly,
   type ModelVoice,
   type TtsModelId,
 } from "./voices.js";
@@ -18,11 +21,14 @@ import {
 // A subpath, not the barrel: the catalog weighs hundreds of kilobytes and SDK clients do not need it.
 
 /** Why the API refuses a voice name; `undefined` for a preset, a model's own voice or a live catalog voice. */
+/** A server's own preset is admitted only with `serviceVoices`; otherwise it reads as an unknown name. */
 export function catalogVoiceRefusal(
   voice: string,
   voices: readonly CatalogFileVoice[] = VOICE_CATALOG.voices,
+  options: { serviceVoices?: boolean } = {},
 ): string | undefined {
   if (isVoicePresetName(voice) || isModelVoiceName(voice)) return undefined;
+  if (options.serviceVoices === true && voicePresetOf(voice) !== undefined) return undefined;
   if (isFacelessVoiceName(voice)) {
     return (
       `voice "${voice}" is a make_faceless voice and make_ugc does not speak it: ` +
@@ -43,6 +49,17 @@ export function catalogVoiceRefusal(
 }
 
 export const serverUgcInput = serverUgcInputWith((voice) => catalogVoiceRefusal(voice));
+
+/** `schema` parsed in one view of the presets: `published` hides every server preset from every check of the parse, */
+/** `all` shows them. Both views share one type, so a server can pick the view per request. */
+export function inPresetView<T extends z.ZodType>(schema: T, view: "published" | "all") {
+  return z.unknown().transform((raw, context): z.output<T> => {
+    const parsed = view === "published" ? withPublishedPresetsOnly(() => schema.safeParse(raw)) : schema.safeParse(raw);
+    if (parsed.success) return parsed.data;
+    for (const issue of parsed.error.issues) context.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path: issue.path });
+    return z.NEVER;
+  });
+}
 
 /** Why `make_faceless` refuses a voice name; `undefined` for one of its own voices. */
 /** A retired catalog slug still reads as a `make_ugc` voice: the name was never a faceless one. */
@@ -72,7 +89,8 @@ export function voiceGenderOf(
   voice: string,
   voices: readonly CatalogFileVoice[] = VOICE_CATALOG.voices,
 ): Gender | undefined {
-  if (isVoicePresetName(voice)) return VOICE_PRESETS[voice].gender;
+  const preset = voicePresetOf(voice);
+  if (preset !== undefined) return preset.gender;
   if (isModelVoiceName(voice)) {
     const own: ModelVoice = MODEL_VOICES[voice];
     return own.gender;
@@ -90,7 +108,7 @@ export function buildVoiceVerificationWarnings(
   voices: readonly CatalogFileVoice[] = VOICE_CATALOG.voices,
 ): string[] {
   const slug = input.voice;
-  if (slug === undefined || isVoicePresetName(slug)) return [];
+  if (slug === undefined || voicePresetOf(slug) !== undefined) return [];
   const entry = voices.find((voice) => voice.slug === slug && voice.retired_at === undefined);
   if (entry === undefined) return [];
 

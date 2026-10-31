@@ -42,7 +42,7 @@ import {
   STRESS_MARKING_DESCRIPTION,
   ttsScriptLimitError,
   TTS_MODELS,
-  isVoicePresetName,
+  voicePresetOf,
   VOICE_ID_PATTERN,
   VOICE_NAME_PATTERN,
   VOICE_PRESET_NAMES,
@@ -184,8 +184,8 @@ export const MAKE_UGC_DESCRIPTION =
 export const MAKE_UGC_AGENT_PROTOCOL =
   "Call quote_ugc before generating and show the cost. This does NOT wait for the video: it " +
   "starts the run and returns a run_id IMMEDIATELY. You MUST then poll get_run with that " +
-  "run_id until the state is 'succeeded' (video_url) or 'failed'. A 'failed' run whose paid " +
-  "vendor job we still hold can go back to 'queued' and reach 'succeeded' later; whenever that " +
+  "run_id until the state is 'succeeded' (video_url) or 'failed'. A 'failed' run whose video " +
+  "is still being made can go back to 'queued' and reach 'succeeded' later; whenever that " +
   "happens it is named in warnings[]. Pass attempt=2,3,… to " +
   "deliberately start a NEW run for the same input (retry after a failure).";
 
@@ -343,7 +343,7 @@ export const mcpUgcTemplate = z.object({ ...templateEnvelope, kind: z.enum(TEMPL
 export const TEMPLATES_DESCRIPTION = templateCatalogText();
 
 const callVoice = z.string().regex(VOICE_NAME_PATTERN, "a call voice is a voice name from list_voices").optional();
-/** The call phone's measured place and rise (#914 D1e): the worker maps `rect_face` onto our presenter's face when it finds one, else uses `rect`. */
+/** The call phone's measured place and rise (#914 D1e): the run maps `rect_face` onto our presenter's face when it finds one, else uses `rect`. */
 export const callStage = z.strictObject({
   rect: stagingRect.refine(rect => rect.width > 0 && rect.height > 0 && rect.left + rect.width <= 1 + 1e-6 && rect.top + rect.height <= 1 + 1e-6,
     "the phone's rect must lie inside the frame").describe("Where the phone settles, in shares of the frame."),
@@ -379,7 +379,7 @@ export type UgcCall = z.infer<typeof ugcCall>;
 export const mcpUgcCall = z.record(z.string(), z.unknown())
   .describe(`A call the presenter listens to: { after: { quote }, lines: [{ speaker: agent|caller, text }] (2–${MAX_CALL_LINES}), voices?, phone? }.`);
 
-/** What admission pins for an `asset_id` insert; the worker reads this key and checks this hash, never the asset row.
+/** What admission pins for an `asset_id` insert; the run reads this key and checks this hash, never the asset row.
  * Server-only: it lives at the top of the stored input, and a public body naming it is refused as an unknown field. */
 export const pinnedInsertAsset = z.object({
   insert_id: insertId,
@@ -521,8 +521,8 @@ export const makeUgcInputShape = {
     .enum(ASPECT_RATIOS)
     .optional()
     .describe(
-      `Output format: ${ASPECT_RATIOS.join(" | ")}. Omitted means 9:16, and a source of another shape ` +
-        "is snapped to 9:16 with a warning — pass it explicitly whenever you pass image. A mismatch " +
+      `Output format: ${ASPECT_RATIOS.join(" | ")}. Omitted means 9:16 without an image; with an image, ` +
+        "the supported format nearest the image's shape, even a landscape one — pass it explicitly whenever you pass image. A mismatch " +
         "above 15% between the request and the source is refused (aspect_conflict) before any charge.",
     ),
   // No .default(): resolveResolution() fills it, since the default depends on the
@@ -540,9 +540,8 @@ export const makeUgcInputShape = {
     .regex(VOICE_NAME_PATTERN, "voice is not a voice name: take one from list_voices, or pass voice_id")
     .optional()
     .describe(
-      `Voice name from list_voices. Curated presets: ${VOICE_PRESET_NAMES.join(" | ")} ` +
-        "(owner_ru_clone is the Russian cloned voice). The API refuses a name list_voices does not " +
-        "return, before any charge. Omitted means the default voice for the actor's gender: the " +
+      `Voice name from list_voices. Curated presets: ${VOICE_PRESET_NAMES.join(" | ")}. ` +
+        "The API refuses a name list_voices does not return, before any charge. Omitted means the default voice for the actor's gender: the " +
         "gender of actor_id, actor_gender with image, or george for the default actor and for image " +
         "without actor_gender. " +
         `${MODEL_VOICE_MODEL} speaks only its own voices (kind model_voice in list_voices, such as ` +
@@ -738,7 +737,7 @@ type SpeechTextInput = SpokenTextInput &
   Omit<Parameters<typeof resolveTtsModel>[0], "script"> & { actor_gender?: "female" | "male" | undefined };
 
 /** Why the run's model refuses the text: the cap on the whole of it, then each spoken unit */
-/** left with no words. The model is read from the joined text, as the worker reads it. */
+/** left with no words. The model is read from the joined text, as the run reads it. */
 function speechTextRefusal(input: SpeechTextInput): string | undefined {
   const text = spokenTextOf(input);
   const model = resolveTtsModel({ ...input, script: text }, input.actor_gender);
@@ -746,7 +745,7 @@ function speechTextRefusal(input: SpeechTextInput): string | undefined {
 }
 
 function modelUnknownToClient(v: { voice?: string | undefined; tts_model?: string | undefined }): boolean {
-  return v.tts_model === undefined && v.voice !== undefined && !isVoicePresetName(v.voice) && !isModelVoiceName(v.voice);
+  return v.tts_model === undefined && v.voice !== undefined && voicePresetOf(v.voice) === undefined && !isModelVoiceName(v.voice);
 }
 
 export interface SpeechModelRefusal {
@@ -755,7 +754,7 @@ export interface SpeechModelRefusal {
 }
 
 /** What a model with its own voices and no word timings refuses, each line naming what to pass instead. */
-/** One list for the input schema and for the worker's check before its first paid step. */
+/** One list for the input schema and for the run's check before its first paid step. */
 export function speechModelRefusals(input: {
   tts_model?: string | undefined;
   voice?: string | undefined;
@@ -768,7 +767,7 @@ export function speechModelRefusals(input: {
   framing?: unknown;
   call?: unknown;
 }): SpeechModelRefusal[] {
-  // The model the voice name selects, by the function quote and the worker call; a script never decides it.
+  // The model the voice name selects, by the function quote and the run; a script never decides it.
   const model = input.tts_model ?? resolveTtsModel({ voice: input.voice, script: "" });
   const ownVoice = input.voice !== undefined && isModelVoiceName(input.voice);
   if (!speaksOwnVoices(model)) {
@@ -807,13 +806,20 @@ export function speechModelRefusals(input: {
   return candidates.filter(([, refused]) => refused).map(([field, , message]) => ({ field, message }));
 }
 
-/** API input: the server's `voiceRefusal` checks the voice name. The catalog is not imported */
-/** here, since clients read this barrel; the server uses `@clipwright/core/voice-admission`. */
-export function serverUgcInputWith(voiceRefusal: (voice: string) => string | undefined) {
+/** API input: the server's `voiceRefusal` checks the voice name and `voiceIdRefusal` a raw id. The catalog is not */
+/** imported here, since clients read this barrel; the server uses `@clipwright/core/voice-admission`. */
+export function serverUgcInputWith(
+  voiceRefusal: (voice: string) => string | undefined,
+  voiceIdRefusal: (voiceId: string) => string | undefined = () => undefined,
+) {
   return makeUgcInput
     .refine((v) => v.voice === undefined || voiceRefusal(v.voice) === undefined, {
       path: ["voice"],
       error: (issue) => voiceRefusal((issue.input as { voice: string }).voice)!,
+    })
+    .refine((v) => v.voice_id === undefined || voiceIdRefusal(v.voice_id) === undefined, {
+      path: ["voice_id"],
+      error: (issue) => voiceIdRefusal((issue.input as { voice_id: string }).voice_id)!,
     })
     // A call speaks ElevenLabs catalog voices only: a model's own voice has no dialogue.
     .superRefine((v, context) => {
@@ -867,7 +873,7 @@ export interface SpokenTextInput {
   segments?: readonly UgcSegment[] | undefined;
 }
 
-/** What the worker voices apart: the script, or each actor segment's line. */
+/** What the run voices apart: the script, or each actor segment's line. */
 function spokenUnitsOf(input: SpokenTextInput): string[] {
   if (input.script !== undefined) return [input.script];
   return (input.segments ?? [])
@@ -895,9 +901,9 @@ export type MakeUgcInput = z.infer<typeof makeUgcInput>;
 // The INPUT type (`MakeUgcInputArgs`) lives in `contract-dispositions.ts`: it comes from the
 // OFFERED shape, so SDK autocomplete does not show rejected fields.
 
-/** A plain run's tariff before parts-v1 (#800): 30 credits per second of finished video, known by the absence of `run_billing_terms` (#840 D2). */
+/** A plain run's tariff before parts-v1 (#800): 30 credits per second of finished video, known by having no billing terms frozen at admission (#840 D2). */
 export const UGC_PER_SECOND_TARIFF = "ugc-per-second-v1";
-/** That tariff's rate (docs/06): runs admitted before parts-v1 settle at it; service-core rounds the duration up before multiplying. */
+/** That tariff's rate: runs admitted before parts-v1 settle at it; the duration is rounded up before multiplying. */
 export const CREDITS_PER_SECOND = 30;
 
 export const quoteResponse = z.object({

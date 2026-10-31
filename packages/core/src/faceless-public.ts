@@ -5,7 +5,7 @@ import { runId } from "./runs.js";
 import { uploadResponse } from "./uploads.js";
 import { MAX_URL_LENGTH } from "./skills.js";
 import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
-import { FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_MIN_SELECTED_SECONDS, facelessQuote } from "./faceless-price.js";
+import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_MIN_SELECTED_SECONDS, facelessQuote } from "./faceless-price.js";
 import { DEFAULT_FACELESS_VOICE } from "./faceless-voices.js";
 import { VOICE_NAME_PATTERN } from "./voices.js";
 
@@ -69,7 +69,7 @@ export type FacelessRevisionInput = z.infer<typeof facelessRevisionInput>;
 export const facelessStoredInput = z.discriminatedUnion("input_mode", [scriptInput, briefInput, facelessRevisionInput]);
 export type FacelessStoredInput = z.infer<typeof facelessStoredInput>;
 
-/** Admission and the worker validate accepted input without canonicalizing its narration again. */
+/** Admission and the run validate accepted input without canonicalizing its narration again. */
 export function parseFacelessInputPreservingScript(input: unknown): MakeFacelessInput {
   const parsed = makeFacelessInput.parse(input);
   return parsed.input_mode === "script" ? { ...parsed, script: (input as { script: string }).script } : parsed;
@@ -93,7 +93,7 @@ export const offeredFacelessInputShape = {
   brief: briefInput.shape.brief.optional()
     .describe("What the video is about; the narration is written from it. Required when input_mode is 'brief'; must be absent when it is 'script'."),
   duration_seconds: common.duration_seconds
-    .describe("Selected length, 30 to 90 seconds, on a 1/25 s frame boundary. The video ends with its narration, runs at least 25 seconds and may exceed the selection by up to a quarter, never beyond 90 seconds; a video more than 5 seconds longer says so in warnings[]. The charge never exceeds the quote. A script is accepted when its estimated length is 21 seconds to the selection plus 5, at most 90."),
+    .describe("Selected length, 30 to 90 seconds, on a 1/25 s frame boundary. The video ends with its narration and runs at least 25 seconds, usually at most a quarter past the selection and 90 seconds; when the narration takes longer, the video runs to its end. A video more than 5 seconds longer than the selection says so in warnings[]. The charge never exceeds the quote. A script is accepted when its estimated length is 21 seconds to the selection plus 5, at most 90."),
   style_reference: common.style_reference
     .describe("Optional public https image whose visual style the scenes follow."),
   character_reference: common.character_reference
@@ -132,7 +132,7 @@ const wordTiming = z.object({
 
 export const facelessPlannerInput = z.object({
   script: z.string().trim().min(1),
-  outputFrames: z.number().int().min(FACELESS_MIN_OUTPUT_FRAMES).max(2250),
+  outputFrames: z.number().int().min(FACELESS_MIN_OUTPUT_FRAMES).max(FACELESS_MAX_OUTPUT_FRAMES),
   captions: z.boolean(),
   words: z.array(wordTiming).min(1),
 }).strict();

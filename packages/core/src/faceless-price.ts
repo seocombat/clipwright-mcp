@@ -5,7 +5,7 @@ import { DELIVERED_VIDEO_MINIMUM_CREDITS, PRODUCTION_CREDITS_PER_SECOND } from "
 export const FACELESS_TARIFF_ID = "faceless-parts-v1" as const;
 export const FACELESS_LEGACY_TARIFF_ID = "faceless-image-i2v-v1" as const;
 export const FACELESS_TARIFF_IDS = [FACELESS_TARIFF_ID, FACELESS_LEGACY_TARIFF_ID] as const;
-/** A faceless video ends with its speech and runs at least 25 s (owner, 2026-09-27). */
+/** A faceless video ends with its speech and runs at least 25 s. */
 export const FACELESS_MIN_OUTPUT_FRAMES = 625;
 /** The length a caller selects, in seconds. */
 export const FACELESS_MIN_SELECTED_SECONDS = 30;
@@ -14,11 +14,16 @@ export const FACELESS_MAX_SELECTED_SECONDS = 90;
 export const FACELESS_MIN_ESTIMATE_SEC = 21;
 /** A script is admitted when its estimate fits the selection plus 5 s; a video longer than that is named in `warnings[]`. */
 export const facelessMaxEstimateFrames = (selectedFrames: number) => Math.min(selectedFrames + 125, 2250);
-/** A video may run a quarter past its selection, never past 90 s; the charge stays within the selection's quote (owner, 2026-10-07, #529). */
+/** A video is planned within a quarter past its selection, at most 90 s; the charge stays within the selection's quote. */
 export const facelessMaxOutputFrames = (selectedFrames: number) => Math.min(Math.floor(selectedFrames * 1.25), 2250);
-/** Pictures a public run may generate, the opener's first frame included (docs/70, clipwright#519). */
+/** The most characters one narration speaks, and a pace below every voice's: the slowest measured one reads 13.87 a second. */
+export const FACELESS_SPEECH_MAX_CHARACTERS = 2500;
+export const FACELESS_SLOWEST_CHARACTERS_PER_SECOND = 13;
+/** A narration longer than its plan is delivered at its length: the longest one at that pace, a 5 s lead, whole seconds. */
+export const FACELESS_MAX_OUTPUT_FRAMES = Math.ceil(FACELESS_SPEECH_MAX_CHARACTERS / FACELESS_SLOWEST_CHARACTERS_PER_SECOND + 5) * 25;
+/** Pictures a public run may generate, the opener's first frame included. */
 export const FACELESS_PUBLIC_MAX_GENERATED_IMAGES = 31;
-/** One picture per two selected seconds plus four, never past the runtime's ceiling: the worker's beat limit and the admission cap read it. */
+/** One picture per two selected seconds plus four, never past the runtime's ceiling: the run's beat limit and the admission cap read it. */
 export const facelessMaxGeneratedImages = (selectedFrames: number, imageCeiling = Infinity) =>
   Math.min(imageCeiling, Math.floor(selectedFrames / 50) + 4);
 
@@ -34,14 +39,16 @@ export const facelessQuote = z.object({
   imageCredits: z.number().int().nonnegative().optional(),
 }).strict();
 export type FacelessQuote = z.infer<typeof facelessQuote>;
+/** A run's bill names the delivered frames, which may pass the selection; its total stays within the quote. */
+export const facelessRunBilling = facelessQuote.extend({ outputFrames: z.number().int().min(FACELESS_MIN_OUTPUT_FRAMES).max(FACELESS_MAX_OUTPUT_FRAMES) }).strict();
 
 /** The legacy tariff's numbers: base credits per 1500 frames (a minute at 25 fps), the base's floor, and the opening clip. */
 export const FACELESS_LEGACY_CREDITS_PER_1500_FRAMES = 180;
 export const FACELESS_LEGACY_MIN_BASE_CREDITS = 200;
 export const FACELESS_LEGACY_OPENER_CREDITS = 150;
 
-/** The parts tariff (owner, 29.10, #800), ×2.5 over the S0 costs: a generated picture ($0.0218), the opening clip ($0.162), */
-/** and every second of the video for story, voice, checks and render ($0.0028 a second), at least 50 for a delivered video. */
+/** The parts tariff: a generated picture, the opening clip, */
+/** and every second of the video for story, voice, checks and render, at least 50 for a delivered video. */
 export const FACELESS_IMAGE_CREDITS = 7;
 export const FACELESS_OPENER_CREDITS = 49;
 export const FACELESS_CREDITS_PER_1500_FRAMES = PRODUCTION_CREDITS_PER_SECOND * 60;

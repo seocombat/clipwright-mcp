@@ -1,7 +1,7 @@
 import { compositionReasons, defineWorkflowMethod, nativeQa, verticalOutput } from './shared.js';
 
 export const kineticLaunch = defineWorkflowMethod({
-    id: 'kinetic-launch', version: 1, content_digest: 'a05f94e129e64c7f16bbc9e638c9aebfbfe6c62e74b1b41a150e4a0197557063', authoring_status: 'ready', title: 'Launch a message with exact moving text',
+    id: 'kinetic-launch', version: 1, content_digest: '6a07f42e0a0eea8af2dad07eb8dbe60514147f7383309b5387105f9954b2c4c2', authoring_status: 'ready', title: 'Launch a message with exact moving text',
     purpose: 'Build a concise launch from accepted copy, selected narration and deliberate text emphasis, with one closing CTA.',
     required_inputs: ['audience', 'message', 'script'], required_features: ['exact_script', 'authored_scenes', 'accepted_word_clock'],
     script_rules: { structure: ['announcement', 'text_emphasis', 'brand', 'end_card'], instructions: [

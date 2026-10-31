@@ -2,6 +2,7 @@
 /** prints the "what costs money" list from here. */
 import { ASSET_BYTES_PATH, ASSET_ITEM_PATH, ASSETS_PATH } from "./assets.js";
 import { ACTOR_DEFAULTS_PATH } from "./broll-policy.js";
+import { FEEDBACK_PATH } from "./feedback.js";
 import { GENERATION_MODELS_PATH } from "./generations.js";
 import { PRICES_PATH } from "./prices.js";
 import { REFERENCE_ANALYSES_PATH, REFERENCE_ANALYSIS_PATH, REFERENCE_ANALYSIS_QUOTE_PATH } from "./reference-analysis.js";
@@ -17,7 +18,7 @@ export const WORKFLOW_REVISIONS_PATH = "/v1/workflow-plans/:id/revisions";
 export const WORKFLOW_APPROVE_PATH = "/v1/workflow-plans/:id/approve";
 export const WORKFLOW_QUOTE_PATH = "/v1/workflow-plans/:id/quote";
 export const WORKFLOW_RUN_PATH = "/v1/workflow-plans/:id/run";
-/** The OpenAPI 3.1 document, built from this registry and served without a key (owner decision 2026-10-26). */
+/** The OpenAPI 3.1 document, built from this registry and served without a key. */
 export const OPENAPI_PATH = "/openapi.json";
 
 export interface ApiEndpoint {
@@ -96,6 +97,8 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "POST", path: REFERENCE_ANALYSIS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: REFERENCE_ANALYSES_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "GET", path: REFERENCE_ANALYSIS_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
+  // Feedback from an agent (#941): free, with its own hourly cap in the handler.
+  { method: "POST", path: FEEDBACK_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
 ];
 
 /** `GET /v1/runs/{id}`: the human notation, with the parameter in curly braces. */

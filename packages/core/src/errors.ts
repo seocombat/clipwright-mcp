@@ -119,7 +119,7 @@ export function accountNotAdmittedBody(): AccountNotAdmittedError {
       code: "account_not_admitted",
       message:
         "This account is not admitted to the beta. Nothing was charged and no run was created. " +
-        "Ask the operator about this account; retrying will not change the answer.",
+        "Contact support about this account; retrying will not change the answer.",
     },
   });
 }
@@ -289,7 +289,7 @@ export function runNotEditableBody(args: { runId: string; state: string; reason:
   });
 }
 
-/** Paid edits are closed: the flag is off, or a ceiling the owner sets is not set yet. */
+/** Paid edits are closed: the flag is off, or a ceiling is not set yet. */
 export const editingDisabledError = z.object({
   error: z.object({
     code: z.literal("editing_disabled"),
@@ -413,6 +413,7 @@ const BARE_ERROR_CODES = [
   "asset_not_ready",
   "assets_disabled",
   "editing_window_not_set",
+  "feedback_limited",
   "generations_disabled",
   "generations_marking_pending",
   "idempotency_key_required",
@@ -432,8 +433,10 @@ const BARE_ERROR_CODES = [
   "reference_analysis_not_found",
   "reference_not_analyzable",
   "reference_not_usable",
+  "reference_url_unsupported",
   "revision_needs_generated_unit",
   "rights_not_confirmed",
+  "run_not_found",
   "source_aspect_mismatch",
   "source_not_usable",
   "unauthorized",

@@ -46,7 +46,7 @@ const composeRunWarnings = (stored: unknown, input: unknown, preflight: unknown,
 describe("the speech model is a preset property", () => {
   it.each([4999, 5000])("accepts %i Russian characters beyond the old word ceiling", (length) => {
     const script = "слово ".repeat(834).slice(0, length);
-    const result = makeUgcInput.safeParse({ script, voice: "owner_ru_clone" });
+    const result = makeUgcInput.safeParse({ script, voice: "daria_ru_female" });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.script).toBe(script);
   });
@@ -54,7 +54,7 @@ describe("the speech model is a preset property", () => {
   it("reports the selected model, actual length and ceiling before synthesis", () => {
     const result = makeUgcInput.safeParse({
       script: "слово ".repeat(834).slice(0, 5001),
-      voice: "owner_ru_clone",
+      voice: "daria_ru_female",
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -66,7 +66,7 @@ describe("the speech model is a preset property", () => {
 
   it("honors the explicit model override and raw voice model for long scripts", () => {
     const script = "слово ".repeat(1000);
-    expect(makeUgcInput.safeParse({ script, voice: "owner_ru_clone", tts_model: "eleven_flash_v2_5" }).success).toBe(true);
+    expect(makeUgcInput.safeParse({ script, voice: "daria_ru_female", tts_model: "eleven_flash_v2_5" }).success).toBe(true);
     expect(makeUgcInput.safeParse({ script, voice_id: "rawVoiceId123456", tts_model: "eleven_turbo_v2_5" }).success).toBe(true);
     expect(makeUgcInput.safeParse({ script, voice_id: "rawVoiceId123456" }).success).toBe(false);
   });
@@ -100,7 +100,7 @@ describe("the speech model is a preset property", () => {
   it("eleven_v4 holds its 5000-character ceiling on the text sent, break tags cut", () => {
     const words = "слово ".repeat(834);
     expect(makeUgcInput.safeParse({ script: words.slice(0, 5000), tts_model: "eleven_v4" }).success).toBe(true);
-    const over = makeUgcInput.safeParse({ script: words.slice(0, 5001), voice: "owner_ru_clone", tts_model: "eleven_v4" });
+    const over = makeUgcInput.safeParse({ script: words.slice(0, 5001), voice: "daria_ru_female", tts_model: "eleven_v4" });
     expect(over.success).toBe(false);
     if (!over.success) {
       expect(over.error.issues[0]?.message).toMatch(/^script has 5001 characters; eleven_v4 allows at most 5000/);
@@ -141,7 +141,7 @@ describe("the speech model is a preset property", () => {
       expect(voiceCatalogEntry.safeParse({ name, ...preset }).success, name).toBe(true);
     }
     expect(Object.entries(VOICE_PRESETS).filter(([, preset]) => preset.language === "ru").map(([name]) => name))
-      .toEqual(["owner_ru_clone", "daria_ru_female"]);
+      .toEqual(["daria_ru_female"]);
   });
 
   it("eleven_multilingual_v2 is removed from the contract", () => {
@@ -151,7 +151,7 @@ describe("the speech model is a preset property", () => {
 
   // Mutant: the preset or the script read before the explicit field fails the first block.
   it("resolveTtsModel: an explicit field beats the preset, the slug and the script", () => {
-    expect(resolveTtsModel({ voice: "owner_ru_clone", tts_model: "eleven_flash_v2_5", script: RUSSIAN })).toBe("eleven_flash_v2_5");
+    expect(resolveTtsModel({ voice: "daria_ru_female", tts_model: "eleven_flash_v2_5", script: RUSSIAN })).toBe("eleven_flash_v2_5");
     expect(resolveTtsModel({ voice: "ru_female_any_catalog_slug", tts_model: "eleven_turbo_v2_5", script: RUSSIAN })).toBe("eleven_turbo_v2_5");
     expect(resolveTtsModel({ voice_id: RAW_VOICE_ID, tts_model: "eleven_turbo_v2_5", script: ENGLISH })).toBe("eleven_turbo_v2_5");
   });
@@ -159,13 +159,13 @@ describe("the speech model is a preset property", () => {
   /** Mutant: return a named eleven_v3 as is, and a retired model reaches the vendor (owner, 2026-10-25). */
   it("resolveTtsModel: a named eleven_v3 is served on eleven_v4, whatever the voice and the script", () => {
     expect(RETIRED_TTS_MODELS).toEqual({ eleven_v3: "eleven_v4" });
-    for (const voice of [{ voice: "owner_ru_clone" }, { voice: "george" }, { voice: "es_female_any" }, { voice_id: RAW_VOICE_ID }]) {
+    for (const voice of [{ voice: "daria_ru_female" }, { voice: "george" }, { voice: "es_female_any" }, { voice_id: RAW_VOICE_ID }]) {
       expect(resolveTtsModel({ ...voice, tts_model: "eleven_v3", script: RUSSIAN }), JSON.stringify(voice)).toBe("eleven_v4");
     }
   });
 
   it("resolveTtsModel: a preset speaks its own model whatever the script", () => {
-    expect(resolveTtsModel({ voice: "owner_ru_clone", script: ENGLISH })).toBe("eleven_v4");
+    expect(resolveTtsModel({ voice: "daria_ru_female", script: ENGLISH })).toBe("eleven_v4");
     expect(resolveTtsModel({ voice: "daria_ru_female", script: RUSSIAN })).toBe("eleven_v4");
     for (const voice of ["george", "sarah", "eric"]) {
       expect(resolveTtsModel({ voice, script: RUSSIAN }), voice).toBe("eleven_v4");
@@ -195,7 +195,7 @@ describe("the speech model is a preset property", () => {
   it("resolveTtsModel takes the voice model by actor gender; an explicit voice beats gender", () => {
     expect(resolveTtsModel({ script: RUSSIAN }, "female")).toBe(VOICE_PRESETS.sarah.model);
     expect(resolveTtsModel({ script: RUSSIAN }, "male")).toBe(VOICE_PRESETS.george.model);
-    expect(resolveTtsModel({ voice: "owner_ru_clone", script: ENGLISH }, "female")).toBe(VOICE_PRESETS.owner_ru_clone.model);
+    expect(resolveTtsModel({ voice: "daria_ru_female", script: ENGLISH }, "male")).toBe(VOICE_PRESETS.daria_ru_female.model);
     expect(resolveTtsModel({ voice_id: RAW_VOICE_ID, script: ENGLISH }, "female")).toBe(DEFAULT_TTS_MODEL);
   });
 
@@ -217,7 +217,7 @@ describe("the speech model is a preset property", () => {
     expect(longScript.length).toBeLessThanOrEqual(TTS_MODEL_CHAR_CAP.eleven_flash_v2_5);
     expect(makeUgcInput.safeParse({ script: longScript, voice: "george" }).success).toBe(false);
     expect(makeUgcInput.safeParse({ script: longScript, voice: "george", tts_model: "eleven_flash_v2_5" }).success).toBe(true);
-    expect(makeUgcInput.safeParse({ script: longScript, voice: "owner_ru_clone" }).success).toBe(false);
+    expect(makeUgcInput.safeParse({ script: longScript, voice: "daria_ru_female" }).success).toBe(false);
   });
 
   it("tts_model is offered in tools/list with a description naming every model and the cheaper option", () => {
@@ -242,7 +242,7 @@ describe("the speech model is a preset property", () => {
       { script: tag, tts_model: "eleven_v4" },
       { script: tag, tts_model: "eleven_v3" },
       { script: tag },
-      { script: ` ${tag} ${tag}\n`, voice: "owner_ru_clone" },
+      { script: ` ${tag} ${tag}\n`, voice: "daria_ru_female" },
       { segments: [{ kind: "actor", script: "Привет, это первая реплика" }, { kind: "actor", script: tag }], voice: "daria_ru_female" },
     ]) {
       const result = makeUgcInput.safeParse(input);
@@ -347,18 +347,18 @@ describe("break tags on a model that gives no pause for them", () => {
   );
 
   it("quote and the run name the cut tag on eleven_v4, and only there", () => {
-    const warnings = buildSpeechModelWarnings({ voice: "owner_ru_clone", tts_model: "eleven_v4", script: TAGGED });
+    const warnings = buildSpeechModelWarnings({ voice: "daria_ru_female", tts_model: "eleven_v4", script: TAGGED });
     expect(warnings).toEqual([
       "break tags in the script are not sent to eleven_v4: the model gives no pause for them, so they are cut from the text",
     ]);
-    expect(composeRunWarnings([], { script: TAGGED, voice: "owner_ru_clone", tts_model: "eleven_v4" }, {}, "make_ugc"))
+    expect(composeRunWarnings([], { script: TAGGED, voice: "daria_ru_female", tts_model: "eleven_v4" }, {}, "make_ugc"))
       .toEqual(expect.arrayContaining(warnings));
-    expect(buildSpeechModelWarnings({ voice: "owner_ru_clone", script: TAGGED })).toEqual(warnings);
+    expect(buildSpeechModelWarnings({ voice: "daria_ru_female", script: TAGGED })).toEqual(warnings);
     // Mutant: keep the default on eleven_v3, and the default path gives no break-tag warning (owner, 2026-10-25).
     expect(buildSpeechModelWarnings({ script: TAGGED })).toEqual(warnings);
     expect(buildSpeechModelWarnings({ voice: "george", script: TAGGED })).toEqual(warnings);
     expect(composeRunWarnings([], { script: TAGGED, resolved_tts_model: "eleven_v4" }, {}, "make_ugc")).toEqual(expect.arrayContaining(warnings));
-    expect(buildSpeechModelWarnings({ voice: "owner_ru_clone", tts_model: "eleven_v3", script: TAGGED })).toEqual([RETIRED_V3, ...warnings]);
+    expect(buildSpeechModelWarnings({ voice: "daria_ru_female", tts_model: "eleven_v3", script: TAGGED })).toEqual([RETIRED_V3, ...warnings]);
     expect(buildSpeechModelWarnings({ tts_model: "eleven_flash_v2_5", script: "one <break time=\"1s\" /> two" })).toEqual([]);
   });
 
@@ -373,7 +373,7 @@ describe("speech model warnings", () => {
     expect(buildSpeechModelWarnings({ script: `пото${MARK}м зАмок` })).toEqual([]);
     expect(buildSpeechModelWarnings({ voice: "daria_ru_female", script: "потОм" })).toEqual([]);
     // Mutant: drop the substitution warning, and a client naming eleven_v3 gets eleven_v4 in silence (rule 3).
-    expect(buildSpeechModelWarnings({ voice: "owner_ru_clone", tts_model: "eleven_v3", script: `пото${MARK}м зАмок` })).toEqual([RETIRED_V3]);
+    expect(buildSpeechModelWarnings({ voice: "daria_ru_female", tts_model: "eleven_v3", script: `пото${MARK}м зАмок` })).toEqual([RETIRED_V3]);
     expect(buildSpeechModelWarnings({ voice_id: RAW_VOICE_ID, script: `пото${MARK}м зАмок` })).toEqual([]);
   });
 
@@ -476,7 +476,7 @@ describe("gemini-3.8-flash-tts: its own voices and no word timings (clipwright#4
     for (const input of [
       { script: RUSSIAN },
       { script: ENGLISH },
-      { voice: "owner_ru_clone", script: RUSSIAN },
+      { voice: "daria_ru_female", script: RUSSIAN },
       { voice: "ru_female_any_catalog_slug", script: RUSSIAN },
       { voice_id: RAW_VOICE_ID, script: RUSSIAN },
     ]) {

@@ -7,7 +7,7 @@ export const nativeLimitations = ['Planning, validation and approval create no p
 export const nativeQa = ['Keep the exact accepted script, numbers, required terms and pronunciation.',
     'Check delivery, actual geometry and duration separately from human creative acceptance.'];
 export const compositionReasons = [
-    { kind: 'composition_not_qualified', path: 'binding', message: 'The composition executor and this output profile have not been qualified.' },
-    { kind: 'tariff_not_chosen', path: 'binding', message: 'The owner has not selected a composition tariff. This method supports planning only.' },
+    { kind: 'composition_not_qualified', path: 'binding', message: 'Rendering with this method is not available yet.' },
+    { kind: 'tariff_not_chosen', path: 'binding', message: 'This method has no price yet. You can plan with it, but not run it.' },
 ];
 export function defineWorkflowMethod(value: MethodDescriptorArgs) { return methodDescriptor.parse(value); }

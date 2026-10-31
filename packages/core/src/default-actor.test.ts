@@ -49,9 +49,7 @@ describe("actorForInput — we stay silent about someone else's face", () => {
 });
 
 describe("voices and actor share one type", () => {
-  // The pair it was all for: the owner's voice on the product's actor.
-  it("the owner's clone matches the actor, the female presets do not", () => {
-    expect(VOICE_PRESETS.owner_ru_clone.gender).toBe(DEFAULT_ACTOR_GENDER);
+  it("the male preset matches the actor, the female presets do not", () => {
     expect(VOICE_PRESETS.george.gender).toBe(DEFAULT_ACTOR_GENDER);
     expect(VOICE_PRESETS.sarah.gender).not.toBe(DEFAULT_ACTOR_GENDER);
     expect(VOICE_PRESETS.daria_ru_female.gender).not.toBe(DEFAULT_ACTOR_GENDER);

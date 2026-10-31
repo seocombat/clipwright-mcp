@@ -83,7 +83,7 @@ describe("FACELESS_VOICES — the listed set", () => {
 
   it("the module names no vendor: only our names, languages and descriptions", () => {
     const source = readFileSync(fileURLToPath(new URL("./faceless-voices.ts", import.meta.url)), "utf8");
-    expect(source).not.toMatch(/minimax/i);
+    expect(source).not.toMatch(/minimax|elevenlabs|eleven_/i);
     // A vendor system voice id is `Language_Name`: a capitalized language, then an underscore.
     expect(source.match(/\b[A-Z][a-z]+_[A-Za-z]/g) ?? []).toEqual([]);
   });
@@ -136,7 +136,7 @@ describe("serverFacelessInput — the voice name is checked before any charge", 
 
   it("refuses a make_ugc voice of every kind, naming the skill it belongs to", () => {
     const voices = [...VOICE_CATALOG.voices, RETIRED];
-    for (const voice of ["george", "owner_ru_clone", "kore", LIVE_SLUG, RETIRED.slug]) {
+    for (const voice of ["george", "daria_ru_female", "kore", LIVE_SLUG, RETIRED.slug]) {
       expect(facelessVoiceRefusal(voice, voices), voice).toBe(
         `voice "${voice}" is a make_ugc voice and make_faceless does not speak it: ` +
           "choose a voice from list_voices with skill=make_faceless, or omit voice for the default voice",
@@ -253,7 +253,7 @@ describe("buildFacelessVoiceWarnings", () => {
 
   it("is one line that names no vendor and no model", () => {
     const [line] = buildFacelessVoiceWarnings({ voice: russian, brief: latin });
-    expect(line).not.toMatch(/\n|minimax|speech-|narrator-v1|model/i);
+    expect(line).not.toMatch(/\n|minimax|elevenlabs|eleven_|speech-|narrator-v1|model/i);
   });
 
   it("is silent when the alphabets agree, when the text has no letters to judge, and without a text", () => {

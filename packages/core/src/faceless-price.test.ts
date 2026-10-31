@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { FACELESS_MIN_OUTPUT_FRAMES, FACELESS_PUBLIC_MAX_GENERATED_IMAGES, facelessMaxEstimateFrames, facelessMaxGeneratedImages,
-  facelessMaxOutputFrames, facelessQuote, quoteFaceless } from "./faceless-price.js";
+import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_PUBLIC_MAX_GENERATED_IMAGES, FACELESS_SLOWEST_CHARACTERS_PER_SECOND,
+  FACELESS_SPEECH_MAX_CHARACTERS, facelessMaxEstimateFrames, facelessMaxGeneratedImages, facelessMaxOutputFrames, facelessQuote,
+  quoteFaceless } from "./faceless-price.js";
 import { facelessPlannerInput } from "./faceless-public.js";
 import { run } from "./runs.js";
 
@@ -32,6 +33,23 @@ describe("faceless length ceilings", () => {
     [2250, 2250, 2250]])("a selection of %i frames delivers up to %i and admits an estimate up to %i", (selected, output, estimate) => {
     expect(facelessMaxOutputFrames(selected)).toBe(output);
     expect(facelessMaxEstimateFrames(selected)).toBe(estimate);
+  });
+
+  // A paid take past the quarter is delivered at its length (owner, 2026-10-31): 2500 characters at 13 a second plus a 5 s lead.
+  it("delivers up to 198 s, and the run's bill may name it while a quote stays on the selection", () => {
+    expect(FACELESS_SPEECH_MAX_CHARACTERS / FACELESS_SLOWEST_CHARACTERS_PER_SECOND + 5).toBeCloseTo(197.31, 2);
+    expect(FACELESS_MAX_OUTPUT_FRAMES).toBe(4950);
+    const quote = quoteFaceless({ outputFrames: 2250, captions: true });
+    expect(() => quoteFaceless({ outputFrames: 2251, captions: true })).toThrow();
+    expect(facelessQuote.safeParse({ ...quote, outputFrames: 2251 }).success).toBe(false);
+    const finished = { run_id: "run_abc", skill: "make_faceless", state: "succeeded", credits_reserved: 356, credits_charged: 356,
+      warnings: [], error: null, final_output: { video_url: "https://example.com/video.mp4", duration_seconds: 198,
+        ai_generated: true, ai_disclosure: "AI-generated video" }, created_at: "2026-10-31T10:00:00Z", finished_at: "2026-10-31T10:05:00Z" };
+    for (const [outputFrames, parses] of [[4950, true], [4951, false]] as const) {
+      expect(run.safeParse({ ...finished, faceless_billing: { ...quote, outputFrames } }).success).toBe(parses);
+      const planner = { script: "one two", outputFrames, captions: true, words: [{ word: "one", startSec: 0, endSec: .4 }] };
+      expect(facelessPlannerInput.safeParse(planner).success).toBe(parses);
+    }
   });
 });
 

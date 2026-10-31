@@ -46,16 +46,18 @@ describe('reference profile in the plan document (S1b)', () => {
         expect(requestHash(changed)).not.toBe(requestHash(document));
         expect(requestHash({ ...document, brief: bare })).not.toBe(requestHash(document));
     });
-    /** Mutant: copy the profile whole, and a client's profile carries the reference's speech and labels into our database (C6). */
-    it('does not keep the reference\'s speech or on-screen text in the saved plan', () => {
-        const dirty = structuredClone(PROFILE);
+    /** Mutant: copy the profile whole, and the plan carries the reference's speech, labels and transcript (#930) into a remake that copies none of it. */
+    it('does not keep the reference\'s speech, transcript, hook or on-screen text in the saved plan', () => {
+        const dirty = structuredClone(PROFILE) as typeof PROFILE & { transcript?: unknown[]; hook?: unknown };
         dirty.beats[0].spoken_summary = 'ZQXSPOKEN verbatim line';
         for (const beat of dirty.beats) for (const graphic of beat.graphics) graphic.label_hint = 'ZQXLABEL on screen';
+        dirty.transcript = [{ text: 'ZQXWORD', start_s: 0.1, end_s: 0.4, speaker: 'speaker_0' }];
+        dirty.hook = { text: 'ZQXHOOK line', end_s: 0.4, caption: 'ZQXCAPTION' };
         const result = compileReferenceRemake({ ...request(), reference_profile: dirty }, capabilities());
         if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
         const saved = JSON.stringify(result.document);
-        expect(saved).not.toContain('ZQXSPOKEN');
-        expect(saved).not.toContain('ZQXLABEL');
+        for (const marker of ['ZQXSPOKEN', 'ZQXLABEL', 'ZQXWORD', 'ZQXHOOK', 'ZQXCAPTION']) expect(saved).not.toContain(marker);
+        expect(result.document.brief.reference_profile).not.toHaveProperty('transcript');
     });
     it('names the English card text when the script is not Latin', () => {
         const russian = 'Каждый пропущенный звонок — потерянная сделка. Ваш секретарь спит, берёт перерывы и иногда раздражается. Этот — нет. ' +
@@ -317,7 +319,7 @@ describe('every gap the compiler leaves is named in the plan (rule 3)', () => {
         ['156 second media layer', [beat({ graphics: [graphic('overlay_media'), graphic('insert_media')] })], { assets: images }, ['long_form'], 'one media layer per beat', 'first one shows'],
         ['157 no media left', [beat({ graphics: [graphic('overlay_media')] })], {}, ['long_form'], 'no image or video left in assets', 'generate_image'],
         ['158 media without long form', [beat({ graphics: [graphic('overlay_media')] })], { assets: images }, [], 'media layers need long-form qualification', 'stays on screen'],
-        ['168 templates off', [beat({ graphics: [graphic('stat')] })], { script: NUMBERS }, [], 'templates are disabled on this deployment', 'without it', 'rejected'],
+        ['168 templates off', [beat({ graphics: [graphic('stat')] })], { script: NUMBERS }, [], 'templates are not available right now', 'without it', 'rejected'],
         ['169 second graphic', [beat({ graphics: [graphic('stat'), graphic('quote')] })], { script: NUMBERS }, [], 'quote (one graphic per beat)', 'the stat on these words'],
         ['171 callout', [beat({ graphics: [graphic('callout')] })], {}, [], 'it needs a point on screen to mark', 'without it'],
         ['171 lower_third', [beat({ graphics: [graphic('lower_third')] })], {}, [], 'it needs a name and a role', 'without it'],
@@ -980,6 +982,14 @@ describe('the remake places the call phone by the reference\'s measured staging 
         expect(notes(missing)).toContain('6: the call phone\'s place (reference staging did not measure it) → the reference call scene\'s place: default used');
         const checklist = plan(ganesh(staging => { staging.elements.push({ ...structuredClone(STAGING.elements[0]), id: 'list', beat_index: 4, graphic_index: 0, kind: 'toggle_checklist' }); }));
         expect(notes(checklist)).toContain('4: checklist: its measured place and entry (reference staging) → its default place; measured staging is drawn for the call\'s phone only');
+        // Mutant (#930 S2): call every staged box measured, and an element only the vision pass saw is claimed as measured.
+        const seen = plan(ganesh(staging => { staging.elements.push({ id: 'list', beat_index: 4, graphic_index: 0, kind: 'toggle_checklist', rect_method: 'vision-video',
+            rect_hold: { left: 0.1, top: 0.1, width: 0.3, height: 0.3 } }); }));
+        expect(notes(seen)).toContain('4: checklist: its vision-pass place and entry (reference staging) → its default place; measured staging is drawn for the call\'s phone only');
+        // Mutant (Codex 930-s2 r1): match vision-video only, and a still-grounded box the budget left unmeasured is called measured.
+        const still = plan(ganesh(staging => { staging.elements.push({ id: 'list', beat_index: 4, graphic_index: 0, kind: 'toggle_checklist', rect_method: 'vision-still',
+            rect_hold: { left: 0.1, top: 0.1, width: 0.3, height: 0.3 } }); }));
+        expect(notes(still)).toContain('4: checklist: its vision-pass place and entry (reference staging) → its default place; measured staging is drawn for the call\'s phone only');
         const noCall = notes(plan(ganesh(), {}));
         expect(noCall).toContain('6: phone_call: its measured place and entry (reference staging) → its default place; measured staging is drawn for the call\'s phone only');
     });

@@ -18,6 +18,71 @@ listed under.
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-31
+
+### Added
+
+- `send_feedback`, `POST /v1/feedback`, SDK `sendFeedback()` and `clipwright feedback`: tell us what is missing,
+  confusing, wrong or slow, optionally about a run of the account (#941). We read every one. Free. The same kind,
+  text and run within 24 hours answer the same `feedback_id`; an account sends up to 20 an hour, and past that the
+  answer is 429 `feedback_limited` with `Retry-After`. A run of another account answers 404 `run_not_found`.
+- `analyze_reference` and `quote_analysis` take `source_url` instead of `asset_id`: a link to an Instagram reel or
+  post, or to a TikTok video (#930, #863). The start makes an analysis-only asset of the account from the reel
+  (`source_type: "post"`) and answers its `asset_id`. A succeeded analysis by link carries `source`: the post's views,
+  likes, comments and views per hour, the author's median views within ±30 days with the ratio to it, up to ten top
+  comments without handles, and the code words commenters repeat. A number the platform does not give is `null` and
+  named in `warnings`. The same reel by its full link answers its live analysis for free; a short `vm.tiktok.com`
+  link always starts a new one. A YouTube link or any other host answers 400 `reference_url_unsupported` before any
+  credits are held. The price is unchanged. `quote_analysis` answers `asset_id: null` for a link with no live
+  analysis yet, and an analysis started from an asset answers `source: null`.
+- An analysis by link carries `source.author_recent` next to `source.author_median`: the median views of the author's
+  12 latest reels, the post excluded, with the ratio to it and its window named, `null` with a warning when unknown (#930).
+- `analyze_reference` and `quote_analysis` take `mode`: `"full"` (the default, 70 credits) or `"data"` (10 credits),
+  for an `asset_id` or a `source_url` alike (#930, #927). A data analysis skips the vision pass: its answer has
+  `reference_profile: null` and `data` with the duration, size and fps, the timed transcript, the hook and a 3×3 frame
+  sheet, one JPEG link signed for 7 days on each read. A reel with no speech succeeds with an empty transcript, `hook:
+  null` and a warning. A failed data analysis costs nothing. Data analyses have their own cap of 60 per hour; a live
+  analysis answers a start of the same input in the same mode only. The answer also names its `mode`; a full analysis
+  answers `data: null`.
+- *Dashboard:* /skill.md serves the MCP server's SKILL.md on the public site, the operating guide an agent reads
+  before its first paid call (#939).
+- A reference analysis keeps the reference's words (#930). `reference_profile` gains two optional fields:
+  `transcript`, the speech as timed words with the speaker, and `hook`, the words of the first 3 s carried to the
+  end of their sentence (no word past 6 s). Each beat's `spoken_summary` holds the words spoken in it, and each
+  graphic's `label_hint` holds what the vision pass saw on it; both were empty before. A profile stored earlier
+  still parses.
+- Five graphic source kinds name what an analysis used to call `other`: `banner` (drawn as a tag), `logo_card`
+  (a title card), `price_card` (a stat), `concept_card` (media over the presenter) and `comment_box` (a tag with
+  the word to comment) (#930).
+- A reference analysis's `staging` lists every element the vision pass found, up to 40; before, it stopped at 12
+  (#930). The 12 longest on screen are measured as before; the rest keep the vision pass's box and times, each
+  marked `vision-video`. An element the time budget never reached, or one CV could not track, keeps those times too.
+
+### Changed
+
+- The packages no longer ship a `CHANGELOG.md`. This changelog lives at
+  [clipwright.io/changelog](https://clipwright.io/changelog), and each package README links to it.
+- *Server-side:* `make_faceless` narration voices sound different: each `narrator_*` name keeps its language and
+  gender, but a new voice reads it. Three descriptions in `list_voices` changed to fit: `narrator_en_storyteller`,
+  `narrator_ru_ambitious_woman` and `narrator_ru_bright_queen`. A narration written from a brief is sized to the
+  chosen voice's pace.
+- *Server-side:* a `make_faceless` narration longer than `duration_seconds` loses its long pauses first. If it still
+  runs past a quarter over `duration_seconds` (or past 90 seconds), the video runs to the narration's end instead of
+  failing, and `warnings[]` names both lengths. The charge never exceeds the quote. `faceless_billing.outputFrames`
+  of such a run may exceed 2250; a quote's stays within the selection.
+- *Dashboard:* /llms.txt tells an agent what to do, not only what exists (#939): setup by where the agent runs, the
+  first message to the human after setup, how often to check a run (from measured run times), what each refusal
+  charged, and a cost report after every paid call. The refusal table on /docs gains a Charged column.
+- Tool descriptions, refusals and warnings say what happens to your run and what to do next (#953). A feature
+  that is off answers "not available right now"; a clip of another size or length warns "the clip came back 14.8s
+  instead of 15s". Error codes, prices and the `list_generation_models` answer do not change.
+- `SKILL.md` in `@clipwright/mcp-server`, also served at /skill.md, is now a map of traps: answers that are wrong
+  without an error, each with the date it was checked (#940). Among them: an omitted `aspect_ratio` follows the
+  photo's shape, `person` chooses no face, and `make_faceless` without `voice` narrates in English. Field and
+  endpoint reference lives in `tools/list`, /docs and /openapi.json. The Claude plugin skill now says that
+  `analyze_reference` takes an Instagram or TikTok link, and points to the traps. `get_run` in the MCP server now
+  returns a shot candidate's `candidate` block with its `preview_url`, as REST does.
+
 ## [0.35.0] - 2026-10-30
 
 ### Changed
@@ -38,14 +103,13 @@ listed under.
 - *Server-side:* `analyze_reference` costs 70 credits (#927): held at the start and charged once the analysis
   succeeds; a failed analysis costs nothing, and starting it again on the same asset answers the same analysis for
   free. The analysis carries `credits_reserved`, `credits_charged` and `balance_after_credits`.
-- *Server-side:* single generations are priced at ×2.5 of their cheapest route instead of ×2: an image from 6 credits,
-  a clip from 6 credits a second. `seedance-2.0-mini` is rendered by one route only.
+- *Server-side:* single generations are repriced: an image from 6 credits, a clip from 6 credits a second.
 - *Server-side:* `make_faceless` is priced by its parts, tariff `faceless-parts-v1` (#800): 7 credits for each picture
   we generate, the opening clip's still included, 49 for the opening clip and 1 for every second of the delivered
   video, at least 50. Your own pictures are not charged. The quote is the most a selection is charged: 212 at 30 s,
   356 at 90 s, instead of 350 and 420. `faceless_billing` names `images` and `imageCredits`; a run admitted before
   keeps its tariff.
-- *Server-side:* edits and personal actors are repriced at ×2.5 of their cost (#800): a revision's new picture 7, clip
+- *Server-side:* edits and personal actors are repriced (#800): a revision's new picture 7, clip
   49, clip with a new picture 56, render 13, and a shot candidate the same unit prices; an actor's portrait 4 and each
   other format 8 at `medium`, 12 and 18 at `high`. Runs admitted before keep their snapshot.
 
@@ -114,7 +178,7 @@ listed under.
 - `create_actor` takes `from_actor_id` with `framing: "wide"`, `holding` (one or two objects, each with words, an
   optional image asset of the object and a hand) or `setting`: it derives a new personal actor from a library actor or
   your own, with the same face checked against the source. A face that does not match costs nothing. The price is the
-  usual per-image units. *Server-side:* the fields are open only where `CLIPWRIGHT_ACTOR_VIEWS` is on; elsewhere they
+  usual per-image units. *Server-side:* the fields are open only where the server switches them on; elsewhere they
   are refused 400 `rejected_field`. A wide derived actor's 9:16 is listed with `framing: "wide"`, and `make_ugc`
   renders it as a wide view. `@clipwright/core` exports `storedActorSource`, `storedHoldingItem`,
   `createActorDispositions`, `createActorRejectedFields` and `isActorViewsEnabled`.
@@ -138,8 +202,8 @@ listed under.
 - *Server-side:* video assets. An MP4 in h264 or hevc up to 120 seconds and 100 MB comes from an own `generate_video`
   run, a public url (`{ url, kind: "video" }`), a presigned PUT (`{ put: { media_type, bytes, sha256 } }`, also for
   pictures) or `POST /v1/assets/bytes` up to 32 MB. A url or a PUT answers `202` with `state: "processing"` or
-  `"awaiting_upload"`; the worker task `ingest-asset-media` measures frames, fps, codec and `pix_fmt` from the bytes
-  and publishes the asset, and `GET /v1/assets/{id}` says `ready` or `failed` with the reason. Clips are kept for
+  `"awaiting_upload"`; the server measures frames, fps, codec and `pix_fmt` from the bytes and publishes the asset,
+  and `GET /v1/assets/{id}` says `ready` or `failed` with the reason. Clips are kept for
   assembly and are no generation reference.
 - MCP: `create_asset` takes `put` and a url clip; on stdio a local MP4 `path` is uploaded through a PUT.
 - `generate_video` and `quote_video` take an optional `camera`: `static`, `push_in`, `pull_back` or `pan`. It
@@ -149,8 +213,8 @@ listed under.
 - New clip models: `kling-3.0` at 720p in 9:16 and 16:9, 3 to 15 seconds, and `gemini-omni-flash-1.1` at 720p in both
   formats and 360p 16:9, for 4, 6, 8 or 10 seconds. `seedance-2.5` adds 480p 9:16 and 720p 16:9.
 - *Server-side:* a clip refused for a real face in its input picture, or turned away as rate-limited before it was
-  accepted, is made by a second provider at the same quote where that row was measured there. A clip is always
-  delivered without an audio track.
+  accepted, is made again at the same quote where the format allows it. A clip is always delivered without an audio
+  track.
 - *Dashboard:* the Assets page. It lists the account's pictures and clips in a grid of small, medium or large tiles,
   with filters by role and kind, a name search and the usage of the 2,000 assets and 20 GB. A selected asset opens on
   the right: rename it, change its role, copy its `asset_id`, open the file or delete it. Pictures up to 10 MB and MP4
@@ -346,8 +410,7 @@ listed under.
   hidden watermark before delivering generated MP4/PNG/JPEG files; unverifiable required output is withheld with zero charge
   for the failed delivery. Optional `visible_ai_label` defaults to true for newly marked presenter videos, including long form;
   false hides only the visible label. Required machine marking stays enabled, and original uploads and historical files remain
-  unchanged. Public contract version: `2026-10-18`. Marking is closed and the P2 video profile remains inactive pending native
-  qualification; this entry does not announce deployment or activation.
+  unchanged. Public contract version: `2026-10-18`. This entry does not announce deployment or activation.
 - *Server-side (activation pending):* single paid generations. `generate_image` makes one image and `generate_video`
   makes one silent clip from a prompt, with optional reference images or a first frame. MCP tools: `list_generation_models`,
   `quote_image`, `generate_image`, `quote_video` and `generate_video`. SDK methods: `listGenerationModels`, `quoteImage`,
@@ -448,8 +511,8 @@ listed under.
 - A shot of a faceless video can get a candidate: one picture or clip made for that shot, to keep or discard in a
   revision. `quoteCandidate`, `createCandidate` and `listCandidates` in the SDK, `candidate-quote`, `candidate` and
   `candidates` in the CLI, and the MCP tools `quote_candidate` and `create_candidate`. The quote charges nothing. A
-  delivered candidate is charged its one unit whether it is kept or discarded; one that fails is charged nothing,
-  even when its paid work was already done. An identical request returns the same run; `take` (`--take` in the CLI)
+  delivered candidate is charged its one unit whether it is kept or discarded; one that fails is charged nothing.
+  An identical request returns the same run; `take` (`--take` in the CLI)
   makes another candidate on purpose. `candidate` prints the quote and starts nothing without `--yes`. While shot
   candidates are closed on the server, every call answers `editing_disabled`. (clipwright#604)
 
@@ -473,7 +536,7 @@ failure kinds are new: `editing_closed`, `edit_ceiling_reached` and `edit_invali
   `revise` in the CLI, and the MCP tools `quote_revision` and `revise_run`. A revision is a new run made from the
   edited document, or from shots named to be generated anew. The quote charges nothing. An identical request returns
   the same run; `attempt` (`--retry` in the CLI) starts a second revision on purpose. A revision that delivers is
-  charged its quoted total; one that fails is charged nothing, even when its paid work was already done. While paid
+  charged its quoted total; one that fails is charged nothing. While paid
   edits are closed on the server, both calls answer `editing_disabled`. (clipwright#604)
 
 ### Changed
@@ -648,15 +711,13 @@ server requires a patched `@modelcontextprotocol/sdk`.
   `FACELESS_REJECTED_FIELDS` and `offeredFacelessInput`; `@clipwright/core/voice-admission` exports
   `serverFacelessInput` and `facelessVoiceRefusal`. (clipwright#530)
 - *Server-side:* a generated picture of a faceless video can be checked before the video is assembled: for writing that
-  neither the script nor the run's `character_details` contain, and for a frame cut into several pictures. The check
-  sits behind a server switch, which was turned on after its first production run had been read; that run, of eighteen
-  pictures, took a minute and a half longer than the same video unchecked. A picture
+  neither the script nor the run's `character_details` contain, and for a frame cut into several pictures. It makes a
+  video of eighteen pictures about a minute and a half slower. A picture
   with either is drawn once more when the run has time and budget for it, and the cleaner of the two is used. What
   remains is named in `warnings[]` with the seconds it is on screen, one line for each thing found; a finding by itself
   does not fail the run. A picture whose check cannot run in its time or within the run's budget is used as it is, and
-  one `warnings[]` line says how many pictures went unchecked. The check is a paid step like the others: when its cost
-  cannot be established, the run waits for an operator. Scene pictures are also asked for no writing unless the scene
-  quotes the script, which removed invented signs and figures from 10 of 10 test pictures. A customer's own image is
+  one `warnings[]` line says how many pictures went unchecked. Scene pictures are also asked for no writing unless the
+  scene quotes the script. A customer's own image is
   not checked. Writing on a `character_reference` picture is not known to the check: a generated picture that repeats
   it is reported when the writing has a figure or more than two words. (clipwright#516, clipwright#517)
 - *Server-side:* the narration of a faceless video is delivered in two identical channels instead of one. It sounds the
@@ -683,18 +744,13 @@ server requires a patched `@modelcontextprotocol/sdk`.
   Such a picture is rare, about two in a hundred, but a video has eighteen or more, and since the pictures are made
   three at a time (clipwright#520) one slow picture was enough to hold the whole run for an operator. A picture now has
   four minutes before the run gives up on it. (clipwright#544)
-- *Server-side:* two faceless videos made at the same time are much less likely to stop for review. To record what a
-  picture cost we ask the image service, which answers only a few such questions a minute; with two videos in work it
-  refused some, and a picture with no recorded cost held the whole run for an operator. A refused question now waits
-  as long as the service asks and is put again. Under load a video can take a few minutes longer; the limit itself
-  stays, so several videos at once can still meet it. (clipwright#553)
+- *Server-side:* two faceless videos made at the same time are much less likely to stop for review. Under load a video
+  can take a few minutes longer. (clipwright#553)
 - *Server-side:* at most two faceless videos are made at once across all accounts; a third waits in the queue and
-  starts when one of them is done. Three at once asked the image service for more cost records than it answers, and
-  two of the three stopped for review. The limit per account stays at two, so one account's two videos can hold the
+  starts when one of them is done. The limit per account stays at two, so one account's two videos can hold the
   line while another account's video waits. (clipwright#553)
-- *Server-side:* the voice preset `owner_ru_clone` speaks again. The cloned voice behind it was replaced at the
-  vendor, and a run that named the preset was refused before any charge. The preset now maps to the new voice, still
-  on `eleven_v4`, and `list_voices` links a sample spoken by it. (clipwright#497)
+- *Server-side:* a Russian voice preset speaks again. A run that named it was refused before any charge. It is still
+  on `eleven_v4`, and `list_voices` links its sample. (clipwright#497)
 - *Server-side:* the delivery check of a faceless video no longer mistakes a yellow or amber picture for a caption
   fault. It refused a correct video whose picture glowed behind the captions: a lamp, a sunset, fire, gold. The check
   now compares neighbouring frames, so only yellow that moves with the spoken word counts. (clipwright#496)
@@ -782,8 +838,8 @@ Clients older than 0.22.0 fail on the new model name.
 
 ### Changed
 
-- **Breaking:** *Server-side:* Russian speech uses `eleven_v4` when you name no `tts_model`. That covers the presets
-  `owner_ru_clone` and `daria_ru_female`, the catalog voices named `ru_*`, and a raw `voice_id` whose script is mostly
+- **Breaking:** *Server-side:* Russian speech uses `eleven_v4` when you name no `tts_model`. That covers the Russian
+  presets, the catalog voices named `ru_*`, and a raw `voice_id` whose script is mostly
   Cyrillic. Every other voice stays on `eleven_v3`, and an explicit `tts_model` always wins. Clients older than 0.22.0
   read the model as one of three fixed values and fail on a response that names `eleven_v4`: `list_voices` fails
   whenever the listing holds a Russian voice, as the unfiltered one always does, and `quote` fails for those Russian
@@ -811,7 +867,7 @@ Clients older than 0.22.0 fail on the new model name.
 
 - `SKILL.md` and the CLI README no longer say that every preset and catalog voice speaks `eleven_v3`, and no longer
   advise keeping Russian scripts on `eleven_v3`. They name the voices that speak `eleven_v4` when you name no model:
-  the presets `owner_ru_clone` and `daria_ru_female`, the catalog voices named `ru_*`, and a raw `voice_id` with a
+  the Russian presets, the catalog voices named `ru_*`, and a raw `voice_id` with a
   mostly Cyrillic script. They name both models that read stress marks, `eleven_v4` and `eleven_v3`, and say that
   `eleven_v4` gives no pause for a `<break time="…" />` tag and gets the text with the tag cut. `SKILL.md` lists the
   5,000-character script limit of `eleven_v4`. The behavior is the one the entries above describe; only these texts
@@ -927,17 +983,6 @@ MCP tool description, which is where an agent reads the promise.
   it no longer says its paid job "was retained for recovery" when this run's
   terms cannot support recovery. Reading the terms fails soft: when they cannot
   be read at all, the run promises nothing either way.
-- *Server-side* A recovered delivery is written to the ledger under its own
-  reason, `run_recovered_delivery`, because the vendor spend was already counted
-  on the day the run first failed.
-
-### Operations
-
-- Migration 0036 adds `recovery_attempt` and `recovery_reopened_at` to `runs`,
-  and both are read on the main render path. **Apply the migration before
-  deploying any service**: an early deploy fails every `make_ugc` run, not one
-  feature. Order forward is migration, api, worker, web; backwards it is worker
-  and api first, then drop the columns.
 
 ## [0.18.0] - 2026-09-21
 
@@ -1311,8 +1356,8 @@ product before.
   or `MAX_SCRIPT_CHARS`. (clipwright#128)
 - *Server-side:* the refusal `daily_cap_exceeded` is no longer produced. Runs
   refused before keep it in their history. (clipwright#139)
-- *Server-side:* the refusal `global_cap_exceeded` is no longer produced. The
-  service-wide daily spend cap became an internal alert. (clipwright#141)
+- *Server-side:* the refusal `global_cap_exceeded` is no longer produced.
+  (clipwright#141)
 
 ### Changed
 
@@ -1367,7 +1412,7 @@ product before.
 
 ### Changed
 
-- *Server-side:* the `owner_ru_clone` preset speaks on `eleven_v3`. All presets
+- *Server-side:* a Russian preset speaks on `eleven_v3`. All presets
   used `eleven_multilingual_v2` before. (clipwright#101)
 
 ## [0.4.0] - 2026-08-28

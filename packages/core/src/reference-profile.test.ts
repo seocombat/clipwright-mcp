@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapAnalyserGraphic, REFERENCE_PROFILE_VERSION, referenceProfile } from "./index.js";
+import { mapAnalyserGraphic, mapAnalyserSourceKind, REFERENCE_PROFILE_VERSION, referenceProfile } from "./index.js";
 
 const beat = (start: number, end: number, extra: Record<string, unknown> = {}) => ({
   start_frac: start / 72, end_frac: end / 72, start_s: start, end_s: end, role: "demo", spoken_summary: "she answers calls", graphics: [],
@@ -66,13 +66,13 @@ describe("reference profile (reference-to-video S1)", () => {
   });
 
   it("refuses unknown fields at the top and inside", () => {
-    expect(issues({ ...profile(), transcript: "every word" })).toEqual([expect.stringMatching(/^: Unrecognized key/)]);
+    expect(issues({ ...profile(), subtitles: "every word" })).toEqual([expect.stringMatching(/^: Unrecognized key/)]);
     const nested = profile();
     (nested.beats[0] as Record<string, unknown>).spoken_text = "the reference's words";
     expect(issues(nested)).toEqual([expect.stringMatching(/^beats\.0: Unrecognized key/)]);
   });
 
-  /** Mutant: lift the cap, and the reference's transcript travels in the profile verbatim. */
+  /** Mutant: lift the cap, and a beat's summary grows into the whole transcript, which has its own field. */
   it("keeps a beat's summary to 200 characters", () => {
     const long = profile();
     long.beats[2] = beat(26, 43.5, { spoken_summary: "word ".repeat(41) });
@@ -101,5 +101,51 @@ describe("reference profile (reference-to-video S1)", () => {
     const particles = mapAnalyserGraphic("particles"), other = mapAnalyserGraphic("other"), odd = mapAnalyserGraphic("hologram");
     expect([particles.kind, other.kind, odd.kind]).toEqual(["particles", "unmapped", "unmapped"]);
     for (const mapped of [particles, other, odd]) expect(mapped.unmapped?.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the reference's words and the graphics Argon called other (#930 S1)", () => {
+  const words = [{ text: "What", start_s: 0.14, end_s: 0.26, speaker: "speaker_0" }, { text: "if", start_s: 0.32, end_s: 0.38 }];
+  const spoken = () => ({ ...profile(), transcript: words, hook: { text: "What if", end_s: 0.38, caption: "ONE SIMPLE IDEA" } });
+
+  /** Mutant: make transcript or hook required, and every analysis stored before #930 stops parsing on read. */
+  it("parses a profile stored before #930, without transcript or hook, and one that has both", () => {
+    const old = profile();
+    expect(["transcript", "hook"].filter(key => key in old)).toEqual([]);
+    expect(issues(old)).toEqual([]);
+    expect(issues(spoken())).toEqual([]);
+    expect(referenceProfile.parse(spoken()).transcript).toEqual(words);
+  });
+
+  /** Mutant: drop the word checks, and a transcript out of order or past the reel reaches the client as the reference's timing. */
+  it("refuses a word that ends before it starts, lies past the source or comes out of order, and a hook past the source", () => {
+    const at = (list: Record<string, unknown>[]) => issues({ ...spoken(), transcript: list });
+    expect(at([{ text: "x", start_s: 2, end_s: 1 }])).toEqual([expect.stringMatching(/^transcript\.0\.end_s: ends before/)]);
+    expect(at([{ text: "x", start_s: 71, end_s: 72.5 }])).toEqual([expect.stringMatching(/^transcript\.0\.end_s: .*72/)]);
+    expect(at([words[1]!, words[0]!])).toEqual([expect.stringMatching(/^transcript\.1\.start_s: /)]);
+    expect(at([{ text: "", start_s: 0, end_s: 1 }])).toEqual([expect.stringMatching(/^transcript\.0\.text: /)]);
+    expect(at(Array.from({ length: 1001 }, (_, index) => ({ text: "w", start_s: index / 20, end_s: index / 20 })))).toEqual([expect.stringMatching(/^transcript: /)]);
+    expect(issues({ ...spoken(), hook: { text: "", end_s: 73 } })).toEqual([expect.stringMatching(/^hook\.end_s: .*72/)]);
+  });
+
+  /** Mutant: read only the analyser's kind, or read a quoted on-screen line as the description, and the Ana reel's cards stay other or turn into logos. */
+  it("names an other graphic from its description, leaving quoted on-screen text out", () => {
+    expect([["other", "Blue banner 'DEVELOP THE STORY'"], ["other", "Migoo AI logo card with blue label"], ["other", "Comment input box showing 'MIGOO' and send button"],
+      ["other", "Concept card showing black earbuds case with blue label"], ["other", "Card with the price $0.067 per second"], ["speech bubble", "a bubble saying hi"],
+      ["other", "Blue banner 'NEW LOGO PRICING'"], ["other", "Migoo's logo on a white card"], ["product_ui", "Full-screen pricing card"], ["other", ""]]
+      .map(([kind, what]) => mapAnalyserSourceKind(kind!, what))).toEqual(["banner", "logo_card", "comment_box", "concept_card", "price_card", "other", "banner",
+      "logo_card", "product_ui", "other"]);
+    // Codex r1: curly quotes, and an apostrophe inside the quote, still leave the quoted line out.
+    expect(["Blue banner “NEW LOGO PRICING”", "Blue banner ‘NEW LOGO’", "Blue banner 'DON'T COMMENT'", "Blue banner \"DON'T COMMENT\"",
+      "Blue banner ‘DON’T COMMENT’", "Migoo's logo card with 'BLUE BANNER'"].map(what => mapAnalyserSourceKind("other", what)))
+      .toEqual(["banner", "banner", "banner", "banner", "banner", "logo_card"]);
+  });
+
+  /** Mutant: send the new kinds to unmapped, and a remake loses them; a comment box draws as a tag with its word to comment (owner, 30.10). */
+  it("maps each new kind to a kind we draw, a comment box to a tag", () => {
+    expect(["banner", "comment_box", "logo_card", "price_card"].map(kind => mapAnalyserGraphic(kind)))
+      .toEqual([{ kind: "tag" }, { kind: "tag" }, { kind: "title_card" }, { kind: "stat" }]);
+    expect([mapAnalyserGraphic("concept_card", "bottom").kind, mapAnalyserGraphic("concept_card", "full_screen").kind]).toEqual(["overlay_media", "insert_media"]);
+    expect(mapAnalyserGraphic("toString").unmapped).toBe("a title_card with its label, or leave it out");
   });
 });

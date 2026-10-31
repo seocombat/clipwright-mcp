@@ -94,14 +94,14 @@ export function checkWorkflowBrief(methodId: string, input: unknown, capabilitie
                 if ((settings.inserts !== undefined || settings.segments !== undefined || settings.overlays !== undefined || settings.layout_windows !== undefined ||
                     settings.framing !== undefined) &&
                     (!executor?.features.includes('long_form') || ['warned', 'rejected', 'stored'].includes(executor.field_dispositions.long_form ?? ''))) {
-                    add('missing_capability', 'brief.native.input', 'Segments, inserts, overlays, layout windows and framing require native long-form qualification on this deployment.');
+                    add('missing_capability', 'brief.native.input', 'Segments, inserts, overlays, layout windows and framing require native long-form qualification, which is not available right now.');
                 }
                 if (!executor?.formats.some(actual => actual.aspect_ratio === format.aspect_ratio && actual.resolution === format.resolution)) {
-                    add('unsupported_format', 'brief.native.input', 'Native output settings are not qualified on this deployment.');
+                    add('unsupported_format', 'brief.native.input', 'Native output settings are not available right now.');
                 }
                 for (const [field, disposition] of Object.entries(FIELD_DISPOSITIONS)) {
                     if ((disposition.kind === 'rejected' || executor?.field_dispositions[field] === 'rejected') && nativeFieldRequested(settings, field, 'make_ugc')) {
-                        add('native_field_rejected', `brief.native.input.${field}`, disposition.kind === 'rejected' ? disposition.message : `Native ${field} is rejected on this deployment.`);
+                        add('native_field_rejected', `brief.native.input.${field}`, disposition.kind === 'rejected' ? disposition.message : `Native ${field} is not available right now.`);
                     }
                 }
                 for (const field of ['captions', 'look', 'person', 'caption_style', 'name'] as const) {
@@ -111,7 +111,7 @@ export function checkWorkflowBrief(methodId: string, input: unknown, capabilitie
             } else {
                 for (const [field, disposition] of Object.entries(executor?.field_dispositions ?? {})) {
                     if (disposition === 'rejected' && nativeFieldRequested(native, field, 'make_faceless')) {
-                        add('native_field_rejected', `brief.native.input.${field}`, `Native ${field} is rejected on this deployment.`);
+                        add('native_field_rejected', `brief.native.input.${field}`, `Native ${field} is not available right now.`);
                     }
                 }
             }

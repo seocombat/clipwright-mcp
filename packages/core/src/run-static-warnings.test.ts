@@ -18,7 +18,7 @@ import {
 } from "./run-preflight.js";
 import { catalogVoiceRefusal, voiceGenderOf } from "./voice-admission.js";
 import { VOICE_CATALOG } from "./voice-catalog-data.js";
-import { buildSpeechModelWarnings, buildVoiceWarnings } from "./voices.js";
+import { addServiceVoicePresets, buildSpeechModelWarnings, buildVoiceWarnings, RUSSIAN_TTS_MODEL } from "./voices.js";
 import {
   actorGenderIgnoredWarning,
   buildActorGenderWarnings,
@@ -27,6 +27,10 @@ import {
   voiceActorGenderWarning,
 } from "./actors.js";
 import { createActorInput } from "./account-actors.js";
+
+/** A male Russian preset a server adds (#966): a stored run naming it reads as a preset, matching the default actor. */
+const SERVER_RU_MALE = "test_server_ru_male";
+addServiceVoicePresets({ [SERVER_RU_MALE]: { language: "ru", gender: "male", description: "test", model: RUSSIAN_TTS_MODEL } });
 
 /** The voice-gender resolver is not under test here: the catalog supplies it. */
 const VOICE_GENDER: VoiceGenderResolver = (voice) => voiceGenderOf(voice);
@@ -132,8 +136,8 @@ describe("derivedRunWarnings", () => {
     const segments = [{ kind: "actor", script: tagged }, { kind: "actor", script: "Clipwright" }];
     const bySegments = makeUgcInput.parse({ segments, voice_id: "abcdefghij123456" });
     expect(derivedRunWarnings(bySegments, NO_FACTS, "make_ugc")).toEqual([cut]);
-    expect(derivedRunWarnings(stored({ script: tagged, voice: "owner_ru_clone" }), NO_FACTS, "make_ugc")).toEqual([cut]);
-    expect(derivedRunWarnings(stored({ script: tagged, voice: "owner_ru_clone", tts_model: "eleven_flash_v2_5" }), NO_FACTS, "make_ugc"))
+    expect(derivedRunWarnings(stored({ script: tagged, voice: SERVER_RU_MALE }), NO_FACTS, "make_ugc")).toEqual([cut]);
+    expect(derivedRunWarnings(stored({ script: tagged, voice: SERVER_RU_MALE, tts_model: "eleven_flash_v2_5" }), NO_FACTS, "make_ugc"))
       .not.toContain(cut);
   });
 
@@ -143,15 +147,15 @@ describe("derivedRunWarnings", () => {
     const tagged = 'Первая часть фразы. <break time="2.0s" /> Вторая часть фразы.';
     const latin = 'First part. <break time="2.0s" /> Second part.';
     const pinned = (extra: Record<string, unknown>) => ({ ...stored(extra), resolved_tts_model: "eleven_v4" });
-    for (const extra of [{ script: tagged, voice: "owner_ru_clone", tts_model: "eleven_v3" }, { script: latin, voice_id: "abcdefghij123456" },
+    for (const extra of [{ script: tagged, voice: SERVER_RU_MALE, tts_model: "eleven_v3" }, { script: latin, voice_id: "abcdefghij123456" },
       { script: latin, voice: "george" }, { script: latin }]) {
       expect(derivedRunWarnings(stored(extra), NO_FACTS, "make_ugc"), JSON.stringify(extra)).toEqual([]);
     }
-    expect(derivedRunWarnings(pinned({ script: tagged, voice: "owner_ru_clone", tts_model: "eleven_v3" }), NO_FACTS, "make_ugc"))
+    expect(derivedRunWarnings(pinned({ script: tagged, voice: SERVER_RU_MALE, tts_model: "eleven_v3" }), NO_FACTS, "make_ugc"))
       .toEqual(["tts_model eleven_v3 is no longer used for speech: this run speaks eleven_v4", cut]);
     expect(derivedRunWarnings(pinned({ script: latin, voice: "george" }), NO_FACTS, "make_ugc")).toEqual([cut]);
     // A Russian voice already spoke eleven_v4 before the switch: its old run keeps the cut.
-    expect(derivedRunWarnings(stored({ script: tagged, voice: "owner_ru_clone" }), NO_FACTS, "make_ugc")).toEqual([cut]);
+    expect(derivedRunWarnings(stored({ script: tagged, voice: SERVER_RU_MALE }), NO_FACTS, "make_ugc")).toEqual([cut]);
   });
 
   it("a voice/face gender mismatch reaches the run, including via the actor snapshot", () => {

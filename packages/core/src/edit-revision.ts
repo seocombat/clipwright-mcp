@@ -37,7 +37,7 @@ export type RevisionQuoteRead = z.infer<typeof revisionQuoteRead>;
 
 /** The one sentence every client and the docs page state a revision's charge by. */
 export const REVISION_CHARGE_TEXT =
-  "A revision that delivers is charged its quoted total; one that fails is charged nothing, even when its paid work was already done.";
+  "A revision that delivers is charged its quoted total; one that fails is charged nothing.";
 
 /** The paths of a run's revision quote and start. The id is encoded, since it comes from the caller. */
 export const runRevisionsQuotePath = (id: string): string => `/v1/runs/${encodeURIComponent(id)}/revisions/quote`;

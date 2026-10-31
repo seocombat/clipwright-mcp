@@ -84,11 +84,14 @@ export const stagingFreeze = z.strictObject({
 });
 export type StagingFreeze = z.infer<typeof stagingFreeze>;
 
+/** Elements one staging holds, measured or kept with only the vision pass's box and times (#930 S2). */
+export const MAX_STAGING_ELEMENTS = 40;
+
 export const referenceStaging = z.strictObject({
   version: z.literal(REFERENCE_STAGING_VERSION),
   analysis_width: z.number().int().positive(),
   anchors: z.array(z.strictObject({ id: anchorId, t_s: seconds })).max(80),
-  elements: z.array(stagingElement).max(40),
+  elements: z.array(stagingElement).max(MAX_STAGING_ELEMENTS),
   freezes: z.array(stagingFreeze).max(8),
 });
 export type ReferenceStaging = z.infer<typeof referenceStaging>;

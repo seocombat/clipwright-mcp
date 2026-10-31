@@ -129,7 +129,7 @@ describe("template sounds (#778 S3c, C2–C4)", () => {
     // A plain run never needed inserts, so the refusal names the templates and not the long-form fix (#840 D6).
     for (const field of ["templates", "template_theme", "template_sounds"] as const) {
       expect(resolveDispositions({ longForm: false, remoteFetch: true, compose: true })[field])
-        .toEqual({ kind: "rejected", message: "templates are disabled on this deployment; omit templates, template_theme and template_sounds" });
+        .toEqual({ kind: "rejected", message: "templates are not available right now; omit templates, template_theme and template_sounds" });
     }
     expect(resolveDispositions({ longForm: true, remoteFetch: true, compose: true } as never).template_sounds).toEqual({ kind: "implemented", provenBy: "composition" });
     expect(offeredUgcInputShape.template_sounds.unwrap()).toBe(templateSounds);

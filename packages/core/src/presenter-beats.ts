@@ -11,14 +11,14 @@ import { TEMPLATE_KINDS, templateFieldValues } from "./templates/index.js";
 export const PRESENTER_BEAT_BEHAVIOURS = ["listening", "reacting"] as const;
 export type PresenterBeatBehaviour = (typeof PRESENTER_BEAT_BEHAVIOURS)[number];
 
-/** The seedance-2.0 row both routes measured live: 720p 9:16, 4–15 s (`GENERATION_CAPABILITIES`). */
+/** The seedance-2.0 row measured live: 720p 9:16, 4–15 s (`GENERATION_CAPABILITIES`). */
 export const PRESENTER_BEAT_MODEL = "seedance-2.0";
 export const PRESENTER_BEAT_MIN_SEC = 4;
 const PRESENTER_BEAT_MAX_SEC = 15;
 
 const KEEP = "Same person, same face, hair, clothes, props and room as the first frame. Locked-off camera, vertical UGC video, " +
   "natural light, realistic skin.";
-/** An open-mouth surprise under a voiceover reads as broken lip-sync (24.10 probe): every action is asked closed-mouthed. */
+/** An open-mouth surprise under a voiceover reads as broken lip-sync: every action is asked closed-mouthed. */
 const SILENT = "The person never speaks: the mouth stays closed or in a closed-lip smile the whole time, even when surprised. " +
   "No talking, no lip movement, no captions, no text overlays.";
 const ACTIONS: Readonly<Record<PresenterBeatBehaviour, string>> = {

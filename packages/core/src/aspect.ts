@@ -3,7 +3,7 @@ import { ASPECT_RATIOS, type AspectRatio, type Resolution } from "./skills.js";
 import type { AspectSource } from "./default-actor.js";
 
 // Output format from the request and the source. We never crop: a mismatch is either
-// a warning or a refusal before the paid call. Pure functions; probing lives in the worker.
+// a warning or a refusal before the paid call. Pure functions.
 
 /** Width-to-height ratio of each supported format. */
 export const ASPECT_RATIO_VALUES: Record<AspectRatio, number> = {
@@ -23,7 +23,7 @@ export const ASPECT_MATCH_THRESHOLD = 0.02;
 export const ASPECT_SNAP_THRESHOLD = 0.15;
 
 /** Relative distance between two aspect ratios, divided by the SMALLER one: the larger */
-/** error trips the threshold earlier, so a spend guard errs toward asking. */
+/** error trips the threshold earlier, so the check errs toward asking. */
 export function aspectDistance(a: number, b: number): number {
   return Math.abs(a - b) / Math.min(a, b);
 }
@@ -171,7 +171,7 @@ export function deliveryWarnings(args: {
 
   if (predicted.width !== actual.width || predicted.height !== actual.height) {
     warnings.push(
-      `vendor returned ${actual.width}×${actual.height} where ${predicted.width}×${predicted.height} was expected`,
+      `the clip came back ${actual.width}×${actual.height} instead of ${predicted.width}×${predicted.height}`,
     );
   }
 
@@ -184,8 +184,8 @@ export function deliveryWarnings(args: {
 
     warnings.push(
       paddedToWholeSecond
-        ? `vendor padded the clip to ${actual.durationSec}s from ${predicted.durationSec}s of audio` // skill-scope: dynamic — warning text, not SQL
-        : `vendor returned ${actual.durationSec}s where ${predicted.durationSec}s was expected`,
+        ? `the clip was padded to ${actual.durationSec}s from ${predicted.durationSec}s of audio` // skill-scope: dynamic — warning text, not SQL
+        : `the clip came back ${actual.durationSec}s instead of ${predicted.durationSec}s`,
     );
   }
 

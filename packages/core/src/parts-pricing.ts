@@ -5,12 +5,12 @@ import {
 } from "./face-billing.js";
 import { unionFaceFrames } from "./long-form-pricing.js";
 
-// Parts prices (owner, 29.10, #800): ×2.5 over our cost at the largest pack's credit ($50 for 6000), payment fees inside.
-// One tariff for short and long make_ugc; it replaces 30 credits a second and long-form-v1's 10 a face-second with 400 at least.
+// Parts prices: one tariff for short and long make_ugc.
+// parts-v2: the HeyGen second 12 → 9; parts-v1, long-form-v1 and 30 a second stay with their snapshots.
 
-export const PARTS_PRICING_VERSION = "parts-v1";
-/** Credits per second a presenter is in the video, covered or not (owner 22.10), by the engine that rendered the take. */
-export const PRESENTER_CREDITS_PER_SECOND: Readonly<Record<PresenterEngine, number>> = Object.freeze({ heygen: 12, omnihuman: 22 });
+export const PARTS_PRICING_VERSION = "parts-v2";
+/** Credits per second a presenter is in the video, covered or not, by the engine that rendered the take. */
+export const PRESENTER_CREDITS_PER_SECOND: Readonly<Record<PresenterEngine, number>> = Object.freeze({ heygen: 9, omnihuman: 22 });
 /** Voice and render, per second of the finished video. */
 export const PRODUCTION_CREDITS_PER_SECOND = 1;
 /** A call scene's live avatar: one HeyGen photo avatar of the still, per still in the delivered video. */
@@ -22,7 +22,7 @@ export const PRESENTER_ENGINE_LABELS: Readonly<Record<PresenterEngine, string>> 
   heygen: "presenter, HeyGen Avatar IV", omnihuman: "presenter, OmniHuman 2.0",
 });
 
-/** The long-form run's tariff, frozen at admission in `run_billing_terms` like long-form-v1 before it. */
+/** The long-form run's tariff, frozen at admission like long-form-v1 before it. */
 export const PARTS_FACE_TARIFF: PartsFaceTariff = Object.freeze({
   version: 3, pricingVersion: PARTS_PRICING_VERSION, presenterCreditsPerSecond: PRESENTER_CREDITS_PER_SECOND,
   productionCreditsPerSecond: PRODUCTION_CREDITS_PER_SECOND, liveAvatarStillCredits: LIVE_AVATAR_STILL_CREDITS,

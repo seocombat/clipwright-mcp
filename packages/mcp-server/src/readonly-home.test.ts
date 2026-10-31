@@ -176,6 +176,7 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
         "quote_workflow_plan",
         "revise_run",
         "run_workflow_plan",
+        "send_feedback",
         "set_actor_defaults",
         "update_asset",
         "upload_image",

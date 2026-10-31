@@ -18,6 +18,8 @@ import {
   type CandidateRequest,
   DEFAULT_FACELESS_VOICE,
   editDocumentRead,
+  FEEDBACK_KINDS,
+  type FeedbackKind,
   FAILED_STATE,
   MODEL_VOICE_MODEL,
   PUBLIC_APP_BASE_URL,
@@ -687,6 +689,17 @@ program
   .description("show the account's balance, debt and holds (free)")
   .action(async () => {
     console.log(JSON.stringify(await client().getAccount(), null, 2));
+  });
+
+program
+  .command("feedback")
+  .description("tell Clipwright what is missing, confusing, wrong or slow; we read every one (free)")
+  .addOption(new Option("--kind <kind>", "what kind of feedback").choices(FEEDBACK_KINDS).makeOptionMandatory())
+  .requiredOption("--text <text>", "what you wanted, what you tried and what came back")
+  .option("--run <id>", "the run it is about")
+  .action(async (opts: { kind: FeedbackKind; text: string; run?: string }) => {
+    const answer = await client().sendFeedback({ kind: opts.kind, text: opts.text, ...(opts.run === undefined ? {} : { run_id: opts.run }) });
+    console.log(JSON.stringify(answer, null, 2));
   });
 
 interface VoicesOptions {

@@ -5,14 +5,14 @@ import { detectScriptFamily, scriptLetterCounts } from "./voices.js";
 /** Our label for the speech model that reads `make_faceless` narration. Not a `tts_model`: `make_ugc` does not speak it. */
 export const FACELESS_SPEECH_MODEL = "narrator-v1";
 
-/** A narration voice of `make_faceless` by OUR name; the worker holds its vendor id and measured pace. */
+/** A narration voice of `make_faceless` by OUR name; our service holds its measured pace. */
 export interface FacelessVoice {
   language: CatalogLanguage;
   gender: Gender;
   description: string;
 }
 
-/** The voices `make_faceless` speaks, each measured live (docs/70, "Voice choice"). Every name starts */
+/** The voices `make_faceless` speaks, each measured live. Every name starts */
 /** with `narrator_`, which no preset, model voice or catalog slug does. */
 export const FACELESS_VOICES = {
   narrator_en_wise_lady: { language: "en", gender: "female", description: "Wise, genial middle-aged woman with a British accent" },
@@ -20,9 +20,9 @@ export const FACELESS_VOICES = {
   narrator_en_firm_lady: { language: "en", gender: "female", description: "Mature, commanding middle-aged woman with an American accent" },
   narrator_en_gentle_man: { language: "en", gender: "male", description: "Gentle, warm man with an American accent" },
   narrator_en_deep_gentleman: { language: "en", gender: "male", description: "Deep-voiced, thoughtful gentleman with a British accent" },
-  narrator_en_storyteller: { language: "en", gender: "male", description: "Senior storyteller with an American accent and a cool, detached tone" },
-  narrator_ru_ambitious_woman: { language: "ru", gender: "female", description: "Demanding, ambitious woman (Russian)" },
-  narrator_ru_bright_queen: { language: "ru", gender: "female", description: "Bright, haughty woman (Russian)" },
+  narrator_en_storyteller: { language: "en", gender: "male", description: "Senior storyteller with a friendly Southern American accent" },
+  narrator_ru_ambitious_woman: { language: "ru", gender: "female", description: "Warm, thoughtful young woman (Russian)" },
+  narrator_ru_bright_queen: { language: "ru", gender: "female", description: "Bright, playful young woman (Russian)" },
   narrator_ru_reliable_man: { language: "ru", gender: "male", description: "Steady, reliable middle-aged man (Russian)" },
   narrator_ru_deep_man: { language: "ru", gender: "male", description: "Deep-voiced man (Russian)" },
   narrator_es_serene_woman: { language: "es", gender: "female", description: "Soothing, serene young woman (Spanish)" },
@@ -60,7 +60,7 @@ const ALPHABET_LETTERS = { cyrillic: "Cyrillic letters", latin: "Latin letters" 
 const LIST_HINT = "list_voices with skill=make_faceless names the voices of each language";
 
 /** Fires only for a voice the client named. A script is judged by the alphabet most of its letters say; a brief */
-/** only when it holds no letter of the voice's alphabet, since it may ask for another language (docs/70, "Voice choice"). */
+/** only when it holds no letter of the voice's alphabet, since it may ask for another language. */
 export function buildFacelessVoiceWarnings(input: {
   voice?: string | undefined;
   script?: string | undefined;

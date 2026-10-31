@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseCutStyle } from "./faceless-cut-style.js";
-import { FACELESS_OPENER_BOUNDS_ERROR, FACELESS_OPENER_MAX_FRAMES, FACELESS_OPENER_MIN_FRAMES, facelessSpeechLexicalWords, facelessSpeechWordSpans,
+import { FACELESS_IMAGE_MAX_FRAMES, FACELESS_OPENER_BOUNDS_ERROR, FACELESS_OPENER_MAX_FRAMES, FACELESS_OPENER_MIN_FRAMES, facelessSpeechLexicalWords, facelessSpeechWordSpans,
   parseFacelessPublicStory, planPublicFacelessStory, type FacelessPublicStory } from "./faceless-public-plan.js";
 import * as publicCore from "./index.js";
 
@@ -303,9 +303,22 @@ describe("public faceless speech planner", () => {
       expect(() => planPublicFacelessStory(story, broken, style, 750)).toThrow();
     }
   });
+  // A 200-frame beat fits only pictures stretched past 150 frames; the plan names the bound it was made under.
+  it("plans pictures up to `imageMaxFrames` when given and refuses one frame less", () => {
+    const { story, words, outputFrames } = paced([4, 10, 10, 10], 20);
+    expect(() => planPublicFacelessStory(story, words, style, outputFrames)).toThrow("no feasible public storyboard");
+    const plan = planPublicFacelessStory(story, words, style, outputFrames, { imageMaxFrames: 200 });
+    expect(plan.imageMaxFrames).toBe(200);
+    expect(plan.shots.slice(1).map(shot => shot.endFrame - shot.startFrame)).toEqual([200, 200, 200]);
+    expect(() => planPublicFacelessStory(story, words, style, outputFrames, { imageMaxFrames: 199 })).toThrow("no feasible public storyboard");
+    const short = paced([4, 5, 5, 5, 5, 5, 5], 20);
+    expect(planPublicFacelessStory(short.story, short.words, style, short.outputFrames, { imageMaxFrames: FACELESS_IMAGE_MAX_FRAMES }))
+      .not.toHaveProperty("imageMaxFrames");
+    for (const imageMaxFrames of [149, 150.5, NaN]) expect(() => planPublicFacelessStory(story, words, style, outputFrames, { imageMaxFrames })).toThrow();
+  });
   it("requires valid output bounds, complete ordered beats and a feasible mandatory opener", () => {
     const { story, words } = publicFixture();
-    for (const frames of [624, 2251, 750.5, NaN]) expect(() => planPublicFacelessStory(story, words, style, frames)).toThrow();
+    for (const frames of [624, 4951, 750.5, NaN]) expect(() => planPublicFacelessStory(story, words, style, frames)).toThrow();
     for (const edit of [(s: FacelessPublicStory) => { s.beats[0]!.mediaType = "image"; },
       (s: FacelessPublicStory) => { s.beats[1]!.id = s.beats[0]!.id; },
       (s: FacelessPublicStory) => { s.beats[2]!.wordStart++; },

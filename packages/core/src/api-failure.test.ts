@@ -206,7 +206,7 @@ describe("parseApiFailure — our bodies parse with all their numbers", () => {
     expect(report.retryable).toBe(false);
     // Neither fixing the call nor buying credits lifts the block.
     expect(report.next_action).not.toContain("fix the call");
-    expect(report.next_action).toContain("operator");
+    expect(report.next_action).toContain("contact support");
     // No timeline: a 403 says only that access is missing, possibly revoked.
     expect(report.next_action).not.toContain("queue");
   });

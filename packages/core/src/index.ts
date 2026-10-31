@@ -55,6 +55,8 @@ export * from "./endpoint-notes.js";
 export * from "./public-responses.js";
 // The public price list (#927): derived from the constants billing charges by.
 export * from "./prices.js";
+// Feedback from an agent (#941): free, into the support queue.
+export * from "./feedback.js";
 // A run's static warnings are derived from its stored input: one answer for the API
 // and the dashboard in any run state.
 export * from "./run-static-warnings.js";

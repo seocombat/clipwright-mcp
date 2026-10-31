@@ -65,9 +65,10 @@ the presenter's hands, save its picture as an image asset with `create_asset`
 ## A reference ad
 
 `analyze_reference` reads an ad the user liked into a profile of its beats,
-graphics, captions and pacing. It takes no url: save the MP4 as an asset with
-`create_asset` and `kind: "video"`, then pass its `asset_id`. It costs credits,
-so quote it with `quote_analysis` first. `plan_reference_remake` then lays the
+graphics, captions and pacing. Pass an Instagram or TikTok link as
+`source_url`; a YouTube link is refused, so save that MP4 as an asset with
+`create_asset` and `kind: "video"` and pass its `asset_id`. It costs credits,
+so quote it with `quote_analysis` first, and poll `get_reference_analysis`. `plan_reference_remake` then lays the
 accepted script on the reference beats as a workflow plan, free; its warnings
 name what the plan does not reproduce.
 
@@ -89,6 +90,11 @@ instead of dropping it silently.
 
 Keep the `run_id` of an image: `generate_video` can start from it as the first
 frame.
+
+Some answers are wrong without an error: an omitted `aspect_ratio` follows the
+photo's shape, `person` chooses no face, and `make_faceless` without `voice`
+narrates in English. https://clipwright.io/skill.md lists each such trap; read
+it before the first paid call.
 
 ## The closing report
 

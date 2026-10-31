@@ -145,8 +145,8 @@ describe("routing, dispositions and undrawn layers (C7)", () => {
   it("names every undrawn composition-only part, and nothing for a run without them", () => {
     const input = makeUgcInput.parse({ script, inserts: [{ ...insert("i", 0, 1), transition: "wipe" }], overlays: [overlay("o", 2, 3)],
       layout_windows: [window("w", 4, 5)], captions: true, caption_emphasis: [{ quote: "nine", punch_in: true }] });
-    expect(compositionLayersNotDrawnWarnings(input, "composition is disabled on this deployment"))
-      .toEqual(["overlays, layout_windows, transition, punch_in were not drawn: composition is disabled on this deployment"]);
+    expect(compositionLayersNotDrawnWarnings(input, "composition is not available right now"))
+      .toEqual(["overlays, layout_windows, transition, punch_in were not drawn: composition is not available right now"]);
     expect(compositionLayersNotDrawnWarnings(makeUgcInput.parse({ script, captions: true, caption_emphasis: [{ quote: "nine", punch_in: true }] }), "x"))
       .toEqual(["punch_in was not drawn: x"]);
     expect(compositionLayersNotDrawnWarnings(makeUgcInput.parse({ script, inserts: [{ ...insert("i", 0, 1), transition: "cut" }],

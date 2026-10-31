@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Template sounds (#778 S3c): the owner's library of 23.10, refreshed and extended on 25.10, one list of names per beat, with his default first in each.
+// Template sounds: one list of names per beat, with the default first in each.
 
 export const TEMPLATE_SOUND_BEATS = ["click", "toggle", "ring", "answer", "notify", "step", "whoosh", "flash", "pop", "hangup", "money", "edit"] as const;
 export type TemplateSoundBeat = (typeof TEMPLATE_SOUND_BEATS)[number];

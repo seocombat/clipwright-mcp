@@ -73,7 +73,7 @@ export interface RunNotEditableFailure {
   reason: string | null;
 }
 
-/** Paid edits are closed. Terminal until the owner opens them: a retry is refused the same way. */
+/** Paid edits are closed. Terminal until paid edits open: a retry is refused the same way. */
 export interface EditingClosedFailure {
   kind: "editing_closed";
   status: number;
@@ -630,7 +630,7 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
         next_action:
           "STOP. The account is not admitted to the beta. Do NOT retry and do NOT offer to buy " +
           "credits: neither changes the answer. Tell the user the account has no beta access and " +
-          "to ask the operator about it.",
+          "to contact support about it.",
       };
 
     case "edit_conflict":
@@ -686,7 +686,7 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
         // Revisions and shot candidates share this code under separate limits, so the text names neither.
         next_action: failure.limit === "in_flight"
           ? `STOP. A paid edit of ${failure.rootRunId} is still running (${runs}); follow it with get_run and start the ` +
-            "next one after it finishes. If get_run says it is held for review, contact support: only an operator " +
+            "next one after it finishes. If get_run says it is held for review, contact support: only support " +
             "closes it, and it charges nothing."
           : `STOP. ${failure.rootRunId} has ${failure.counted} of ${failure.allowed} ${failure.limit === "failed_or_unfinished"
             ? "failed or unfinished paid edits" : `paid edits counted against its ${failure.limit} limit`}${runs === "" ? "" : ` (${runs})`}; ` +

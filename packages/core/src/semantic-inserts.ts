@@ -130,7 +130,7 @@ export function planSemanticInserts(script: string, instructions: readonly Seman
 }
 
 /** The number of PAID actor shots, a pure function of word indexes, so input is refused */
-/** before speech synthesis rather than in the worker after payment. */
+/** before speech synthesis rather than in the run after payment. */
 export function countActorShots(plan: SemanticInsertPlan): number {
   const anchors = orderedAnchors(plan);
   if (anchors.length === 0) return 1;
@@ -176,7 +176,7 @@ export function resolveSemanticInserts(input: {
   let cursor = 0;
   let rounded = Math.abs(totalFrames - durationSec * fps) > 1e-8;
   for (const anchor of anchors) {
-    // A pause belongs to the owner of the preceding word: the window ends at the START of
+    // A pause belongs to whoever covers the preceding word: the window ends at the START of
     // the first uncovered word, or the gap would become a paid sliver.
     const cover = coverWordOf(anchor);
     const head = anchor.startWord === 0;

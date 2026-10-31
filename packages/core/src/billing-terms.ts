@@ -18,6 +18,6 @@ export const durationPartsAdmissionTermsSchema = z.object({
 
 export type DurationPartsAdmissionTerms = z.infer<typeof durationPartsAdmissionTermsSchema>;
 
-/** Every mode a `run_billing_terms` row may hold. */
+/** Every mode a run's billing terms, frozen at admission, may hold. */
 export const runBillingAdmissionTermsSchema = z.union([faceBillingAdmissionTermsSchema, durationPartsAdmissionTermsSchema]);
 export type RunBillingAdmissionTerms = z.infer<typeof runBillingAdmissionTermsSchema>;

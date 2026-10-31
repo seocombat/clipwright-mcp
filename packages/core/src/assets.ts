@@ -25,7 +25,7 @@ export const ASSET_DELETE_GRACE_DAYS = 7;
 export const ASSET_NAME_MAX_CHARS = 80;
 export const ASSET_LIST_MAX_LIMIT = 100;
 
-/** A customer clip (owner, 2026-10-20): up to 100 MiB and 120 s, a non-fragmented MP4 in h264 or hevc. */
+/** A customer clip: up to 100 MiB and 120 s, a non-fragmented MP4 in h264 or hevc. */
 export const ASSET_VIDEO_MAX_BYTES = 100 * 1024 * 1024;
 export const ASSET_VIDEO_MAX_SECONDS = 120;
 export const ASSET_VIDEO_CODECS = ["h264", "hevc"] as const;
@@ -37,7 +37,7 @@ export const ASSET_VIDEO_DOWNLOAD_DEADLINE_MS = 90_000;
 export const ASSET_INGEST_TASK_MAX_DURATION_SECONDS = 300;
 export const ASSET_PUT_MEDIA_TYPES = ["image/png", "image/jpeg", "video/mp4"] as const;
 export type AssetPutMediaType = (typeof ASSET_PUT_MEDIA_TYPES)[number];
-/** The worker task that downloads or reads a staged file, checks it and publishes the asset. */
+/** The task that downloads or reads a staged file, checks it and publishes the asset. */
 export const INGEST_ASSET_MEDIA_TASK = "ingest-asset-media";
 
 /** The cabinet's preview of an asset (S4a): a WebP at `assets/<account>/<id>/preview.webp`, long side at most 512, no upscale. */
@@ -58,7 +58,8 @@ export type AssetRole = (typeof ASSET_ROLES)[number];
 export { ASSET_KINDS, ASSET_MEDIA_TYPES, assetId };
 export type AssetKind = (typeof ASSET_KINDS)[number];
 export type AssetMediaType = (typeof ASSET_MEDIA_TYPES)[number];
-export const ASSET_SOURCE_TYPES = ["generation", "upload", "url", "base64", "bytes", "put"] as const;
+/** `post`: a reel resolved from its link by analyze_reference (#930 S3), always analysis-only. */
+export const ASSET_SOURCE_TYPES = ["generation", "upload", "url", "base64", "bytes", "put", "post"] as const;
 export type AssetSourceType = (typeof ASSET_SOURCE_TYPES)[number];
 
 
@@ -162,7 +163,7 @@ export const assetPutUpload = z.strictObject({
   finish_by: z.string().datetime(),
 });
 
-/** An asset before it exists: waiting for its PUT, being checked by the worker, or refused with the reason. */
+/** An asset before it exists: waiting for its PUT, being checked, or refused with the reason. */
 export const ASSET_PENDING_STATES = ["awaiting_upload", "processing", "failed"] as const;
 export const pendingAsset = z.strictObject({
   asset_id: assetId,
@@ -191,11 +192,11 @@ export const ASSET_INGEST_FAILURE_CODES = [
 ] as const;
 export type AssetIngestFailureCode = (typeof ASSET_INGEST_FAILURE_CODES)[number];
 
-/** What the API hands the worker: which pending asset, and whether its bytes are at a url or already staged. */
+/** What starts an asset check: which pending asset, and whether its bytes are at a url or already staged. */
 export const ingestAssetMediaPayload = z.strictObject({
   assetId,
   accountId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
-  source: z.enum(["url", "staging"]),
+  source: z.enum(["url", "staging", "post"]),
 });
 export type IngestAssetMediaPayload = z.infer<typeof ingestAssetMediaPayload>;
 

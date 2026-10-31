@@ -12,137 +12,72 @@ author: Clipwright
 homepage: https://clipwright.io/?ref=clawhub
 ---
 
-# SKILL.md — installing and operating `clipwright-mcp`
+# SKILL.md — install `clipwright-mcp`, then make a video
 
-A self-contained guide for an AGENT (or a human in Claude Code) that needs no
-spoken help from a developer. Follow the steps in order. Not to be confused with
-`apps/web/.claude/skills/*` — those are dashboard skills for the Next.js app and
-have nothing to do with the MCP server.
+This file is for an agent. It holds what the tool schemas cannot tell you: the
+places where a call answers without an error and the answer is still wrong for
+the user. Each such trap carries the date it was last checked.
 
-The package `@clipwright/mcp-server` (`bin: clipwright-mcp`) is published to npm
-under the MIT license, so you do NOT need the repository to install it — `npx` is
-enough. Building from source is kept below as the development path.
+Everything else is reference, kept in one place so it does not go stale here:
 
-What changed in each version — above all what was removed or changed
-incompatibly — is in `CHANGELOG.md`, shipped next to this file. Read its
-**Breaking:** entries before you move to a newer version.
+- the tool schemas (`tools/list`): every field, its limits and defaults. A field
+  the service accepts but does not honor says `NOT HONORED YET` in its own
+  description;
+- https://clipwright.io/docs: the REST API, refusal codes and prices;
+- https://api.clipwright.io/openapi.json: the REST contract as OpenAPI 3.1;
+- https://clipwright.io/changelog: read its **Breaking:** entries before you
+  move to a newer version.
 
-Four client-side packages — `@clipwright/core`, `@clipwright/sdk`,
-`@clipwright/mcp-server` and `@clipwright/cli` — are MIT; the service itself
-(REST API, render pipeline, dashboard) is closed. That split is deliberate, not
-an oversight: see `LICENSE` in the repository root.
+The client packages `@clipwright/core`, `@clipwright/sdk`,
+`@clipwright/mcp-server` and `@clipwright/cli` are MIT; the service is closed.
 
-## 1. Installation
+# Part 1 — Install
 
-There are two ways to connect, and both serve the same tools:
+## 1. Connect
 
-- **the hosted server** at `https://mcp.clipwright.io/mcp` (Streamable HTTP),
-  signed in with OAuth or with a `cw_*` key — section 1.4. Nothing to install;
-- **this package run locally** over stdio with `CLIPWRIGHT_API_KEY` — sections
-  1.1 to 1.3, and section 2.
+The hosted server and this package run locally serve the same tools.
 
-### 1.1 From npm — the normal path
+### 1.1 The hosted server — nothing to install
+
+Add `https://mcp.clipwright.io/mcp` (Streamable HTTP) to the client. On first
+use the client opens a browser; the account holder signs in and approves the app.
+
+| Client | How to add | Checked |
+|---|---|---|
+| Claude Code | `claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp`, then `/mcp` in a session to sign in | verified live 2026-10-18 |
+| Claude.ai, Claude Desktop | Customize → Connectors → Add custom connector, paste the URL | from the client's docs |
+| ChatGPT | the URL as the remote MCP server of a plugin | from the client's docs |
+| Cursor | `~/.cursor/mcp.json`: `{"mcpServers": {"clipwright": {"url": "https://mcp.clipwright.io/mcp"}}}` | from the client's docs |
+| VS Code | `.mcp.json`: `{"mcpServers": {"clipwright": {"type": "http", "url": "https://mcp.clipwright.io/mcp"}}}` | from the client's docs |
+| Gemini CLI | `gemini mcp add --transport http clipwright https://mcp.clipwright.io/mcp`, then `/mcp auth clipwright` | from the client's docs |
+| Codex | `codex mcp add clipwright --url https://mcp.clipwright.io/mcp`, then `codex mcp login clipwright` | from the client's docs |
+
+For CI and scripts, a `cw_*` key replaces OAuth and holds both permissions:
+
+```bash
+claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp --header "Authorization: Bearer cw_..."
+```
+
+What differs on the hosted server is in section 1.4.
+
+### 1.2 The local server from npm
 
 ```bash
 npx -y -p @clipwright/mcp-server@latest clipwright-mcp
 ```
 
-Expected: the process does NOT exit, prints `clipwright mcp server running on
-stdio` to stderr, and hangs waiting for JSON-RPC. That is what a healthy server
-looks like, not a freeze. Stop it with `Ctrl+C`.
+A healthy server does not exit: it prints `clipwright mcp server running on
+stdio` to stderr and waits for JSON-RPC. Exiting at once with
+`CLIPWRIGHT_API_KEY env var is required` means the key did not reach it, not a
+broken build. Both answers verified 2026-10-31. `@latest` is deliberate: it
+keeps the client in step with the API.
 
-Exiting immediately with `CLIPWRIGHT_API_KEY env var is required` is also
-expected when the key is empty (`src/index.ts`) — it is not a broken build.
-
-Go straight to section 1.3: the host config for this variant differs only in the
-command (`npx` instead of `node` with an absolute path); both are shown there.
-
-### 1.2 From source — development only
-
-Requirements: Node ≥24, pnpm (`packageManager: pnpm@11.13.1` in the root
-`package.json` — with corepack available: `corepack enable`).
-
-```bash
-git clone <repo-url> clipwright   # or use a checkout you already have
-cd clipwright
-pnpm install
-pnpm build          # pnpm -r build — builds every package in topological order
-```
-
-If you only need this surface (faster, but `@clipwright/core` and
-`@clipwright/sdk` must be built first — `...` pulls them in automatically):
-
-```bash
-pnpm --filter @clipwright/mcp-server... build
-```
-
-After the build, `packages/mcp-server/dist/index.js` must exist. Check it:
-
-```bash
-ls packages/mcp-server/dist/index.js
-```
-
-#### Pre-flight check of the built binary
-
-This applies to source builds. Before wiring the server into a host, make sure it
-starts at all and does not die on imports:
-
-```bash
-CLIPWRIGHT_API_KEY=cw_test node packages/mcp-server/dist/index.js
-```
-
-Expected: the process does NOT exit on its own, prints `clipwright mcp server
-running on stdio` to stderr, and waits on stdio for JSON-RPC. Stop it with
-`Ctrl+C`. If it instead exits immediately with `CLIPWRIGHT_API_KEY env var is
-required`, the variable was not passed through (expected behaviour on an empty
-key, see `src/index.ts`) — not a bug. If it dies on a module import, the build is
-incomplete: go back to step 1.2 and run `pnpm build` from the root rather than a
-targeted `--filter`, so `@clipwright/core` and `@clipwright/sdk` are definitely
-rebuilt.
+From a source checkout: `pnpm install && pnpm build` at the root, then run
+`node packages/mcp-server/dist/index.js` with the same environment.
 
 ### 1.3 Connecting it to an MCP host
 
-Variants A and B below run the server FROM SOURCE and therefore need the ABSOLUTE
-path to `dist/index.js`:
-
-```bash
-realpath packages/mcp-server/dist/index.js
-```
-
-If you installed from npm (section 1.1), you do not need a path — take variant C
-at the end of this section; it differs only in `command`/`args`.
-
-**Variant A — `.mcp.json` (project-level host config):**
-
-```json
-{
-  "mcpServers": {
-    "clipwright": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["/absolute/path/to/clipwright/packages/mcp-server/dist/index.js"],
-      "env": {
-        "CLIPWRIGHT_API_KEY": "cw_...",
-        "CLIPWRIGHT_API_URL": "https://api.clipwright.io",
-        "CLIPWRIGHT_CLIENT_ID": "<see section 2 — generate BEFORE the first run>"
-      }
-    }
-  }
-}
-```
-
-**Variant B — `claude mcp add`** (variant A as a single command):
-
-```bash
-claude mcp add clipwright \
-  -e CLIPWRIGHT_API_KEY=cw_... \
-  -e CLIPWRIGHT_API_URL=https://api.clipwright.io \
-  -e CLIPWRIGHT_CLIENT_ID="$(node -e "console.log(crypto.randomUUID().replaceAll('-',''))")" \
-  -- node /absolute/path/to/clipwright/packages/mcp-server/dist/index.js
-```
-
-**Variant C — from npm, without the repository.** Same thing, but the command is
-`npx`:
+Generate `CLIPWRIGHT_CLIENT_ID` BEFORE the first run (section 2):
 
 ```json
 {
@@ -153,113 +88,63 @@ claude mcp add clipwright \
       "args": ["-y", "-p", "@clipwright/mcp-server@latest", "clipwright-mcp"],
       "env": {
         "CLIPWRIGHT_API_KEY": "cw_...",
-        "CLIPWRIGHT_API_URL": "https://api.clipwright.io",
-        "CLIPWRIGHT_CLIENT_ID": "<see section 2 — generate BEFORE the first run>"
+        "CLIPWRIGHT_CLIENT_ID": "<a unique value, section 2>"
       }
     }
   }
 }
 ```
 
-As a single command:
+As one command:
 
 ```bash
 claude mcp add clipwright \
   -e CLIPWRIGHT_API_KEY=cw_... \
-  -e CLIPWRIGHT_API_URL=https://api.clipwright.io \
   -e CLIPWRIGHT_CLIENT_ID="$(node -e "console.log(crypto.randomUUID().replaceAll('-',''))")" \
   -- npx -y -p @clipwright/mcp-server@latest clipwright-mcp
 ```
 
-**`@latest` here is a deliberate choice, not sloppiness.** It pulls a fresh
-version on every start: right for a prototype, because the contract still moves
-and a client out of sync with the server costs more than an unexpected upgrade.
-Once the contract settles, the version should be pinned.
-
-Environment variables:
+For a source build, the command is `node` with the absolute path to
+`packages/mcp-server/dist/index.js`.
 
 | Variable | Required | Meaning |
 |---|---|---|
-| `CLIPWRIGHT_API_KEY` | YES | Bearer token shaped `cw_*`. Without it the process exits immediately with an error (`src/index.ts`). The token is ISSUED TO YOU PERSONALLY: it lives in the `api_tokens` table, is bound to an account, and is revoked independently of anyone else's. Do not forward it — a second person gets their own. What separates people is the ACCOUNT, not the token: accounts cannot see each other's runs, each has its own daily cap and its own idempotency axis, and several tokens on one account share all of it. |
-| `CLIPWRIGHT_API_URL` | no | Production URL. Left unset, the SDK supplies `https://api.clipwright.io` itself. Set it explicitly only when you target another environment. |
-| `CLIPWRIGHT_CLIENT_ID` | YES (see section 2) | Unique identifier of this INSTALLATION. |
+| `CLIPWRIGHT_API_KEY` | YES | A `cw_*` key issued on your account at https://app.clipwright.io/api-keys. It is yours: a second person gets an account and a key of their own. Several keys on one account share its runs, balance and idempotency. |
+| `CLIPWRIGHT_CLIENT_ID` | YES | This installation's own identifier, section 2. |
+| `CLIPWRIGHT_API_URL` | no | Defaults to `https://api.clipwright.io`; set it only for another environment. |
 
-After connecting, restart or reopen the MCP host and confirm that `tools/list`
-returns 44 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
+After a restart, confirm that `tools/list`
+returns 45 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
 `list_generation_models`, `quote_image`, `generate_image`, `quote_video`, `generate_video`, `quote_ugc`, `list_actors`,
 `list_voices`, `list_template_sounds`, `upload_image`, `create_upload`, `get_upload`, `create_asset`, `list_assets`, `get_asset`, `update_asset`,
 `delete_asset`, `quote_analysis`, `analyze_reference`, `get_reference_analysis`, `get_account`, `list_prices`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
 `set_actor_defaults`, `quote_faceless`, `make_faceless`, `list_workflows`, `get_workflow`, `prepare_workflow_plan`,
-`plan_reference_remake`, `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`.
+`plan_reference_remake`, `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`, `send_feedback`.
 
-Workflow calls are explicit steps: list/read a method, prepare its complete
-document, read all readiness issues and warnings, approve the chosen revision,
-then quote and show its native price before a paid launch. Preparation, approval
-and quoting start no run. To save, pass both `plan_id` and `base_version` with
-the document; omit both to create. Unknown write fields are refused.
-`run_workflow_plan` requires the quote's revision, content digest, semantic input
-digest and quote id, plus an explicit idempotency key. It returns the captured
-receipt and native run id at once. Poll `get_run`; its optional workflow field
-keeps the purchased revision and available outcome evidence. Technical evidence
-does not mean a person accepted the creative result. After an uncertain paid
-answer, preserve the original request and key; a new key can pay twice.
+When no tool does the job, or an answer is confusing or wrong, file it with
+`send_feedback` (free) instead of rephrasing the request and giving up.
 
-### 1.4 The hosted server — OAuth or a `cw_*` key
+### 1.4 What differs on the hosted server
 
-The hosted server runs the same tools at `https://mcp.clipwright.io/mcp`. It
-keeps no session: every message is its own `POST`. Add the URL to the client;
-on first use the client opens a browser, the account holder signs in to
-Clipwright and approves the app.
-
-**Status: Claude Code and the device-code flow were verified live on
-2026-10-18;** the other commands come from each client's own documentation:
-
-| Client | How to add | Verified |
-|---|---|---|
-| Claude Code | `claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp`, then `/mcp` in a session to sign in | verified live 2026-10-18 |
-| Claude.ai, Claude Desktop | Customize → Connectors → Add custom connector, paste the URL | not yet verified live |
-| ChatGPT | the URL as the remote MCP server of a plugin (OpenAI's guide "Connect and test your plugin") | not yet verified live |
-| Cursor | `~/.cursor/mcp.json`: `{"mcpServers": {"clipwright": {"url": "https://mcp.clipwright.io/mcp"}}}` | not yet verified live |
-| VS Code | `.mcp.json` at the workspace root: `{"mcpServers": {"clipwright": {"type": "http", "url": "https://mcp.clipwright.io/mcp"}}}` | not yet verified live |
-| Gemini CLI | `gemini mcp add --transport http clipwright https://mcp.clipwright.io/mcp`, then `/mcp auth clipwright` | not yet verified live |
-| Codex | `codex mcp add clipwright --url https://mcp.clipwright.io/mcp`, then `codex mcp login clipwright` | not yet verified live |
-
-**Permissions.** The approval page lists what the app asks for:
-
-- `mcp:read` — the tools with `readOnlyHint: true`: account, runs, shots,
-  voices, actors, workflows and every quote. Free.
-- `mcp:write` — every other tool: `make_ugc`, `make_faceless`, `revise_run`,
-  `create_candidate`, `generate_image`, `generate_video`, `create_actor` and
-  `run_workflow_plan` **spend credits**;
-  `upload_image`, `create_upload`, `create_asset`, `update_asset`, `delete_asset`, `delete_actor`,
-  `set_actor_defaults`, `prepare_workflow_plan` and `approve_workflow_plan` change the account.
-
-The account holder approves or declines the whole request; only an admitted
-account can approve. A connection without `mcp:write` that calls one of those
-tools gets HTTP `403` with `error: "insufficient_scope"` and
-`WWW-Authenticate: Bearer error="insufficient_scope", scope="mcp:write", resource_metadata="…"`.
-Nothing is charged and no run is created. Reconnect the app and approve
-spending to fix it.
-
-**Revoking.** The account holder revokes an app at
-`https://app.clipwright.io/api-keys`, under **Connected apps**. Its next request
-gets `401`. A connection lasts 90 days from approval and is not extended by
-use: after that the app must sign in again. An access token lasts one hour;
-clients renew it themselves.
-
-**Files.** The hosted server cannot read files on the agent's machine, so
-`upload_image` refuses a `path` there. Pass a public https URL as
-`upload_image({url})` and the server downloads it, or call `create_upload`,
-PUT the file to its `put_url` with curl and confirm with `get_upload`. Either
-way the `upload_id` works in `first_frame`, `last_frame` and `references`.
-
-**Idempotency.** Section 2 does not apply here. Each connected app (one
-grant) is its own client identity, and so is each `cw_*` key, so two
-connections of one account never collapse into one run. A repeated request
-within one connection returns the same run, as on stdio.
+- **Permissions.** `mcp:read` covers the tools marked `readOnlyHint: true`,
+  every quote included; `mcp:write` covers every other tool. A connection
+  without `mcp:write` that calls one gets HTTP `403` with
+  `error: "insufficient_scope"`; nothing is charged. Reconnect and approve spending.
+- **Files.** The hosted server cannot read the agent's disk, so `upload_image`
+  refuses a `path` there. Pass a public https `url`, or call `create_upload`,
+  PUT the file to its `put_url` and confirm with `get_upload`.
+- **Idempotency.** Each connected app and each `cw_*` key is its own client
+  identity, so section 2 does not apply. A repeated request within one
+  connection returns the same run.
+- **Sign-in.** A connection lasts 90 days from approval and use does not extend
+  it; access tokens last an hour and clients renew them. The account holder
+  revokes an app at https://app.clipwright.io/api-keys, under Connected apps.
+- **Endpoint errors.** No token, or a revoked or unknown one: `401` with a
+  `WWW-Authenticate` header the client follows to sign in. `GET /mcp`: `405`. A
+  body over 1 MB: `413`.
 
 **An agent with no browser** signs in with a device code (verified live
-2026-10-18). Only the first-party client `clipwright-agent` may use this flow:
+2026-10-18). Only the client id `clipwright-agent` may use this flow:
 
 ```bash
 curl -s https://mcp.clipwright.io/device/auth -d client_id=clipwright-agent \
@@ -267,238 +152,109 @@ curl -s https://mcp.clipwright.io/device/auth -d client_id=clipwright-agent \
   --data-urlencode "resource=https://mcp.clipwright.io/mcp"
 ```
 
-1. Show the person `user_code` and `verification_uri`
-   (`https://mcp.clipwright.io/device`). They open the page on any device,
-   enter the code, sign in and approve. The approval page repeats the code:
-   they approve only if it matches.
-2. Meanwhile poll `POST https://mcp.clipwright.io/token` with
-   `grant_type=urn:ietf:params:oauth:grant-type:device_code`, `device_code` and
-   `client_id=clipwright-agent`, no more often than every 5 seconds. Until
-   approval the answer is `authorization_pending`; a faster poll gets
-   `slow_down`.
-3. Send `access_token` as `Authorization: Bearer` to `/mcp`. Renew it with
-   `grant_type=refresh_token`, the refresh token and the same `client_id`. Each
-   renewal returns a new refresh token: keep the newest one.
-
-**With a `cw_*` key instead of OAuth** — for CI and scripts. A key holds both
-permissions:
-
-```bash
-claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp --header "Authorization: Bearer cw_..."
-```
-
-**Errors of the endpoint itself:** no token, or a revoked or unknown key —
-`401` with
-`WWW-Authenticate: Bearer resource_metadata="https://mcp.clipwright.io/.well-known/oauth-protected-resource/mcp", scope="mcp:read mcp:write"`,
-which a client follows to sign in; an expired or revoked OAuth token — the same
-`401` with `error="invalid_token"` added; `GET /mcp` with a valid token — `405`;
-a body over 1 MB — `413`.
+Show the person `user_code` and `verification_uri`; they approve on any device
+if the code matches. Meanwhile poll `POST https://mcp.clipwright.io/token` with
+`grant_type=urn:ietf:params:oauth:grant-type:device_code`, `device_code` and
+`client_id=clipwright-agent`, no more often than every 5 seconds
+(`authorization_pending` until approval, `slow_down` when too fast). Send
+`access_token` as `Authorization: Bearer`. Renew with
+`grant_type=refresh_token`; each renewal returns a new refresh token, keep the newest.
 
 ## 2. `CLIPWRIGHT_CLIENT_ID` — required, and WHY
 
-This section is about the local server. The hosted server takes the client
-identity from the connection itself (section 1.4).
+This section is about the local server; the hosted server takes the identity
+from the connection (section 1.4).
 
-**Rule: EVERY installation must get its OWN unique `CLIPWRIGHT_CLIENT_ID` BEFORE
-the first `make_ugc` call.** Do not copy the value from another machine, and do
-not leave it empty hoping the default will "work out somehow".
+**Rule: EVERY installation gets its OWN unique `CLIPWRIGHT_CLIENT_ID` BEFORE the
+first paid call.** Do not copy it from another machine and do not leave it to chance.
 
 ### Why this is not optional
 
-The idempotency key the SDK stamps on every paid `POST /v1/skills/make_ugc/run`
-is derived deterministically from **the hash of the input** (`script`, `person`,
-`image`, … after canonicalisation) **and the client identity**
-(`idempotencyKeyFor` in `packages/core/src/idempotency.ts`, used by
-`packages/sdk/src/index.ts`). The server deduplicates on that key: if a stored
-key matches on `request_hash`, it returns 200 with the run **created by the first
-request that used the key**, instead of starting a new paid render.
+The idempotency key the SDK stamps on every paid call is derived from **the hash
+of the input** and **the client identity**. The server deduplicates on that key:
+a repeated key returns 200 with the run **created by the first request**, and no
+new paid render starts. That is right when the same user retries.
 
-That is the right behaviour when the SAME user retries — you should not pay twice
-for an agent's accidental double click. Its boundaries are these.
+Collapsing requires BOTH to match: the account and the `clientId`.
 
-Collapsing requires BOTH to match: the account and the `clientId`. Separating
-either one is enough.
+- **The account separates by construction.** The server matches a key only
+  within your account (its `account_id`). A separate token does not by itself
+  mean a separate account: several live tokens on one account share one
+  idempotency axis, and only the service knows which account a token is on.
+- **`clientId` separates within one account.** Without the variable it comes
+  from `~/.clipwright/client-id`, born random on first run. It matches only when
+  made to match: a shared `HOME`, a copied value, an image cloned with the file.
 
-- **The account separates by construction.** Both the unique index
-  (`runs_account_idempotency_key_unique`) and the lookup use the pair
-  `(account_id, idempotency_key)`. A run from ANOTHER account can never reach you,
-  and nobody can take your key — whatever sits in `CLIPWRIGHT_CLIENT_ID`.
-  **The axis is the account, not the token.** A separate token does not by itself
-  mean a separate account: several live tokens on one account are normal (laptop,
-  CI, smoke script), and they all share one idempotency axis. The account is not
-  visible from the token — only the service side knows it, so "is this my own
-  account?" is confirmed by whoever issued the token.
-- **`clientId` separates within one account.** On its own it comes from
-  `~/.clipwright/client-id` and is born random on first run, so two genuinely
-  separate installations diverge even without the environment variable. It can
-  only match if it was MADE to match: a shared `HOME`, a value copied from
-  someone else's machine, an image cloned together with the file.
-
-The dangerous case is exactly the crossing of those two conditions: **one account
-AND one `clientId`**. Then a request whose input matches an earlier one — for
-example, both people copied a sample from this SKILL.md verbatim — returns 200, a
-`run_id` and a playable link. But it is the video rendered for the first person,
-presented to the second as their own success. A diagnostic tool would read as
-"works" while no paid render ever ran for the second person.
-
-Hence the rule: **a second person gets their own ACCOUNT and a token issued on
-it**, and the value of `CLIPWRIGHT_CLIENT_ID` is not copied from anyone's machine.
-Setting it explicitly is mandatory wherever the file resolver cannot give a stable
-value of its own: a read-only or shared `HOME`, a container from a cloned image,
-CI.
+With one account AND one `clientId`, a request whose input matches an earlier
+one (both people copied the same sample) returns 200, a `run_id` and a playable
+link to the video rendered for the FIRST person. Nothing errors, and no render
+ran for the second.
 
 ### How to set it
 
-An explicit `CLIPWRIGHT_CLIENT_ID` in the host environment (section 1.3, variants
-A/B/C) is the most reliable path, because it does not depend on the state of the
-file system. The value is any unique string; for consistency with the SDK's own
-generator use the same shape (a UUID without dashes). Generate it with Node, not
-`uuidgen`: Node is certainly present here, whereas `uuidgen` may be missing on a
-bare Linux image — and then the shell silently substitutes an EMPTY string, which
-switches off precisely the protection the variable exists for.
+Set it explicitly in the host environment (section 1.3). Generate it with Node,
+not `uuidgen`: on a bare image without `uuidgen` the shell silently substitutes
+an empty string and switches the protection off.
 
 ```bash
 node -e "console.log(crypto.randomUUID().replaceAll('-',''))"
 ```
 
-If the variable is NOT set, `resolveClientId()` (`packages/sdk/src/client-id.ts`)
-falls back to the file `~/.clipwright/client-id`: on first run it generates a
-random id and stores it there, then reads it back. That is a workable fallback for
-a single installation on a clean machine, but do NOT lean on it as your only
-protection when an agent does the install: home directories carried along when
-images, containers or dev environments are cloned can take
-`~/.clipwright/client-id` with them and produce a collision this fallback will not
-notice. When installing by this guide, **always set `CLIPWRIGHT_CLIENT_ID`
-explicitly in the host environment** rather than relying on auto-generation.
+Without the variable and with a read-only `HOME`, the server still starts:
+`tools/list`, `quote_ugc`, `get_run` and `list_voices` work; paid calls, uploads
+and new assets refuse, naming the variable. Set it; do not reinstall.
 
-If neither the variable nor writing the file is possible (read-only `$HOME`),
-`resolveClientId()` deliberately THROWS instead of inventing a throwaway id on
-every start — a silent fallback would disable deduplication entirely
-(`packages/sdk/src/client-id.ts`).
+# Part 2 — Make a video
 
-**The server does NOT die in that case, and this is verified by a test run.** The
-identity resolves lazily — only on the first `make_ugc`. In an environment where
-`~/.clipwright` is not writable the server starts, `tools/list` returns every
-tool, and `quote_ugc`, `get_run` and `list_voices` work: they do not need the
-identity. Only `make_ugc` refuses, and its refusal names the variable that fixes
-it. So the action to take is to set `CLIPWRIGHT_CLIENT_ID` explicitly — not to
-hunt for a bug and not to reinstall the package.
-
-## 3. CALL ORDER — `quote_ugc` first, `make_ugc` second
-
-This is not a politeness convention but a mechanism, without which the contract
-stays silent about its own decisions.
+## 3. CALL ORDER — quote first, paid call second
 
 ```
 quote_ugc  →  read source / resolved_aspect_ratio / warnings  →  make_ugc  →  get_run (polling)
 ```
 
-**What `quote_ugc` gives you that nothing else does.** It is free, reserves
-nothing, and answers the questions that would otherwise surface only after money
-is spent:
+Every paid tool has a free quote that reserves nothing. Show the user the
+credits and start the paid call only after they agree. Take prices from the
+quote or `list_prices`, never from memory or this page: they change.
 
-| Response field | What it tells you |
-|---|---|
-| `credits_estimate` | the price — show it to the user BEFORE generating |
-| `source` | dimensions of the selected actor variant, a probed `image`, or the default actor (432×768) |
-| `actor` | selected `actor_id`, `version` and `gender`; default `{gender}` when no face is selected; `null` for caller-supplied `image` |
-| `resolved_aspect_ratio` | the aspect ratio that will ACTUALLY be rendered for this input |
-| `tts_model` | the speech model this run will use; the script's character ceiling depends on it |
-| `warnings[]` | which of the parameters you passed will not be honoured |
-| `contract_version` | which contract version this price was quoted under |
+| What | Free quote | Paid call | Poll with | The result |
+|---|---|---|---|---|
+| UGC video with a presenter | `quote_ugc` | `make_ugc` | `get_run` | `video_url` |
+| Faceless video | `quote_faceless` | `make_faceless` | `get_run` | `video_url` |
+| One image / one silent clip | `quote_image` / `quote_video` | `generate_image` / `generate_video` | `get_run` | `generation.url` |
+| A personal actor | `quote_actor` | `create_actor` | `get_run` | `created_actor.actor_id` |
+| A reading of a reference reel | `quote_analysis` | `analyze_reference` | `get_reference_analysis` | `reference_profile` or `data` |
+| A revision of a faceless video | `quote_revision` | `revise_run` | `get_run` | `video_url` |
+| A new picture or clip for one shot | `quote_candidate` | `create_candidate` | `get_run` | `candidate.preview_url` |
+| A plan from a workflow method | `quote_workflow_plan` | `run_workflow_plan` | `get_run` | `workflow` |
 
-**The verdict of `quote_ugc` and the verdict of `make_ugc` agree by
-construction** — both surfaces call the same function. If quote returns 400, the
-run returns the same 400; if quote showed `resolved_aspect_ratio: "9:16"` for a
-requested `1:1`, then 9:16 is what gets rendered.
-
-**Unknown fields are refused, not ignored.** A key the contract does not have —
-`aspectRatio`, `aspect`, `ttsModel` — gets 400 `unknown_field` before any charge.
-`fields` names each key, and the message suggests the matching field
-(`aspect_ratio`). Until clipwright#166 such keys were dropped silently, so a
-misspelled `aspect_ratio` rendered the default 9:16.
-
-**Rejected fields — do not try to pass them.** They are not declared in the tool
-schema, and the server answers 400 `rejected_field` before a run is even created:
-
-| Field | Use instead |
-|---|---|
-| `character` | `actor_id` from `list_actors`, an `image`, or nothing (default actor); `person` does not select a face |
-| `webhook_url` | poll `get_run` — webhooks are not delivered at all |
-| `segments`, `broll_url` | a single `script`; segmented clips are not available yet |
-| `disclosure_overlay` | nothing: no video carries a visible label, and the AI disclosure is in `ai_disclosure` of the finished run |
-| `image` and `actor_gender` with the killswitch off | omit both — the render runs on the default actor |
-
-**The aspect ratio can be refused.** Requesting `aspect_ratio: "1:1"` without an
-`image` or `actor_id` returns a refusal: the default actor is vertical (432×768), and a square
-frame could only come from the vendor's centre crop, which we do not do silently.
-To get `1:1`, select an actor with a verified square variant or pass an `image`
-with a square public https source. An unavailable actor format is refused before payment.
-
-## 4. The tools
-
-Schemas come from the single source of truth `@clipwright/core`
-(`packages/core/src/skills.ts`, barrel `packages/core/src/index.ts`); MCP does not
-retype them by hand.
+- The paid call returns a `run_id` at once and does not wait. Poll every 5–10
+  seconds until `state` is `succeeded` or `failed`. Do not tell the user the
+  video is ready before you hold its link.
+- Read `warnings[]` on the first answer, on each poll and on the terminal one.
+  What the service could not honor is announced there, not refused (section 4).
+- A key the contract does not have (`aspectRatio`) is refused with 400
+  `unknown_field`, and the message names the right spelling. The removed fields
+  `character`, `webhook_url`, `broll_url` and `disclosure_overlay` are refused by
+  name with the replacement: `actor_id`, polling `get_run`, nothing, and the
+  `ai_disclosure` of the finished run. Nothing is charged.
+- Before choosing a model for an image or a clip, call `list_generation_models`;
+  any other combination is `unsupported_combination` before any charge.
+- A workflow launch needs the quote's revision, content digest, semantic input
+  digest and quote id, plus an explicit idempotency key, and the quote expires
+  five minutes after it is issued. Checked 2026-10-31.
 
 ### `quote_ugc` — free
 
-The input is `offeredUgcInputShape` (`packages/mcp-server/src/server.ts`), that
-is, the contract MINUS the rejected fields: they simply are not there, and listing
-them here would mean offering what the server punishes you for (section 3).
-
-`script` (required while `segments` is rejected; length is limited by the resolved
-TTS model, as reported by `tools/list`: `eleven_v4` and `gemini-3.8-flash-tts`
-allow 5000 characters, `eleven_flash_v2_5` and `eleven_turbo_v2_5` allow 10000. Spaces, audio tags and stress
-marks count; emoji may count as two characters. There is no word-count limit or fixed
-duration implied by it), `tts_model` (omit it and the voice decides: a voice of kind
-`model_voice` speaks its own model `gemini-3.8-flash-tts`, every preset, catalog voice and
-raw `voice_id` speaks `eleven_v4`; an explicit `tts_model` wins, except `eleven_v3`,
-which is no longer spoken: a run naming it speaks `eleven_v4` and says so in `warnings[]`;
-`eleven_flash_v2_5` and `eleven_turbo_v2_5` cost less and suit
-languages other than Russian), optionally `person` OR
-`image` (a public `https` URL) with `actor_gender` (`female`/`male`, only next to
-`image`), plus `name`, `captions` (defaults to `false` —
-**captions are opt-in, ASK THE USER FIRST**), `caption_style` and
-`caption_emphasis` (see *Captions* under `make_ugc`), `look` (`natural`/`commercial`/`raw_iphone`),
-`aspect_ratio` (`9:16`/`1:1`, with NO default — silence and an explicit choice
-differ), `resolution` (`720p`/`1080p`/`4k`), `voice`/`voice_id`.
-
-**Russian stress marks.** Tell a user who writes in Russian that they can fix stress:
-write the stressed vowel as a capital inside a lowercase word — `потОм`, `зАмок` — and
-Clipwright sends `eleven_v4` and `gemini-3.8-flash-tts` the stress mark U+0301
-(`пото́м`). A capital that starts a
-word stays a capital, a word with a second capital or an inner capital consonant
-(`ВУЗы`, all caps) stays as written, and a U+0301 typed directly is kept. A single
-inner capital vowel always reads as stress, so `ЯндексЕда` needs a space. Keep Russian
-scripts on one of those two models: the 2.5 models misread the mark, so a script
-carrying it draws a warning there, and so does any Cyrillic script. With a preset, a
-catalog voice or `voice_id` the choice is `eleven_v4`, because
-`gemini-3.8-flash-tts` speaks only its own voices. Retrying never
-fixes stress; only the text does.
-
-**Break tags on `eleven_v4` and `gemini-3.8-flash-tts`.** These two models give no pause
-for `<break time="1.5s" />`.
-Clipwright cuts every tag of that form (`time` in `s` or `ms`) from the text it sends to
-them, leaves it out of the character count, and names the cut in `warnings[]` of
-the quote and the run. A script that holds nothing but break tags is refused before any
-charge. The other models get the tag as written.
-
-The exact list is always available from the tool schema itself: `tools/list` is
-generated from the same shape, and fields that are not honoured carry
-`NOT HONORED YET` right in their own `description`.
-
-Spends no credits. The response is the raw `quote`; its price fields for a
-12-second script read:
+Its price fields for a 12-second script:
 
 ```json
 {
   "skill": "make_ugc",
-  "credits_estimate": 156,
+  "credits_estimate": 120,
   "duration_estimate_sec": 12,
-  "tariff": "parts-v1",
+  "tariff": "parts-v2",
   "price_lines": [
-    { "label": "presenter, HeyGen Avatar IV", "unit": "face_second", "quantity": 12, "unit_credits": 12, "credits": 144 },
+    { "label": "presenter, HeyGen Avatar IV", "unit": "face_second", "quantity": 12, "unit_credits": 9, "credits": 108 },
     { "label": "production (voice and render)", "unit": "second", "quantity": 12, "unit_credits": 1, "credits": 12 }
   ],
   "minimum_credits": 50,
@@ -506,512 +262,195 @@ Spends no credits. The response is the raw `quote`; its price fields for a
 }
 ```
 
-Show the user `credits_estimate` and the lines; prices change, so never repeat
-them from this page.
+Also read `source`, `actor`, `resolved_aspect_ratio` (what will ACTUALLY be
+rendered) and `tts_model`. The quote and the run share one verdict: a 400 on the
+quote is the same 400 on the run, and a money or access refusal the run would
+meet is named in the quote's `warnings[]`. The free curl form is in section 7.
 
-`warnings[]` IS present here (passed through unfiltered) — read it: parameters
-that will not be honoured (for example, a `caption_emphasis` quote spoken entirely
-under a full-frame insert, where no captions are drawn) are
-declared there rather than dropped silently.
+## 4. Traps: a wrong answer without an error
 
-**Always call `quote_ugc` first and show the user the price before `make_ugc`**
-(the tool description says so in the imperative).
+### Silent: the answer looks right and is not
 
-### `make_ugc` — paid, creates a run
+**An omitted `aspect_ratio` follows the source, not 9:16.** With `image`, the
+video takes the supported format nearest the photo: a 1600×900 photo gives a
+16:9 video, and the format draws no warning. Only the default actor is always
+9:16. Pass `aspect_ratio` whenever you pass `image`. Checked live 2026-10-31.
 
-The input is the same shape plus `attempt` (an integer ≥1, optional; see section
-5). Money: this is ONE paid render per call, unless idempotency deduplication kicks
-in (section 2). **The tool does NOT wait for the video** — it starts the run and
-returns a `run_id` immediately:
+**A format up to 15% away from the source is snapped, not refused.** The frame
+is padded with white bars or center-cropped at the sides, and `warnings[]` says
+which; within 2% there is no warning. Over 15% on an explicit `aspect_ratio` is
+400 `aspect_conflict` before any charge, so `1:1` on the default actor is refused.
+A photo that could not be measured renders as requested, or 9:16, with a warning
+that the format was not verified. Checked 2026-10-31.
 
-```json
-{
-  "status": "IN_PROGRESS",
-  "run_id": "run_...",
-  "state": "queued",
-  "video_url": null,
-  "warnings": [],
-  "next_action": "Video is NOT ready. Call get_run with run_id=run_... again in ~5 seconds. Repeat until state is 'succeeded' or 'failed'. Do NOT tell the user the video is done until you have a video_url."
-}
-```
+**`person`, `name` and `look` change nothing.** They are accepted and quoted; the
+default actor renders, and only `warnings[]` says so. The `character` refusal
+suggests `person`, which still chooses no face. Choose one with `actor_id` from
+`list_actors`, an `image`, or a new actor from `create_actor`. Checked live 2026-10-31.
 
-The shape is the one `get_run` returns: `make_ugc` calls the same formatter, so
-`warnings[]` is declared HERE, on the very first response, and not one poll later
-— by then the paid run is already going. Read it: this is where a format snap or
-an ignored field is announced.
+**Captions are off in `make_ugc` and on in `make_faceless`.** `make_ugc` draws
+word-timed captions only with `captions: true`; `make_faceless` draws them unless
+`captions: false`. `make_faceless` takes only `captions`; the style, emphasis and
+mode fields below are `make_ugc` fields, and `make_faceless` refuses them. Whether a
+video has captions is the user's call:
 
-After that you MUST poll `get_run` with that `run_id` every ~5–10 seconds until it
-reaches a terminal state. Do not tell the user the video is ready until you have a
-`video_url`.
-
-#### Captions (`captions`, `caption_style`, `caption_emphasis`)
-
-`make_ugc` burns word-timed captions into the video when `captions: true`. They
-are off by default and do not change the price. Whether a video has them is the
-user's call:
-
-1. **Ask whether they want captions** before the quote. Never turn them on
-   unprompted.
-2. **If yes, pick a style with them.** When the user gave a reference video, take
-   its look: bold uppercase cues with one coloured keyword is `hormozi`, one or
-   two words popping in colour is `tiktok`, a sentence on a dark box is `youtube`
-   or `lecture`. Otherwise offer three or four styles that fit the video, one line
-   each, and link the gallery, which shows every style on the same clip:
-   https://clipwright.io/captions. Without a choice the server draws `hormozi`.
-3. **Mark key words with `caption_emphasis`**: quotes from `script` drawn larger or
-   in the style's accent colour. `caption_mode: "highlights"` captions only the
-   lines around those quotes.
+1. **Ask whether they want captions** before the quote. Never turn them on unprompted.
+2. **If yes, pick a style with them.** From a reference video take its look:
+   bold uppercase cues with one coloured keyword is `hormozi`, one or two words
+   popping in colour is `tiktok`, a sentence on a dark box is `youtube` or
+   `lecture`. Otherwise offer three or four styles that fit the video, one line
+   each, and link https://clipwright.io/captions. Without a choice the server draws `hormozi`.
+3. **Mark key words with `caption_emphasis`**: quotes from `script` drawn larger
+   or in the accent colour; `caption_mode: "highlights"` captions only around them.
 
 The styles: `hormozi` (the default), `accent`, `tiktok`, `youtube`, `instagram`,
 `minimalist`, `neon`, `genz`, `campfire`, `midnight`, `plottwist`, `headline`,
 `promo`, `lecture`, `highlighter`, `studio`, `broadcast`, `arcade`, `clutch`,
 `bubblegum`, `crayon`, `lyrics`, `bassdrop`, `punch`; `minimal` is an older name
-for `minimalist`. Each style's description is in `caption_style` of `tools/list`:
-quote that, not your memory of it. Captions are refused with `segments` and with
-`gemini-3.8-flash-tts`, which returns no word timings.
-
-#### Choosing a voice (`voice` / `voice_id`)
-
-Two mutually exclusive optional fields in the `make_ugc` input:
-
-- `voice` — the `name` of a voice from the free `list_voices` tool: one of the
-  presets (`owner_ru_clone`, `sarah`, `george`, `eric`, `daria_ru_female`), one of
-  the thirty voices of `gemini-3.8-flash-tts` (kind `model_voice`), or a
-  catalog voice. **The recommended path.** Validated at the boundary: an unknown
-  or retired name returns 400 immediately and no paid call is made. The two
-  refusals differ: a retired voice's message names the date it left the catalog.
-- **A `model_voice` voice belongs to its model.** Naming one (`kore`, `puck`, …)
-  makes the run speak `gemini-3.8-flash-tts` with no `tts_model`, and the quote
-  names that model in `tts_model`. A voice and a `tts_model` that does not speak
-  it return 400 before any charge, and the message names the way out: for a
-  `model_voice` voice with an `eleven_*` model, omit `tts_model`; for a preset, a
-  catalog voice or `voice_id` with `tts_model: "gemini-3.8-flash-tts"`, take a
-  voice from `list_voices` with `model: "gemini-3.8-flash-tts"`. That model
-  returns no word timings, so `captions: true` is refused with it too.
-- `voice_id` — a **raw ElevenLabs id** (20 characters), an escape hatch for voices
-  OUTSIDE the catalog, cloned ones included. It is checked for free against the
-  account at the start of the run (not during `quote`): a non-existent id fails the
-  run BEFORE any paid call.
-- **The default voice follows the actor's gender.** Without `voice` or `voice_id`,
-  a woman speaks `sarah` and a man speaks `george`. The gender comes from the
-  `actor_id` catalog entry, or from `actor_gender` next to `image`. The default
-  actor speaks `george`. With `tts_model: "gemini-3.8-flash-tts"` and no voice, a
-  woman speaks `kore` and everyone else `charon`. An explicit voice always wins.
-- **With `image`, pass `actor_gender` or a `voice`.** Clipwright does not detect
-  gender from the photo. Without either, the voice is `george` and `warnings[]`
-  says so. `actor_gender` next to `actor_id`, or without `image`, returns 400
-  before any charge.
-- **Read `actor` in the quote before rendering.** It describes the selected
-  actor (`null` means the client sent `image`). An explicit voice is used as
-  requested whatever the actor's gender; `actor_gender` next to it changes nothing,
-  and a warning says so.
-
-**How to pick a voice when the user asks for one:**
-
-1. Call `list_voices` with the filters the user gave: `language`, `gender`,
-   `age`, `use_case`. Language is a filter only: any voice speaks any supported
-   language, so a Spanish script can use an English voice.
-2. Play the `preview_url` of two or three candidates to the user. A catalog
-   voice's sample is in its native language. A `model_voice` voice's sample is in
-   English; call `list_voices` with `language: "ru"` to get it in Russian.
-3. Pass the chosen `name` as `voice` to `quote_ugc` and then `make_ugc`.
-4. Next time, reuse that same `name`. A name always means the same voice.
-
-When the user sends a photo and asks for no particular voice, pass the gender of
-the person in it as `actor_gender`. Ask the user only when you cannot tell.
-
-For a Russian script, leave `tts_model` out or name `eleven_v4` — it reads stress
-marks — and mark stress with a capital vowel (see **Russian stress marks**
-above). A Russian voice speaks `eleven_v4` on its own. A `model_voice` voice reads
-stress marks too, on its own model `gemini-3.8-flash-tts`.
-
-### `get_run` — status polling
-
-Input: `{ "run_id": "run_..." }`. The response shape is implemented in
-`packages/mcp-server/src/format.ts` (`formatGetRun`) and is given below as it
-actually is.
-
-**A non-terminal run**
-(`queued`/`scripting`/`tts`/`avatar`/`compositing`/`uploading`) carries the stage
-in `state`, with `status` always `"IN_PROGRESS"`:
-
-```json
-{
-  "status": "IN_PROGRESS",
-  "run_id": "run_...",
-  "state": "avatar",
-  "video_url": null,
-  "next_action": "Video is NOT ready. Call get_run with run_id=run_... again in ~5 seconds. Repeat until state is 'succeeded' or 'failed'. Do NOT tell the user the video is done until you have a video_url."
-}
-```
-
-**Terminal success** carries BOTH `status: "SUCCEEDED"` AND `state: "succeeded"`:
-
-```json
-{
-  "status": "SUCCEEDED",
-  "run_id": "run_...",
-  "state": "succeeded",
-  "video_url": "https://...",
-  "duration_seconds": 13.08,
-  "ai_disclosure": "This video was generated with AI: ..."
-}
-```
-
-`ai_disclosure` names what is synthetic in that video: a faceless video and a video with a presenter carry
-different sentences. Pass it to the user as written when they ask how to label the publication.
-
-**Terminal failure** carries BOTH `status: "FAILED"` AND `state: "failed"`:
-
-```json
-{
-  "status": "FAILED",
-  "run_id": "run_...",
-  "state": "failed",
-  "error": "<error text>"
-}
-```
-
-**`warnings[]` in `get_run`:** every branch of the response (`IN_PROGRESS`,
-`SUCCEEDED`, `FAILED`) carries the run's `warnings` — parameters that were not
-honoured are always declared, never dropped silently. `make_ugc` shares the
-formatter, so its first response carries them too. Read it on the terminal
-response without fail: for instance, captions laid out evenly because the speech
-model returned no word timings are announced exactly there.
-
-**An unknown terminal status on the server** (say a hypothetical `"canceled"` that
-is not in `TERMINAL_STATES`) is a deliberate degradation: `isTerminal` returns
-`false`, so such a run lands in the `IN_PROGRESS` branch and the agent is told to
-keep polling a run that has already finished. That is accepted prototype behaviour
-— MCP and the API ship as one version — not a formatter bug.
-
-### `get_run_shots` — free, read-only
-
-Takes a `run_id` and returns the shots of that video as the API states them
-(`GET /v1/runs/{id}/shots`). It changes nothing and starts nothing.
-
-- `planned: true` — the answer holds `frame`, `timebase.fps`, `duration_frames`,
-  the narration `words` with their timing, and `tracks[]`. Each shot has an `id`,
-  `start_frame` and `end_frame`, a `kind`, the words it covers, a `description`
-  and a `preview_url`. Spans are whole frames at `timebase.fps`.
-- `planned: false` — a normal answer, not an error. The run has no shots to show,
-  and `editable.state` with `editable.reason` says why: the run did not succeed,
-  its `line` is one the API reads no shots for, or it kept no record of its
-  media. Tell the user that reason; do not retry.
-
-`preview_url` is a signed link to the shot's source picture or clip, which is a
-large file. It expires: call the tool again for a fresh link and never store it.
-A field named in `withheld` is null on every shot, so a null `description` or
-`preview_url` there means "not shown", not "missing".
-
-`editable.media_available_until` is how long the media of the run are stored.
-`paid_edits.enabled` says whether a video can be made from an edit; while it is
-`false`, none can, and `revise_run` answers `editing_disabled`. Read `kind`, `line`,
-`editable.state` and each shot's `operations` as open strings, because a later
-API may name values this text does not list.
-
-### `quote_revision` — free; `revise_run` — paid
-
-Both take a `run_id` and exactly one of `changes` (shots to generate anew over
-the run as it is: each a `shot_id` and its `operation`, such as
-`{ "mode": "retake" }`) or `document` (the whole edited document; retimes,
-deletions and uploads go this way). `quote_revision` answers what the revision
-would change (`summary`) and cost (`billing.total_credits`) and spends nothing.
-Show the user that price before `revise_run`.
-
-`revise_run` starts a NEW run and returns it at once; poll it with `get_run`.
-Once it succeeded it is editable under its own `run_id`. A revision that
-delivers is charged its quoted total; one that fails is charged nothing, even
-when its paid work was already done. An identical request returns the same run
-it started before, so a call repeated after a lost answer starts nothing new;
-pass `attempt: 2` to start a second revision with the same request on purpose.
-
-The refusals are terminal; do not retry them unchanged:
-
-- `editing_disabled`, `editing_not_priced`, `editing_window_not_set` (503) —
-  paid edits are not open. Nothing was charged and no run was created.
-- `edit_ceiling_reached` (409) — `ceiling: "in_flight"` means a revision of the
-  original is still running: follow `run_ids` with `get_run` and start the next
-  one after it finishes; if it is held for review, contact support.
-  `"failed_or_unfinished"` means support has to raise the limit.
-- `edit_invalid` (422) — the document breaks a rule of the run; `issues` lists
-  each, and the rules are in the run's shots.
-- `run_not_editable` (409) with `state: "edit_window_closed"` — the paid window
-  of the original has closed.
-
-### `quote_candidate` — free; `create_candidate` — paid
-
-A shot candidate is one picture or clip made for one shot of a `make_faceless`
-run, to keep or discard in a later revision. Both tools take a `run_id`, a
-`shot_id` and an `operation` the shot lists in `get_run_shots` (such as
-`{ "mode": "retake" }`), and an optional `take`, 1 by default.
-`quote_candidate` answers the `unit`, its `credits` and `usable_until`, the last
-moment the candidate can enter a revision, and spends nothing. Show the user
-that price before `create_candidate`.
-
-`create_candidate` starts a NEW run of skill `edit_shot` and returns it at once;
-poll it with `get_run`. Once it succeeded, `candidate.preview_url` shows what was
-made. A delivered candidate is charged its one unit whether it is kept or
-discarded; one that fails is charged nothing, even when its paid work was
-already done. An identical request returns the same run it started before, so a
-call repeated after a lost answer starts nothing new; pass `take: 2` to make
-another candidate with the same request on purpose, charged again.
-
-The refusals are those of `revise_run` above. The candidate limits of an
-original, running at once and failed or unfinished, are counted apart from its
-revisions, and support raises only the revision limit. An operation the shot
-does not offer is `edit_invalid` with the code `action_not_allowed`.
-
-### `quote_image`, `quote_video` — free; `generate_image`, `generate_video` — paid
-
-One image or one silent clip from a prompt, each a run of its own.
-`list_generation_models` lists the models, modes, aspect ratios, resolutions,
-durations and `unit_credits`: credits per image, or per second of a clip. Any
-other combination is `unsupported_combination` before any charge. The quotes
-answer the credits, the width and height, and warnings; show the price first.
-
-A reference is `{ "upload_id": ..., "rights_confirmed": true }` for a picture
-from `upload_image` or `create_upload`, `{ "run_id": ... }` of a succeeded `generate_image` run
-of this account until its `reusable_until`, or `{ "asset_id": ... }` of a picture asset from
-`create_asset`, whose rights were confirmed when it was made. In `first_frame` mode the frame must
-match the requested aspect ratio within 2% (`source_aspect_mismatch`).
-
-The run tools return the run at once; poll it with `get_run`, and once it
-succeeded `generation.url` is the file. A delivered generation is charged its
-quoted credits; one that fails is charged nothing, even when the vendor was
-already paid. An identical request returns the same run; pass `attempt: 2` for
-another. While generations are closed the tools answer `generations_disabled`
-or `generations_marking_pending` and charge nothing.
-
-### `list_actors` — free, no input
-
-Returns the permanent actor catalog from `/v1/actors`, including stable
-`actor_id`, version, name, gender, approximate age and verified image formats.
-Each variant has dimensions, `preview_url` and `preview_expires_at`. Preview
-links expire; retain `actor_id` for reuse and call the catalog again for fresh previews.
-
-Pass `actor_id` to both `quote_ugc` and `make_ugc`. It cannot be combined with
-`image` or `person`. An unavailable actor or format returns an error before paid
-work; it never substitutes the default face. Existing runs retain the selected
-version and image hash even if the catalog changes later.
-
-### `list_voices` — free, optional filters
-
-Returns the voices for the `voice` field of `make_ugc`, or of `make_faceless`
-when called with `skill: "make_faceless"`. Each voice names the one skill that
-speaks it in `skill`, and the other skill refuses it before any charge. The
-`make_ugc` voices are the presets, the thirty voices of `gemini-3.8-flash-tts`
-and the catalog voices, by language and then by rank. The seventeen
-`make_faceless` voices are a list of their own. Costs nothing and creates no
-run.
-
-All filters are optional:
-
-- `skill` — `make_ugc` or `make_faceless`: the skill whose voices to list.
-  Without it the list holds the `make_ugc` voices only, so call it with
-  `skill: "make_faceless"` before a faceless video.
-- `language` — the voice's native language. It is a filter, not a limit: any
-  voice speaks any supported language. A `model_voice` voice has no language of
-  its own and matches the languages measured on its model, `en` and `ru`; the
-  filter also picks the language of its sample.
-- `gender` — `female` or `male`.
-- `age` and `use_case` — labels as the entries print them, such as `young` or
-  `narrative_story`.
-- `model` — keeps the voices that speech model speaks: the presets and catalog
-  voices whose language it supports, or the model's own voices.
-  `model: "gemini-3.8-flash-tts"` returns its thirty voices.
-
-A voice without a label matches no value of that filter; `language` on a
-`model_voice` voice is the one exception above. An unknown value is
-refused with the allowed values, and an unknown filter name with
-`unknown_field`; neither returns an empty list.
-
-Each entry carries `name`, `kind` (`preset`, `model_voice`, `faceless_voice` or
-`catalog`), `skill`, `language`, `description`, `model` (its default speech
-model) and `supported_models`. A `model_voice` entry has no `language`, names one model in
-both `model` and `supported_models` and carries `gender` only where it is known
-(`kore` is female, `charon` is male). A `faceless_voice` entry carries its
-`language` and `gender` and the model label `narrator-v1`, which is not a
-`tts_model`: the `model` filter never returns it. A
-catalog voice also carries `verified_models` and whichever of `locale`,
-`accent`, `gender`, `age` and `use_case` the catalog has. The tool returns
-`{ "voices": [...] }` only. REST `GET /v1/voices` also returns `models`, and the
-script limit of each model is in `tools/list`.
-
-There is still a network call: the tool hits OUR `/v1/voices` and needs a working
-`CLIPWRIGHT_API_KEY`, like the other three. Nobody calls the vendor — the list
-lives in `@clipwright/core` and the samples in our own bucket, so this surface
-needs no vendor key.
-
-Call it before `make_ugc` when the user asks for "a different voice": a voice
-name is preferable to a raw `voice_id`, because a name survives a change of
-vendor and an identifier does not.
-
-**Let the user HEAR the voice before paying for it.** Every voice with a recorded
-sample carries `preview_url`: a short clip spoken by that voice with its own
-model, so it matches what the render will sound like. A catalog voice speaks its
-sample in its native language. A `model_voice` voice has two samples: the English
-one comes by default and the Russian one with `language: "ru"`. Descriptions convey neither
-diction nor accent nor pace; the owner caught a voice-face mismatch by ear, on a
-finished clip. Offer the sample whenever the user asks for a different voice.
-
-The link is signed and expires at `preview_expires_at`, an hour out. For a fresh
-one call `list_voices` again; never store it. A voice with no sample carries no
-`preview_url` at all — the sample does not exist, rather than having been dropped
-from the answer.
-
-### `get_account` — free, no input
-
-Returns the body of `GET /v1/account`: `balance_credits`, `debt_credits`,
-`holds_credits` and the unexpired `grants`. It costs nothing and creates no run.
-
-- `debt_credits` above zero blocks `make_ugc` with `debt_outstanding`, whatever
-  the balance, until the account buys credits.
-- With no debt, `balance_credits` is what a new run can spend.
-- `holds_credits` are reserved for runs in progress; they settle when those
-  runs finish.
-
-`quote_ugc` already warns in `warnings[]` when `make_ugc` with the same input
-would be refused for money or access, so a render rarely needs this call first.
-Call it when the user asks how many credits are left, or to show the numbers
-behind such a warning.
-
-### `list_prices` — free, no input
-
-Returns the body of `GET /v1/public/prices`: one entry per tool and variant with
-its price as `lines` of `credits` per `unit`, added up, and `minimum_credits`
-when there is one; where the price depends on the input, `lines` is empty and
-`formula` states the rule. Free tools are listed at 0. Each paid tool's description ends with
-the same price line. For the exact number of one call, use the quote tool the
-entry names in `quote_tool`.
-
-### `quote_faceless` — free, and `make_faceless` — paid, creates a run
-
-A faceless video is narration over an opening animated clip and image scenes,
-without an on-camera presenter. You select 30 to 90 seconds; the video ends with
-its narration, runs at least 25 seconds and at most a quarter past the selection,
-never beyond 90. Captions are on by default; pass
-`captions: false` to turn them off.
-
-Give the narration one of two ways, and name which with `input_mode`:
-
-- `input_mode: "script"` with `script` — your exact text is read as written.
-  The video ends with the narration, runs at least 25 seconds and may exceed
-  `duration_seconds` by up to a quarter, never beyond 90 seconds; a video more
-  than 5 seconds longer says so in `warnings[]`. A script is accepted when its
-  estimated length is 21 seconds to `duration_seconds` plus 5, at most 90. The charge follows the delivered duration and never
-  exceeds the quote; `list_prices` gives the rates and the minimum.
-- `input_mode: "brief"` with `brief` — a short description; the narration is
-  written from it.
-
-Send exactly one of `script` and `brief`, the one that matches `input_mode`. The
-tool schema lists both as optional because MCP cannot express "one or the
-other"; the server and this client both refuse a mismatch, and the client
-refuses it before any request is sent.
-
-`duration_seconds` (30 to 90, on a 1/25 s frame boundary) is required. Optional:
-`style_reference` (a public https image the scenes follow in style),
-`character_reference` (a public https image of a person or figure to keep
-consistent) and `scene_images` (your own images, each anchored to a word range
-or a quote of the narration). An uploaded image must belong to this account.
-
-`voice` picks the narration voice: a `name` from `list_voices` with
-`skill: "make_faceless"`. There are seventeen, in English, Russian, Spanish,
-Portuguese, French and Italian; each entry has a `language` and a `gender`.
-Without `voice` the narration is read by `narrator_en_wise_lady`, an English
-voice, whatever the language of the text, so pick a voice in the language of
-the narration. A voice reads any language with its own accent; when the
-language of a voice you named is written in another alphabet than the script,
-the quote and the run say so in `warnings[]`: the voice may mispronounce the
-text, and the video may come out longer than its length limit and fail. A
-brief draws that line, worded as a condition, only when it is written in the
-other alphabet and holds no letter of the voice's: the narration is written in the language of the brief
-unless the brief asks for another, so name the narration's language in the
-brief when it differs from the brief's own. An unknown name and a `make_ugc`
-voice such as `george` are refused before any charge. `voice_id` is not
-accepted: `make_faceless` speaks only the voices listed for it. Both faceless
-tools refuse `voice_id` and any other key they do not declare before any
-request is sent. These voices have no `preview_url` yet.
-
-Call `quote_faceless` first and show the user the price: it spends nothing and
-warns when `make_faceless` would be refused for money or access. `make_faceless`
-returns a `run_id` at once; poll `get_run` until `succeeded` (with `video_url`)
-or `failed`. As with `make_ugc`, a repeated call with the same input returns the
-same run, and `attempt` 2, 3, … deliberately starts a new paid one. `attempt`
-belongs to `make_faceless`: a quote takes none, and `quote_faceless` refuses
-it. When faceless generation is switched off on the server, both tools answer
-`paid_render_disabled` and nothing is charged.
-
-A `succeeded` faceless run can carry a remark from our own delivery check in
-`warnings[]`: that the check could not confirm the captions or a scene change at
-a given second, or that it did not run. The video is delivered and charged as
-any other. Read the warning to the user and let them watch the video before
-they publish it.
+for `minimalist`. Quote each style's description from `caption_style` in
+`tools/list`, not from memory. Captions are refused with `gemini-3.8-flash-tts`,
+which returns no word timings. Checked 2026-10-31.
+
+**`make_faceless` without `voice` narrates in English.** The default
+`narrator_en_wise_lady` reads a Russian or Spanish script with an English accent,
+and `warnings[]` stays empty: the language warning fires only for a voice you
+named. Pick a voice in the narration's language from `list_voices` with
+`skill: "make_faceless"`. Without `skill`, `list_voices` lists only `make_ugc`
+voices, and `make_faceless` refuses those. A brief is narrated in its own
+language unless it asks for another. Checked live 2026-10-31.
+
+**A photo's gender is not detected.** With `image` and neither `actor_gender`
+nor `voice`, the male voice `george` speaks and `warnings[]` says so. Pass
+`actor_gender` or a `voice`. With `actor_id` the voice follows the actor's gender.
+Checked 2026-10-31.
+
+**`voice_pace` does nothing on `eleven_v4`, the default model of presets and
+catalog voices.** The voice speaks at its own pace, and the run's `warnings[]`
+says so; the quote does not. To change pace, pick a voice by `words_per_second`
+in `list_voices`. Checked 2026-10-31.
+
+**`eleven_v3` is spoken as `eleven_v4`, and break tags give no pause** on
+`eleven_v4` and `gemini-3.8-flash-tts`: `<break time="1.5s" />` is cut from the
+text. `warnings[]` names both. A script of nothing but break tags is refused.
+Checked 2026-10-31.
+
+**Russian stress is written, not retried.** On `eleven_v4` and
+`gemini-3.8-flash-tts` a capital vowel inside a lowercase word marks stress:
+`потОм`. A capital that starts a word, an all-caps word, or a word with a second
+capital stays as written. The 2.5 models misread the mark and warn on Cyrillic.
+A retry never fixes stress; only the text does. Checked 2026-10-31.
+
+**`make_faceless` `duration_seconds` is a target, not a length.** The video ends
+with its narration and runs at least 25 seconds. It usually ends within a
+quarter past the selection and 90 seconds. A longer narration runs to its end,
+and the charge never exceeds the quote. A video more than 5 seconds past the
+selection names both lengths in `warnings[]`. A
+script whose estimated length is under 21 seconds or over the selection plus 5
+is refused before any charge; the message names the window, the code is the
+broader `unusable_source`. Checked live 2026-10-31.
+
+**A `make_ugc` quote is an estimate; a `make_faceless` quote is a ceiling.**
+`make_ugc` charges the measured duration rounded up to whole seconds, which can
+exceed `credits_estimate`. `make_faceless` charges the delivered length and never
+more than its quote. Read `credits_charged` on the finished run: it is `null`
+until the run settles, while `credits_reserved` holds the reserve. Checked 2026-10-31.
+
+**The price field has a different name in each quote.** `credits_estimate` in
+`quote_ugc`, `quote_actor` and `quote_analysis`; `credits` in `quote_image`,
+`quote_video` and `quote_candidate`; `totalCredits` in `quote_faceless`;
+`billing.total_credits` in `quote_revision`. A missing field is a wrong name, not
+a free call. Checked live 2026-10-31.
+
+**The same input after a failure returns the same failed run.** A repeated paid
+call with the same input and the same `attempt` answers 200 with the earlier run,
+terminal failure included, and starts nothing. It is not a permanent refusal: to
+try again, raise `attempt` (section 5). `create_candidate` takes `take` instead.
+Checked 2026-10-31.
+
+**`failed` is not always final.** Rarely, a run that ended `failed` is reopened
+when its video arrives late: `get_run` shows `queued` with a warning, then
+`succeeded` with a link and a charge for the delivered video, and `warnings[]`
+names the recovery. A retry started meanwhile is a second video and a second
+charge. Before reporting a failure as final, read the run once more. Checked 2026-10-31.
+
+**A new Idempotency-Key on the same input is a second paid run.** Over REST the
+key is the only thing that collapses a repeat; the server does not compare inputs
+across keys. After an uncertain answer (a timeout, `429`, `5xx`), resend with THE
+SAME key. The same key with a different body is 409 `idempotency_key_reused`.
+Checked 2026-10-31.
+
+**A `succeeded` faceless run can carry a remark from the delivery check** in
+`warnings[]`: captions or a scene change it could not confirm at a given second,
+or that the check did not run. The video is delivered and charged. Read the
+remark to the user and let them watch before they publish. Checked 2026-10-31.
+
+### Errors whose shape hides the cause
+
+**`curl -I` on `video_url` answers 403.** The link is signed for GET only. Check
+it with a ranged GET (`curl -r 0-0`). Each `get_run` signs a fresh link valid for
+seven days; never store it. Preview links of voices, actors and shots expire too:
+call the tool again. Checked 2026-10-31.
+
+**A raw `voice_id` the account does not have passes the quote and fails the run.**
+It is checked at the start of the run, before any paid call, so the failure costs
+nothing; a `voice_id` the account has is spoken. A `voice`
+name from `list_voices` is checked at the quote. Checked 2026-10-31.
+
+**`planned: false` from `get_run_shots` is an answer.** `editable.state` and
+`editable.reason` say why the run has no shots to show; tell the user, do not
+retry. A field named in `withheld` is null on every shot: "not shown", not
+"missing". Checked 2026-10-31.
+
+**A reference reel is polled with `get_reference_analysis`, not `get_run`.** Pass
+an Instagram or TikTok link as `source_url` (no `create_asset` first); a YouTube
+link is refused, so ask for the MP4. The same reel by its full link, in the same
+mode, answers its earlier analysis for free; a short `vm.tiktok.com` link always
+starts a new, paid one. `mode: "data"` reads many reels cheaply, without a
+`reference_profile`. Checked 2026-10-31.
+
+**An unknown terminal state reads as in progress.** The MCP formatter reports a
+state it does not know as `IN_PROGRESS`, so polling would not end. Update the
+client: MCP and the API ship as one version. Checked 2026-10-31.
 
 ## 5. Retrying a failed run is NOT a permanent refusal
 
-If `get_run` returned a terminal `FAILED` and you call `make_ugc` AGAIN with the
-SAME input (same `script` and options) and WITHOUT changing `attempt`, the server
-returns THAT SAME terminal failed run as it is (same error, same `run_id`) instead
-of starting a new paid render. That is idempotency deduplication (section 2), not
-a sign that the video is forever out of reach.
-
-**To actually retry, pass `attempt` one higher than before** (the first call is
-`attempt=1` by default; the second attempt is `attempt: 2`, the third `attempt: 3`,
-and so on). This is the behaviour documented verbatim in the `make_ugc` tool
-description:
+A repeated call with the SAME input and WITHOUT a new `attempt` returns THAT SAME
+failed run (section 4). **To actually retry, pass `attempt` one higher than
+before** (the first call is `attempt: 1`). The `make_ugc` tool description says
+the same:
 
 > "Pass attempt=2,3,… to deliberately start a NEW run for the same input
 > (retry after a failure)."
 
-Technically `attempt` does not go into the render request body but into the SDK
-options, and becomes a `:N` suffix on the idempotency key — a different suffix
-gives a different key, so the server sees a NEW request, which means a new
-`run_id` and a new paid vendor call.
-
-Do not confuse this with `CLIPWRIGHT_CLIENT_ID`: `attempt` is the agent's
-deliberate "this is a new attempt", while `clientId` is the fixed identity of the
-installation and must NOT change between attempts.
+`attempt` is the agent's "this is a new try"; `CLIPWRIGHT_CLIENT_ID` is the
+installation's fixed identity and must NOT change between attempts.
 
 ### ⚠️ EVERY `attempt` BUMP COSTS MONEY
 
-A new `attempt` is a new run and a **new paid vendor call**, not a free resend.
-The loop "failed → bump → failed → bump" burns real credits on every iteration.
+A new `attempt` is a **new paid run**, not a free resend. The loop "failed → bump
+→ failed → bump" burns credits on every iteration.
 
-So:
+- **Read the `error` of the failed run first.** `rejected_field`,
+  `aspect_conflict` and `script_encoding_lost` come from the input, and the next
+  attempt fails the same way for money. For `script_encoding_lost`, re-send the
+  script decoded as UTF-8.
+- **`speech_too_short_for_script` is almost never fixed by a retry**: change the
+  text or the voice.
+- **Bump `attempt` only for a failure that looks temporary** (a timeout, `5xx`, a
+  dropped connection).
+- **No daily cap stands between you and the credits.** What stops a run before
+  any paid call is the balance, an unpaid debt, or a pause on our side.
 
-- **read the `error` of the failed run before retrying.** Refusals such as
-  `rejected_field`, `aspect_conflict` or `script_encoding_lost` are NOT fixed by
-  retrying — they are determined by the input, and the next attempt fails the
-  same way, only now for money. `script_encoding_lost` in particular cannot be
-  fixed at all by sending the same text again: the bytes were lost before the
-  request reached us, so re-send the script decoded as UTF-8;
-- **`speech_too_short_for_script` is almost never fixed by retrying either.**
-  The vendor's pronunciation and stress are determined by the text; only the
-  length varies, and only within the vendor's measured spread. A take just under
-  the threshold may pass on a second try, but a take far under it will not —
-  change the text or the voice instead;
-- **bump `attempt` only for a refusal that looks temporary** (vendor timeout, 5xx,
-  a dropped connection);
-- **no daily cap stands between you and your credits (0.7.0).** Not on your
-  account, and not on the service either: `global_cap_exceeded` is no longer
-  produced. What still stops a run before any paid call is your own balance, an
-  unpaid debt, and our killswitch.
+## 6. Server refusals are read from fields, not guessed
 
-## 5.1. Server refusals are read from fields, not guessed (0.2.0)
-
-Since 0.2.0 an API refusal carries structured fields instead of one free-form
-sentence. It still arrives the way every tool result does — as JSON **inside the
-text block**, with `isError: true`:
+A refusal arrives as JSON **inside the text block**, with `isError: true`:
 
 ```ts
 { content: [{ type: "text", text: "{\"status\":\"FAILED\", …}" }], isError: true }
 ```
 
-So `JSON.parse(content[0].text)` first, then read the fields below. Reading
-`content[0].balance_credits` gives `undefined`: the numbers are inside the parsed
-text, not beside it. Do not relay the raw text to the user and do not guess from
-it.
+So `JSON.parse(content[0].text)` first; `content[0].balance_credits` is
+`undefined`. Do not relay the raw text and do not guess from it.
 
 ```json
 {
@@ -1027,165 +466,92 @@ it.
 }
 ```
 
-Numeric fields appear only where the refusal actually has them:
-
-| Field | Appears on |
-| --- | --- |
-| `retry_after_seconds` | `rate_limited`, and any `http_5xx` where the server named a pause |
-| `limit`, `window_seconds` | only when the 429 body followed the Clipwright contract; a 429 whose body did not carries neither |
-| `balance_credits`, `required_credits` | `insufficient_credits` only |
-| `debt_credits` | `debt_outstanding` only |
-
-Treat every one of them as optional and read what is there. In particular, do not
-expect balance numbers on `debt_outstanding`: that refusal reports the debt, and
-the balance is not what blocks the run.
+The numbers appear only where the refusal has them: `retry_after_seconds` on
+`rate_limited` and on a `5xx` that named a pause; `limit` and `window_seconds`
+only when the 429 body followed the Clipwright contract; `balance_credits` and
+`required_credits` on `insufficient_credits` only; `debt_credits` on
+`debt_outstanding` only. Treat each as optional.
 
 **One rule: look at `retryable`.**
 
-- `retryable: true` (`rate_limited`, 5xx) — wait `retry_after_seconds` and repeat
-  **THE SAME call with the same arguments**. Do not bump `attempt`: this is not a
-  failed run but a refused request, and a new `attempt` would mean a second paid
-  render (section 5).
-- `retryable: false` (`insufficient_credits`, `debt_outstanding`,
-  `account_not_admitted`, other 4xx) — **stop and tell the human**. A repeat
-  gives the same answer while eating into the rate limit. For money refusals,
-  quote the NUMBERS: "the account has 3 credits, this needs 8" — without them the
-  human cannot tell how much to buy.
+- `retryable: true` (`rate_limited`, `5xx`) — wait `retry_after_seconds` and
+  repeat **THE SAME call with the same arguments**. Do not bump `attempt`: this
+  was a refused request, not a failed run.
+- `retryable: false` — **stop and tell the human**. For money refusals quote the
+  NUMBERS: "the account has 3 credits, this needs 8".
+
+The two money codes are cured the same way — buy credits — but they describe
+different situations. `insufficient_credits` means the balance is too small for
+this run. `debt_outstanding` means the account owes credits, possibly while still
+holding a balance, so "you do not have enough credits" would be false. Credits
+bought while a debt stands clear the debt first; the run still needs enough
+credits of its own, so a purchase equal to the debt clears it and adds nothing to
+the balance. Quote the debt figure and say that a purchase adds to the balance
+only the part that exceeds the debt; this refusal does not report the balance.
 
 `account_not_admitted` (403) is not a money refusal and carries no numbers: the
-account has no beta access. Buying credits will not lift it — access is granted
-by the operator. Say that, and do not offer to top up.
+account has no access. Buying credits does not lift it; contact support. Promise
+no date and no position: an account whose access was REVOKED gets the same 403.
 
-Do NOT promise a position in line or an upcoming batch. The refusal says one
-thing only: this account has no access right now. An account whose access was
-REVOKED gets the same 403, and promising it a turn would be a lie at the worst
-possible moment.
+A `429` or `5xx` can come from the Clipwright API or from anything between you
+and it; do not claim a source. A `429` does **not** mean no run was created: a
+repeat with an already-used key can get one too, so retry with THE SAME key. On a
+status check, a `429` is yours to sit out: wait, then call `get_run` again with
+the same `run_id`. The run is already going and already paid for.
 
-The two money codes are cured the same way — buy credits — but they must not be
-conflated, because they describe different situations. `insufficient_credits`
-means the balance is too small for this run. `debt_outstanding` means the account
-owes credits, and it can owe them while still holding a balance, so telling the
-human "you do not have enough credits" would be false. Credits bought while a
-debt stands clear the debt first and only then reach the balance. Clearing the
-debt lifts this particular refusal and nothing else: the run still needs enough
-credits of its own, so a purchase equal to the debt clears it and adds nothing to
-the balance. Quote the debt figure, and say that credits go to the debt first: a
-purchase adds to the balance only the part that exceeds the debt. Whether the
-human has to buy more than the debt depends on what the balance already holds,
-and this refusal does not say — the balance is not what blocks the run.
+## 7. On failure — plain curl splits the diagnosis
 
-Do not read a source into the refusal. A `429` or a `5xx` can come from the
-Clipwright API itself or from anything between you and it, and the fields above
-cannot tell you which — so the report does not claim one, and neither should you
-when relaying it. What is certain is the code and what to do about it.
-
-About `429` specifically: it does **not** mean no run was created. The rate limit
-sits in front of the handler, so a repeat carrying an already-used idempotency key
-gets one too. Retry with THE SAME key — a new key is a new paid render.
-
-**Nobody waits on your behalf here — you do the polling.** `get_run` makes one
-call and hands you whatever came back, refusals included. So a `429` on a status
-check is yours to sit out: wait `retry_after_seconds`, then call `get_run` again
-with the same `run_id`. Do not treat it as a failed run and do not start a new
-one — the run is already running and already paid for.
-
-(The SDK's own `makeUgc` does wait these out internally, which is why the CLI and
-direct SDK users never see them. The MCP tools are deliberately thin: `make_ugc`
-returns as soon as the run starts, so a long render never blocks your turn.)
-
-## 6. On failure — plain curl as a diagnosis splitter
-
-If the MCP path does not get you to a playable video, hit the same public REST
-directly with curl, bypassing MCP, SDK and CLI entirely. If curl gets through, the
-packaging layer is at fault; if it does not, production or the network is.
-
-**Two commands, no repository needed** (the package is installed from npm and
-carries no scripts):
+If the MCP path does not reach a playable video, call the same REST API directly.
+If curl gets through, the MCP setup is at fault (section 1); if not, the key,
+the network or the service is.
 
 ```bash
-TOKEN=cw_...                       # the same value as CLIPWRIGHT_API_KEY, section 1.3
+TOKEN=cw_...                       # the same value as CLIPWRIGHT_API_KEY
 API=https://api.clipwright.io
 
-# 1. Start a run. The idempotency key is required and must be UNIQUE per call:
-#    a repeated key returns the earlier run instead of a new one (section 2).
-#    Generate it with Node, not uuidgen: Node is certainly here (the package is
-#    installed via npx), while uuidgen may be missing on a bare Linux image — and
-#    then the shell silently substitutes an empty string, the key becomes
-#    constant, and a second run returns the earlier one, ruining exactly the
-#    diagnosis you started it for.
+# 0. Free: the quote. Verified 2026-10-31 (200, 50 credits, resolved 9:16).
+curl -sS -X POST "$API/v1/skills/make_ugc/quote" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"script":"Hello! This is a test line."}'
+
+# 1. Paid: start a run. The idempotency key is required and must be UNIQUE per
+#    call: a repeated key returns the earlier run. Generate it with Node, not
+#    uuidgen, which may be missing and leave the key empty and constant.
 curl -sS -X POST "$API/v1/skills/make_ugc/run" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: cw-$(node -e 'process.stdout.write(crypto.randomUUID())')" \
   -d '{"script":"Hello! This is a test line."}'
 
-# 2. Poll until terminal, every ~5–10 s.
+# 2. Free: poll until terminal, every ~5–10 s.
 curl -sS "$API/v1/runs/<run_id>" -H "Authorization: Bearer $TOKEN"
 ```
 
-Reading the result:
-
-- **curl reaches `succeeded` with its own `run_id` and a playable link, but MCP
-  does not:** the root cause is in the MCP packaging layer (build, host config,
-  environment — section 1), not in the REST API and not in access or the token.
-- **curl fails too:** the problem is not MCP. Check `$TOKEN` from the commands
-  above (shaped `cw_*`, not truncated when copied), network access to `$API`, and —
-  for the cloned-run story — that `CLIPWRIGHT_CLIENT_ID` really is unique on this
-  machine (section 2). If you get a 200 with a `run_id` that is not yours in
-  substance, that is the symptom of the collapse described in section 2 on the MCP
-  path; curl (which uses its own random `Idempotency-Key` per call) will not
-  reproduce it directly, but it is worth checking separately via `get_run` on that
-  `run_id`.
-
-The second request above — `GET /v1/runs/{id}` — is free: you can poll an existing
-run as often as you like without making a new paid call.
-
-## The whole sequence (what must reproduce)
-
-1. Install the server: `npx -y -p @clipwright/mcp-server@latest clipwright-mcp`
-   starts and prints `running on stdio` (section 1.1). From source:
-   `pnpm install && pnpm build` in the repository root, then `dist/index.js`
-   exists.
-2. Generate a unique `CLIPWRIGHT_CLIENT_ID` (section 2) and put it, together with
-   `CLIPWRIGHT_API_KEY`, into the MCP host config (section 1.3).
-3. Restart the host and confirm `tools/list` returns every tool named in
-   section 1.3.
-4. `quote_ugc` with a script → show the price AND read `source`,
-   `resolved_aspect_ratio`, `warnings[]` (section 3).
-5. `make_ugc` → get a `run_id` immediately.
-6. `get_run` every ~5–10 s, reading `state` along the way and `status` + `state` on
-   the terminal response, until `SUCCEEDED` (`video_url`) or `FAILED` (`error`).
-7. On failure — the same two curl commands from section 6 to split the diagnosis.
+If curl reaches `succeeded`
+with its own `run_id` and MCP does not, look at the MCP build, host config and
+environment. If curl fails too, check that `$TOKEN` is a whole `cw_*` key, that
+`$API` is reachable, and that `CLIPWRIGHT_CLIENT_ID` is unique (section 2).
 
 ### If you are a second user evaluating the product
 
-You have one task: **reach a playable video using this file, without spoken help
-from the owner.** What is being tested is the completeness of the guide, not you —
-so do not ask, write down where you got stuck.
-
-Before you start, make sure of two different things.
+Your task: **reach a playable video using this file, without spoken help from
+whoever gave you access.** What is tested is the guide, not you: do not ask,
+write down where you got stuck.
 
 1. **The token was issued on YOUR account, not merely as a separate token.** The
-   idempotency axis is `account_id`, and one account can hold several live tokens.
-   Your own account means another person's run cannot reach you at all. You cannot
-   check this from your side: the account behind a token is visible only to the
-   service. So the confirmation that the token was issued on a SEPARATE account
-   comes WITH the token — it is part of handing it over, not a question for the
-   owner. If it did not come, that is a gap in the instructions: write it down and
-   move on, no need to ask.
-2. **`CLIPWRIGHT_CLIENT_ID` was not copied from anyone's machine** (section 2). It
-   matters WITHIN an account: if you and the owner ended up on one account (even
-   under different tokens) AND your `clientId` matched, the server returns THE
-   OWNER'S RUN with a 200 and a playable link — a false success that looks more
-   convincing than a real one. It can match through a shared `HOME`, a copied
-   value, or a cloned image; a genuinely separate installation has its own even
-   without the environment variable.
+   idempotency axis is `account_id`, and one account can hold several live
+   tokens. You cannot check this from your side, so the confirmation that the
+   token is on a SEPARATE account comes WITH the token. If it did not, write that
+   down and move on.
+2. **`CLIPWRIGHT_CLIENT_ID` was not copied from anyone's machine** (section 2).
+   If you and the person who issued your token are on one account AND your
+   `clientId` matches theirs, the server returns THAT OWNER'S RUN with a 200 and
+   a playable link: a false success that looks more convincing than a real one.
 
-Tell two classes of failure apart, because they are fixed differently:
+Tell two classes of failure apart:
 
-- **`rejected_field`, `unknown_field`, `aspect_conflict`** — a contract doing its job, not a
-  defect. Read the error text: it names both the reason and the replacement;
-- **everything else** (timeout, 5xx, empty response, tool not found) — a candidate
-  for a real defect. Here, run the same two curl commands from section 6: if curl
-  reaches a playable link and MCP does not, the cause is in the MCP packaging
-  layer, and that should be written down separately from the rest.
+- **`rejected_field`, `unknown_field`, `aspect_conflict`** — the contract doing
+  its job; the message names the reason and the replacement.
+- **everything else** (a timeout, `5xx`, an empty response, a missing tool) — a
+  candidate for a real defect. Run the curl commands of section 7 and write down
+  separately whether curl reached a playable link where MCP did not.

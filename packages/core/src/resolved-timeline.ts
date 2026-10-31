@@ -8,7 +8,7 @@ import { LAYER_ENTERS, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OV
 import { MAX_TEMPLATES, TEMPLATE_PLACEMENTS, TEMPLATE_SOUND_BEATS } from "./templates/index.js";
 import { FRAMING_SIZES, MAX_FRAMING } from "./ugc-framing.js";
 
-// The long-form timeline a render freezes into `runs/<id>/resolved-timeline.v1.json`: the worker writes it, the editor reads it.
+// The long-form timeline a render freezes: the run writes it, the editor reads it.
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const positive = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
@@ -36,7 +36,7 @@ const layerSlot = z.discriminatedUnion("kind", [
   z.object({ ...layerMedia, kind: z.literal("overlay"), position: z.enum(OVERLAY_POSITIONS) }).strict(),
   z.object({ ...layerMedia, kind: z.literal("window"), layout: z.enum(LAYOUT_WINDOW_KINDS), blurPresenter: z.boolean() }).strict(),
 ]);
-/** A frozen template, in a long-form timeline or in a single take's `templates.json` (#840). */
+/** A frozen template, in a long-form timeline or in a single take's record. */
 export const resolvedTimelineTemplate = z.object({ id: z.string().min(1).max(64), kind: z.string().min(1).max(64), kindVersion: positive,
   placement: z.enum(TEMPLATE_PLACEMENTS), preset: z.string().min(1).max(64), startFrame: frame, endFrame: positive,
   /** The run's accent as admitted (#778 S3a(iii)); absent draws the preset's own. */
@@ -203,7 +203,7 @@ export function readResolvedTimeline(value: unknown): ResolvedTimeline {
   return result;
 }
 
-/** The face-billing units of a timeline: each actor slot is one unit whose face shows over its whole interval; a hold is none (owner 25.10).
+/** The face-billing units of a timeline: each actor slot is one unit whose face shows over its whole interval; a hold is none.
  *  A live slot is one too (S4d, C9), optional: a take that falls back (D8) is neither shown nor charged. */
 export function faceBillingUnitsOf(timeline: ResolvedTimelineContent) {
   return timeline.slots.flatMap(slot => slot.kind === "actor" || slot.kind === "live" ? [{

@@ -2,7 +2,7 @@
 
 Your coding agent writes the script; [Clipwright](https://clipwright.io/?ref=npm) renders
 a short vertical video of an actor speaking it, 1080×1920 by default. It also
-makes faceless videos of up to 90 seconds from a script or a short brief: narration
+makes faceless videos of a length you pick, 30 to 90 seconds, from a script or a short brief: narration
 over an opening animated clip and image scenes, with no on-camera presenter. The agent
 asks for a free quote before it spends anything, and whatever the API cannot
 honor comes back in `warnings[]` instead of being dropped silently.
@@ -179,6 +179,8 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
 - `list_prices` — what every tool costs in credits: a number per unit, or a
   formula where the price depends on the input; free tools are listed at 0.
   Free.
+- `send_feedback` — tell Clipwright what is missing, confusing, wrong or slow,
+  optionally about a run; we read every one. Free.
 - `make_ugc` — **renders a clip; this is the call that costs money.** Returns a
   `run_id` immediately instead of blocking, because a render takes minutes.
 - `get_run` — status of a run. Free; poll it every few seconds.
@@ -190,8 +192,8 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
 - `revise_run` — **starts a revision: a new run that renders the video again
   with the shots you change; this costs money.** Pass `changes` (a shot and what
   to generate for it) or the whole edited `document`. A revision that delivers
-  is charged its quoted total; one that fails is charged nothing, even when its
-  paid work was already done. An identical request returns the same run;
+  is charged its quoted total; one that fails is charged nothing. An identical
+  request returns the same run;
   `attempt` starts a second one on purpose. Returns a `run_id` immediately; poll
   `get_run` until `succeeded`.
 - `quote_candidate` — price of a shot candidate of a faceless video: one picture
@@ -199,15 +201,14 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
 - `create_candidate` — **makes a shot candidate; this costs money.** Pass the
   shot and the operation to generate for it. A delivered candidate is charged
   its one unit whether it is kept or discarded; one that fails is charged
-  nothing, even when its paid work was already done. An identical request
+  nothing. An identical request
   returns the same run; `take` makes another candidate on purpose. Returns a
   `run_id` immediately; poll `get_run` until `succeeded`.
 - `list_generation_models` — the models of single generations with their
   measured shapes and credits per image or per second. Free.
 - `quote_image`, `quote_video` — price of one image or one clip. Free.
 - `generate_image`, `generate_video` — **make one image or one silent clip;
-  this costs money.** One that fails is charged nothing, even when the vendor
-  was already paid. An identical request returns the same run; `attempt` starts
+  this costs money.** One that fails is charged nothing. An identical request returns the same run; `attempt` starts
   another on purpose. Poll `get_run`; `generation.url` is the file.
 - `upload_image` — a PNG/JPEG from a local `path` or a public https `url` →
   `upload_id` and a signed https url to pass as `image`. Free; 20 per day, at
@@ -245,8 +246,8 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
 - `quote_faceless` — price of a faceless video before making one. Free.
 - `make_faceless` — **makes a faceless video from your script or from a short
   brief; this costs money.** You pick 30 to 90 seconds; the video ends with its
-  narration, from 25 seconds to a quarter past your pick (never past 90), and
-  costs at most the quote. Narration plays over an opening
+  narration, at least 25 seconds and usually at most a quarter past your pick
+  and 90 (a longer narration runs to its end), and costs at most the quote. Narration plays over an opening
   animated clip and image scenes, with captions on by default. `voice` picks
   the narration voice by name. Returns a
   `run_id` immediately; poll `get_run` until `succeeded`.
@@ -264,8 +265,9 @@ Bumping the `attempt` field starts a **new paid render**. It is the way to retry
 a failed run on purpose, not a free refresh. For faceless videos `attempt`
 belongs to `make_faceless`: a quote takes none, and `quote_faceless` refuses it.
 
-`SKILL.md` ships inside the package with the full operating instructions, and
-`CHANGELOG.md` next to it says what changed in each release and what was removed.
+`SKILL.md` ships inside the package with the full operating instructions.
+[clipwright.io/changelog](https://clipwright.io/changelog) says what changed in each
+release and what was removed.
 
 ## Privacy
 

@@ -1,14 +1,14 @@
 import { z } from "zod";
 
-// Voice profile of a reference (reference-elements S7): pace, pauses, pitch and loudness per speaker, measured in our worker from the Scribe
-// words and the decoded audio; the method is the owner's analyzer (video-style-analyzer, docs/voice-profile.md). Numbers only, no words.
+// Voice profile of a reference (reference-elements S7): pace, pauses, pitch and loudness per speaker, measured by our service from the transcribed
+// words and the decoded audio. Numbers only, no words.
 
 export const REFERENCE_VOICE_VERSION = "voice-profile-v1";
 export const REFERENCE_VOICE_WARNINGS = ["no_sentence_terminal_punctuation_pace_uses_turn_spans",
   "background_music_present_f0_and_intensity_may_be_contaminated"] as const;
 export const MAX_REFERENCE_VOICE_SPEAKERS = 6;
 
-/** Words per second of our English default (eleven_v4) at speed 1 on the reference reel's text, measured 25.10 (tone-reel-atoms.md). */
+/** Words per second of our English default (eleven_v4) at speed 1 on the reference reel's text, as measured. */
 export const NARRATION_BASELINE_WPS = 2.54;
 /** ElevenLabs' speed range; make_ugc's voice_pace accepts the same. */
 export const VOICE_PACE_MIN = 0.7;

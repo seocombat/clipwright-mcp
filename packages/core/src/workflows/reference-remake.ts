@@ -48,6 +48,8 @@ const MEDIA_KINDS = { overlay_media: 'overlays', insert_media: 'inserts', layout
 const MARKER = 'ref-long-form';
 const GENERATE = 'pass a ready ast_* asset, or make one separately with generate_image or generate_video (its own quote), then compile again';
 type Unmapped = ReferenceProfile['unmapped'][number];
+/** The saved plan keeps the reference's techniques, not its words: the remake copies no line of it, and the analysis keeps them already. */
+const withoutWords = ({ transcript: _transcript, hook: _hook, ...profile }: ReferenceProfile) => profile;
 type Layer = { field: 'templates' | 'overlays' | 'inserts' | 'layout_windows' | 'framing' | 'caption_emphasis'; beat: number; kind: string; item: unknown };
 
 export function referenceScriptWords(script: string): ReferenceScriptWord[] {
@@ -159,7 +161,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         }
     }
     const templatesOff = executor?.field_dispositions.templates === 'rejected';
-    // The reference's caption height, where the deployment draws caption_position (#884); otherwise the style's own place.
+    // The reference's caption height, where the run draws caption_position (#884); otherwise the style's own place.
     const captionsPlaced = executor?.field_dispositions.caption_position === 'implemented';
     // A wide reference asks for the wide view where it can render: honoured field, a library actor (personal ones have no wide view); graphics follow that face (#884 S5d).
     const framing: PresenterFraming = profile.presenter_framing === 'wide' && executor?.field_dispositions.presenter_framing === 'implemented'
@@ -230,7 +232,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
             if (kind in MEDIA_KINDS) {
                 if (layered) { note(index, `${kind} (one media layer per beat)`, 'the first one shows here'); continue; }
                 if (pool.length === 0) { note(index, `${kind} (no image or video left in assets)`, GENERATE); continue; }
-                if (!longForm) { note(index, `${kind} (media layers need long-form qualification on this deployment)`, 'the presenter stays on screen on these words'); continue; }
+                if (!longForm) { note(index, `${kind} (media layers need long-form qualification, not available right now)`, 'the presenter stays on screen on these words'); continue; }
                 const asset = take()!, field = MEDIA_KINDS[kind as keyof typeof MEDIA_KINDS], base = { ...envelope(kind), asset_id: asset.asset_id, media_type: asset.media_type };
                 const { kind: _kind, ...item } = base;
                 const position = graphic.position.replace(/^split_/, ''), wanted = (OVERLAY_POSITIONS as readonly string[]).includes(position) ? position as OverlayPosition : 'top_right';
@@ -244,7 +246,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
                 layered = true; fullFrame ||= field === 'inserts'; windowed ||= field === 'layout_windows';
                 continue;
             }
-            if (templatesOff) { note(index, `${kind} (templates are disabled on this deployment)`, 'the presenter speaks these words without it'); continue; }
+            if (templatesOff) { note(index, `${kind} (templates are not available right now)`, 'the presenter speaks these words without it'); continue; }
             if (placed) { note(index, `${kind} (one graphic per beat)`, `the ${placed} on these words`); continue; }
             const built = template(kind, graphic, span, clauses, beat.presenter_behaviour === 'absent');
             if ('missing' in built) { note(index, `${kind} (${built.missing})`, built.substitute); continue; }
@@ -363,7 +365,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         : Array.from({ length: reach }, (_, back) => quote(resumeAt - reach + back, reach - back, resumeAt)).find(found => found?.end === resumeAt);
     let call: Record<string, unknown> | undefined;
     if (listening >= 0 && !request.call) note(listening, 'the reference\'s call needs your lines', 'the presenter keeps talking');
-    else if (listening >= 0 && !longForm) note(listening, 'the reference\'s call (a call needs long-form qualification on this deployment)', 'the presenter keeps talking');
+    else if (listening >= 0 && !longForm) note(listening, 'the reference\'s call (a call needs long-form qualification, not available right now)', 'the presenter keeps talking');
     else if (listening >= 0 && !before) note(listening, 'the reference\'s call (no sentence end with words after it to open it on)', 'the presenter keeps talking');
     else if (listening >= 0 && before && request.call) {
         const stage = callStageOf(profile, listening, note);
@@ -380,7 +382,9 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         const key = `${element.beat_index}:${graphic?.kind}`;
         if (!graphic || !placed.has(element.beat_index) || named.has(key) || (call && element.beat_index === listening && element.kind === 'phone_call')) continue;
         named.add(key);
-        note(element.beat_index, `${graphic.kind}: its measured place and entry (reference staging)`, 'its default place; measured staging is drawn for the call\'s phone only');
+        // A box CV never measured comes from the vision pass, and the note says so (#930 S2).
+        const source = element.rect_method?.startsWith('vision') ? 'vision-pass' : 'measured';
+        note(element.beat_index, `${graphic.kind}: its ${source} place and entry (reference staging)`, 'its default place; measured staging is drawn for the call\'s phone only');
     }
 
     const aggregate = (values: (string | undefined)[], keep: (value: string) => boolean, what: (value: string, beats: string) => string, substitute: string) => {
@@ -413,7 +417,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         (value, beats) => `${value} camera on beats ${beats}`, 'a static frame');
     const music = profile.beats.findIndex(beat => beat.sounds.some(sound => sound.kind === 'music'));
     if (music >= 0) note(music, 'the music bed', 'no music; Clipwright adds none yet');
-    // The narration chases the presenter's measured pace through the voice's speed (owner, 25.10); a model without one leaves the voice as the lever (#890).
+    // The narration chases the presenter's measured pace through the voice's speed; a model without one leaves the voice as the lever.
     const speechModel = resolveTtsModel({ voice: request.voice, voice_id: request.voice_id, script });
     const pace = narrationPaceFromVoice(profile.voice), fixedPace = FIXED_PACE_MODELS.has(speechModel);
     if (pace.kind === 'unmeasured') note(0, `narration pace (${pace.reason})`, 'the voice speaks at its own pace');
@@ -433,7 +437,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         note(0, `narration pace ${pace.target_wps} words/s of the reference presenter (speed ${pace.wanted} wanted)`,
             `voice_pace ${pace.voice_pace}, the end of the speed range: the narration may run ${pace.wanted > pace.voice_pace ? 'slower' : 'faster'} than the reference`);
     }
-    // Speed first, then the residual: pauses longer than the presenter's word-gap medians are cut in silence only (owner, 25.10).
+    // Speed first, then the residual: pauses longer than the presenter's word-gap medians are cut in silence only.
     const pauseTrim = pauseTrimFromVoice(profile.voice), pauseTargets = pauseTrim?.targets;
     if (!pauseTargets) note(0, 'narration pauses (the reference presenter\'s pauses were not measured)', 'pauses stay as the voice speaks them');
     for (const { key, median_s } of pauseTrim?.capped ?? []) {
@@ -533,7 +537,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         brief: { audience: request.audience ?? 'Viewers of short ads in the style of the reference',
             message: request.message ?? script.slice(words[firstSentence.start]!.from, words[firstSentence.end - 1]!.to),
             script, native: { skill: 'make_ugc', input: native },
-            reference_profile: { ...profile, music: '', unmapped,
+            reference_profile: { ...withoutWords(profile), music: '', unmapped,
                 beats: profile.beats.map(beat => ({ ...beat, spoken_summary: '', graphics: beat.graphics.map(graphic => ({ ...graphic, label_hint: '' })) })) } },
         beats, claims: [], assets: [] });
     return document.success ? { kind: 'compiled', document: document.data }

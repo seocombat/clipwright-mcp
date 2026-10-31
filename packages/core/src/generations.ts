@@ -22,7 +22,7 @@ export const GENERATION_IMAGE_ASPECTS = ["9:16", "16:9", "1:1"] as const;
 export const GENERATION_VIDEO_ASPECTS = ["9:16", "16:9"] as const;
 export const GENERATION_RESOLUTIONS = ["360p", "480p", "720p", "1080p"] as const;
 export const GENERATION_VIDEO_MODES = ["text", "first_frame", "reference"] as const;
-/** No model takes a camera parameter, so the worker writes it as the prompt's first line (#761). */
+/** No model takes a camera parameter, so the run writes it as the prompt's first line (#761). */
 export const GENERATION_CAMERAS = ["static", "push_in", "pull_back", "pan"] as const;
 export type GenerationCamera = (typeof GENERATION_CAMERAS)[number];
 export type GenerationImageAspect = (typeof GENERATION_IMAGE_ASPECTS)[number];
@@ -33,14 +33,6 @@ export type GenerationVideoMode = (typeof GENERATION_VIDEO_MODES)[number];
 export const GENERATION_MAX_REFERENCES = 4;
 export const GENERATION_VIDEO_FPS = 24;
 export const GENERATION_PROMPT_MAX_CHARS = 2000;
-
-export type GenerationVendor = "byteplus" | "fal" | "kie";
-
-/** One vendor endpoint that makes a model's clip; the client never sees it, and the price does not depend on it. */
-export interface GenerationVideoRoute {
-  vendor: GenerationVendor;
-  vendor_model: string;
-}
 
 /** One output shape. `measured: false` is refused by the API and never listed (D7). */
 export interface GenerationImageRow {
@@ -61,24 +53,17 @@ export interface GenerationVideoRow {
   /** Credits per second of the requested duration. */
   unit_credits: number;
   measured: boolean;
-  /** The routes measured for this row (rule 4): a route serves the row only if its vendor is listed here. */
-  vendors: readonly GenerationVendor[];
   /** Told in `warnings[]` on every request that lands here (rule 3): what the measured output differs in. */
   warning?: string;
 }
 
 export interface GenerationImageCapability {
   kind: "image";
-  vendor: GenerationVendor;
-  /** The vendor endpoint without references and with them; Seedream takes both on one id. */
-  vendor_model: { text: string; reference: string };
   rows: readonly GenerationImageRow[];
 }
 
 export interface GenerationVideoCapability {
   kind: "video";
-  /** Tried in this order (owner, 21.10): the next one only after a real-face refusal or an unavailable submit. */
-  routes: readonly GenerationVideoRoute[];
   fps: number;
   /** Whether each mode was measured live; an unmeasured mode is refused like an unmeasured row. */
   modes: Readonly<Record<GenerationVideoMode, boolean>>;
@@ -97,116 +82,96 @@ const image = (aspect_ratio: GenerationImageAspect, width: number, height: numbe
 
 const H264 = { codec: "h264", pix_fmt: "yuv420p" } as const;
 
-/** Rows in both aspects of one resolution; `measured` holds the aspects probed live (19.10 paid tests, ffprobe of the clips). */
-function video(vendors: readonly GenerationVendor[], resolution: GenerationResolution, short: number, long: number,
+/** Rows in both aspects of one resolution; `measured` holds the aspects probed live on rendered clips. */
+function video(resolution: GenerationResolution, short: number, long: number,
   unit_credits: number, probed: { codec: string | null; pix_fmt: string | null },
   measured: { vertical?: boolean; horizontal?: boolean } = {}, warning?: string): GenerationVideoRow[] {
   const extra = warning === undefined ? {} : { warning };
   return [
-    { aspect_ratio: "9:16", resolution, width: short, height: long, ...probed, unit_credits, measured: measured.vertical ?? false,
-      vendors, ...extra },
-    { aspect_ratio: "16:9", resolution, width: long, height: short, ...probed, unit_credits, measured: measured.horizontal ?? false,
-      vendors, ...extra },
+    { aspect_ratio: "9:16", resolution, width: short, height: long, ...probed, unit_credits, measured: measured.vertical ?? false, ...extra },
+    { aspect_ratio: "16:9", resolution, width: long, height: short, ...probed, unit_credits, measured: measured.horizontal ?? false, ...extra },
   ];
 }
 
 const HEVC10 = { codec: "hevc", pix_fmt: "yuv420p10le" } as const;
 const SEEDANCE_2_0_MODES = { text: true, first_frame: true, reference: false } as const;
 const DRAFT_480P = {
-  "9:16": "480p draft is 496x864 (2.1% off 9:16), as the vendor renders it; we do not crop it",
-  "16:9": "480p draft is 864x496 (2.0% off 16:9), as the vendor renders it; we do not crop it",
+  "9:16": "480p draft is 496x864 (2.1% off 9:16), as the model renders it; we do not crop it",
+  "16:9": "480p draft is 864x496 (2.0% off 16:9), as the model renders it; we do not crop it",
 } as const;
-/** A route serves a row once a live measure of it adds that route (rule 4; measures of 19.10 and 21.10). */
-const BYTEPLUS = ["byteplus"] as const;
-const KIE = ["kie"] as const;
-const BYTEPLUS_THEN_KIE = ["byteplus", "kie"] as const;
-const UNSERVED = [] as const;
 
-/** Seedance 2.0 renders 480p as 496x864 in both aspects (measured 19.10 and 21.10). */
-function draft480p(vendors: readonly GenerationVendor[], unit_credits: number): GenerationVideoRow[] {
-  return video(vendors, "480p", 496, 864, unit_credits, H264, { vertical: true, horizontal: true })
+/** Seedance 2.0 renders 480p as 496x864 vertical and 864x496 horizontal, as measured. */
+function draft480p(unit_credits: number): GenerationVideoRow[] {
+  return video("480p", 496, 864, unit_credits, H264, { vertical: true, horizontal: true })
     .map((row) => ({ ...row, warning: DRAFT_480P[row.aspect_ratio] }));
 }
 
-/** One aspect of a pair changed: a measure that saw only that aspect, or saw it at another vendor. */
+/** One aspect of a pair changed: a measure that saw only that aspect. */
 function only(rows: GenerationVideoRow[], aspect: GenerationVideoAspect, change: Partial<GenerationVideoRow>): GenerationVideoRow[] {
   return rows.map((row) => (row.aspect_ratio === aspect ? { ...row, ...change } : row));
 }
 
-/** The one table of models, shapes and prices (D7); prices are derived in service-core and pinned by its test. */
-/** Measures: `docs/assets/measurements/kie-generations-2026-10-21.json`, `byteplus-seedance-720p-480p-2026-10-21.json`. */
+/** The one table of models, shapes and prices. */
 export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
   "seedream-5.0-flash": {
     kind: "image",
-    vendor: "byteplus",
-    vendor_model: { text: "dola-seedream-5-0-flash-260915", reference: "dola-seedream-5-0-flash-260915" },
-    rows: [image("9:16", 1440, 2560, 6, true), image("16:9", 2560, 1440, 6, true), image("1:1", 2048, 2048, 6, true)],
+    rows: [image("9:16", 1440, 2560, 3, true), image("16:9", 2560, 1440, 3, true), image("1:1", 2048, 2048, 3, true)],
   },
   flare: {
     kind: "image",
-    vendor: "fal",
-    vendor_model: { text: "openai/gpt-image-2.5/flare/text-to-image", reference: "openai/gpt-image-2.5/flare/edit" },
-    rows: [image("9:16", 1008, 1792, 8, true), image("16:9", 1792, 1008, 8), image("1:1", 1024, 1024, 8)],
+    rows: [image("9:16", 1008, 1792, 4, true), image("16:9", 1792, 1008, 4), image("1:1", 1024, 1024, 4)],
   },
   "seedance-2.0": {
     kind: "video",
-    routes: [{ vendor: "byteplus", vendor_model: "dreamina-seedance-2-0-260128" }, { vendor: "kie", vendor_model: "bytedance/seedance-2" }],
     fps: GENERATION_VIDEO_FPS,
     modes: SEEDANCE_2_0_MODES,
     duration_s: { min: 4, max: 15 },
-    // The second route measured only the 720p 9:16 row of 2.0 (21.10).
-    rows: [...draft480p(BYTEPLUS, 22),
-      ...only(video(BYTEPLUS, "720p", 720, 1280, 46, H264, { vertical: true, horizontal: true }), "9:16", { vendors: BYTEPLUS_THEN_KIE }),
-      ...video(BYTEPLUS, "1080p", 1080, 1920, 114, H264, { vertical: true, horizontal: true })],
+    rows: [...draft480p(12),
+      ...video("720p", 720, 1280, 24, H264, { vertical: true, horizontal: true }),
+      ...video("1080p", 1080, 1920, 59, H264, { vertical: true, horizontal: true })],
   },
   "seedance-2.0-mini": {
     kind: "video",
-    // Rows served by kie only (#800): BytePlus mini cost $0.076/s against kie's $0.041, so its fallback billed at ×1.09 over cost.
-    routes: [{ vendor: "kie", vendor_model: "bytedance/seedance-2-mini" }, { vendor: "byteplus", vendor_model: "dreamina-seedance-2-0-mini-260615" }],
     fps: GENERATION_VIDEO_FPS,
     modes: { text: true, first_frame: true, reference: true },
     duration_s: { min: 4, max: 15 },
-    rows: [...draft480p(KIE, 6),
-      ...video(KIE, "720p", 720, 1280, 13, H264, { vertical: true, horizontal: true })],
+    rows: [...draft480p(3),
+      ...video("720p", 720, 1280, 7, H264, { vertical: true, horizontal: true })],
   },
   "seedance-2.0-fast": {
     kind: "video",
-    routes: [{ vendor: "byteplus", vendor_model: "dreamina-seedance-2-0-fast-260128" }],
     fps: GENERATION_VIDEO_FPS,
     modes: SEEDANCE_2_0_MODES,
     duration_s: { min: 4, max: 15 },
-    rows: [...draft480p(BYTEPLUS, 18), ...video(BYTEPLUS, "720p", 720, 1280, 37, H264, { vertical: true, horizontal: true })],
+    rows: [...draft480p(9), ...video("720p", 720, 1280, 20, H264, { vertical: true, horizontal: true })],
   },
   "seedance-2.5": {
     kind: "video",
-    routes: [{ vendor: "byteplus", vendor_model: "dreamina-seedance-2-5-260628" }, { vendor: "kie", vendor_model: "bytedance/seedance-2-5" }],
     fps: GENERATION_VIDEO_FPS,
     modes: { text: false, first_frame: true, reference: false },
     duration_s: { min: 4, max: 30 },
-    // 2.5 renders a true 480x854. The second route made its 480p 9:16 and 720p 16:9 (21.10); the first made every row.
-    rows: [...only(video(BYTEPLUS, "480p", 480, 854, 32, H264, { vertical: true, horizontal: true }), "9:16", { vendors: BYTEPLUS_THEN_KIE }),
-      ...only(video(BYTEPLUS, "720p", 720, 1280, 71, H264, { vertical: true, horizontal: true }), "16:9", { vendors: BYTEPLUS_THEN_KIE }),
-      ...video(BYTEPLUS, "1080p", 1080, 1920, 173, HEVC10, { vertical: true },
+    // 2.5 renders a true 480x854.
+    rows: [...video("480p", 480, 854, 17, H264, { vertical: true, horizontal: true }),
+      ...video("720p", 720, 1280, 37, H264, { vertical: true, horizontal: true }),
+      ...video("1080p", 1080, 1920, 90, HEVC10, { vertical: true },
         "seedance-2.5 at 1080p is HEVC 10-bit (yuv420p10le); some browsers and editors do not play it")],
   },
   "kling-3.0": {
     kind: "video",
-    routes: [{ vendor: "kie", vendor_model: "kling-3.0/video" }],
     fps: GENERATION_VIDEO_FPS,
     modes: { text: true, first_frame: true, reference: false },
     duration_s: { min: 3, max: 15 },
-    rows: video(KIE, "720p", 720, 1280, 21, H264, { vertical: true, horizontal: true }),
+    rows: video("720p", 720, 1280, 11, H264, { vertical: true, horizontal: true }),
   },
-  // 360p 9:16 is not yet seen (live, 21.10).
+  // 360p 9:16 is not yet seen live.
   "gemini-omni-flash-1.1": {
     kind: "video",
-    routes: [{ vendor: "kie", vendor_model: "google/gemini-omni-flash-1-1" }],
     fps: GENERATION_VIDEO_FPS,
     modes: { text: true, first_frame: true, reference: false },
     duration_s: { min: 4, max: 10 },
     duration_values: [4, 6, 8, 10],
-    rows: [...only(video(UNSERVED, "360p", 360, 640, 24, H264), "16:9", { measured: true, vendors: KIE }),
-      ...video(KIE, "720p", 720, 1280, 24, H264, { vertical: true, horizontal: true })],
+    rows: [...only(video("360p", 360, 640, 13, H264), "16:9", { measured: true }),
+      ...video("720p", 720, 1280, 13, H264, { vertical: true, horizontal: true })],
   },
 });
 

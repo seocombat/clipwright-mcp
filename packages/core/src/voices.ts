@@ -5,7 +5,7 @@ import type { Gender } from "./default-actor.js";
 /** it honored none of the stress-marking methods we measured. */
 export const TTS_MODELS = ["eleven_v3", "eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_v4", "gemini-3.8-flash-tts"] as const;
 export type TtsModelId = (typeof TTS_MODELS)[number];
-/** All ElevenLabs speech goes to v4 since 2026-10-25 (owner): it covers every v3 language at the same price. */
+/** All ElevenLabs speech goes to v4 since 2026-10-25: it covers every v3 language at the same price. */
 export const DEFAULT_TTS_MODEL: TtsModelId = "eleven_v4";
 /** What Russian speech goes to when the client names no model; `resolveTtsModel` decides what is Russian. */
 export const RUSSIAN_TTS_MODEL = "eleven_v4" satisfies TtsModelId;
@@ -56,11 +56,11 @@ interface SpeechTextTraits {
   hasSpeedSetting: boolean;
 }
 export const TTS_MODEL_TEXT_TRAITS: Readonly<Record<TtsModelId, SpeechTextTraits>> = {
-  // Retired 2026-10-25. It took speed and ignored it: 0.8 and 1.2 ran within 3% (docs/63).
+  // Retired 2026-10-25. It took speed and ignored it: 0.8 and 1.2 ran within 3%.
   eleven_v3: { readsStressMarks: true, pausesOnBreakTags: true, hasSpeedSetting: true },
   eleven_flash_v2_5: { readsStressMarks: false, pausesOnBreakTags: true, hasSpeedSetting: true },
   eleven_turbo_v2_5: { readsStressMarks: false, pausesOnBreakTags: true, hasSpeedSetting: true },
-  // No speed on v4 (vendor's v4 page; 28.10: 0.8, 1 and 1.2 ran within take noise on 13 voices, #890), so the voice sets the pace.
+  // No speed on v4 (0.8, 1 and 1.2 ran within take noise on 13 voices), so the voice sets the pace.
   eleven_v4: { readsStressMarks: true, pausesOnBreakTags: false, hasSpeedSetting: false },
   "gemini-3.8-flash-tts": { readsStressMarks: true, pausesOnBreakTags: false, hasSpeedSetting: false },
 };
@@ -201,7 +201,7 @@ export function cutToNothingError(text: string, modelId: TtsModelId): string | u
 }
 
 /** Voice preset catalog: OUR names and metadata, WITHOUT vendor ids. Names feed `tools/list` */
-/** and SDK types; ids live only in the worker adapter. */
+/** and SDK types; ids stay on our service. */
 export interface VoicePreset {
   /** Voice language as a short BCP-47-like code (ru/en). */
   language: string;
@@ -217,13 +217,6 @@ export interface VoicePreset {
 /** The starter set of presets. Order matters only for presentation; the default is set */
 /** separately by `DEFAULT_VOICE_PRESET`. */
 export const VOICE_PRESETS = {
-  owner_ru_clone: {
-    language: "ru",
-    // The gender is OUR fact about our own clone, not vendor metadata.
-    gender: "male",
-    description: "Клон голоса владельца (David-Dmitry-Ru); русский — на английском даёт акцент",
-    model: RUSSIAN_TTS_MODEL,
-  },
   // A Russian preset speaks `RUSSIAN_TTS_MODEL`, every other one the default; a test holds both.
   sarah: {
     language: "en",
@@ -265,6 +258,35 @@ export const VOICE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
 export function isVoicePresetName(name: string): name is VoicePresetName {
   return Object.hasOwn(VOICE_PRESETS, name);
+}
+
+/** Presets a server adds at start: this package ships none of them, and `listVoices` lists none unless asked. */
+const servicePresets = new Map<string, VoicePreset>();
+let publishedOnly = false;
+
+/** Adds presets a server keeps to itself; a published name is refused, so a published preset cannot be replaced. */
+export function addServiceVoicePresets(presets: Readonly<Record<string, VoicePreset>>): void {
+  for (const [name, preset] of Object.entries(presets)) {
+    if (isVoicePresetName(name) || isModelVoiceName(name)) throw new Error(`voice preset "${name}" is already published`);
+    servicePresets.set(name, preset);
+  }
+}
+
+/** A preset by name: a published one, then one a server added. Model, gender and warnings read presets through it. */
+export function voicePresetOf(name: string): VoicePreset | undefined {
+  return isVoicePresetName(name) ? VOICE_PRESETS[name] : publishedOnly ? undefined : servicePresets.get(name);
+}
+
+/** Runs `read` as a published client sees presets: no server preset exists during it, so no check can tell one */
+/** from an unknown name. Synchronous on purpose: nothing else runs while the view holds. */
+export function withPublishedPresetsOnly<T>(read: () => T): T {
+  const prior = publishedOnly;
+  publishedOnly = true;
+  try {
+    return read();
+  } finally {
+    publishedOnly = prior;
+  }
 }
 
 /** The `/v1/voices` response as a schema, not a guess on both sides: the server sends a */
@@ -328,8 +350,7 @@ export interface ModelVoice {
   gender?: Gender;
 }
 
-/** The voices of `MODEL_VOICE_MODEL` by OUR names, in the vendor page's order (docs/16). */
-/** The worker adapter maps them to the vendor's names. */
+/** The voices of `MODEL_VOICE_MODEL` by OUR names, in the vendor page's order. */
 export const MODEL_VOICES = {
   zephyr: { description: "Bright" },
   puck: { description: "Upbeat" },
@@ -391,13 +412,13 @@ export function defaultVoiceOf(modelId: string | undefined, gender: Gender | und
 }
 
 /** Shape of a raw vendor `voice_id`, deliberately loose (16–32 alphanumerics): the format is */
-/** undocumented. A coarse input filter only; the worker's free preflight checks existence. */
+/** undocumented. A coarse input filter only; the run's free preflight checks existence. */
 export const VOICE_ID_PATTERN = /^[A-Za-z0-9]{16,32}$/;
 
 /** Resolved voice selection. `preset` carries OUR name, mapped to a vendor id by the adapter; */
 /** `raw` is already a vendor id. Core never knows vendor ids. */
 export type VoiceSelection =
-  | { kind: "preset"; preset: VoicePresetName }
+  | { kind: "preset"; preset: string }
   | { kind: "catalog"; slug: string }
   | { kind: "raw"; voiceId: string }
   | { kind: "model_voice"; voice: ModelVoiceName };
@@ -417,8 +438,8 @@ export function resolveVoiceSelection(
   }
   if (input.voice !== undefined) {
     if (isModelVoiceName(input.voice)) return { kind: "model_voice", voice: input.voice };
-    // Not a preset, so a catalog slug: only the worker sidecar knows its id; a miss there refuses.
-    if (!isVoicePresetName(input.voice)) return { kind: "catalog", slug: input.voice };
+    // Not a preset, so a catalog slug: the run resolves its id, and a miss refuses.
+    if (voicePresetOf(input.voice) === undefined) return { kind: "catalog", slug: input.voice };
     return { kind: "preset", preset: input.voice };
   }
   if (speaksOwnVoices(input.tts_model)) {
@@ -447,7 +468,8 @@ export function resolveTtsModel(
   }
   const voice = input.voice ?? defaultVoiceFor(gender);
   if (isModelVoiceName(voice)) return MODEL_VOICE_MODEL;
-  if (isVoicePresetName(voice)) return VOICE_PRESETS[voice].model;
+  const preset = voicePresetOf(voice);
+  if (preset !== undefined) return preset.model;
   return voice.startsWith(RUSSIAN_CATALOG_SLUG_PREFIX) ? RUSSIAN_TTS_MODEL : DEFAULT_TTS_MODEL;
 }
 
@@ -461,8 +483,9 @@ export function ttsModelBeforeV4Default(
   const model = resolveTtsModel(input, gender);
   if (model !== DEFAULT_TTS_MODEL) return model;
   const voice = input.voice ?? defaultVoiceFor(gender);
+  const preset = voicePresetOf(voice);
   const russian = input.voice_id !== undefined ? detectScriptFamily(input.script) === "cyrillic"
-    : isVoicePresetName(voice) ? VOICE_PRESETS[voice].language === "ru" : voice.startsWith(RUSSIAN_CATALOG_SLUG_PREFIX);
+    : preset !== undefined ? preset.language === "ru" : voice.startsWith(RUSSIAN_CATALOG_SLUG_PREFIX);
   return russian ? RUSSIAN_TTS_MODEL : "eleven_v3";
 }
 
@@ -540,10 +563,10 @@ export function buildVoiceWarnings(input: {
 
   // Defensive: zod already narrowed voice, but a pure function does not rely on it.
   // An unknown name has no preset and so no data.
-  if (!isVoicePresetName(input.voice)) {
+  const preset = voicePresetOf(input.voice);
+  if (preset === undefined) {
     return [];
   }
-  const preset: VoicePreset = VOICE_PRESETS[input.voice];
 
   // Compare only against a PRESENT usable label; a language outside ru/en means
   // no data, so stay silent instead of guessing.

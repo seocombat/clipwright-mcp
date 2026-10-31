@@ -15,7 +15,7 @@ export interface VideoSourceFacts {
   colorTransfer?: string | null | undefined;
 }
 
-/** Why a video source cannot be drawn, or `null`. A fact that is not known is not refused here; the worker measures it. */
+/** Why a video source cannot be drawn, or `null`. A fact that is not known is not refused here; the run measures it. */
 export function videoMediaRefusal(facts: VideoSourceFacts): string | null {
   if (facts.codec && !(MEDIA_VIDEO_CODECS as readonly string[]).includes(facts.codec)) {
     return `is ${facts.codec} video: video media takes H.264 or HEVC; re-encode it as H.264`;

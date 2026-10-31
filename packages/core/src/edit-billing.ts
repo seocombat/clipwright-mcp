@@ -6,8 +6,7 @@ import type { ShotKind } from "./edit-rules.js";
 // A leaf: `runs.ts` imports it, so it reaches neither `edit-document.ts` nor `runs.ts`.
 const credits = z.number().int().nonnegative().safe();
 
-// Owner's decisions D1 (Q10, Q13 and the price decision of 2026-10-14), repriced at ×2.5 over the S0 costs (owner, 29.10, #800):
-// picture $0.0218, clip $0.162, clip with its picture $0.184, render ≈ $0.043. Admission freezes them; old runs keep theirs.
+// Admission freezes these prices for the run.
 /** Credits of each unit a revision or a shot candidate generates; a kept candidate is already paid. */
 export const EDIT_UNIT_PRICES = Object.freeze({ picture: 7, clip: 49, clip_with_new_picture: 56, kept_picture: 0, kept_clip: 0 });
 /** The re-render fee of a revision that generates at least one unit. */

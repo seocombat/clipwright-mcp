@@ -52,6 +52,7 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   get_actor_defaults: { readOnlyHint: true, destructiveHint: false },
   get_account: { readOnlyHint: true, destructiveHint: false },
   list_prices: { readOnlyHint: true, destructiveHint: false },
+  send_feedback: { readOnlyHint: false, destructiveHint: false },
 };
 
 /** Mutants: the retry field unnamed, a resend described as a new paid run, or a discarded candidate described as free. */
@@ -89,7 +90,7 @@ it("the generation tools name their price unit, a free failure, rights_confirmed
     expect(described("generate_video")?.description).toContain("unit_credits per second of duration_s");
     for (const name of ["quote_image", "generate_image", "quote_video", "generate_video"]) {
       const tool = described(name);
-      expect(tool?.description, name).toContain("A generation that fails is charged nothing, even when the vendor was already paid.");
+      expect(tool?.description, name).toContain("A generation that fails is charged nothing. An identical request");
       expect(tool?.description, name).toContain("rights_confirmed: true");
       expect(tool?.description, name).toContain("An identical request returns the same run it started before");
       expect(tool?.description, name).toContain("generations_disabled");

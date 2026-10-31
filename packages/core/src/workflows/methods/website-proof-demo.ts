@@ -1,7 +1,7 @@
 import { compositionReasons, defineWorkflowMethod, nativeQa, verticalOutput } from './shared.js';
 
 export const websiteProofDemo = defineWorkflowMethod({
-    id: 'website-proof-demo', version: 1, content_digest: '33db167354625c4588aedfe3af99894d3e2597744dead2e5f6095fff2e172ddf', authoring_status: 'ready', title: 'Demonstrate a verified website state',
+    id: 'website-proof-demo', version: 1, content_digest: '1305004523261f45a279ac91d73b8aafcced3c9e665f9ed68e2d280ce8f5b3f7', authoring_status: 'ready', title: 'Demonstrate a verified website state',
     purpose: 'Show a real action and result using approved captures and claims tied to a known product state.',
     required_inputs: ['audience', 'message', 'script', 'assets'], required_features: ['exact_script', 'verified_captures', 'authored_scenes'],
     script_rules: { structure: ['task', 'action', 'verified_result', 'next_action'], instructions: [

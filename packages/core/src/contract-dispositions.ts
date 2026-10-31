@@ -9,7 +9,7 @@ import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
 /** decision. The type guards completeness; tests at each effect boundary prove truth. */
 
 /** Public header/quote version: optional visible_ai_label and new-run marking admission policy. */
-/** Internal marking policy/profile identifiers are versioned separately; see docs/71-output-provenance.md. */
+/** Internal marking policy/profile identifiers are versioned separately. */
 export const CONTRACT_VERSION = "2026-10-18";
 export const CONTRACT_VERSION_HEADER = "X-Clipwright-Contract";
 
@@ -54,7 +54,7 @@ export const FIELD_DISPOSITIONS = {
     warning: "look is not honored yet: it does not reach the renderer",
     triggersWhen: "differs-from-default",
   },
-  // Drawn by composition; a worker with `CLIPWRIGHT_COMPOSE` off names the undrawn captions in the run's warnings.
+  // Drawn by composition; with composition off the run names the undrawn captions in its warnings.
   captions: { kind: "implemented", provenBy: "composition" },
   caption_style: { kind: "implemented", provenBy: "composition" },
   caption_emphasis: { kind: "implemented", provenBy: "composition" },
@@ -76,7 +76,7 @@ export const FIELD_DISPOSITIONS = {
   actor_gender: { kind: "implemented", provenBy: "egress" },
   broll_policy: { kind: "stored", message: BROLL_POLICY_DESCRIPTION },
 
-  // Offered to clients; deployment qualification gates admission below.
+  // Offered to clients; long-form qualification gates admission below.
   segments: { kind: "implemented", provenBy: "composition" },
   inserts: { kind: "implemented", provenBy: "composition" },
   overlays: { kind: "implemented", provenBy: "composition" },
@@ -164,7 +164,7 @@ const PERSON_WITH_ACTOR_GENERATION: Disposition = {
   triggersWhen: "present",
 };
 
-/** Flags from the environment, read once per process: a kill switch is set at deploy, */
+/** Flags from the environment, read once per process: a flag changes only on restart, */
 /** and `tools/list` must not flicker between calls. */
 export function contractFlagsFromEnv(
   env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env,
@@ -183,7 +183,7 @@ export function isLongFormQualificationEnabled(env: Record<string, string | unde
 }
 
 export const LONG_FORM_DISABLED_MESSAGE =
-  "long-form qualification is disabled on this deployment; pass script without segments or inserts";
+  "long-form qualification is not available right now; pass script without segments or inserts";
 
 const REMOTE_FETCH_DISABLED: Disposition = {
   kind: "rejected",
@@ -195,7 +195,7 @@ const REMOTE_FETCH_DISABLED: Disposition = {
 const COMPOSE_DISABLED: Disposition = {
   kind: "rejected",
   message:
-    "background is not available: composition is disabled on this deployment. Request an aspect_ratio close to your image instead",
+    "background is not available right now. Request an aspect_ratio close to your image instead",
 };
 
 /** A run stored before captions were drawn (no `composition_version`) keeps the lines it was admitted with. */
@@ -207,8 +207,8 @@ export function legacyCaptionWarnings(input: { captions?: boolean | undefined; c
   ];
 }
 
-/** Captions a version-2 run asked for and a worker with composition off could not draw; written by the run. */
-export const CAPTIONS_COMPOSE_DISABLED_WARNING = "captions were not drawn: composition is disabled on this deployment";
+/** Captions a version-2 run asked for and could not draw with composition off; written by the run. */
+export const CAPTIONS_COMPOSE_DISABLED_WARNING = "captions were not drawn: composition is not available right now";
 
 /** The composition-only parts a run asked for (#778 S2b): a render without composition names them instead of dropping them. */
 export function compositionLayerFields(input: {
@@ -241,7 +241,7 @@ function longFormReady(flags: ContractFlags): boolean {
 const LONG_FORM_DISABLED: Disposition = { kind: "rejected", message: LONG_FORM_DISABLED_MESSAGE };
 /** Templates draw on a plain run too, so their refusal names them and not the long-form fix (#840 D6). */
 const TEMPLATES_DISABLED: Disposition = { kind: "rejected",
-  message: "templates are disabled on this deployment; omit templates, template_theme and template_sounds" };
+  message: "templates are not available right now; omit templates, template_theme and template_sounds" };
 
 /** Dispositions with flags applied: the base table says what the code can do, this */
 /** says what it offers right now. */
@@ -273,7 +273,7 @@ export function resolveDispositions(
     // With composition off nothing can apply a background, so the field is rejected.
     background: flags.compose ? FIELD_DISPOSITIONS.background : COMPOSE_DISABLED,
     visible_ai_label: flags.outputMarking === true ? FIELD_DISPOSITIONS.visible_ai_label : {
-      kind: "rejected", message: "visible_ai_label is not available: output marking is disabled on this deployment; omit it",
+      kind: "rejected", message: "visible_ai_label is not available right now; omit it",
     },
   };
 }
@@ -291,8 +291,8 @@ type RejectedField = {
     : never;
 }[ContractField];
 
-/** Offered fields come from the base table, in types and values alike: a kill switch */
-/** is a server emergency state, not the shape of the contract. */
+/** Offered fields come from the base table, in types and values alike: a field switched off */
+/** is a temporary state, not the shape of the contract. */
 type OfferedField = Exclude<ContractField, RejectedField>;
 
 /** A field's default, taken from the schema itself: a second list of defaults would drift. */
@@ -429,7 +429,7 @@ export function dispositionWarnings(
 }
 
 /** Fields with an `implemented` disposition, input to the coverage meta-tests. From the */
-/** base table: proof belongs to the code, and a disabled kill switch does not revoke it. */
+/** base table: proof belongs to the code, and switching a field off does not revoke it. */
 export const IMPLEMENTED_FIELDS: ContractField[] = CONTRACT_FIELDS.filter(
   (field) => FIELD_DISPOSITIONS[field].kind === "implemented",
 );

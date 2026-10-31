@@ -23,10 +23,10 @@ import {
   TTS_MODELS,
   VOICE_PRESETS,
   type VoiceCatalogEntry,
+  type VoicePreset,
 } from "./voices.js";
 
 // A subpath, not the barrel: the list reads the catalog, which SDK clients do not need.
-// A weekly worker probe checks the same data against the vendor.
 export { TTS_MODEL_LANGUAGES, VOICE_CATALOG } from "./voice-catalog-data.js";
 
 const isLive = (voice: CatalogFileVoice): boolean => voice.retired_at === undefined;
@@ -63,12 +63,13 @@ export const serverVoicesQuery = serverVoicesQueryFor();
 
 const presentText = (raw: string | null): string | undefined => raw?.trim() || undefined;
 
-/** The voices of one skill, `make_ugc` unless the query names another: presets, a model's own voices, then live catalog */
-/** voices by language and rank. A field the voice lacks matches nothing, except `language`, which falls back to its model's. */
+/** The voices of one skill (`make_ugc` by default): presets, then `servicePresets` the server names for this caller, then a model's */
+/** own and live catalog voices by language and rank. A missing field matches nothing, except `language`, which falls back to its model's. */
 export function listVoices(
   query: VoicesQuery,
   catalog: VoiceCatalogFile = VOICE_CATALOG,
   modelLanguages: TtsModelLanguagesFile = TTS_MODEL_LANGUAGES,
+  servicePresets: Readonly<Record<string, VoicePreset>> = {},
 ): {
   voices: VoiceCatalogEntry[];
   models: { id: string; char_limit: number; languages: string[]; vendor_verifies_voices: boolean }[];
@@ -78,7 +79,7 @@ export function listVoices(
   // Presets and catalog voices are ElevenLabs voices: a model of another vendor never supports them.
   const supportedModels = (language: string) => ELEVENLABS_TTS_MODELS.filter((id) => languagesOf(id).includes(language));
 
-  const presets: VoiceCatalogEntry[] = Object.entries(VOICE_PRESETS).map(([name, preset]) => ({
+  const presets: VoiceCatalogEntry[] = [...Object.entries(VOICE_PRESETS), ...Object.entries(servicePresets)].map(([name, preset]) => ({
     name,
     kind: "preset",
     skill: "make_ugc",

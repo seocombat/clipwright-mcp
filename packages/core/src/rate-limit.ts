@@ -27,7 +27,7 @@ export const RATE_LIMIT_PAID_PER_MINUTE = 60;
 export const RATE_LIMIT_FREE_PER_MINUTE = 300;
 
 /** Concurrent presenter renders per account: 3. Excess runs are queued (202), not refused, so agents */
-/** need no scheduler of their own. A run may also wait behind other accounts: the worker caps each line as a whole. */
+/** need no scheduler of their own. A run may also wait behind other accounts: our service caps each line as a whole. */
 export const MAX_CONCURRENT_RENDERS_PER_ACCOUNT = 3;
 
 /** Concurrent faceless videos per account: 2, queued the same way. */
@@ -113,7 +113,7 @@ export function authThrottledBody(args: {
 }
 
 /** Per-account `create_actor` limits over a sliding day. Creations count runs of any */
-/** outcome; refusals and unusable portraits count worker events. */
+/** outcome; refusals and unusable portraits count as well. */
 export const ACTOR_LIMIT_WINDOW_SECONDS = 86_400;
 export const ACTOR_LIMIT_KINDS = ["creations", "prompt_refusals", "unusable_portraits"] as const;
 export type ActorLimitKind = (typeof ACTOR_LIMIT_KINDS)[number];

@@ -24,7 +24,7 @@ the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/pa
 
 | Method | Request and result |
 | --- | --- |
-| `listWorkflows()` | Seven public methods and deployment availability. Free. |
+| `listWorkflows()` | Seven public methods and which of them can run. Free. |
 | `getWorkflow(methodId)` | One method's guidance, limitations and capability snapshot. Free. |
 | `createWorkflowPlan({ document })` | Store a complete account-owned document. Free; starts no run. |
 | `planReferenceRemake(request)` | The server compiles a reference profile and the exact script into a new `reference-remake` plan; its warnings name what it does not reproduce. Free; starts no run. |
@@ -35,8 +35,8 @@ the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/pa
 | `runWorkflowPlan(planId, request)` | Start one paid intent and return its captured receipt and native run immediately. |
 
 The five native methods are `ugc-product-intro`, `ugc-faq-answer`,
-`faceless-explainer`, `product-image-story` and `reference-remake`. Their executors must each be
-configured, qualified and enabled. `website-proof-demo` and `kinetic-launch`
+`faceless-explainer`, `product-image-story` and `reference-remake`, where the server lists
+them as available. `website-proof-demo` and `kinetic-launch`
 remain `execution_blocked`; catalog availability grants no account permission.
 Use the method and capability pins from the method response in the document.
 
@@ -168,8 +168,7 @@ nothing, and `startRevision(runId, request, { attempt })` starts it: a new run,
 returned at once, that renders the video again with the shots you change. The
 request is `{ document }`, the edited document of the draft, or
 `{ changes: [{ shot_id, operation }] }`. A revision that delivers is charged its
-quoted total; one that fails is charged nothing, even when its paid work was
-already done. The same request and attempt send the same idempotency key, so a
+quoted total; one that fails is charged nothing. The same request and attempt send the same idempotency key, so a
 resend returns the first run; `attempt: 2` starts a second one. While paid edits
 are closed on the server, both calls throw a `ClipwrightApiError` of kind
 `editing_closed`, which is not retried.
@@ -179,8 +178,7 @@ are closed on the server, both calls throw a `ClipwrightApiError` of kind
 candidates of the run's family. A candidate is one picture or clip for one
 shot, to keep or discard in a revision; the request is
 `{ shot_id, operation, take }`. A delivered candidate is charged its one unit
-whether it is kept or discarded; one that fails is charged nothing, even when
-its paid work was already done. The idempotency key comes from the run and the
+whether it is kept or discarded; one that fails is charged nothing. The idempotency key comes from the run and the
 request, so a resend returns the first run and `take: 2` makes another one.
 While shot candidates are closed on the server, the three calls throw a
 `ClipwrightApiError` of kind `editing_closed`.
@@ -229,5 +227,6 @@ with the default.
 
 ## Changelog
 
-What changed in each release, and what was removed, is in `CHANGELOG.md` inside
-this package. Read its **Breaking:** entries before upgrading.
+What changed in each release, and what was removed, is at
+[clipwright.io/changelog](https://clipwright.io/changelog). Read its **Breaking:** entries
+before upgrading.

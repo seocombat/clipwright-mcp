@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-/** The same cap as the source probe (`PROBE_MAX_BYTES` in service-core, guarded there). */
+/** The same cap as the source probe. */
 export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
 /** Uploads per account over a sliding day; a link lives one day. */
 export const UPLOAD_DAILY_CAP = 20;
 export const UPLOAD_WINDOW_SECONDS = 86_400;
 export const UPLOAD_URL_TTL_SECONDS = 86_400;
-/** As long as a run's media (`RENDER_RETENTION_DAYS`): a draft may name an upload on the run's first day. Storage lifecycle, docs/10 §4. */
+/** As long as a run's media (`RENDER_RETENTION_DAYS`): a draft may name an upload on the run's first day. */
 export const UPLOAD_OBJECT_RETENTION_DAYS = 30;
 
 /** No WebP on purpose: the probe cannot read its dimensions, and without them the format cannot be checked. */

@@ -250,9 +250,8 @@ export const actorUnitCredits = z.object({
   variant: z.number().int().positive(),
 });
 
-/** Unit prices of a personal actor (owner's decision, clipwright#120). Admission copies them into the */
-/** run's snapshot and settlement reads the snapshot, so a change here leaves old runs alone. ×2.5 over the S0 costs (owner, 29.10, */
-/** #800): a portrait is a generate call ($0.0103 medium, $0.039 high), another format an edit ($0.024, $0.0581). */
+/** Unit prices of a personal actor. */
+/** Admission copies them into the run's snapshot and settlement reads the snapshot, so a change here leaves old runs alone. */
 export const ACTOR_UNIT_CREDITS: Readonly<Record<ActorQualityAccepted, z.infer<typeof actorUnitCredits>>> = {
   medium: { portrait: 4, variant: 8 },
   high: { portrait: 12, variant: 18 },
@@ -287,7 +286,7 @@ function sameFormats(left: readonly string[], right: readonly string[]): boolean
 
 const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/);
 
-/** The source image admission resolved for `from_actor_id`: the worker reads these bytes, not a payload. */
+/** The source image admission resolved for `from_actor_id`: the run reads these bytes, not a payload. */
 export const storedActorSource = z.object({
   actor_id: z.string().min(1),
   scope: z.enum(ACTOR_SCOPES),
@@ -397,7 +396,7 @@ export const CREATE_ACTOR_FIELD_DISPOSITIONS = {
 } as const satisfies Record<CreateActorField, CreateActorDisposition>;
 
 export const ACTOR_VIEWS_DISABLED_MESSAGE =
-  "is switched off on this deployment: deriving an actor from an actor is not available; create an actor from a description instead";
+  "is not available right now: deriving an actor from an actor is off; create an actor from a description instead";
 
 /** The registry with `CLIPWRIGHT_ACTOR_VIEWS` applied: switched off, the view fields are refused, not ignored. */
 export function createActorDispositions(viewsEnabled: boolean): Record<CreateActorField, CreateActorDisposition> {
@@ -442,7 +441,7 @@ export const CREATE_ACTOR_RUN_ERRORS = {
   actor_generation_disabled: "actor generation is disabled right now; no actor was created and nothing was charged",
   actor_run_interrupted: "the run stopped before it finished; no actor was created and nothing was charged",
   actor_spend_refused:
-    "our spend guard refused the paid call; no actor was created and nothing was charged. Retry later",
+    "the portrait could not be started right now; no actor was created and nothing was charged. Retry later",
   actor_identity_not_kept:
     "the edited portrait did not keep the source actor's face; no actor was created and nothing was charged",
   actor_source_unreadable:

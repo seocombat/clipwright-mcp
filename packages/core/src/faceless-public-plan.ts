@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FACELESS_MIN_OUTPUT_FRAMES } from "./faceless-price.js";
+import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MIN_OUTPUT_FRAMES } from "./faceless-price.js";
 import { parseCutStyle, type CutStyleProfile } from "./faceless-cut-style.js";
 import { assertStoryboardWords } from "./faceless-storyboard.js";
 import { facelessCutScore } from "./faceless-storyboard-v2-timing.js";
@@ -71,9 +71,9 @@ export function parseFacelessPublicStory(input: unknown, expectedScript?: string
   return story;
 }
 type Score = ReturnType<typeof facelessCutScore>;
-/** Per second above the pace band: an emphasis cut is dropped only while the merged shot stays within 0.5 s of the band's top (docs/70, clipwright#519). */
+/** Per second above the pace band: an emphasis cut is dropped only while the merged shot stays within 0.5 s of the band's top. */
 const PACE_OVER_PENALTY = 2;
-/** The opening VIDEO lasts 3–5 s at 25 fps; rationale in docs/70 (clipwright#442). */
+/** The opening VIDEO lasts 3–5 s at 25 fps. */
 export const FACELESS_OPENER_MIN_FRAMES = 75, FACELESS_OPENER_MAX_FRAMES = 125;
 export const FACELESS_IMAGE_MIN_FRAMES = 25, FACELESS_IMAGE_MAX_FRAMES = 150;
 export const FACELESS_OPENER_BOUNDS_ERROR =
@@ -85,6 +85,8 @@ export type FacelessPublicPlan = {
   words: WordTiming[];
   narrationStartFrame: number;
   captionPhrases: z.infer<typeof phrase>[];
+  /** Present only past `FACELESS_IMAGE_MAX_FRAMES`: the longest IMAGE shot this plan was made under. */
+  imageMaxFrames?: number;
   shots: Array<{
     id: string; mediaType: "video" | "image"; startFrame: number; endFrame: number;
     beatIds: string[]; visualPrompts: string[]; phase: FacelessPublicStory["beats"][number]["phase"];
@@ -93,12 +95,14 @@ export type FacelessPublicPlan = {
 };
 /** `keepBeats`: beat indices (1 and up) the opener may not absorb, such as beats a customer image is anchored to. */
 export type FacelessPublicPlanOptions = { keepBeats?: ReadonlySet<number>;
-  /** With no beat boundary inside the opener bounds, end the opener at a word gap inside beat 1 (docs/70, clipwright#449). */
+  /** With no beat boundary inside the opener bounds, end the opener at a word gap inside beat 1. */
   openerWordGap?: boolean;
   /** Word ranges [first, end) no cut may fall inside, such as the words a customer image is anchored to. */
   keepTogether?: ReadonlyArray<{ first: number; end: number }>;
   /** Lets the word gap fall after words of a kept range, which the opener then covers; the caller warns about them. */
-  openerGapPastKept?: boolean };
+  openerGapPastKept?: boolean;
+  /** The longest IMAGE shot, from `FACELESS_IMAGE_MAX_FRAMES` up: a narration longer than its plan keeps its pictures and holds each longer. */
+  imageMaxFrames?: number };
 
 /** Speech boundaries and planner cuts share the native nearest-frame clock. */
 export const facelessSpeechFrame = (seconds: number): number => Math.round(seconds * 25);
@@ -107,9 +111,11 @@ export function planPublicFacelessStory(
   input: FacelessPublicStory, words: readonly WordTiming[], inputStyle: CutStyleProfile, outputFrames: number,
   options: FacelessPublicPlanOptions = {},
 ): FacelessPublicPlan {
-  if (!Number.isSafeInteger(outputFrames) || outputFrames < FACELESS_MIN_OUTPUT_FRAMES || outputFrames > 2250) {
-    throw new Error("public faceless output must be 625–2250 frames");
+  if (!Number.isSafeInteger(outputFrames) || outputFrames < FACELESS_MIN_OUTPUT_FRAMES || outputFrames > FACELESS_MAX_OUTPUT_FRAMES) {
+    throw new Error(`public faceless output must be ${FACELESS_MIN_OUTPUT_FRAMES}–${FACELESS_MAX_OUTPUT_FRAMES} frames`);
   }
+  const imageMaxFrames = options.imageMaxFrames ?? FACELESS_IMAGE_MAX_FRAMES;
+  if (!Number.isSafeInteger(imageMaxFrames) || imageMaxFrames < FACELESS_IMAGE_MAX_FRAMES) throw new Error("invalid IMAGE duration ceiling");
   const story = parseFacelessPublicStory(input, input.script);
   const style = parseCutStyle(inputStyle);
   assertStoryboardWords(story.script, words);
@@ -173,7 +179,7 @@ export function planPublicFacelessStory(
     for (let start = 0; start < end; start++) {
       const prior = states[start];
       const duration = nodes[end]!.frame - nodes[start]!.frame;
-      if (!prior || duration < FACELESS_IMAGE_MIN_FRAMES || duration > FACELESS_IMAGE_MAX_FRAMES) continue;
+      if (!prior || duration < FACELESS_IMAGE_MIN_FRAMES || duration > imageMaxFrames) continue;
       const phase = story.beats[nodes[start]!.beatIndex]!.phase;
       const phaseRange = style.pacing.by_phase[phase];
       const range = phaseRange && phaseRange.n > 0 ? phaseRange : style.pacing.global_image_frames;
@@ -208,5 +214,6 @@ export function planPublicFacelessStory(
     return shot;
   });
   return { version: "faceless_public_v1", outputFrames, script: story.script, words: words.map(w => ({ ...w })),
-    narrationStartFrame: story.narrationStartFrame, captionPhrases, shots };
+    narrationStartFrame: story.narrationStartFrame, captionPhrases,
+    ...(imageMaxFrames > FACELESS_IMAGE_MAX_FRAMES ? { imageMaxFrames } : {}), shots };
 }

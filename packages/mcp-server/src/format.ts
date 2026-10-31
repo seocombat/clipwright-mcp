@@ -67,8 +67,8 @@ export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead[
             run_id: run.run_id,
             state: run.state,
             ...runMoney(run),
-            // A generation run delivers through `generation.url`; the video fields would only mislead.
-            ...(run.generation === undefined ? {
+            // A generation or a shot candidate delivers through its own block; the video fields would only mislead.
+            ...(run.generation === undefined && run.candidate === undefined ? {
               video_url: run.final_output?.video_url ?? null,
               video_url_check: VIDEO_URL_CHECK,
               duration_seconds: run.final_output?.duration_seconds ?? null,
@@ -78,6 +78,7 @@ export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead[
             ...(run.final_output?.parts_billing === undefined ? {} : { parts_billing: run.final_output.parts_billing }),
             ...(run.final_output?.speech_timing_gaps === undefined ? {} : { speech_timing_gaps: run.final_output.speech_timing_gaps }),
             ...(run.generation === undefined ? {} : { generation: run.generation }),
+            ...(run.candidate === undefined ? {} : { candidate: run.candidate }),
             // A succeeded create_actor names the actor_id an agent passes to make_ugc (#778).
             ...(run.created_actor === undefined ? {} : { created_actor: run.created_actor }),
             warnings: run.warnings,

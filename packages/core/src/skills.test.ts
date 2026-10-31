@@ -132,6 +132,8 @@ describe("makeUgcInput — script length gate", () => {
       "CALL_STAGE_MAX_LEAD_SEC",
       // The longest faceless length a caller selects (#927): the quote is priced from the selection, so it caps no bill below it.
       "FACELESS_MAX_SELECTED_SECONDS",
+      // How far a reference's hook may run to finish its sentence (#930): a read of someone else's reel, never a price or a render length.
+      "REFERENCE_HOOK_MAX_SECONDS",
     ];
     const durationCaps = Object.keys(contract).filter(
       (name) =>

@@ -1,12 +1,13 @@
 import { CANDIDATE_CHARGE_TEXT } from "./edit-candidate.js";
 import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
-import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_ANALYSIS_PER_HOUR } from "./reference-analysis.js";
+import { FEEDBACK_PER_HOUR } from "./feedback.js";
+import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_ANALYSIS_PER_HOUR, REFERENCE_DATA_CREDITS, REFERENCE_DATA_PER_HOUR } from "./reference-analysis.js";
 
 /** What each route does, keyed by `endpointLabel`. `/docs` and `/openapi.json` print the same sentence; */
 /** the web docs test proves every shown route has one and nothing else does. */
 export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
-  "GET /v1/public/workflows": "Lists public workflow methods and deployment availability, without account plans or an account admission claim.",
-  "GET /v1/public/workflows/{id}": "Reads a method's guidance, limitations and current deployment capability snapshot.",
+  "GET /v1/public/workflows": "Lists public workflow methods and whether each is available now, without account plans or an account admission claim.",
+  "GET /v1/public/workflows/{id}": "Reads a method's guidance, limitations and what it can do right now.",
   "POST /v1/workflow-plans": "Creates an immutable account-owned workflow draft. Charges nothing and starts no render.",
   "GET /v1/workflow-plans/{id}": "Reads the account's current workflow revision and readiness.",
   "POST /v1/workflow-plans/reference-remake": "Compiles a reference profile and the accepted script into a new reference-remake draft; its warnings name what the plan does not reproduce. Charges nothing, generates nothing and starts no render.",
@@ -22,6 +23,8 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "GET /v1/template-sounds":
     "The sounds make_ugc templates play, by beat: where each beat plays, its default and every name template_sounds takes. Free.",
   "GET /v1/account": "Balance, debt and holds of the account behind the key.",
+  "POST /v1/feedback":
+    `Tells us what is missing, confusing, wrong or slow, optionally about a run of this account; we read every one. Free. The same kind, text and run within 24 hours answer the same feedback_id; ${FEEDBACK_PER_HOUR} per hour.`,
   "GET /v1/public/skills": "Catalogue of skills and their input, without a key.",
   "GET /v1/public/prices":
     "The price of every action in credits: a fixed number per unit, or a formula where the price depends on the input; the quote gives the exact number. Free, without a key.",
@@ -67,13 +70,15 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "DELETE /v1/assets/{id}":
     "Deletes an asset: it leaves the list and generations at once, and a daily cleanup removes its file once 7 days have passed. Free.",
   "POST /v1/reference-analyses/quote":
-    `Prices an analysis of this asset: ${REFERENCE_ANALYSIS_CREDITS} credits, or 0 when its live analysis would answer. Charges nothing.`,
+    `Prices an analysis of this asset or link: ${REFERENCE_ANALYSIS_CREDITS} credits, ${REFERENCE_DATA_CREDITS} with mode data, or 0 when ` +
+    "its live analysis in that mode would answer. Charges nothing.",
   "POST /v1/reference-analyses":
-    "Starts reading an MP4 asset, up to 120 s, into a reference profile and answers at once; the same asset answers the same analysis for " +
-    `free. Holds ${REFERENCE_ANALYSIS_CREDITS} credits, charged once it succeeds; a failed one costs nothing. ${REFERENCE_ANALYSIS_PER_HOUR} ` +
-    "new analyses per hour.",
+    "Starts reading an MP4 asset, up to 120 s, into a reference profile (or, with mode data, its transcript, hook and a frame sheet) and " +
+    "answers at once; the same asset in the same mode answers the same analysis for free. Holds " +
+    `${REFERENCE_ANALYSIS_CREDITS} credits (${REFERENCE_DATA_CREDITS} for data), charged once it succeeds; a failed one costs nothing. ` +
+    `${REFERENCE_ANALYSIS_PER_HOUR} new full and ${REFERENCE_DATA_PER_HOUR} new data analyses per hour.`,
   "GET /v1/reference-analyses/{id}":
-    "One reference analysis: queued, analyzing, succeeded with reference_profile and warnings, or failed with its error. Free.",
+    "One reference analysis: queued, analyzing, succeeded with reference_profile or data and warnings, or failed with its error. Free.",
   "POST /v1/skills/make_ugc/quote": "Prices a make_ugc call with this input. Charges nothing.",
   "POST /v1/skills/make_ugc/run":
     "Starts a video run and answers at once with a run_id. Poll the run for the result.",

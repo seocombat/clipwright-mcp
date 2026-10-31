@@ -61,7 +61,7 @@ export interface RenderBackend {
   readonly name: string;
   readonly capabilities: BackendCapabilities;
 
-  /** Creates the vendor job: PAID and once, apart from the free, resumable poll. Keys vendor */
+  /** Creates the avatar job: PAID and once, apart from the free, resumable poll. Keys vendor */
   /** idempotency on the scope; `retryable` describes the error, and a paid create is never retried. */
   createAvatarJob(req: AvatarClipRequest): Promise<AvatarJobHandle>;
 

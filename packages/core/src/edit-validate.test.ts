@@ -403,6 +403,15 @@ describe("the validator's table", () => {
         issues: [on("presenter_out_of_sync", "take-2")] },
       { code: "presenter_outside_recording", name: "one frame past the recording", view: l, document: edited(l, { "take-2": { end_frame: 1501 } }),
         issues: [on("presenter_outside_recording", "take-2")] },
+      { code: "transition_invalid", name: "transitions on a timeline that draws none", view: l,
+        document: { ...identityEditDocument(l), transitions: { look: "flash", at: "scene_changes" } }, issues: [{ code: "transition_invalid" }],
+        reason: "draws no cut transitions" },
+      { code: "transition_invalid", name: "a flash before the opening shot", view: v,
+        document: { ...identity, transitions: { look: "flash", at: ["beat-1"] } }, issues: [on("transition_invalid", "beat-1")], reason: "no cut before it" },
+      { code: "transition_invalid", name: "a flash into a shot the run lacks", view: v,
+        document: { ...identity, transitions: { look: "light_leak", at: ["beat-99"] } }, issues: [on("transition_invalid", "beat-99")], reason: "no shot has this id" },
+      { code: "transition_invalid", name: "a cut named twice", view: v,
+        document: { ...identity, transitions: { look: "flash", at: ["beat-3", "beat-3"] } }, issues: [{ code: "transition_invalid" }], reason: "names a shot twice" },
     ];
 
     for (const row of rows) {
@@ -439,6 +448,10 @@ describe("the summary of an edit", () => {
       .toEqual({ ok: true, summary: { ...UNCHANGED, retimed: ["insert-2"], changed: true } });
     expect(validateEditDocument(applyShotChanges(identityEditDocument(view), [{ shot_id: "beat-1", operation: picture }]), view, NO_FACTS))
       .toEqual({ ok: true, summary: { ...UNCHANGED, generated: [{ shot_id: "beat-1", kind: "clip", mode: "new_picture" }], changed: true } });
+    // Setting or removing the transitions alone is a change; a document without the key keeps them and changes nothing.
+    for (const transitions of [{ look: "flash" as const, at: ["beat-3", "beat-9"] }, { look: "light_leak" as const, at: "scene_changes" as const }, null])
+      expect(validateEditDocument({ ...identityEditDocument(view), transitions }, view, NO_FACTS))
+        .toEqual({ ok: true, summary: { ...UNCHANGED, transitions: true, changed: true } });
   });
 
   it("`presenterVisibleFrames` of the 16:9 fixture is 1700, and 1500 after the cover of test 15", () => {

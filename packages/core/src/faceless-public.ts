@@ -7,6 +7,8 @@ import { MAX_URL_LENGTH } from "./skills.js";
 import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
 import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_MIN_SELECTED_SECONDS, facelessQuote } from "./faceless-price.js";
 import { DEFAULT_FACELESS_VOICE } from "./faceless-voices.js";
+import { resolveFacelessCustomerAnchors } from "./faceless-customer-anchors.js";
+import { FACELESS_TRANSITION_LOOKS } from "./faceless-media-record.js";
 import { VOICE_NAME_PATTERN } from "./voices.js";
 
 const qualifiedImageUrl = uploadResponse.shape.url.max(MAX_URL_LENGTH).refine((value) => {
@@ -29,6 +31,21 @@ export const facelessCustomerSceneImage = z.object({
 }).strict();
 export type FacelessCustomerSceneImage = z.infer<typeof facelessCustomerSceneImage>;
 
+const customIssue = "custom" as const;
+/** Cut transitions of a new run: every scene change, or the one nearest each anchor's first word. */
+const transitionLook = z.enum(FACELESS_TRANSITION_LOOKS);
+const scriptTransitions = z.strictObject({
+  look: transitionLook,
+  at: z.union([z.literal("scene_changes"), z.array(z.strictObject({ anchor: facelessSceneAnchor })).min(1).max(30)]).default("scene_changes"),
+});
+export type FacelessTransitionsInput = z.infer<typeof scriptTransitions>;
+// A brief's narration is written by the run, so no word of it can be named in advance.
+const briefTransitions = z.strictObject({
+  look: transitionLook,
+  at: z.literal("scene_changes", { error: "transitions.at word anchors need input_mode script; a brief takes \"scene_changes\"" })
+    .default("scene_changes"),
+});
+
 const common = {
   duration_seconds: z.number().min(FACELESS_MIN_SELECTED_SECONDS).max(FACELESS_MAX_SELECTED_SECONDS).refine((seconds) => Number.isInteger(seconds * 25),
     "duration_seconds must align to a 25 fps frame boundary"),
@@ -47,10 +64,23 @@ const common = {
 const scriptInput = z.object({ ...common,
   input_mode: z.literal("script"),
   script: z.string().trim().min(1).max(10_000),
-}).strict();
+  transitions: scriptTransitions.optional(),
+}).strict().superRefine((input, context) => {
+  if (!Array.isArray(input.transitions?.at)) return;
+  for (const [index, { anchor }] of input.transitions.at.entries()) {
+    try { resolveFacelessCustomerAnchors(input.script, [{ image_url: "", anchor }]); }
+    catch (error) {
+      context.addIssue({ code: customIssue, path: ["transitions", "at", index, "anchor"],
+        message: error instanceof Error && error.message === "ambiguous_customer_anchor"
+          ? "the quote is said more than once in the script; add occurrence (0 is the first)"
+          : "the anchor names no words of the script" });
+    }
+  }
+});
 const briefInput = z.object({ ...common,
   input_mode: z.literal("brief"),
   brief: z.string().trim().min(1).max(5_000),
+  transitions: briefTransitions.optional(),
 }).strict();
 
 export const makeFacelessInput = z.discriminatedUnion("input_mode", [scriptInput, briefInput]);
@@ -103,6 +133,8 @@ export const offeredFacelessInputShape = {
   scene_images: common.scene_images
     .describe("Optional images of your own, each placed at a word range or quote of the narration."),
   captions: common.captions.describe("Burned-in captions; on by default."),
+  transitions: scriptInput.shape.transitions
+    .describe("Optional flash or light leak on the cuts: every scene change, or the one nearest each anchor (script only). No extra charge."),
   voice: common.voice
     .describe("Narration voice: a name from list_voices with skill=make_faceless (kind faceless_voice). " +
       `Omitted means ${DEFAULT_FACELESS_VOICE}. Choose a voice in the language of the narration: a voice reads any ` +

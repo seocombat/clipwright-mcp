@@ -33,7 +33,7 @@
     "width": 1.137,
     "height": 2.234
    },
-   "rect_method": "cv-template/v1",
+   "rect_method": "frames-box/v1",
    "rects": [
     {
      "t_s": 27,
@@ -252,7 +252,7 @@
      0,
      -0.371
     ],
-    "method": "cv-cells/v1"
+    "method": "frames-motion/v1"
    },
    "exit": {
     "last_visible_s": 43.45,
@@ -263,11 +263,11 @@
      }
     ],
     "style": "flash",
-    "method": "cv-cells/v1"
+    "method": "frames-motion/v1"
    },
    "layer": {
     "value": "behind_presenter",
-    "method": "cv-parallax/v1",
+    "method": "frames-layer/v1",
     "covered_by": [
      "hair",
      "chair",

@@ -32,7 +32,7 @@ function referencedRecord(): FacelessMediaRecord {
   return { ...generatedRecord(),
     references: [{ ...stored("image", "1", 3101), role: "character", from: "customer" }, { ...stored("image", "2", 3202), role: "style", from: "customer" }],
     settings: { captions: false, character_reference: true, character_details: "Mira: a black bob haircut and a red scarf.",
-      image_model: "gpt-image-2", voice: "warm_narrator", lambda_site_sha256: sha("9") } };
+      image_model: "gpt-image-2", voice: "warm_narrator", lambda_site_sha256: sha("9"), transitions: { look: "flash", at: ["beat-2"] } } };
 }
 
 it("retains two product-photo reference roles and their customer provenance", () => {
@@ -166,7 +166,10 @@ const SHAPE = new Map<string, Leaf>([
   ...under("narration", OBJECT),
   ...under("settings", { captions: flag, character_reference: flag, character_details: orNull(text), image_model: text, voice: orNull(text),
     lambda_site_sha256: text }),
+  ["settings.transitions.look", oneOf("flash", "light_leak")], ["settings.transitions.at.[]", text],
 ]);
+/** Objects a record may leave out whole: a run drawn without transitions has none. */
+const OPTIONAL_OBJECTS = new Set(["settings.transitions"]);
 const placeOf = (path: Path) => path.map(step => typeof step === "number" ? "[]" : step).join(".");
 
 /** Every object, list and leaf of a value, each by its path. */
@@ -208,20 +211,21 @@ describe("the shape of the media record, walked from one fully populated record"
 
   it("the walk reaches every leaf the schema names, and the schema names the leaves written out here and no other", () => {
     const named = [...SHAPE.keys()].sort();
-    expect(named).toHaveLength(44);
+    expect(named).toHaveLength(46);
     expect(schemaLeaves(facelessMediaRecord).sort()).toEqual(named);
     expect([...new Set(leaves.map(placeOf))].sort()).toEqual(named);
-    // Three shots, two references, the still, the narration and the settings: a smaller walk would be a thinner record.
-    expect([leaves.length, objects.length, lists.length, stored.length]).toEqual([76, 12, 2, 7]);
+    // Three shots, two references, the still, the narration, the settings and their transitions: a smaller walk would be a thinner record.
+    expect([leaves.length, objects.length, lists.length, stored.length]).toEqual([78, 13, 3, 7]);
     expect(refused(referencedRecord())).toBe(false);
   });
 
   it("requires every original key and permits omission only of the new raw identity", () => {
     const keys = objects.flatMap(path => Object.keys(valueAt(path) as object).map(key => [...path, key]));
-    expect(keys).toHaveLength(84);
-    const optional = keys.filter(path => SHAPE.get(placeOf(path))?.optional);
-    expect(optional).toHaveLength(7);
-    const required = keys.filter(path => !SHAPE.get(placeOf(path))?.optional);
+    expect(keys).toHaveLength(87);
+    const isOptional = (path: Path) => SHAPE.get(placeOf(path))?.optional || OPTIONAL_OBJECTS.has(placeOf(path));
+    const optional = keys.filter(isOptional);
+    expect(optional).toHaveLength(8);
+    const required = keys.filter(path => !isOptional(path));
     expect(required.filter(path => !refused(changedAt(path, (holder, key) => { delete holder[key]; }))).map(path => shown(path))).toEqual([]);
     // `undefined` is no value either: a key that is there and holds nothing is as absent as a key that is not.
     expect(required.filter(path => !refused(put(path, undefined))).map(path => shown(path))).toEqual([]);

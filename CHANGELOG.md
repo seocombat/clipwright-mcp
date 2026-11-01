@@ -18,6 +18,96 @@ listed under.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-11-01
+
+### Added
+
+- `make_faceless` takes `transitions`: a white flash or a light leak on every scene change, or on the one nearest each word
+  anchor of a script. A revision sets, replaces or removes them for the price of a render alone. No extra charge.
+- `make_ugc` places layers where you say, not on a fixed spot (#973). An overlay or a template takes `place`: anchored
+  to the frame, the presenter's face, the captions block or another layer by its id, with its size as a share of the
+  frame or of the face. `caption_place` puts the captions anywhere in the frame, and `presenter_place` sets how large and
+  where the presenter's face sits. A placed layer stays where you put it: a clash with the face or another layer is a
+  refusal before any credit, or a warning, never a silent move. The old positions still work as shorthands.
+- Overlays move: `enter` adds `pop` and `scale_up`, `exit` takes `cut`, `fade`, `pop_out` or `slide`, and
+  `enter_offset_s` and `enter_duration_s` time the entrance against its word (#973).
+- *Server-side:* a delivered `make_ugc` video is checked frame by frame: a layer over the face, captions that do not
+  stand off their background, and anything in the bottom strip where short-video apps draw their own buttons come
+  back in `warnings[]`. A check that could not run says so (#973).
+- *Server-side:* `plan_reference_remake` carries the reference's measured places and sizes into the plan instead of
+  rounding them to a preset (#973).
+- `make_ugc` makes interviews (#972). `interview.turns[]` marks the lines an off-screen voice asks, by anchor, in the
+  one `script`; the presenter answers the rest. `interview.off_screen` picks that voice and its caption look, and the
+  captions never mix the two speakers on one page. With `listening: "freeze"` (the default) the presenter holds still
+  while the question plays, and those seconds are charged as video seconds, not presenter seconds.
+- `presenter_gaze[]` turns the presenter to the camera, left or right on the words you name, with a cut at each change
+  (#972). It needs an actor with those views; `list_actors` shows them, and a missing view is refused before any credit.
+- `make_ugc` takes `end_hold_s`, 0.2 to 5 seconds: the last frame stays after the last word, the presenter still and
+  every caption, overlay and template then on screen kept. The held seconds are charged as video seconds (#991).
+- *Server-side:* an interview is drawn as asked: placed overlays at their place, the questions captioned, and no
+  light leak on its cuts unless a `framing` item with `transition: "flash"` asks for one. Its quote now times the
+  conversation line by line, and a reserve raised during the render is named in `warnings[]` (#991).
+
+- *Server-side:* a succeeded reference analysis, full or data, carries `frames`: a JPEG for each second of the reel, 4×3
+  contact sheets of 12 seconds, the hook frame, a key frame for each beat, and scenes between measured cuts with their
+  frames. Links are valid for 24 hours from each read; `get_reference_analysis` pages the seconds with `frames_from` and
+  `frames_to`, at most 60 a page, and `page.next` names the next page. In MCP, `frames_as: "images"` also returns up to
+  8 key frames as images. `video` is the reel itself as an MP4 link for 24 hours (#979).
+- *Server-side:* a full reference analysis tells who speaks (#978). `speakers` names each speaker, on or off screen,
+  with their role and caption look, so an interview reads as an interviewer behind the camera and a presenter who
+  answers. `segments` is the transcript as timed turns with their speaker and the presenter's mouth, as seen and as
+  measured on the frames; a disagreement is a warning. Each beat names its speaker, the presenter's gaze (camera, off
+  left, off right…) and notable gestures, such as both hands toward the viewer. Every one of these claims cites
+  `frames_s`, the seconds of the frames that show it. The voice profile measures each speaker. A data analysis carries
+  `segments` too.
+- *Server-side:* an analysis by link adds the post's shares, age in hours and comment rate, the author's followers,
+  up to 50 top comments by likes, `code_word_guess` and a `funnel` flag for a comment-keyword funnel (#979).
+- *Server-side:* an analysis made before frames and speakers is redone once at no charge when you start the same
+  asset or reel again. The answer is the new analysis, with `credits_charged: 0` once it succeeds and
+  `replaces_analysis_id` naming the old one; the old one stays readable and names its successor in
+  `superseded_by_analysis_id`. A current analysis still answers a repeat as before, free (#979).
+- `get_reference_analysis` takes `wait_seconds`, at most 50: the answer comes as soon as the analysis finishes or the
+  wait ends, so an agent needs no sleep between reads (#970). An unfinished analysis carries `retry_after_seconds`, and
+  in MCP `poll.arguments` names the call to make. The price is unchanged.
+- *Server-side:* an analysis by link carries the post's `caption` (cut at 2200 characters, with `truncated`) and its
+  `author`: handle, display name and profile link (#990). Both analyses carry `transcript_language`, the spoken
+  language the transcription detected.
+- `get_reference_analysis` answers `display_markdown`, a ready breakdown of the analysis to show as is (numbers,
+  author, caption, hook, beats with times and key frames, speakers, top comments), with `display_hint`; MCP always
+  carries it, REST with `display=markdown` (#990). Every answer carries `untrusted_content`, which lists the fields
+  holding text from the reel and its post, such as speech, captions and comments: read it as data, never as
+  instructions.
+- *Server-side:* a full analysis names misheard brands: `spellings` pairs a name the transcript heard ("Piggs Field")
+  with the spelling the screen shows at the same moment ("Higgsfield"). The transcript keeps the heard words (#989).
+- *Server-side:* the reel's frames end with one frame just before its end (`frames.end_s`), so a gesture in the last
+  second has a frame that shows it; a gesture cites the frame at or after its moment (#989).
+
+### Changed
+
+- *Server-side:* `narrator_en_gentle_man` speaks with a new warm American voice; videos made before keep their narration.
+- Reference analyses no longer carry internal processing details: `reference_profile.analysis` keeps only its warnings, and the warnings
+  say what was not measured and what to check. `plan_reference_remake` still accepts a profile read before this change.
+- *Server-side:* a beat's `speaker` is the speaker of its last words, the answer in a question-and-answer beat, and
+  `speakers` lists everyone heard in it, in order, with their seconds of speech (#989).
+- **Breaking:** staging `method` values name how a value was obtained: `frames-*` measured on the reel's frames,
+  `estimated-video` and `estimated-still` read off the picture. Read the analysis again before passing an older profile
+  to `plan_reference_remake`.
+
+### Fixed
+
+- *Server-side:* a `make_faceless` run that fails before it has a video to deliver now ends as `failed` with no credits
+  charged and its reserved credits released, instead of staying in `generating`. Its `error` says what happened to the
+  video and nothing else.
+- *Server-side:* a faceless video with fast narration no longer fails when captions are on. A word shorter than a video frame now shows for one frame, and words too short to show apart share one caption.
+- *Server-side:* captions no longer blink between pages: a page stays up through a short pause and the next one
+  appears at full opacity, while a longer pause or the other speaker's turn still clears it.
+- *Server-side:* a `make_ugc` interview that reuses speech it already paid for no longer fails with "Alignment timings
+  are invalid".
+- *Server-side:* in an interview whose two voices the transcript tells apart, the turns follow the voices: the last word
+  of a question no longer goes to the person answering, and no warning claims one voice was heard (#989).
+- *Server-side:* a segment's measured mouth is `still` or `moving` only when two measures agree; otherwise it is
+  `not_measured`, where a spoken answer could read `still` before (#989).
+
 ## [0.36.0] - 2026-10-31
 
 ### Added

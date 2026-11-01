@@ -71,6 +71,7 @@ const LONG_FORM_RULES: EditRules = {
   },
   output_coverage: "union", first_visual_kind: null, picture_assets_unique: false, visual_covers_presenter: true,
   add_visual: "over_presenter", reuse_source_asset: false, upload_aspect: null, max_generated_per_revision: 8, cover_min_frames: null,
+  cut_transitions: false,
 };
 
 /** A 16:9 view of 2700 frames that tiles as long-form slots do: three presenter takes and three inserts, two words a shot. */

@@ -4,7 +4,8 @@ import { RESOLVED_TIMELINE_MAX_SLOTS } from "./long-form-profile.js";
 import { CANVAS_FPS, completeFrames, secondsToFrames } from "./media-timebase.js";
 import { coverWordOf } from "./semantic-inserts.js";
 import { MAX_INSERTS } from "./skills.js";
-import { LAYER_ENTERS, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS } from "./ugc-layers.js";
+import { place } from "./scene-place.js";
+import { LAYER_ENTERS, LAYER_EXITS, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS } from "./ugc-layers.js";
 import { MAX_TEMPLATES, TEMPLATE_PLACEMENTS, TEMPLATE_SOUND_BEATS } from "./templates/index.js";
 import { FRAMING_SIZES, MAX_FRAMING } from "./ugc-framing.js";
 
@@ -19,21 +20,27 @@ const semanticPlanSchema = z.object({ sourceTokens: z.array(z.string().min(1)).m
     startWord: frame, endWord: positive, coverWord: positive.optional() }).strict()).max(MAX_INSERTS) }).strict();
 const interval = { position: positive, startFrame: frame, endFrame: positive };
 const actorSlot = z.object({ ...interval, kind: z.literal("actor"), requestHash: digest,
-  speechDurationSec: z.number().positive().finite(), audio: audioArtifact.optional() }).strict();
+  speechDurationSec: z.number().positive().finite(), audio: audioArtifact.optional(),
+  /** The actor's view the take is rendered from (#972); absent keeps the hash of every take frozen before it. */
+  gaze: z.enum(["camera", "left", "right"]).optional() }).strict();
 const mediaSlot = z.object({ ...interval, kind: z.literal("media"), key: z.string().min(1), sha256: digest,
   bytes: positive, width: positive, height: positive, durationSec: z.number().positive().finite(),
   mediaType: z.enum(["image", "video"]), contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]),
   insertId: z.string().min(1).optional() }).strict();
-/** A freeze of the take before it while others speak (reference-elements S3): no vendor renders it, and its still is cut after the takes are. */
+/** A freeze of the take before it, or of the one after it at an opening, while others speak (reference-elements S3, #972): no vendor renders it. */
 const holdSlot = z.object({ ...interval, kind: z.literal("hold"), sourcePosition: positive }).strict();
 /** The presenter listening between the take before it and the hold that freezes it (S4d, D1): a silent alpha take, billed as face seconds. */
 const liveSlot = z.object({ ...interval, kind: z.literal("live"), sourcePosition: positive, requestHash: digest }).strict();
+/** `exit` and `enterFrames` (#973 S3) are absent on every layer frozen before them, which keeps their hash; the enter offset is in `startFrame`. */
 const layerMedia = { id: z.string().min(1).max(64), startFrame: frame, endFrame: positive, enter: z.enum(LAYER_ENTERS),
+  exit: z.enum(LAYER_EXITS).optional(), enterFrames: positive.optional(),
   key: z.string().min(1), sha256: digest, bytes: positive, width: positive, height: positive,
   mediaType: z.enum(["image", "video"]), contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]) };
 /** An overlay or layout window drawn over the slots (#778 S2b); optional, so a timeline frozen without it keeps its hash. */
+/** An overlay holds its preset position or its place as admitted (#973 S1): absent `place` keeps the hash of every overlay frozen before it. */
 const layerSlot = z.discriminatedUnion("kind", [
-  z.object({ ...layerMedia, kind: z.literal("overlay"), position: z.enum(OVERLAY_POSITIONS) }).strict(),
+  z.object({ ...layerMedia, kind: z.literal("overlay"), position: z.enum(OVERLAY_POSITIONS).optional(), place: place.optional() }).strict()
+    .refine(layer => (layer.position === undefined) !== (layer.place === undefined), { path: ["position"], message: "an overlay holds a position or a place" }),
   z.object({ ...layerMedia, kind: z.literal("window"), layout: z.enum(LAYOUT_WINDOW_KINDS), blurPresenter: z.boolean() }).strict(),
 ]);
 /** A frozen template, in a long-form timeline or in a single take's record. */
@@ -44,6 +51,8 @@ export const resolvedTimelineTemplate = z.object({ id: z.string().min(1).max(64)
   data: z.record(z.string(), z.unknown()),
   /** A full frame's wipe, flash or zoom; absent is a cut. */
   transition: z.enum(["wipe", "flash", "zoom"]).optional(),
+  /** Its place as admitted (#973 S4); absent draws the kind's own rect and keeps the hash of every template frozen before it. */
+  place: place.optional(),
   /** Each beat's frame from its start, resolved from the words (#778 S3b(i)); absent when the kind has none. */
   moments: z.array(frame).min(1).max(6).optional(),
   /** The sound of each beat it plays, frozen at admission (#778 S3c); absent plays none, as every run before S3c. */
@@ -121,7 +130,10 @@ const contentSchema = z.object({ version: z.literal(1), mode: z.enum(["segments"
         slot.audio.key === `runs/${value.runId}/narration/${slot.audio.sha256}.wav`, "actor_audio_binding");
     } else if (slot.kind === "hold") {
       check(value.mode === "script_inserts", "hold_mode");
-      check(slot.sourcePosition === slot.position - 1 && ["actor", "live"].includes(value.slots[index - 1]?.kind ?? ""), "hold_source");
+      // An interview's hold with no take before it freezes the first frame of the take after it (#972).
+      check((slot.sourcePosition === slot.position - 1 && ["actor", "live"].includes(value.slots[index - 1]?.kind ?? "")) ||
+        (slot.sourcePosition === slot.position + 1 && !["actor", "live"].includes(value.slots[index - 1]?.kind ?? "") &&
+          value.slots[index + 1]?.kind === "actor"), "hold_source");
     } else if (slot.kind === "live") {
       const next = value.slots[index + 1];
       check(value.mode === "script_inserts", "live_mode");

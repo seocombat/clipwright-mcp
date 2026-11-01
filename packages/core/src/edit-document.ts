@@ -4,6 +4,7 @@ import { frame, shotId } from "./edit-primitives.js";
 import { EDIT_MAX_DISCARDED, EDIT_MAX_SHOTS, SHOT_KINDS, SHOT_TRACKS } from "./edit-rules.js";
 import type { PlannedRunShots } from "./edit-shots.js";
 import { EDIT_ISSUE_CODES } from "./edit-validate.js";
+import { facelessShotTransitions } from "./faceless-media-record.js";
 import { runId } from "./runs.js";
 import { uploadId } from "./uploads.js";
 
@@ -31,6 +32,8 @@ export const editDocument = z.strictObject({
   duration_frames: z.number().int().positive().safe(),
   shots: z.array(editShot).min(1).max(EDIT_MAX_SHOTS),
   discarded: z.array(runId).max(EDIT_MAX_DISCARDED).default([]),
+  /** Faceless only: the cut transitions to draw, `null` for none; absent keeps the source run's. */
+  transitions: facelessShotTransitions.nullable().optional(),
 });
 export type EditDocument = z.infer<typeof editDocument>;
 

@@ -7,7 +7,7 @@ import { estimateDurationSec } from '../pacing.js';
 import { countActorShots, lexicalTokens, planSemanticInserts, quoteOccurrences } from '../semantic-inserts.js';
 import { templateFaceWarnings } from '../templates/index.js';
 import { FRAMING_SCALE } from '../ugc-framing.js';
-import { faceZone, frameCanvasOf, overlayRect, rectsOverlap } from '../ugc-layers.js';
+import { admissionScene, faceZone, frameCanvasOf, overlayFootprints, overlayRect, rectsOverlap } from '../ugc-layers.js';
 import { listVoices } from '../voice-listing.js';
 import { compileReferenceRemake, queryWorkflowMethod, referenceProfileWarnings, validateWorkflowPlan, workflowPlanDocument, workflowPlanDocumentRead,
     type CapabilityProfile, type WorkflowPlanDocument } from './index.js';
@@ -45,6 +45,16 @@ describe('reference profile in the plan document (S1b)', () => {
         const { reference_profile: _profile, ...bare } = document.brief;
         expect(requestHash(changed)).not.toBe(requestHash(document));
         expect(requestHash({ ...document, brief: bare })).not.toBe(requestHash(document));
+    });
+    /** Mutants: take the stored profile schema as input, and a profile read from an answer (no models, cost or time) is refused; keep the
+     *  models in the plan, and the saved plan names the vendors behind the analysis (rule 8). */
+    it('compiles a profile as an answer carries it, and the plan keeps no models, cost or time', () => {
+        const { models: _m, cost_usd: _c, latency_ms: _l, ...kept } = PROFILE.analysis;
+        const read = compiled({ reference_profile: { ...structuredClone(PROFILE), analysis: kept } });
+        const full = compiled();
+        expect(read).toEqual(full);
+        expect(full.brief.reference_profile?.analysis).toEqual({});
+        expect(JSON.stringify(full)).not.toMatch(/gemini|scribe|cost_usd|latency_ms|"models"/i);
     });
     /** Mutant: copy the profile whole, and the plan carries the reference's speech, labels and transcript (#930) into a remake that copies none of it. */
     it('does not keep the reference\'s speech, transcript, hook or on-screen text in the saved plan', () => {
@@ -765,7 +775,7 @@ describe('the live remake of a nine-beat reel (#884)', () => {
             const { input, notes } = live(beats => { (beats[0]!.graphics as { position: string }[])[0]!.position = from; });
             const overlay = input.overlays![0]!;
             expect(overlay.position).toBe(to);
-            expect(rectsOverlap(overlayRect(overlay.position, frameCanvasOf('9:16')), faceZone('9:16'))).toBe(false);
+            expect(rectsOverlap(overlayRect(overlay.position!, frameCanvasOf('9:16')), faceZone('9:16'))).toBe(false);
             const moved = notes.filter(entry => entry.beat_index === 0 && entry.suggested_substitute.includes('face clear'));
             expect(moved).toHaveLength(from === to ? 0 : 1);
         });
@@ -778,7 +788,7 @@ describe('the live remake of a nine-beat reel (#884)', () => {
                 ['long_form'], 'implemented');
             expect(input.presenter_framing).toBe('wide');
             expect(input.overlays![0]!.position).toBe(to);
-            expect(rectsOverlap(overlayRect(input.overlays![0]!.position, frameCanvasOf('9:16')), faceZone('9:16', 'wide'))).toBe(false);
+            expect(rectsOverlap(overlayRect(input.overlays![0]!.position!, frameCanvasOf('9:16')), faceZone('9:16', 'wide'))).toBe(false);
             expect(notes.filter(entry => entry.beat_index === 0 && entry.suggested_substitute.includes('face clear'))).toEqual([]);
             expect(makeUgcInput.safeParse(input).success).toBe(true);
             expect(validateWorkflowPlan(document, declared).issues).toEqual([]);
@@ -951,17 +961,18 @@ describe('the remake places the call phone by the reference\'s measured staging 
         expect(refused(stage => { stage.rect.left = 0.7; })).toEqual(['call.stage.rect']);
     });
 
-    /** Today's plans as sha256 of their JSON, taken from main 73781645 before D1e. Mutant: emit a default stage when there is no staging. */
+    /** Today's plans as sha256 of their JSON, taken from main 73781645 before D1e, re-taken when the plan's analysis lost its models and cost
+     *  (the old digests come back with them restored). Mutant: emit a default stage when there is no staging. */
     it('gives today\'s plan byte for byte from a profile without staging', () => {
         const assets = ['a', 'b', 'c'].map((digit, at) => ({ asset_id: `ast_${digit.repeat(32)}`, media_type: at < 2 ? 'image' : 'video' }));
         const today: [Record<string, unknown>, string[], string][] = [
-            [{}, [], '0507470d96ca884a9ae52aa1ff3b2f77bf62f2c991d6214f854ef7eb4b1f6009'],
-            [{}, ['long_form'], '609adc3e3838feae5b51cf33d8e6e1ef0a6c427e7a626a2256dac3790e1bff02'],
+            [{}, [], 'e285c31bc2c82a52e7c01f429b90331ff665ed705be9602b1f845e77f829d6a1'],
+            [{}, ['long_form'], '99fd1a81571469dcfb84f01f3fbc5ef808a4497fac9abd1f7b1b11cd633d14eb'],
             [{ call: { lines: [...lines, { speaker: 'agent', text: 'Of course, Dan. I\'ve booked you for two o\'clock today, and I\'m texting you the details now.' }] } },
-                ['long_form'], '58d327187818375dd9984aed46a6a2f7cb0af802c94b8db1d754bbae433d0893'],
+                ['long_form'], '4545924926582baed00ddec3767a059de9ffcc045fb6200a102e8c445578c308'],
             [{ call: { lines: [...lines, { speaker: 'agent', text: 'Of course, Dan. I\'ve booked you for two o\'clock today, and I\'m texting you the details now.' }] },
-                assets, site: 'clipwright.io' }, ['long_form'], '8bc87031a58a4645fd6ddf60c95c071092d4fe177056f23ed6a4574e2b0c89e4'],
-            [{ assets }, ['long_form'], '86a6a90f62cb3fe6c1ce7970585a6ef55bdce5061f2e73d1bea7cece1689a975'],
+                assets, site: 'clipwright.io' }, ['long_form'], '8f59ad11d228a082b472675efb40d08536f5ea5727c0cbf4f9bfe0f537ffc418'],
+            [{ assets }, ['long_form'], 'aa10dfdaae1721734eada355251f0833a59bf1cbbfc65f1a722969d916fa05c7'],
         ];
         for (const [extra, features, digest] of today) {
             const result = compileReferenceRemake(request(extra), capabilities(features));
@@ -981,16 +992,117 @@ describe('the remake places the call phone by the reference\'s measured staging 
         expect(stageOf(missing)).toBeUndefined();
         expect(notes(missing)).toContain('6: the call phone\'s place (reference staging did not measure it) → the reference call scene\'s place: default used');
         const checklist = plan(ganesh(staging => { staging.elements.push({ ...structuredClone(STAGING.elements[0]), id: 'list', beat_index: 4, graphic_index: 0, kind: 'toggle_checklist' }); }));
-        expect(notes(checklist)).toContain('4: checklist: its measured place and entry (reference staging) → its default place; measured staging is drawn for the call\'s phone only');
+        // A checklist over the presenter is drawn at its measured box since #973 S5; only its entry stays the kind's own.
+        expect(native(checklist).templates!.find(item => item.kind === 'checklist')!.place).toEqual({ relative_to: 'face', rect: STAGING.elements[0].rect_hold_face });
+        expect(notes(checklist)).toContain('4: the measured entry of the templates on beats 5 → each template\'s own entry');
+        expect(notes(checklist).filter(entry => entry.startsWith('6: phone_call'))).toEqual([]);
         // Mutant (#930 S2): call every staged box measured, and an element only the vision pass saw is claimed as measured.
-        const seen = plan(ganesh(staging => { staging.elements.push({ id: 'list', beat_index: 4, graphic_index: 0, kind: 'toggle_checklist', rect_method: 'vision-video',
-            rect_hold: { left: 0.1, top: 0.1, width: 0.3, height: 0.3 } }); }));
-        expect(notes(seen)).toContain('4: checklist: its vision-pass place and entry (reference staging) → its default place; measured staging is drawn for the call\'s phone only');
-        // Mutant (Codex 930-s2 r1): match vision-video only, and a still-grounded box the budget left unmeasured is called measured.
-        const still = plan(ganesh(staging => { staging.elements.push({ id: 'list', beat_index: 4, graphic_index: 0, kind: 'toggle_checklist', rect_method: 'vision-still',
-            rect_hold: { left: 0.1, top: 0.1, width: 0.3, height: 0.3 } }); }));
-        expect(notes(still)).toContain('4: checklist: its vision-pass place and entry (reference staging) → its default place; measured staging is drawn for the call\'s phone only');
+        const seen = plan(ganesh(staging => { staging.elements.push({ id: 'list', beat_index: 4, graphic_index: 0, kind: 'toggle_checklist', rect_method: 'estimated-video',
+            rect_hold: { left: 0.3, top: 0.15, width: 0.4, height: 0.3 } }); }));
+        expect(notes(seen)).toContain('4: checklist: its vision-pass place, over the presenter\'s face → the checklist\'s default place, to keep the face clear');
+        // Mutant (Codex 930-s2 r1): match estimated-video only, and a still-grounded box the budget left unmeasured is called measured.
+        const still = plan(ganesh(staging => { staging.elements.push({ id: 'list', beat_index: 4, graphic_index: 0, kind: 'toggle_checklist', rect_method: 'estimated-still',
+            rect_hold: { left: 0.3, top: 0.15, width: 0.4, height: 0.3 } }); }));
+        expect(notes(still)).toContain('4: checklist: its vision-pass place, over the presenter\'s face → the checklist\'s default place, to keep the face clear');
         const noCall = notes(plan(ganesh(), {}));
-        expect(noCall).toContain('6: phone_call: its measured place and entry (reference staging) → its default place; measured staging is drawn for the call\'s phone only');
+        expect(noCall).toContain('6: phone_call: its measured place, over the presenter\'s face → the phone_call\'s default place, to keep the face clear');
+    });
+});
+
+describe('the remake draws measured staging without snapping it to presets (#973 S5)', () => {
+    /** The job-01 reference's stored analysis (ref_907c321d…), its words replaced; boxes, times and staging as measured. */
+    const JOB01 = JSON.parse(readFileSync(new URL('../__fixtures__/reference-job01-profile.json', import.meta.url), 'utf8')).reference_profile;
+    /** S0's numbers for it (evidence/reference-numbers.json): the median icon width and the face height while the icons show. */
+    const ICON_WIDTH_W = 0.2852, FACE_HEIGHT_H = 0.2667, FACE_CENTRE = [0.4761, 0.2856] as const;
+    const JOB01_SCRIPT = 'Need a quick email? ChatGPT. Planning a launch? Claude. Studying for a test? NotebookLM. Checking your rivals? Perplexity. ' +
+        'Making ad clips? Higgsfield. Shipping an app? Cursor. A site by tonight? Lovable. A video of you? HeyGen. Slides for Monday? Gamma. ' +
+        'A posting plan? Poppy. Stuck on a bug? Codex. Learning something fast? Gemini. What is trending? Grok. A voiceover? ElevenLabs. ' +
+        'Meeting notes? Supernormal. Earning on the side? Canva. Want more tools like these? Follow for daily tips.';
+    const icons = Array.from({ length: 12 }, (_, at) => ({ asset_id: `ast_${at.toString(16).repeat(32)}`, media_type: 'image' }));
+    const declared = () => {
+        const profile = capabilities(['long_form']);
+        Object.assign(profile.executors[0]!.field_dispositions, { caption_position: 'implemented', presenter_place: 'implemented' });
+        return profile;
+    };
+    const remake = (profile: unknown, script = JOB01_SCRIPT, assets: unknown[] = icons) => {
+        const result = compileReferenceRemake({ reference_profile: profile, script, actor_id: 'actor_alex', voice: 'eric', assets }, declared());
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        return { document: result.document, input: native(result.document), notes: result.document.brief.reference_profile!.unmapped };
+    };
+
+    /** Mutants: snap to a preset, drop the caption relation, take the frame box over it, or skip the face; the icons land where v1's did (0.532 W). */
+    it('places every icon of the stored job-01 analysis under the captions at the reference width, and frames the face as the reference did', () => {
+        const { document, input, notes } = remake(structuredClone(JOB01));
+        const overlays = input.overlays!;
+        // A run shows ten overlays; the rest of the icons become text cards, and the plan says so.
+        expect(overlays).toHaveLength(10);
+        expect(notes.filter(entry => entry.what === 'logo_card (a run shows at most 10 overlays)').map(entry => entry.beat_index)).toEqual([10, 11, 12, 13, 14, 15]);
+        for (const overlay of overlays) {
+            expect(overlay.position, overlay.id).toBeUndefined();
+            expect(overlay.place, overlay.id).toMatchObject({ relative_to: 'captions', side: 'below' });
+            const width = (overlay.place as { width: number }).width;
+            expect(Math.abs(width - ICON_WIDTH_W) / ICON_WIDTH_W, overlay.id).toBeLessThanOrEqual(0.15);
+            if (overlay.enter_offset_s !== undefined) expect(Math.abs(overlay.enter_offset_s)).toBeLessThanOrEqual(0.5);
+        }
+        const scene = admissionScene(input as never, '9:16', 'close'), boxes = overlayFootprints(overlays as never, '9:16', 'close', scene);
+        for (const overlay of overlays) {
+            const box = boxes.get(overlay.id)!, captions = scene.captions!;
+            expect(Math.abs(box.left + box.width / 2 - (captions.left + captions.width / 2)), overlay.id).toBeLessThanOrEqual(0.02);
+            expect(box.top - captions.top - captions.height, overlay.id).toBeGreaterThanOrEqual(0);
+            expect(box.top - captions.top - captions.height, overlay.id).toBeLessThanOrEqual(0.02);
+        }
+        expect(Math.abs(input.presenter_place!.face_height - FACE_HEIGHT_H)).toBeLessThanOrEqual(0.005);
+        for (const axis of [0, 1]) expect(Math.abs(input.presenter_place!.face_centre[axis]! - FACE_CENTRE[axis]!)).toBeLessThanOrEqual(0.005);
+        // The reference shows the first icon 0.23 s after its beat's last word starts; ours waits the same after our beat's last word.
+        expect(overlays[0]!.anchor).toEqual({ quote: 'email' });
+        expect(overlays[0]!.enter_offset_s).toBe(0.23);
+        expect(makeUgcInput.safeParse(input).success).toBe(true);
+        expect(validateWorkflowPlan(document, declared()).issues).toEqual([]);
+        const said = notes.map(entry => `${entry.what} → ${entry.suggested_substitute}`);
+        expect(said).toContainEqual(expect.stringMatching(/^the reference's caption box, for the graphics on beats 1, 2, .* \(not measured\) → placed under the captions/));
+        expect(said.filter(entry => entry.includes('measured staging is drawn'))).toEqual([]);
+    });
+
+    /** Mutant: read the caption box but keep inferring, and a measured gap of 0.009 H becomes the default 0.01 with a note that it was not measured. */
+    it('takes the measured gap from a caption box when the analysis has one, and a far box leaves the icon on the face', () => {
+        const near = structuredClone(JOB01);
+        near.captions.box = { left: 0.3, top: 0.52, width: 0.4, height: 0.075 };
+        const placed = remake(near);
+        expect(placed.input.overlays![0]!.place).toEqual({ relative_to: 'captions', side: 'below', gap: 0.0092, width: 0.2852 });
+        expect(placed.notes.some(entry => entry.what.includes('caption box'))).toBe(false);
+        const far = structuredClone(JOB01);
+        far.captions.box = { left: 0.3, top: 0.4, width: 0.4, height: 0.075 };
+        expect(remake(far).input.overlays![0]!.place).toEqual({ relative_to: 'face', rect: JOB01.staging.elements[0].rect_hold_face });
+    });
+
+    /** Owner: general, not one reference. Mutant: map a staged tag back to its position, and the reference's lower third lands in the tag's default band. */
+    it('maps a presenter reference\'s corner logo to a face place and its lower-third tag to a frame place', () => {
+        const profile = structuredClone(PROFILE);
+        const base = { ...PROFILE.beats[0], sounds: [], camera: 'static', transition_in: 'none', presenter_behaviour: 'speaking' };
+        const graphic = (kind: string, source_kind: string, position: string) => ({ kind, source_kind, position, state_changes: [], label_hint: '' });
+        profile.beats = [{ ...base, start_frac: 0, end_frac: 0.5, start_s: 0, end_s: 10, graphics: [graphic('title_card', 'logo_card', 'top_right')] },
+            { ...base, role: 'cta', start_frac: 0.5, end_frac: 1, start_s: 10, end_s: 20, graphics: [graphic('tag', 'banner', 'bottom')] }];
+        profile.source = { ...profile.source, duration_s: 20, width: 720, height: 1280 };
+        profile.captions = { present: true, words_per_caption_max: 3, position: 'bottom', emphasis_style: 'none', hidden_under_graphics: false };
+        profile.unmapped = [];
+        const logoTwin = { left: 0.495, top: -1, width: 0.495, height: 0.48 };
+        profile.staging = { version: 'reference-staging-v1', analysis_width: 720, anchors: [], freezes: [], elements: [
+            { id: 'logo', beat_index: 0, graphic_index: 0, kind: 'logo_card', rect_hold: { left: 0.72, top: 0.05, width: 0.22, height: 0.12 }, rect_hold_face: logoTwin,
+                rect_method: 'frames-box/v1', entry: { first_visible_s: 2, style: 'fade', duration_s: 0.3 }, exit: { style: 'fade' } },
+            { id: 'lower', beat_index: 1, graphic_index: 0, kind: 'banner', rect_hold: { left: 0.05, top: 0.74, width: 0.6, height: 0.07 }, rect_method: 'frames-motion/v1',
+                entry: { first_visible_s: 11, style: 'slide', from: 'left' } }] };
+        const script = 'Every missed call is a lost deal. Set it up in ten minutes and stop losing deals while you sleep.';
+        const { document, input, notes } = remake(profile, script, [icons[0]]);
+        expect(input.overlays).toEqual([expect.objectContaining({ asset_id: icons[0]!.asset_id, place: { relative_to: 'face', rect: logoTwin }, enter: 'fade',
+            enter_duration_s: 0.3, exit: 'fade' })]);
+        expect(input.overlays![0]!.position).toBeUndefined();
+        const tag = input.templates!.find(item => item.kind === 'tag')!;
+        expect(tag.place).toEqual({ relative_to: 'frame', rect: { left: 0.05, top: 0.74, width: 0.6, height: 0.07 } });
+        expect(tag.data).not.toHaveProperty('position');
+        expect(input.presenter_place).toEqual({ face_height: 0.25, face_centre: [0.5, 0.3] });
+        expect(makeUgcInput.safeParse(input).success).toBe(true);
+        expect(validateWorkflowPlan(document, declared()).issues).toEqual([]);
+        expect(notes.map(entry => entry.what)).toContain('the measured entry of the templates on beats 2');
+        expect(notes.some(entry => entry.what.includes('caption box'))).toBe(false);
     });
 });

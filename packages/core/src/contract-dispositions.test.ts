@@ -60,10 +60,15 @@ describe("FIELD_DISPOSITIONS — completeness guard", () => {
     expect(Object.keys(FIELD_DISPOSITIONS).sort()).toEqual([...FIELDS].sort());
   });
 
-  it("the table matches today's contract (38 fields)", () => {
-    // Pinned: growing the shape is a deliberate contract change, not a side effect (#778 templates and overlays, reference-elements S1–S7,
-    // #884 caption_position, presenter_framing, presenter_mic, #857 S5 call).
-    expect(FIELDS).toHaveLength(38);
+  it("the table matches today's contract (43 fields)", () => {
+    // Pinned: growing the shape is a deliberate contract change, not a side effect (#778, reference-elements S1–S7, #884 caption_position,
+    // presenter_framing, presenter_mic, #857 S5 call, #973 S2 caption_place, presenter_place, #972 interview, presenter_gaze, #991 end_hold_s).
+    expect(FIELDS).toHaveLength(43);
+    expect(FIELD_DISPOSITIONS.end_hold_s).toEqual({ kind: "implemented", provenBy: "composition" });
+    expect(FIELD_DISPOSITIONS.interview).toEqual({ kind: "implemented", provenBy: "composition" });
+    expect(FIELD_DISPOSITIONS.presenter_gaze).toEqual({ kind: "implemented", provenBy: "egress" });
+    expect(FIELD_DISPOSITIONS.caption_place).toEqual({ kind: "implemented", provenBy: "composition" });
+    expect(FIELD_DISPOSITIONS.presenter_place).toEqual({ kind: "implemented", provenBy: "egress" });
     expect(FIELD_DISPOSITIONS.call).toEqual({ kind: "implemented", provenBy: "composition" });
     expect(FIELD_DISPOSITIONS.caption_position).toEqual({ kind: "implemented", provenBy: "composition" });
     expect(FIELD_DISPOSITIONS.presenter_framing).toEqual({ kind: "implemented", provenBy: "egress" });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapAnalyserGraphic, mapAnalyserSourceKind, REFERENCE_PROFILE_VERSION, referenceProfile } from "./index.js";
+import { keyFrameSecond, mapAnalyserGraphic, mapAnalyserSourceKind, REFERENCE_PROFILE_VERSION, referenceProfileInput as referenceProfile, spanFrameSeconds } from "./index.js";
 
 const beat = (start: number, end: number, extra: Record<string, unknown> = {}) => ({
   start_frac: start / 72, end_frac: end / 72, start_s: start, end_s: end, role: "demo", spoken_summary: "she answers calls", graphics: [],
@@ -147,5 +147,25 @@ describe("the reference's words and the graphics Argon called other (#930 S1)", 
       .toEqual([{ kind: "tag" }, { kind: "tag" }, { kind: "title_card" }, { kind: "stat" }]);
     expect([mapAnalyserGraphic("concept_card", "bottom").kind, mapAnalyserGraphic("concept_card", "full_screen").kind]).toEqual(["overlay_media", "insert_media"]);
     expect(mapAnalyserGraphic("toString").unmapped).toBe("a title_card with its label, or leave it out");
+  });
+});
+
+/** The frame a beat or scene cites (#979): a second of the one-a-second frames, inside the span when one is, never past the reel's last frame. */
+describe("frame seconds", () => {
+  it("takes the second nearest the middle inside the span, else the nearest, and keeps both ends of a long span", () => {
+    expect(keyFrameSecond(0, 3.9, 72)).toBe(2);
+    expect(keyFrameSecond(4.2, 4.8, 72)).toBe(5);
+    expect(keyFrameSecond(70.2, 72, 72)).toBe(71);
+    expect(keyFrameSecond(71.5, 72.4, 72.4)).toBe(72);
+    expect(spanFrameSeconds(17.9, 23.7, 72)).toEqual([18, 19, 20, 21, 22, 23]);
+    expect(spanFrameSeconds(4.2, 4.8, 72)).toEqual([5]);
+    const long = spanFrameSeconds(0, 60, 72);
+    expect([long.length, long[0], long.at(-1)]).toEqual([12, 0, 59]);
+  });
+
+  it("refuses a beat citing a second the reel has no frame for", () => {
+    const citing = (extra: Record<string, unknown>) => { const cited = profile(); return { ...cited, beats: [{ ...cited.beats[0]!, ...extra }, ...cited.beats.slice(1)] }; };
+    expect(referenceProfile.safeParse(citing({ key_frame_s: 72 })).success).toBe(false);
+    expect(referenceProfile.safeParse(citing({ key_frame_s: 2, frames_s: [0, 1, 2, 3] })).success).toBe(true);
   });
 });

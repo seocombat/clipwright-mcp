@@ -24,7 +24,7 @@ export function longFormEditRules(background: LongFormBackground | null): EditRu
     output_coverage: "union", first_visual_kind: null, picture_assets_unique: false, visual_covers_presenter: true,
     add_visual: "over_presenter", reuse_source_asset: true,
     upload_aspect: background === null ? { mode: "exact", epsilon: EXACT_FIT_EPSILON } : null,
-    max_generated_per_revision: 0, cover_min_frames: LONG_FORM_COVER_MIN_FRAMES,
+    max_generated_per_revision: 0, cover_min_frames: LONG_FORM_COVER_MIN_FRAMES, cut_transitions: false,
   };
 }
 

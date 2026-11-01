@@ -166,6 +166,8 @@ export const actorCatalogEntry = z.object({
     preview_url: z.url(),
     preview_expires_at: z.iso.datetime(),
     framing: z.enum(["wide"]).optional().describe("wide: the presenter lower with room above, used by presenter_framing wide; absent is close."),
+    gaze: z.enum(["left", "right"]).optional().describe("The side of the frame the presenter looks to, used by interview.gaze and presenter_gaze; " +
+      "absent is the camera."),
     prop: z.enum(["mic"]).optional().describe("mic: the presenter holds a tiny handheld microphone, used by presenter_mic; absent is none."),
   })).min(1),
 });

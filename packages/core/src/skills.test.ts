@@ -134,6 +134,8 @@ describe("makeUgcInput — script length gate", () => {
       "FACELESS_MAX_SELECTED_SECONDS",
       // How far a reference's hook may run to finish its sentence (#930): a read of someone else's reel, never a price or a render length.
       "REFERENCE_HOOK_MAX_SECONDS",
+      // How long a read of an analysis may wait for it to finish (#970): a free read's hold, never a price or a render length.
+      "REFERENCE_WAIT_MAX_SECONDS",
     ];
     const durationCaps = Object.keys(contract).filter(
       (name) =>

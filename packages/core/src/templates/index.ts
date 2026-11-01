@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { captionLanguageOf } from "../caption-language.js";
 import { lexicalTokens, quoteOccurrences } from "../semantic-inserts.js";
-import { type AnchoredItem, faceZone, frameCanvasOf, type LayerRect, type LayerRefusal, layerWordRange, MAX_OVERLAYS_AT_ONCE, overlayRect,
-  type OverlayPosition, type PresenterFraming, rectsOverlap, type WordRange } from "../ugc-layers.js";
+import { admissionScene, type AnchoredItem, faceZone, frameCanvasOf, type LayerCheckInput, type LayerRect, type LayerRefusal, layerWordRange,
+  MAX_OVERLAYS_AT_ONCE, overlayFootprints, placedRefusals, type PlaceableOverlay, type PresenterFraming, rectsOverlap, type WordRange } from "../ugc-layers.js";
+import { placeAnchorOf, placeByCaptions, type Place } from "../scene-place.js";
 import { callout } from "./callout.js";
 import { checklist } from "./checklist.js";
 import { compare } from "./compare.js";
@@ -237,7 +238,18 @@ export function templateTextRefusal(text: string, limit: number, language: strin
 }
 
 export interface TemplateItem extends AnchoredItem { kind: string; placement?: TemplatePlacement | undefined; transition?: string | undefined;
-  data: Record<string, unknown> }
+  data: Record<string, unknown>; place?: Place | undefined }
+
+/** The run's over-presenter templates as scene items for one framing (#973 S4): each with its kind's own rect and its place, if any. */
+export function templateSceneItems(input: { templates?: readonly TemplateItem[] | undefined; aspect_ratio?: string | undefined },
+  framing: PresenterFraming, kinds: readonly TemplateKind[] = TEMPLATE_KINDS): PlaceableOverlay[] {
+  return (input.templates ?? []).flatMap(item => {
+    const kind = kinds.find(entry => entry.kind === item.kind), parsed = kind?.data.safeParse(item.data);
+    if (!kind || !parsed?.success || (item.placement ?? kind.placements[0]) !== "over") return [];
+    return [{ id: item.id, anchor: item.anchor, cover_words: item.cover_words, place: item.place,
+      own: kind.rect(parsed.data, input.aspect_ratio ?? "9:16", undefined, framing) }];
+  });
+}
 
 /** Where a template draws and what it does to captions, at a format; a frozen `kindVersion` reads that version's geometry (#819). */
 export function templateFootprint(item: { kind: string; kindVersion?: number | undefined; placement: TemplatePlacement; data: Record<string, unknown> },
@@ -256,10 +268,11 @@ export function templateFaceWarnings(input: { templates?: unknown; aspect_ratio?
   if (!Array.isArray(input.templates)) return [];
   const aspect = typeof input.aspect_ratio === "string" ? input.aspect_ratio : "9:16";
   const framing = input.presenter_framing === "wide" ? "wide" : "close";
-  return (input.templates as { id?: unknown; kind?: unknown; placement?: unknown; data?: unknown }[]).flatMap(item => {
+  return (input.templates as { id?: unknown; kind?: unknown; placement?: unknown; data?: unknown; place?: unknown }[]).flatMap(item => {
     const kind = TEMPLATE_KINDS.find(entry => entry.kind === item.kind);
     const placement = item.placement ?? kind?.placements[0];
-    if (!kind || placement !== "over" || !kind.data.safeParse(item.data).success) return [];
+    // A placed template is judged by its box, with the placed overlays (#973 S4).
+    if (!kind || placement !== "over" || item.place !== undefined || !kind.data.safeParse(item.data).success) return [];
     const guarded = kind.faceRect ? kind.faceRect(item.data as never, aspect, framing) : kind.rect(item.data as never, aspect, "over", framing);
     return guarded && rectsOverlap(guarded, faceZone(aspect, framing))
       ? [`template "${String(item.id)}" is drawn over the presenter's face: its ${kind.kind}${kind.faceRect ? " label" : ""} sits there as asked; ` +
@@ -319,13 +332,18 @@ export interface TemplateCheckInput {
   presenter_framing?: PresenterFraming | undefined;
   actor_id?: string | undefined;
   inserts?: readonly (AnchoredItem & { transition?: string | undefined })[] | undefined;
-  overlays?: readonly (AnchoredItem & { position: OverlayPosition })[] | undefined;
+  overlays?: readonly PlaceableOverlay[] | undefined;
   layout_windows?: readonly AnchoredItem[] | undefined;
   templates?: readonly TemplateItem[] | undefined;
   template_theme?: { preset?: TemplatePreset | undefined; accent?: string | undefined } | undefined;
   template_sounds?: unknown;
   edit_sounds?: boolean | undefined;
   call?: unknown;
+  captions?: boolean | undefined;
+  caption_style?: string | undefined;
+  caption_position?: LayerCheckInput["caption_position"];
+  caption_place?: LayerCheckInput["caption_place"];
+  presenter_place?: LayerCheckInput["presenter_place"];
 }
 
 /** Every refusal of `templates`, `template_theme` and `template_sounds` against the run, named by path; empty when they render (D4, D5, D6, D8, D10, A5, A6). */
@@ -357,7 +375,20 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
   // A wide request may render close when the actor has no wide view, so footprints are checked in both framings; wide needs an actor and 9:16.
   const wideCanRender = input.presenter_framing === "wide" && input.actor_id !== undefined && aspect === "9:16";
   const framings: PresenterFraming[] = wideCanRender ? ["close", "wide"] : ["close"];
-  const overlays = ranged(input.overlays).map(entry => ({ ...entry, rects: framings.map(() => overlayRect(entry.item.position, frameCanvasOf(aspect))) }));
+  // An overlay's footprint is its preset's, or the box its place resolves to (#973 S1); a place on a broken chain is refused with the overlays.
+  // A template's is its kind's rect, or that rect scaled whole into its place (S4); overlays and templates may stand by one another.
+  const scenes = framings.map(framing => {
+    const scene = admissionScene(input, aspect, framing), items = [...input.overlays ?? [], ...templateSceneItems(input, framing, kinds)];
+    return { items, boxes: overlayFootprints(items, aspect, framing, scene), face: scene.face };
+  });
+  const overlays = ranged(input.overlays).flatMap(entry => {
+    const rects = scenes.map(({ boxes }) => boxes.get(entry.item.id));
+    return rects.every(rect => rect !== undefined) ? [{ ...entry, rects: rects as LayerRect[] }] : [];
+  });
+  const items = scenes[0]!.items, canvas = frameCanvasOf(aspect);
+  // A place over its anchor is drawn on it by asking, so the pair is no clash.
+  const over = (a: string, b: string) => { const place = items.find(item => item.id === a)?.place;
+    return place !== undefined && "side" in place && place.side === "over" && placeAnchorOf(place) === b; };
   const placed: { index: number; id: string; placement: TemplatePlacement; transition?: string | undefined; range: WordRange; rects: LayerRect[];
     onInserts: boolean; beats: { path: (string | number)[]; word: number }[] }[] = [];
   for (const [index, item] of input.templates.entries()) {
@@ -385,7 +416,19 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
     for (const beat of beats) if (beat.refusal) refusals.push({ path: at("data", ...beat.path), message: `template "${item.id}" ${beat.path.join(".")} ${beat.refusal}` });
     const footprints = framings.map(framing => templateFootprint({ kind: item.kind, placement, data: parsed.data as Record<string, unknown> }, aspect, kinds,
       undefined, framing));
-    placed.push({ index, id: item.id, placement, transition: item.transition, range, rects: footprints.map(footprint => footprint.rect), onInserts: footprints[0]!.onInserts,
+    let rects = footprints.map(footprint => footprint.rect);
+    if (item.place) {
+      // A placed template is its own drawing scaled whole into the box (#973 S4): over the presenter, never cut to fit, never moved by the captions.
+      const place = item.place, why = placement !== "over" ? "a template takes place over the presenter only (placement over)"
+        : placeByCaptions(place) ? "a template does not stand by the captions: place it by the frame, the face, an overlay or a template"
+          : place.fit === "cover" ? "a template is scaled whole into its box: drop fit cover" : undefined;
+      if (why) { refusals.push({ path: at("place"), message: `template "${item.id}": ${why}` }); continue; }
+      refusals.push(...placedRefusals("template", { ...item, place }, range, (...rest) => at("place", ...rest), { items, tokens, footprints: scenes, canvas }));
+      const boxes = scenes.map(({ boxes }) => boxes.get(item.id));
+      if (boxes.some(box => box === undefined)) continue;
+      rects = boxes as LayerRect[];
+    }
+    placed.push({ index, id: item.id, placement, transition: item.transition, range, rects, onInserts: footprints[0]!.onInserts,
       beats: beats.flatMap(beat => (beat.word === undefined ? [] : [{ path: beat.path, word: beat.word }])) });
   }
   const fulls = placed.filter(entry => entry.placement === "full"), overs = placed.filter(entry => entry.placement === "over");
@@ -418,7 +461,8 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
     }
     const together = [...overlays.map(other => ({ id: other.item.id, range: other.range, rects: other.rects })),
       ...overs.filter(other => other.index < entry.index)].filter(other => overlaps(other.range, entry.range));
-    const clash = together.find(other => other.rects.some((rect, at) => rectsOverlap(rect, entry.rects[at]!)));
+    const clash = together.find(other => !over(other.id, entry.id) && !over(entry.id, other.id) &&
+      other.rects.some((rect, at) => rectsOverlap(rect, entry.rects[at]!)));
     if (clash) { refuse(`shares the screen with "${clash.id}" at the same time on an overlapping footprint: move one of them or its words`); continue; }
     const crowd = together.flatMap((a, i) => together.slice(i + 1).filter(b => Math.max(a.range.startWord, b.range.startWord, entry.range.startWord) <
       Math.min(a.range.coverWord, b.range.coverWord, entry.range.coverWord)).map(b => [a, b] as const))[0];

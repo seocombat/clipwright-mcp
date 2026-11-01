@@ -37,6 +37,8 @@ export const editRules = z.strictObject({
   // The shortest added or retimed visual shot over presenter time; an unchanged source shot is exempt.
   // Absent reads as null, so a view from a server without the field still parses.
   cover_min_frames: frameCount.nullable().default(null),
+  // Whether a revision may set its cut transitions; absent reads as false, as from a server without the field.
+  cut_transitions: z.boolean().default(false),
 });
 export type EditRules = z.infer<typeof editRules>;
 
@@ -47,6 +49,7 @@ export const FACELESS_EDIT_RULES: EditRules = {
   },
   output_coverage: "visual", first_visual_kind: "clip", picture_assets_unique: true, visual_covers_presenter: false,
   add_visual: "never", reuse_source_asset: false, upload_aspect: null, max_generated_per_revision: 8, cover_min_frames: null,
+  cut_transitions: true,
 };
 
 /** The actions a faceless shot offers: the opener by its place, a picture by where its image came from. */

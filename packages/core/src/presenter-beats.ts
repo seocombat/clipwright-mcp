@@ -1,6 +1,6 @@
 import type { GenerateVideoRequest, GenerationReference } from "./generations.js";
 import { WORDS_PER_SECOND_MIN } from "./pacing.js";
-import type { ReferenceProfile } from "./reference-profile.js";
+import type { ReferenceProfileAnswer as ReferenceProfile } from "./reference-profile.js";
 import { lexicalTokens, quoteOccurrences } from "./semantic-inserts.js";
 import type { UgcInsert, UgcTemplate } from "./skills.js";
 import { TEMPLATE_KINDS, templateFieldValues } from "./templates/index.js";

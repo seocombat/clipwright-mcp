@@ -1,7 +1,10 @@
 import { z } from "zod";
-import { makeUgcInputShape, mcpUgcCall, mcpUgcTemplate, TEMPLATES_DESCRIPTION } from "./skills.js";
-import { MAX_TEMPLATES, mcpTemplateSounds, templateFaceWarnings } from "./templates/index.js";
+import { makeUgcInputShape, mcpCaptionPlace, mcpPresenterGaze, mcpPresenterPlace, mcpUgcCall, mcpUgcInterview, mcpUgcOverlay, mcpUgcTemplate,
+  OVERLAYS_DESCRIPTION, TEMPLATES_DESCRIPTION } from "./skills.js";
+import { interviewWarnings } from "./ugc-interview.js";
+import { MAX_TEMPLATES, mcpTemplateSounds, templateFaceWarnings, templateSceneItems, type TemplateItem } from "./templates/index.js";
 import { framingWarnings } from "./ugc-framing.js";
+import { MAX_OVERLAYS, placeWarnings } from "./ugc-layers.js";
 import { callWarnings } from "./ugc-call.js";
 import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
 
@@ -60,6 +63,10 @@ export const FIELD_DISPOSITIONS = {
   caption_emphasis: { kind: "implemented", provenBy: "composition" },
   caption_mode: { kind: "implemented", provenBy: "composition" },
   caption_position: { kind: "implemented", provenBy: "composition" },
+  // Pinned captions: overlays never move them (#973 S2).
+  caption_place: { kind: "implemented", provenBy: "composition" },
+  // Frames the actor's portrait before the vendor; a face it cannot reach is named in warnings[] (#973 S2b).
+  presenter_place: { kind: "implemented", provenBy: "egress" },
 
   // Both reach the vendor from the request; egress tests require three resolutions
   // to produce three different request bodies.
@@ -88,6 +95,12 @@ export const FIELD_DISPOSITIONS = {
   edit_sounds: { kind: "implemented", provenBy: "composition" },
   // Mixed into the narration and rung by the phone over the hold (#857 S5).
   call: { kind: "implemented", provenBy: "composition" },
+  // One conversation voiced, the presenter frozen over the off-screen lines and captioned by speaker (#972).
+  interview: { kind: "implemented", provenBy: "composition" },
+  // Picks the actor's view with that gaze for each take (#972).
+  presenter_gaze: { kind: "implemented", provenBy: "egress" },
+  // The last frame held after the last word, the presenter frozen under the layers then on screen (#991).
+  end_hold_s: { kind: "implemented", provenBy: "composition" },
   character: {
     kind: "rejected",
     message:
@@ -261,6 +274,9 @@ export function resolveDispositions(
     template_sounds: longForm ? FIELD_DISPOSITIONS.template_sounds : TEMPLATES_DISABLED,
     edit_sounds: longForm ? FIELD_DISPOSITIONS.edit_sounds : LONG_FORM_DISABLED,
     call: longForm ? FIELD_DISPOSITIONS.call : LONG_FORM_DISABLED,
+    interview: longForm ? FIELD_DISPOSITIONS.interview : LONG_FORM_DISABLED,
+    presenter_gaze: longForm ? FIELD_DISPOSITIONS.presenter_gaze : LONG_FORM_DISABLED,
+    end_hold_s: longForm ? FIELD_DISPOSITIONS.end_hold_s : LONG_FORM_DISABLED,
     person: flags.actorGeneration === true ? PERSON_WITH_ACTOR_GENERATION : FIELD_DISPOSITIONS.person,
     image: flags.remoteFetch ? FIELD_DISPOSITIONS.image : REMOTE_FETCH_DISABLED,
     actor_id: flags.remoteFetch ? FIELD_DISPOSITIONS.actor_id : {
@@ -348,10 +364,13 @@ export const offeredUgcInputShape = Object.fromEntries(
 export const offeredUgcInput = z.object(offeredUgcInputShape);
 export type MakeUgcInputArgs = z.input<typeof offeredUgcInput>;
 
-/** The MCP offer: the same fields with the slim template item, which keeps tools/list small (#778 S3, D3). */
+/** The MCP offer: the same fields with the slim template and overlay items, which keep tools/list small (#778 S3, D3; #973 S1). */
 export const mcpUgcInputShape = { ...offeredUgcInputShape,
+  overlays: z.array(mcpUgcOverlay).min(1).max(MAX_OVERLAYS).optional().describe(OVERLAYS_DESCRIPTION),
   templates: z.array(mcpUgcTemplate).min(1).max(MAX_TEMPLATES).optional().describe(TEMPLATES_DESCRIPTION),
-  template_sounds: mcpTemplateSounds.optional(), call: mcpUgcCall.optional() };
+  template_sounds: mcpTemplateSounds.optional(), call: mcpUgcCall.optional(),
+  caption_place: mcpCaptionPlace.optional(), presenter_place: mcpPresenterPlace.optional(),
+  interview: mcpUgcInterview.optional(), presenter_gaze: mcpPresenterGaze.optional() };
 
 /** One rejected field found in the input: its name and the refusal reason. */
 export interface RejectedFieldHit {
@@ -424,7 +443,10 @@ export function dispositionWarnings(
     warnings.push(disposition.warning);
   }
   // A template asked onto the face is drawn there and named, on the quote, the run and its record alike (#778 S3).
-  warnings.push(...templateFaceWarnings(input), ...framingWarnings(input), ...callWarnings(input));
+  const scene = { templates: Array.isArray(input.templates) ? input.templates as TemplateItem[] : undefined,
+    aspect_ratio: typeof input.aspect_ratio === "string" ? input.aspect_ratio : undefined };
+  warnings.push(...templateFaceWarnings(input), ...framingWarnings(input), ...callWarnings(input),
+    ...placeWarnings(input, framing => templateSceneItems(scene, framing)), ...interviewWarnings(input));
   return warnings;
 }
 

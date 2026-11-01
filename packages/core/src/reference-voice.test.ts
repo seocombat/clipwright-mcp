@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { narrationPaceFromVoice, NARRATION_BASELINE_WPS, REFERENCE_VOICE_VERSION, referenceAnalysisWarnings, referenceProfile, referenceVoice,
+import { narrationPaceFromVoice, NARRATION_BASELINE_WPS, REFERENCE_VOICE_VERSION, referenceAnalysisWarnings, referenceProfileInput as referenceProfile, referenceVoice,
   VOICE_PACE_MAX, VOICE_PACE_MIN } from "./index.js";
 
 const PROFILE = JSON.parse(readFileSync(new URL("./fixtures/reference-profile-reel.json", import.meta.url), "utf8"));

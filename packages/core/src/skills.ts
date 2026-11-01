@@ -7,14 +7,17 @@ import { brollPolicy } from "./broll-policy.js";
 import { countWords } from "./pacing.js";
 import { pauseTrim, VOICE_PACE_MAX, VOICE_PACE_MIN } from "./reference-voice.js";
 import { lexicalTokens, quoteOccurrences } from "./semantic-inserts.js";
-import { INSERT_TRANSITIONS, LAYER_ENTERS, layerRefusals, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS,
-  OVERLAY_POSITIONS, PRESENTER_FRAMINGS } from "./ugc-layers.js";
+import { frameCanvasOf, INSERT_TRANSITIONS, LAYER_ENTERS, LAYER_EXITS, layerRefusals, LAYOUT_WINDOW_KINDS, MAX_ENTER_OFFSET_S, MAX_LAYOUT_WINDOWS,
+  MAX_OVERLAYS, OVERLAY_POSITIONS, PRESENTER_FRAMINGS } from "./ugc-layers.js";
 import { FRAMING_SIZES, FRAMING_TRANSITIONS, framingRefusals, MAX_FRAMING } from "./ugc-framing.js";
 import { stagingFaceRect, stagingRect } from "./reference-staging.js";
+import { captionPlace, captionPlaceAt, place, plannedFace, presenterPlace } from "./scene-place.js";
+import { CAPTION_POSITION_VERTICAL } from "./caption-geometry.js";
 import { CALL_PHONE_DEFAULTS, CALL_SPEAKERS, CALL_STAGE_MAX_ENTER_SEC, CALL_STAGE_MAX_LEAD_SEC, CALL_STAGE_SIDES, callRefusals, DEFAULT_CALL_VOICES, MAX_CALL_CHARS,
   MAX_CALL_LINE_CHARS, MAX_CALL_LINES, MAX_CALL_SEC } from "./ugc-call.js";
+import { INTERVIEW_GAZES, INTERVIEW_LISTENING, interviewRefusals, MAX_INTERVIEW_TURNS, MAX_PRESENTER_GAZE } from "./ugc-interview.js";
 import { editSoundRefusals, editSounds, MAX_TEMPLATE_MEDIA, MAX_TEMPLATES, TEMPLATE_KIND_IDS, TEMPLATE_PLACEMENTS, templateCatalogText, templateRefusals,
-  templateSounds, templateTheme } from "./templates/index.js";
+  templateSceneItems, templateSounds, templateTheme } from "./templates/index.js";
 import { callout } from "./templates/callout.js";
 import { checklist } from "./templates/checklist.js";
 import { compare } from "./templates/compare.js";
@@ -102,8 +105,7 @@ export const MAX_CAPTION_EMPHASIS_CHARS = 40;
 /** `full` captions every spoken word; `highlights` only the windows around `caption_emphasis` quotes. */
 export const CAPTION_MODES = ["full", "highlights"] as const;
 export type CaptionMode = (typeof CAPTION_MODES)[number];
-/** Where captions sit, as a percentage of the height: above the middle the top edge, below it the bottom edge (#884). */
-export const CAPTION_POSITION_VERTICAL = { top: 20, middle: 50, lower: 70, bottom: 80 } as const;
+export { CAPTION_POSITION_VERTICAL };
 export const CAPTION_POSITIONS = Object.keys(CAPTION_POSITION_VERTICAL) as (keyof typeof CAPTION_POSITION_VERTICAL)[];
 export type CaptionPosition = (typeof CAPTION_POSITIONS)[number];
 /** `punch`: a small lead-in line over the quote as a large glowing keyword; `pill`: the quote alone in a rounded pill; */
@@ -127,6 +129,10 @@ export function captionEmphasisOf(item: CaptionEmphasisItem): { quote: string; l
 /** Composition semantics of a run, written at admission: 2 draws captions and crops pictures */
 /** to fill the frame; a run stored without it keeps the earlier render, so it re-renders the same. */
 export const UGC_COMPOSITION_VERSION = 2;
+
+/** `end_hold_s`: the last frame held after the last word, in seconds (#991). */
+export const END_HOLD_MIN_S = 0.2;
+export const END_HOLD_MAX_S = 5;
 
 export function compositionVersionOf(storedInput: unknown): 1 | 2 {
   return storedInput !== null && typeof storedInput === "object" &&
@@ -286,20 +292,46 @@ const layerMedia = {
   cover_words: z.number().int().positive().max(10000).optional()
     .describe("How many spoken words it stays on screen, counted from the first word of its anchor. Omitted means the anchored words only."),
   enter: z.enum(LAYER_ENTERS).optional()
-    .describe("How it appears: cut (default), fade, slide (in from the nearest edge) or tilt_in. It leaves with a cut."),
+    .describe("How it appears: cut (default), fade, slide (in from the nearest edge), tilt_in, pop or scale_up."),
+};
+/** An overlay's motion beyond its enter (#973 S3): absent is the 8-frame enter on its first word and a cut out. */
+const overlayMotion = {
+  exit: z.enum(LAYER_EXITS).optional().describe("How it leaves: cut (default), fade, pop_out or slide."),
+  enter_offset_s: z.number().min(-MAX_ENTER_OFFSET_S).max(MAX_ENTER_OFFSET_S).optional()
+    .describe("Seconds from its first word, negative before; an overlay still showing then leaves."),
+  enter_duration_s: z.number().min(0.05).max(1.5).optional().describe("Default 0.32."),
 };
 
 /** Media drawn over the visible presenter at a fixed place; the presenter stays on screen and is billed. */
+const overlayPosition = z.enum(OVERLAY_POSITIONS).optional()
+  .describe("A corner (top_left, top_right, bottom_left, bottom_right), or a band across the top or bottom.");
+const ONE_PLACE: { path: PropertyKey[]; message: string } = { path: ["position"], message: "pass exactly one of position or place" };
+const hasOnePlace = (item: { position?: unknown; place?: unknown }) => (item.position === undefined) !== (item.place === undefined);
 export const ugcOverlay = z.object({
   ...layerMedia,
-  position: z.enum(OVERLAY_POSITIONS).describe("A corner (top_left, top_right, bottom_left, bottom_right), or a band across the top or bottom."),
-}).strict().refine(hasOneSource, ONE_SOURCE);
+  ...overlayMotion,
+  position: overlayPosition,
+  place: place.optional().describe("The overlay's own box instead of a preset position; no rule moves it."),
+}).strict().refine(hasOneSource, ONE_SOURCE).refine(hasOnePlace, ONE_PLACE);
+export const OVERLAYS_DESCRIPTION = "Text-anchored images or videos over the visible presenter, each at one position or place. At most 2 on " +
+  "screen at once, on boxes that do not overlap. Captions move to the middle or bottom third off an overlay, never over the face, and hide " +
+  "while neither is free. Hidden under full-frame inserts. Same requirements as inserts: script, long-form qualification on the server, 1080p " +
+  "and explicit broll_policy=anyone. The presenter stays on screen, so the price does not change.";
+/** The slim MCP overlay: `place` is any object here, its forms sit in the description and the server checks it strictly, as templates do. */
+export const mcpUgcOverlay = z.object({
+  ...layerMedia,
+  ...overlayMotion,
+  position: overlayPosition,
+  place: z.record(z.string(), z.unknown()).optional().describe("Instead of position, a pinned box: {relative_to:\"frame\",rect:{left,top,width,height}} " +
+    "(frame shares); {relative_to:\"face\",rect} (origin the face centre, unit the face height); or {relative_to:\"face\"|\"captions\"|{layer:id}," +
+    "side:below|above|left|right|over,width|height,size_unit?:frame|face,gap?,align?}; fit?:contain|cover; allow_face?:true."),
+}).strict();
 export type UgcOverlay = z.infer<typeof ugcOverlay>;
 
 /** A reframing of the presenter: split shares a 9:16 frame with the media, card shows the media in a centred card. */
 export const ugcLayoutWindow = z.object({
   ...layerMedia,
-  layout: z.enum(LAYOUT_WINDOW_KINDS).describe("split: presenter in the top half, media in the bottom half, captions on the seam (9:16 only). " +
+  layout: z.enum(LAYOUT_WINDOW_KINDS).describe("split: presenter in the top half, media in the bottom half, captions on the seam unless caption_place pins them (9:16 only). " +
     "card: the media in a centred card over the presenter."),
   blur_presenter: z.boolean().optional().describe("Card only: blur the presenter behind the card."),
 }).strict().refine(hasOneSource, ONE_SOURCE).refine(layout => layout.blur_presenter === undefined || layout.layout === "card", {
@@ -318,6 +350,8 @@ export const ugcFraming = z.object({
 }).strict();
 export type UgcFraming = z.infer<typeof ugcFraming>;
 
+/** A template's place (#973 S4); overlays and templates may stand by it with `{ layer }`. */
+const TEMPLATE_PLACE = "Over placement only: a box as an overlay's place (not by captions); the template scales whole into it.";
 const templateEnvelope = {
   id: insertId.describe("Unique across inserts, overlays, layout_windows and templates."),
   anchor: layerMedia.anchor,
@@ -325,6 +359,7 @@ const templateEnvelope = {
   placement: z.enum(TEMPLATE_PLACEMENTS).optional().describe("over (drawn over the presenter) or full (fills the frame); omitted means the " +
     "kind's first placement, and a kind takes only the placements its catalog line names."),
   transition: z.enum(INSERT_TRANSITIONS).optional().describe("Full placement only, as an insert's transition."),
+  place: place.optional().describe(TEMPLATE_PLACE),
 };
 const templateItem = <K extends string, D extends z.ZodObject>(kind: { kind: K; data: D }) =>
   z.object({ ...templateEnvelope, kind: z.literal(kind.kind), data: kind.data }).strict();
@@ -338,7 +373,8 @@ export const ugcTemplate = z.discriminatedUnion("kind", [templateItem({ ...tag, 
   templateItem({ ...rating, kind: "rating" as const })]);
 export type UgcTemplate = z.infer<typeof ugcTemplate>;
 /** The slim MCP item: `data` is any object here, the catalog sits in the description and the server checks it strictly (D3). */
-export const mcpUgcTemplate = z.object({ ...templateEnvelope, kind: z.enum(TEMPLATE_KIND_IDS),
+export const mcpUgcTemplate = z.object({ ...templateEnvelope, place: z.record(z.string(), z.unknown()).optional().describe(TEMPLATE_PLACE),
+  kind: z.enum(TEMPLATE_KIND_IDS),
   data: z.record(z.string(), z.unknown()).describe("The kind's fields, as its catalog line in templates names them.") }).strict();
 export const TEMPLATES_DESCRIPTION = templateCatalogText();
 
@@ -378,6 +414,39 @@ export type UgcCall = z.infer<typeof ugcCall>;
 /** The slim MCP call, which keeps tools/list under its ceiling: the server checks it strictly, as the template items (D3). */
 export const mcpUgcCall = z.record(z.string(), z.unknown())
   .describe(`A call the presenter listens to: { after: { quote }, lines: [{ speaker: agent|caller, text }] (2–${MAX_CALL_LINES}), voices?, phone? }.`);
+/** Slim MCP caption_place and presenter_place (#973), checked strictly by the server. */
+export const mcpCaptionPlace = z.record(z.string(), z.unknown()).describe("Pinned captions instead of caption_position: {relative_to:frame|face," +
+  "y,edge?:top|center|bottom,max_width?}; y is a frame share, or face heights from the face centre.");
+export const mcpPresenterPlace = z.record(z.string(), z.unknown()).describe("{face_height,face_centre:[x,y]} in frame shares; needs actor_id.");
+
+/** An interview (#972): the off-screen speaker's words are marked inside script; the presenter answers on screen and holds still while they speak. */
+export const ugcInterview = z.strictObject({
+  turns: z.array(z.strictObject({ anchor: wordAnchor, cover_words: z.number().int().positive().max(10000).optional() }))
+    .min(1).max(MAX_INTERVIEW_TURNS)
+    .describe("The off-screen speaker's words inside script, each from its anchor for cover_words words; every other word is the presenter's."),
+  off_screen: z.strictObject({
+    voice: callVoice.describe("A voice name from list_voices, other than the presenter's."),
+    caption: z.strictObject({ style: z.enum(CAPTION_STYLES).optional(), place: captionPlace.optional() }).optional()
+      .describe("The off-screen speaker's caption look and place; omitted is the run's style in plain white at the run's place."),
+  }).optional(),
+  gaze: z.enum(INTERVIEW_GAZES).optional().describe("Where the presenter looks while answering, as the viewer sees it; omitted is camera. " +
+    "left or right needs actor_id with that view (list_actors)."),
+  listening: z.enum(INTERVIEW_LISTENING).optional().describe("freeze (default): the presenter holds still while the off-screen speaker talks, " +
+    "which adds production seconds, not presenter seconds."),
+});
+export type UgcInterview = z.infer<typeof ugcInterview>;
+/** The slim MCP interview, which keeps tools/list under its ceiling: the server checks it strictly. */
+export const mcpUgcInterview = z.record(z.string(), z.unknown()).describe("Off-screen speaker: { turns: [{ anchor: { quote }, cover_words? }] (words of " +
+  "script they say), off_screen?: { voice?, caption?: { style?, place? } }, gaze?: camera|left|right }. The presenter answers and holds still while they talk.");
+/** Where the presenter looks on some of their words (#972); a change of gaze is a cut to the actor's view with that gaze. */
+export const ugcPresenterGaze = z.strictObject({
+  anchor: wordAnchor, cover_words: z.number().int().positive().max(10000).optional(), gaze: z.enum(INTERVIEW_GAZES),
+});
+export const PRESENTER_GAZE_DESCRIPTION = "Where the presenter looks on these words, as the viewer sees it: camera, left or right. Needs actor_id with " +
+  "that view (list_actors); a change of gaze is a cut.";
+/** The slim MCP gaze list: the server checks each item strictly. */
+export const mcpPresenterGaze = z.array(z.record(z.string(), z.unknown())).min(1).max(MAX_PRESENTER_GAZE)
+  .describe(`[{ anchor: { quote }, cover_words?, gaze: camera|left|right }]. ${PRESENTER_GAZE_DESCRIPTION}`);
 
 /** What admission pins for an `asset_id` insert; the run reads this key and checks this hash, never the asset row.
  * Server-only: it lives at the top of the stored input, and a public body naming it is refused as an unknown field. */
@@ -431,11 +500,7 @@ export const makeUgcInputShape = {
       message: "insert IDs must be unique",
     }).optional().describe("Text-anchored image or video inserts over full narration, each covering cover_words spoken words from its anchor; " +
       "requires long-form qualification on the server, 1080p and explicit broll_policy=anyone. Captions draw over inserts."),
-  overlays: z.array(ugcOverlay).min(1).max(MAX_OVERLAYS).optional()
-    .describe("Text-anchored images or videos over the visible presenter, in a corner or a band at the top or bottom. At most 2 on screen at once, " +
-      "and two on screen together need positions that do not share a corner. Captions move to the middle or bottom third when an overlay " +
-      "meets them, never up over the face, and hide while neither is free. An overlay is not drawn while a full-frame insert is on screen. Same requirements as inserts: script, " +
-      "long-form qualification on the server, 1080p and explicit broll_policy=anyone. The presenter stays on screen, so the price does not change."),
+  overlays: z.array(ugcOverlay).min(1).max(MAX_OVERLAYS).optional().describe(OVERLAYS_DESCRIPTION),
   layout_windows: z.array(ugcLayoutWindow).min(1).max(MAX_LAYOUT_WINDOWS).optional()
     .describe("Text-anchored reframings of the presenter: split (9:16 only) or card. Windows may not overlap one another or an insert. " +
       "Same requirements as inserts. A covered or blurred presenter is still delivered vendor work and is billed as face time."),
@@ -451,6 +516,10 @@ export const makeUgcInputShape = {
     "with a ring first, and an in-call phone beside them shows it (a phone_call template covering the call is used instead). Needs script, " +
     "a 9:16 frame and words after it. The frozen presenter and the call add production seconds, not presenter seconds, and a live-avatar " +
     "still shown on the call has its own price in list_prices. Long-form qualification on the server."),
+  interview: ugcInterview.optional().describe("An interview: an off-screen speaker says the marked words of script in their own voice, " +
+    "the presenter answers the rest on screen and holds still while the off-screen speaker talks. Needs script and long-form " +
+    "qualification on the server; the presenter's held frames add production seconds, not presenter seconds."),
+  presenter_gaze: z.array(ugcPresenterGaze).min(1).max(MAX_PRESENTER_GAZE).optional().describe(PRESENTER_GAZE_DESCRIPTION),
   person: z.string().min(1).max(500).optional(),
   actor_id: actorId
     .optional()
@@ -514,6 +583,11 @@ export const makeUgcInputShape = {
   caption_position: z.enum(CAPTION_POSITIONS as [CaptionPosition, ...CaptionPosition[]]).optional().describe(
     "Where captions sit: top, middle, lower or bottom (80% of the height). Omitted means the caption_style's own place. Requires captions=true.",
   ),
+  caption_place: captionPlace.optional().describe("Instead of caption_position, the captions at their own height; overlays never move them, and " +
+    "an overlay that meets them is refused unless it is placed relative_to captions. Requires captions=true."),
+  presenter_place: presenterPlace.optional().describe("The presenter's face height and centre in the frame. The portrait is framed tighter to " +
+    "reach it, from the actor's wide view when the close one is too close; when even that is too close, warnings[] names the face height drawn. " +
+    "Requires actor_id and script with overlays, inserts, layout_windows, framing or call. The price does not change."),
   look: z.enum(LOOKS).default("natural"),
   // No .default(), so the resolver tells silence (snap with a warning) from an explicit
   // choice (refused on conflict). DEFAULT_ASPECT_RATIO (aspect.ts) fills it in.
@@ -583,6 +657,8 @@ export const makeUgcInputShape = {
     .describe(`Narration speed; 1 is the voice's own. ${GOOGLE_TTS_MODEL} gets a style hint instead; ${DEFAULT_TTS_MODEL} has no speed, ` +
       "so pick a voice by list_voices words_per_second; both named in warnings[]."),
   pause_trim: pauseTrim.optional().describe("Shorten narration pauses longer than these seconds, cutting silence only."),
+  end_hold_s: z.number().min(END_HOLD_MIN_S).max(END_HOLD_MAX_S).optional().describe("Seconds the last frame stays after the last word: the " +
+    "presenter freezes and every layer on screen then stays. Production seconds, not presenter seconds. Needs script and long-form qualification."),
   webhook_url: z.string().url().max(MAX_URL_LENGTH).optional(),
   /** Removed visible label (clipwright#488). The key stays in the shape so that the refusal */
   /** names its reason instead of answering `unknown_field`. */
@@ -610,6 +686,9 @@ export const makeUgcInput = z
   .refine((v) => (v.script === undefined) !== (v.segments === undefined), {
     message: "pass exactly one of script | segments",
   })
+  .refine(v => v.end_hold_s === undefined || (v.script !== undefined && v.segments === undefined), {
+    path: ["end_hold_s"], message: "end_hold_s requires script and cannot be combined with segments",
+  })
   .refine(v => v.inserts === undefined || (v.script !== undefined && v.segments === undefined), {
     path: ["inserts"], message: "inserts requires script and cannot be combined with segments",
   })
@@ -620,7 +699,9 @@ export const makeUgcInput = z
         message: "overlays and layout_windows require script and cannot be combined with segments" });
       return;
     }
-    for (const refusal of layerRefusals({ ...v, script: v.script })) context.addIssue({ code: z.ZodIssueCode.custom, ...refusal });
+    for (const refusal of layerRefusals({ ...v, script: v.script }, framing => templateSceneItems(v, framing))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, ...refusal });
+    }
   })
   .superRefine((v, context) => {
     if (v.framing === undefined) return;
@@ -637,6 +718,16 @@ export const makeUgcInput = z
   .superRefine((v, context) => {
     for (const refusal of callRefusals(v)) context.addIssue({ code: z.ZodIssueCode.custom, ...refusal });
   })
+  .superRefine((v, context) => {
+    for (const refusal of interviewRefusals(v)) context.addIssue({ code: z.ZodIssueCode.custom, ...refusal });
+    const place = v.interview?.off_screen?.caption?.place;
+    if (place !== undefined && v.captions) {
+      const aspect = v.aspect_ratio ?? "9:16", face = plannedFace(aspect, frameCanvasOf(aspect), v.presenter_framing ?? "close", v.presenter_place);
+      const { vertical } = captionPlaceAt(place, face);
+      if (vertical < 0 || vertical > 100) context.addIssue({ code: z.ZodIssueCode.custom, path: ["interview", "off_screen", "caption", "place"],
+        message: `the off-screen speaker's captions sit at ${Math.round(vertical)}% of the height, outside the frame` });
+    }
+  })
   .refine(v => !v.captions || v.segments === undefined, {
     path: ["captions"], message: "captions are not available with segments: pass script, with inserts for cutaways, or captions=false",
   })
@@ -647,6 +738,19 @@ export const makeUgcInput = z
     }
     if (v.caption_position !== undefined && !v.captions) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["caption_position"], message: "caption_position requires captions=true: it places the burned captions" });
+    }
+    if (v.caption_place !== undefined) {
+      const aspect = v.aspect_ratio ?? "9:16", face = plannedFace(aspect, frameCanvasOf(aspect), v.presenter_framing ?? "close", v.presenter_place);
+      const { vertical } = captionPlaceAt(v.caption_place, face);
+      const why = !v.captions ? "caption_place requires captions=true: it places the burned captions"
+        : v.caption_position !== undefined ? "pass caption_position or caption_place, not both"
+          : vertical < 0 || vertical > 100 ? `caption_place puts the captions at ${Math.round(vertical)}% of the height, outside the frame` : undefined;
+      if (why) context.addIssue({ code: z.ZodIssueCode.custom, path: ["caption_place"], message: why });
+    }
+    if (v.presenter_place !== undefined && (v.actor_id === undefined || !isNarratedUgcInput(v))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["presenter_place"], message: v.actor_id === undefined
+        ? "presenter_place requires actor_id: it frames a saved actor's portrait"
+        : "presenter_place requires script with overlays, inserts, layout_windows, framing, call or interview: it frames the presenter of a composed video" });
     }
     if (v.caption_emphasis === undefined) return;
     if (!v.captions || v.script === undefined) {
@@ -749,7 +853,7 @@ function modelUnknownToClient(v: { voice?: string | undefined; tts_model?: strin
 }
 
 export interface SpeechModelRefusal {
-  field: "voice" | "voice_id" | "captions" | "segments" | "inserts" | "overlays" | "layout_windows" | "framing" | "call";
+  field: "voice" | "voice_id" | "captions" | "segments" | "inserts" | "overlays" | "layout_windows" | "framing" | "call" | "interview" | "presenter_gaze";
   message: string;
 }
 
@@ -766,6 +870,8 @@ export function speechModelRefusals(input: {
   layout_windows?: unknown;
   framing?: unknown;
   call?: unknown;
+  interview?: unknown;
+  presenter_gaze?: unknown;
 }): SpeechModelRefusal[] {
   // The model the voice name selects, by the function quote and the run; a script never decides it.
   const model = input.tts_model ?? resolveTtsModel({ voice: input.voice, script: "" });
@@ -802,6 +908,10 @@ export function speechModelRefusals(input: {
       `framing is not available with ${model}: it returns no word timings to anchor it; omit framing, ${otherModel}`],
     ["call", input.call !== undefined,
       `call is not available with ${model}: it returns no word timings to open the call after its quote; omit call, ${otherModel}`],
+    ["interview", input.interview !== undefined,
+      `interview is not available with ${model}: it speaks no conversation; omit interview, ${otherModel}`],
+    ["presenter_gaze", input.presenter_gaze !== undefined,
+      `presenter_gaze is not available with ${model}: it returns no word timings to anchor it; omit presenter_gaze, ${otherModel}`],
   ];
   return candidates.filter(([, refused]) => refused).map(([field, , message]) => ({ field, message }));
 }
@@ -828,6 +938,10 @@ export function serverUgcInputWith(
         const why = name === undefined ? undefined : isModelVoiceName(name) ? `"${name}" is a voice of ${MODEL_VOICE_MODEL}, which speaks no call` : voiceRefusal(name);
         if (why) context.addIssue({ code: z.ZodIssueCode.custom, path: ["call", "voices", speaker], message: why });
       }
+      const name = v.interview?.off_screen?.voice;
+      const why = name === undefined ? undefined : isModelVoiceName(name) ? `"${name}" is a voice of ${MODEL_VOICE_MODEL}, which speaks no conversation`
+        : voiceRefusal(name);
+      if (why) context.addIssue({ code: z.ZodIssueCode.custom, path: ["interview", "off_screen", "voice"], message: why });
     })
     // The cap the client skipped: the server knows the model of an admitted catalog voice.
     .refine(
@@ -854,11 +968,12 @@ export const storedUgcInput = z.object({
   resolved_tts_model: z.string().optional(),
 });
 
-/** Whether a run takes the narrated long-form path: one script with inserts, overlays, layout windows, framing or a call. */
+/** Whether a run takes the narrated long-form path: one script with inserts, overlays, layout windows, framing, a call, an interview or gaze. */
 export function isNarratedUgcInput(input: { segments?: unknown; inserts?: unknown; overlays?: unknown; layout_windows?: unknown; framing?: unknown;
-  call?: unknown }): boolean {
+  call?: unknown; interview?: unknown; presenter_gaze?: unknown; end_hold_s?: unknown }): boolean {
   return input.segments === undefined && (input.inserts !== undefined || input.overlays !== undefined || input.layout_windows !== undefined ||
-    input.framing !== undefined || input.call !== undefined);
+    input.framing !== undefined || input.call !== undefined || input.interview !== undefined || input.presenter_gaze !== undefined ||
+    input.end_hold_s !== undefined);
 }
 
 /** The pinned asset of an `asset_id` insert, overlay, layout window or template slot in a stored input; a public input has none. */

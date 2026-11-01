@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
-import { faceRelativeRect, REFERENCE_PROFILE_VERSION, referenceProfile, referenceStaging, thinStagingRects } from "./index.js";
+import { faceRelativeRect, REFERENCE_PROFILE_VERSION, referenceProfileInput as referenceProfile, referenceStaging, thinStagingRects } from "./index.js";
 
 // The hand-measured S4c scene spec, converted once (#914 D1a, C1); the phone rises straight up (D1 §3.2), not from the lower right.
 const GANESH = JSON.parse(readFileSync(new URL("./__fixtures__/ganesh-staging.json", import.meta.url), "utf8"));

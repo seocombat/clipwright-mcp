@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { REFERENCE_SOURCE_KINDS } from "./reference-kinds.js";
+import { faceUnitsRect } from "./scene-place.js";
 
 // Staging measured from a reference (#914 D1): each element's place, entry, exit, layer and motion, and each freeze's pose. Every number names the
 // method that produced it; an absent field was not measured and `analysis.warnings` says why. Words come from closed lists, never the reference.
 
 export const REFERENCE_STAGING_VERSION = "reference-staging-v1";
-export const STAGING_METHODS = ["cv-cells/v1", "cv-template/v1", "cv-parallax/v1", "cv-before-after/v1", "yunet-native/v1", "vision-video",
-  "vision-still"] as const;
+/** frames-*: measured on the reel's frames; estimated-*: read off the picture, from the video or from one still. */
+export const STAGING_METHODS = ["frames-motion/v1", "frames-box/v1", "frames-layer/v1", "frames-split/v1", "frames-face/v1", "estimated-video",
+  "estimated-still"] as const;
 export const STAGING_ANCHOR_KINDS = ["cut", "flash", "freeze_start", "freeze_end", "beat"] as const;
 export const STAGING_ENTRY_STYLES = ["pop", "fade", "blur_in", "slide", "scale_up", "tilt_in", "typewriter", "wipe", "unknown"] as const;
 export const STAGING_EXIT_STYLES = [...STAGING_ENTRY_STYLES, "cut", "flash"] as const;
@@ -29,9 +31,8 @@ const method = z.enum(STAGING_METHODS);
 
 export const stagingRect = z.strictObject({ left: frac, top: frac, width: frac, height: frac });
 export type StagingRect = z.infer<typeof stagingRect>;
-/** A rect in face units: origin the face centre, unit the face height in pixels, so x and y share one scale. */
-const faceUnits = z.number().min(-20).max(20);
-export const stagingFaceRect = z.strictObject({ left: faceUnits, top: faceUnits, width: z.number().positive().max(20), height: z.number().positive().max(20) });
+/** A rect in face units, as a layer's place takes it (#973 S1). */
+export const stagingFaceRect = faceUnitsRect;
 /** A moment named by its anchor: the nearest anchor on a side is never used, because it moves when the edit does. */
 export const stagingAnchorRef = z.strictObject({ id: anchorId, offset_s: z.number() });
 

@@ -62,12 +62,28 @@ import {
   analyzeReferenceRequest,
   GET_REFERENCE_ANALYSIS_DESCRIPTION,
   referenceAnalysisId,
+  referenceAnalysisQuery,
+  REFERENCE_WAIT_MAX_SECONDS,
   withPriceLine,
   feedbackRequest,
   SEND_FEEDBACK_DESCRIPTION,
+  ACCEPTED_UGC_FIELDS,
+  rejectedFields,
+  unknownFields,
 } from "@clipwright/core";
-import { formatGetRun, withFailureReport } from "./format.js";
+import { formatGetRun, type McpToolResponse, withFailureReport } from "./format.js";
 import { registerWorkflowTools } from './workflow-tools.js';
+
+/** A key outside the video tools is named before the SDK is asked, as the API names it (rule 3): stripped, it would vanish silently. */
+function ugcKeyRefusal(key: string): string {
+  const rejected = rejectedFields({ [key]: true })[0]?.message;
+  if (rejected) return rejected;
+  const suggestion = unknownFields({ [key]: true }, ACCEPTED_UGC_FIELDS)[0]?.suggestion;
+  return `"${key}" is not a field of this tool${suggestion ? ` (did you mean "${suggestion}"?)` : ""}`;
+}
+const ugcTool = z.strictObject(mcpUgcInputShape, {
+  error: (issue) => issue.code === "unrecognized_keys" ? issue.keys.map(ugcKeyRefusal).join("; ") : undefined,
+});
 
 // Version from the manifest: a literal drifts, and a JSON import breaks `rootDir`.
 const packageVersion = (): string =>
@@ -109,6 +125,37 @@ export async function putLocalClip(
   return client.getAsset(created.asset_id);
 }
 
+/** An unfinished analysis names the exact call that waits for it (#970), so an agent without a shell never sleeps between reads. */
+export function withPoll<T extends { analysis_id: string; state: string; retry_after_seconds?: number | null | undefined }>(analysis: T):
+  T & { poll?: { tool: "get_reference_analysis"; arguments: { analysis_id: string; wait_seconds: number }; retry_after_seconds: number } } {
+  if (analysis.state !== "queued" && analysis.state !== "analyzing") return analysis;
+  return { ...analysis, poll: { tool: "get_reference_analysis", arguments: { analysis_id: analysis.analysis_id, wait_seconds: REFERENCE_WAIT_MAX_SECONDS },
+    retry_after_seconds: analysis.retry_after_seconds ?? 10 } };
+}
+
+export const MAX_INLINE_FRAMES = 8;
+/** The read's query without `display`: the MCP read always asks for the breakdown. */
+const { display: _display, ...readQuery } = referenceAnalysisQuery.shape;
+const FRAME_FETCH_TIMEOUT_MS = 10_000;
+
+/** The analysis's key frames as image blocks, the hook first, at most eight spread over the rest; a frame that does not load is left out. */
+export async function keyFrameImages(frames: unknown, fetchImpl: typeof fetch = fetch):
+  Promise<{ type: "image"; data: string; mimeType: "image/jpeg" }[]> {
+  const keyed = ((frames as { key_frames?: { url?: unknown }[] } | null | undefined)?.key_frames ?? [])
+    .flatMap(frame => (typeof frame.url === "string" ? [frame.url] : []));
+  const step = keyed.length <= MAX_INLINE_FRAMES ? 1 : (keyed.length - 1) / (MAX_INLINE_FRAMES - 1);
+  const urls = [...new Set(Array.from({ length: Math.min(MAX_INLINE_FRAMES, keyed.length) }, (_, i) => keyed[Math.round(i * step)]!))];
+  const loaded = await Promise.all(urls.map(async url => {
+    try {
+      const res = await fetchImpl(url, { signal: AbortSignal.timeout(FRAME_FETCH_TIMEOUT_MS) });
+      return res.ok ? [{ type: "image" as const, data: Buffer.from(await res.arrayBuffer()).toString("base64"), mimeType: "image/jpeg" as const }] : [];
+    } catch {
+      return [];
+    }
+  }));
+  return loaded.flat();
+}
+
 function uploadNextAction(upload: { width: number; height: number; expires_at: string }): string {
   return "Pass `url` as `image` to quote_ugc, then make_ugc, or the upload_id as {upload_id, rights_confirmed: true} in " +
     "references, first_frame or last_frame of quote_image, generate_image, quote_video and generate_video. Set " +
@@ -132,7 +179,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description: withPriceLine("make_ugc", `${MAKE_UGC_DESCRIPTION} ${MAKE_UGC_AGENT_PROTOCOL}`),
       // Flat schema: offered render input plus agent retry. The description must agree
       // with it, since an LLM reads the description before the schema.
-      inputSchema: { ...mcpUgcInputShape, ...agentRetryShape },
+      inputSchema: ugcTool.extend(agentRetryShape),
     },
     async (args) =>
       withFailureReport(async () => {
@@ -395,7 +442,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "Always call this first and show the user the price before make_ugc.",
       // Same core shape as make_ugc, so the quote prices exactly what make_ugc
       // would render.
-      inputSchema: mcpUgcInputShape,
+      inputSchema: ugcTool,
     },
     async (args) =>
       withFailureReport(async () => {
@@ -587,7 +634,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       inputSchema: analyzeReferenceRequest.shape,
     },
     async (request) => withFailureReport(async () => ({
-      content: [{ type: "text", text: JSON.stringify(await client.analyzeReference(request)) }],
+      content: [{ type: "text", text: JSON.stringify(withPoll(await client.analyzeReference(request))) }],
     })),
   );
 
@@ -597,11 +644,16 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Get a reference analysis",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description: GET_REFERENCE_ANALYSIS_DESCRIPTION,
-      inputSchema: { analysis_id: referenceAnalysisId },
+      inputSchema: { analysis_id: referenceAnalysisId, ...readQuery,
+        frames_as: z.enum(["links", "images"]).optional().describe(`images: also return up to ${MAX_INLINE_FRAMES} key frames as images in this answer`) },
     },
-    async ({ analysis_id }) => withFailureReport(async () => ({
-      content: [{ type: "text", text: JSON.stringify(await client.getReferenceAnalysis(analysis_id)) }],
-    })),
+    async ({ analysis_id, frames_as, ...query }) => withFailureReport(async () => {
+      // Every MCP read carries the ready breakdown (#990): an agent shows the same table without composing its own.
+      const analysis = await client.getReferenceAnalysis(analysis_id, { ...query, display: "markdown" });
+      const images = frames_as === "images" ? await keyFrameImages(analysis.frames) : [];
+      // The only tool answering image blocks; the shared response type keeps text-only for every other tool's callers.
+      return { content: [{ type: "text" as const, text: JSON.stringify(withPoll(analysis)) }, ...images] } as unknown as McpToolResponse;
+    }),
   );
   server.registerTool(
     "list_voices",

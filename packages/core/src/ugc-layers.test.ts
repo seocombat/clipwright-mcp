@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { compositionLayersNotDrawnWarnings, GOOGLE_TTS_MODEL, isNarratedUgcInput, makeUgcInput, resolveDispositions, speechModelRefusals,
   storedUgcInput } from "@clipwright/core";
-import { frameCanvasOf, layerRefusals, layerWordRange, OVERLAY_POSITIONS, overlayRect, rectsOverlap, resolveLayerFrames, type OverlayPosition } from "./ugc-layers.js";
+import { frameCanvasOf, layerRefusals, layerWordRange, offsetOverlayFrames, OVERLAY_POSITIONS, overlayRect, rectsOverlap, resolveLayerFrames,
+  type OverlayPosition } from "./ugc-layers.js";
 import { lexicalTokens } from "./semantic-inserts.js";
 import { freezeResolvedTimeline, readResolvedTimeline } from "./resolved-timeline.js";
 import { LONG_FORM_RUN_ID, scriptInsertsTimelineFixture, segmentsTimelineFixture } from "./__fixtures__/long-form-timeline.fixture.js";
@@ -182,6 +183,17 @@ describe("layers in the frozen timeline (D8, C5, C7)", () => {
     expect(() => freezeResolvedTimeline(withLayers([bad]))).toThrow();
   });
 
+  /** #973 S3. Mutant: write exit or enterFrames as defaults on every layer, and an overlay frozen before S3 changes its hash on resume. */
+  it("holds a layer's exit and enter frames only when given, so a layer frozen without them keeps its hash", () => {
+    const old = freezeResolvedTimeline(withLayers([{ ...layer, kind: "overlay", position: "top_right" }]));
+    expect(old.layers![0]).not.toHaveProperty("exit");
+    expect(old.layers![0]).not.toHaveProperty("enterFrames");
+    const moving = freezeResolvedTimeline(withLayers([{ ...layer, kind: "overlay", position: "top_right", enter: "pop", exit: "pop_out", enterFrames: 10 }]));
+    expect(readResolvedTimeline(JSON.parse(JSON.stringify(moving))).layers![0]).toMatchObject({ enter: "pop", exit: "pop_out", enterFrames: 10 });
+    expect(moving.hash).not.toBe(old.hash);
+    expect(() => freezeResolvedTimeline(withLayers([{ ...layer, kind: "overlay", position: "top", exit: "spin" }]))).toThrow();
+  });
+
   it("refuses duplicate layer ids and layers on an explicit-segments timeline", () => {
     const overlayLayer = { ...layer, kind: "overlay", position: "top" };
     expect(() => freezeResolvedTimeline(withLayers([overlayLayer, overlayLayer]))).toThrow("invalid layer");
@@ -226,5 +238,40 @@ describe("rectangle footprints refuse exactly what S2's corners refused (#778 S3
     const a = { left: 0, top: 0, width: 0.5, height: 0.5 };
     expect(rectsOverlap(a, { left: 0.5, top: 0, width: 0.5, height: 0.5 })).toBe(false);
     expect(rectsOverlap(a, { left: 0.49, top: 0.49, width: 0.5, height: 0.5 })).toBe(true);
+  });
+});
+
+describe("overlay motion: enter, exit and the enter's time (#973 S3)", () => {
+  it("accepts pop and scale_up enters, every exit and the offset and duration ranges, and refuses past them", () => {
+    const moving = (extra: Record<string, unknown>) => ({ overlays: [{ ...overlay("o1", 2, 4), ...extra }] });
+    for (const extra of [{ enter: "pop", exit: "pop_out" }, { enter: "scale_up", exit: "fade" }, { exit: "slide", enter_offset_s: -0.5 },
+      { exit: "cut", enter_offset_s: 0.5, enter_duration_s: 0.05 }, { enter_duration_s: 1.5 }]) expect(refusals(moving(extra))).toEqual([]);
+    for (const [extra, field] of [[{ exit: "spin" }, "exit"], [{ enter: "bounce" }, "enter"], [{ enter_offset_s: -0.51 }, "enter_offset_s"],
+      [{ enter_offset_s: 0.51 }, "enter_offset_s"], [{ enter_duration_s: 0.04 }, "enter_duration_s"], [{ enter_duration_s: 1.6 }, "enter_duration_s"]] as const) {
+      expect(refusals(moving(extra)).some(message => message.startsWith(`overlays.0.${field}:`))).toBe(true);
+    }
+  });
+
+  /** Mutant: drop the trim, and a sequential overlay on the same box shows under the early one for the offset's frames. */
+  it("moves the first frame by the offset, and an overlay that left on that word leaves as it enters", () => {
+    const warnings: string[] = [];
+    const frames = [{ id: "a", startFrame: 0, endFrame: 50 }, { id: "b", startFrame: 50, endFrame: 90 }, { id: "c", startFrame: 30, endFrame: 120 },
+      { id: "tpl", startFrame: 40, endFrame: 50 }];
+    const out = offsetOverlayFrames(frames, [{ id: "a" }, { id: "b", enter_offset_s: -0.2 }, { id: "c" }], 25, warnings);
+    // b enters 5 frames before its word; a, which left on it, goes then; c spans b's words and the template is not an overlay: both keep theirs.
+    expect(out).toEqual([{ id: "a", startFrame: 0, endFrame: 45 }, { id: "b", startFrame: 45, endFrame: 90 }, { id: "c", startFrame: 30, endFrame: 120 },
+      { id: "tpl", startFrame: 40, endFrame: 50 }]);
+    expect(warnings).toEqual(['overlay "a" leaves 0.20 s early: overlay "b" enters before its word']);
+    expect(frames[0]).toEqual({ id: "a", startFrame: 0, endFrame: 50 });
+  });
+
+  it("keeps an offset inside the video and the overlay's own frames, and names what it could not honour", () => {
+    const warnings: string[] = [];
+    const out = offsetOverlayFrames([{ id: "first", startFrame: 2, endFrame: 40 }, { id: "short", startFrame: 60, endFrame: 66 }],
+      [{ id: "first", enter_offset_s: -0.3 }, { id: "short", enter_offset_s: 0.5 }], 25, warnings);
+    expect(out).toEqual([{ id: "first", startFrame: 0, endFrame: 40 }, { id: "short", startFrame: 65, endFrame: 66 }]);
+    expect(warnings).toEqual(['overlay "first" appears -0.08 s from its first word, not -0.3 s: the video starts there',
+      'overlay "short" appears 0.20 s from its first word, not 0.5 s: its words end there']);
+    expect(offsetOverlayFrames([{ id: "x", startFrame: 10, endFrame: 20 }], [{ id: "x" }], 25, [])).toEqual([{ id: "x", startFrame: 10, endFrame: 20 }]);
   });
 });

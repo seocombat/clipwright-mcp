@@ -1,7 +1,10 @@
 export * from "./skills.js";
 export * from "./ugc-layers.js";
+export * from "./scene-place.js";
+export { CAPTION_EDGES, CAPTION_GEOMETRY, CAPTION_GEOMETRY_ALIASES, captionBandBox, captionEdgeAt, captionGeometryOf, type CaptionEdge } from "./caption-geometry.js";
 export * from "./ugc-framing.js";
 export * from "./ugc-call.js";
+export * from "./ugc-interview.js";
 export * from "./caption-language.js";
 export * from "./templates/index.js";
 export * from "./ugc-video-media.js";
@@ -86,4 +89,5 @@ export * from "./reference-profile.js";
 export * from "./reference-staging.js";
 export * from "./reference-voice.js";
 export * from "./reference-analysis.js";
+export * from "./reference-display.js";
 export * from "./presenter-beats.js";

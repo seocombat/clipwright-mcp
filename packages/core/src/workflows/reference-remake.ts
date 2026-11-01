@@ -5,13 +5,17 @@ import { assetId } from '../asset-identity.js';
 import { captionLanguageOf } from '../caption-language.js';
 import { LONG_FORM_QUALIFICATION_MAX_DURATION_SEC } from '../long-form-profile.js';
 import { estimateDurationSec } from '../pacing.js';
-import { referenceProfile, type ReferenceProfile } from '../reference-profile.js';
+import { referenceProfileInput, type ReferenceProfileInput as ReferenceProfile } from '../reference-profile.js';
 import { narrationPaceFromVoice, PAUSE_TRIM_CEILING_S, pauseTrimFromVoice } from '../reference-voice.js';
 import { countActorShots, coverWordOf, lexicalTokens, planSemanticInserts, quoteOccurrences } from '../semantic-inserts.js';
 import { actorId, callStage, type CallStage, isNarratedUgcInput, makeUgcInput, makeUgcInputShape, MAX_NARRATED_ACTOR_SHOTS, ugcCall } from '../skills.js';
 import { CALL_PHONE_DEFAULTS, CALL_STAGE_SIDES } from '../ugc-call.js';
-import { templateFaceWarnings, templateMediaOf, templateTextRefusal } from '../templates/index.js';
-import { faceZone, frameCanvasOf, OVERLAY_POSITIONS, overlayRect, rectsOverlap, type OverlayPosition, type PresenterFraming } from '../ugc-layers.js';
+import { TEMPLATE_KINDS, templateFaceWarnings, templateMediaOf, templateTextRefusal } from '../templates/index.js';
+import { CAPTION_POSITION_VERTICAL, captionEdgeAt } from '../caption-geometry.js';
+import type { StagingElement, StagingRect } from '../reference-staging.js';
+import { fitPlacedRect, place, plannedFace, presenterPlace, resolvePlace, sharedArea, type Place } from '../scene-place.js';
+import { FACE_COVER_SHARE, faceZone, frameCanvasOf, LAYER_ENTERS, MAX_ENTER_OFFSET_S, MAX_OVERLAYS, OVERLAY_POSITIONS, overlayRect, ownPixels, rectsOverlap,
+    type LayerEnter, type LayerExit, type LayerRect, type OverlayPosition, type PresenterFraming } from '../ugc-layers.js';
 import { isEnglishScript, measuredPaceOf, PACE_MATCH_SHARE, VOICE_PACE_RANGE, voicesNearestPace } from '../voice-pace.js';
 import { BREAK_TAG_SOURCE, FIXED_PACE_MODELS, resolveTtsModel } from '../voices.js';
 import type { CapabilityProfile } from '../contracts/v1/workflow-catalog.js';
@@ -22,7 +26,7 @@ import { queryWorkflowMethod } from './catalog.js';
 // The reference-remake compiler (#857 S2a): a profile and an accepted script become a complete plan whose native input is a make_ugc input.
 
 export const planReferenceRemake = z.strictObject({
-    reference_profile: referenceProfile.describe('The reference_profile analyze_reference returned, or one you wrote to the same schema.'),
+    reference_profile: referenceProfileInput.describe('The reference_profile analyze_reference returned, or one you wrote to the same schema.'),
     script: workflowText(10_000).describe('The accepted narration, copied into the plan unchanged.'),
     actor_id: actorId, voice: makeUgcInputShape.voice, voice_id: makeUgcInputShape.voice_id,
     assets: z.array(z.strictObject({ asset_id: assetId, media_type: z.enum(['image', 'video']) })).max(12).default([])
@@ -51,6 +55,32 @@ type Unmapped = ReferenceProfile['unmapped'][number];
 /** The saved plan keeps the reference's techniques, not its words: the remake copies no line of it, and the analysis keeps them already. */
 const withoutWords = ({ transcript: _transcript, hook: _hook, ...profile }: ReferenceProfile) => profile;
 type Layer = { field: 'templates' | 'overlays' | 'inserts' | 'layout_windows' | 'framing' | 'caption_emphasis'; beat: number; kind: string; item: unknown };
+/** A layer sits under the captions when its top is at most this share of the height below them and its centre this share of the width off theirs. */
+const UNDER_CAPTIONS = 0.03;
+/** With no caption box measured, a centred layer whose top lies this far below where top-anchored captions start: a line to a short block. */
+const UNMEASURED_CAPTIONS_BELOW = [0.03, 0.15] as const;
+const ENTER_OF: Partial<Record<string, LayerEnter>> = { pop: 'pop', fade: 'fade', slide: 'slide', scale_up: 'scale_up', tilt_in: 'tilt_in' };
+const EXIT_OF: Partial<Record<string, LayerExit>> = { cut: 'cut', fade: 'fade', slide: 'slide', pop: 'pop_out' };
+const FRAME: LayerRect = { left: 0, top: 0, width: 1, height: 1 };
+const round = (value: number, places = 4) => Math.round(value * 10 ** places) / 10 ** places;
+const median = (values: readonly number[]) => {
+    const sorted = [...values].sort((a, b) => a - b), mid = sorted.length >> 1;
+    return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+};
+
+/** The reference presenter's face while its graphics show (#973 S5): each element's box over its face-unit twin gives the face; freezes stand in. */
+function referenceFaceOf(profile: ReferenceProfile): { face_height: number; face_centre: [number, number] } | undefined {
+    const staging = profile.staging, { width, height } = profile.source;
+    if (!staging) return undefined;
+    const twins = staging.elements.flatMap(({ rect_hold: rect, rect_hold_face: twin }) => {
+        if (!rect || !twin) return [];
+        const unit = rect.height / twin.height;
+        return [{ height: unit, x: rect.left - (twin.left * unit * height) / width, y: rect.top - twin.top * unit }];
+    });
+    const faces = twins.length ? twins : staging.freezes.map(({ face_box_start: box }) => ({ height: box.height, x: box.left + box.width / 2, y: box.top + box.height / 2 }));
+    if (!faces.length) return undefined;
+    return { face_height: round(median(faces.map(face => face.height))), face_centre: [round(median(faces.map(face => face.x))), round(median(faces.map(face => face.y)))] };
+}
 
 export function referenceScriptWords(script: string): ReferenceScriptWord[] {
     const tags = [...script.matchAll(new RegExp(BREAK_TAG_SOURCE, 'g'))].map(match => [match.index, match.index + match[0].length] as const);
@@ -203,6 +233,70 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
     const wordAt = (span: { start: number; end: number }, share: number) =>
         quote(Math.min(span.end - 1, span.start + Math.max(1, Math.floor(share * (span.end - span.start)))), 2, span.end);
 
+    // Measured staging drawn as the reference drew it (#973 S5): a box under the captions, on the face or on the frame, its entry from our list.
+    const canvas = frameCanvasOf(DEFAULT_ASPECT_RATIO), measuredFace = referenceFaceOf(profile);
+    const presenterOk = longForm && executor?.field_dispositions.presenter_place === 'implemented';
+    const presenter = measuredFace && presenterOk ? presenterPlace.safeParse(measuredFace).data : undefined;
+    if (measuredFace && !presenter) {
+        note(0, `the reference presenter's face, ${measuredFace.face_height} of the frame's height`, !longForm
+            ? 'the actor\'s own framing: framing the presenter needs long-form qualification, not available right now'
+            : presenterOk ? 'the actor\'s own framing: the face size is outside what the presenter can be framed to' : 'the actor\'s own framing');
+    }
+    const face = plannedFace(DEFAULT_ASPECT_RATIO, canvas, framing, presenter);
+    /** Elements whose staging the plan draws or names on its own; the rest get the one note below. */
+    const drawn = new Set<string>();
+    const gaps = { entry: [] as number[], exit: [] as number[], styles: new Map<string, number[]>(), templates: [] as number[], inferred: [] as number[] };
+    // A box never measured on the frames is an estimate, and a note says so (#930 S2).
+    const sourceOf = (element: StagingElement) => element.rect_method?.startsWith('estimated') ? 'vision-pass' : 'measured';
+    const elementOf = (beat: number, graphic: number) =>
+        profile.staging?.elements.find(entry => entry.beat_index === beat && entry.graphic_index === graphic && entry.rect_hold);
+    const captionsSeen = profile.captions.present && !profile.captions.hidden_under_graphics;
+    const underCaptions = (rect: StagingRect): { gap?: number } | undefined => {
+        const centre = rect.left + rect.width / 2, box = profile.captions.box;
+        if (!captionsSeen) return undefined;
+        if (box) {
+            const gap = rect.top - box.top - box.height;
+            return Math.abs(centre - box.left - box.width / 2) <= UNDER_CAPTIONS && gap >= -0.005 && gap <= UNDER_CAPTIONS ? { gap: round(Math.max(0, gap)) } : undefined;
+        }
+        // No box: caption lines are centred, and a top-anchored block starts at its position's height while a bottom-anchored one ends there.
+        const at = CAPTION_POSITION_VERTICAL[profile.captions.position] / 100, topEdge = captionEdgeAt(at * 100) === 'top';
+        const [low, high] = topEdge ? [at + UNMEASURED_CAPTIONS_BELOW[0], at + UNMEASURED_CAPTIONS_BELOW[1]] : [at - 0.005, at + UNDER_CAPTIONS];
+        return Math.abs(centre - 0.5) <= UNDER_CAPTIONS && rect.top >= low && rect.top <= high ? {} : undefined;
+    };
+    /** The element's place on our presenter, or 'face' when it would cover our face; `own` is a template's own rect, which never stands by captions. */
+    const stagedPlace = (element: StagingElement, own?: LayerRect): { place: Place; inferred: boolean } | 'face' | undefined => {
+        const rect = element.rect_hold!, under = own ? undefined : underCaptions(rect);
+        const parsed = place.safeParse(under ? { relative_to: 'captions', side: 'below', ...(under.gap === undefined ? {} : { gap: under.gap }), width: round(rect.width) }
+            : element.rect_hold_face ? { relative_to: 'face', rect: element.rect_hold_face } : { relative_to: 'frame', rect });
+        if (!parsed.success) return undefined;
+        if (under) return { place: parsed.data, inferred: under.gap === undefined };
+        const box = resolvePlace(parsed.data, { canvas, face }), shown = own ? fitPlacedRect(box, ownPixels(own, canvas), canvas) : box;
+        if (sharedArea(shown, FRAME) < (shown.width * shown.height) / 2) return undefined;
+        return sharedArea(shown, face) > FACE_COVER_SHARE * face.width * face.height ? 'face' : { place: parsed.data, inferred: false };
+    };
+    /** The word the reference showed it on, at the same share of our beat's words, and its measured lead or lag on that word. */
+    const enterOf = (element: StagingElement, beat: number, span: { start: number; end: number }) => {
+        const shown = element.entry?.first_visible_s, source = profile.beats[beat]!;
+        if (shown === undefined) return {};
+        const said = (profile.transcript ?? []).filter(word => word.start_s >= source.start_s && word.start_s < source.end_s);
+        let at = 0;
+        said.forEach((word, index) => { if (word.start_s <= shown) at = index; });
+        const share = said.length ? (at + 0.5) / said.length : Math.min(1, Math.max(0, (shown - source.start_s) / (source.end_s - source.start_s)));
+        const found = quote(span.start + Math.min(span.end - span.start - 1, Math.floor(share * (span.end - span.start))), 2, span.end);
+        if (!found) return {};
+        const offset = said.length ? round(Math.min(MAX_ENTER_OFFSET_S, Math.max(-MAX_ENTER_OFFSET_S, shown - said[at]!.start_s)), 2) : 0;
+        return { anchor: found.anchor, cover_words: span.end - found.start, ...(offset ? { enter_offset_s: offset } : {}) };
+    };
+    const motionOf = (element: StagingElement, beat: number) => {
+        const style = element.entry?.style, leave = element.exit?.style, enter = style && ENTER_OF[style], exit = leave && EXIT_OF[leave];
+        const unmapped = (what: string) => gaps.styles.set(what, [...gaps.styles.get(what) ?? [], beat]);
+        if (!style || style === 'unknown') gaps.entry.push(beat); else if (!enter) unmapped(`${style} entries`);
+        if (!leave || leave === 'unknown') gaps.exit.push(beat); else if (!exit) unmapped(`${leave} exits`);
+        const duration = element.entry?.duration_s;
+        return { ...(enter ? { enter, ...(duration ? { enter_duration_s: Math.min(1.5, Math.max(0.05, round(duration, 2))) } : {}) } : {}),
+            ...(exit && exit !== 'cut' ? { exit } : {}) };
+    };
+
     const spans = planSpans({ profile, words });
     const layers: Layer[] = [];
     const pool = [...request.assets], images = () => pool.filter(asset => asset.media_type === 'image').length;
@@ -229,19 +323,39 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         for (const graphic of [...beat.graphics].sort((left, right) => Number(TEXT_KINDS.has(left.kind)) - Number(TEXT_KINDS.has(right.kind)))) {
             const kind = graphic.kind;
             if (kind === 'particles' || kind === 'unmapped') continue;
-            if (kind in MEDIA_KINDS) {
+            // A logo card is a brand picture: it shows as an overlay while an image is left in assets, else as the text card it maps to (#973 S5).
+            const room = layers.filter(layer => layer.field === 'overlays').length < MAX_OVERLAYS;
+            const wantsLogo = graphic.source_kind === 'logo_card' && longForm && !layered, logo = wantsLogo && images() > 0 && room;
+            if (wantsLogo && !logo) {
+                note(index, `logo_card (${room ? 'no image left in assets' : `a run shows at most ${MAX_OVERLAYS} overlays`})`, 'a text card with its words');
+            }
+            if (kind in MEDIA_KINDS || logo) {
+                const media = logo ? 'logo_card' : kind;
                 if (layered) { note(index, `${kind} (one media layer per beat)`, 'the first one shows here'); continue; }
+                if (MEDIA_KINDS[kind as keyof typeof MEDIA_KINDS] === 'overlays' && !room) {
+                    note(index, `${kind} (a run shows at most ${MAX_OVERLAYS} overlays)`, 'the presenter stays on screen on these words');
+                    continue;
+                }
                 if (pool.length === 0) { note(index, `${kind} (no image or video left in assets)`, GENERATE); continue; }
                 if (!longForm) { note(index, `${kind} (media layers need long-form qualification, not available right now)`, 'the presenter stays on screen on these words'); continue; }
-                const asset = take()!, field = MEDIA_KINDS[kind as keyof typeof MEDIA_KINDS], base = { ...envelope(kind), asset_id: asset.asset_id, media_type: asset.media_type };
-                const { kind: _kind, ...item } = base;
+                const asset = take(logo)!, field = logo ? 'overlays' : MEDIA_KINDS[kind as keyof typeof MEDIA_KINDS];
+                const { kind: _kind, ...item } = { ...envelope(media), asset_id: asset.asset_id, media_type: asset.media_type };
+                const element = field === 'overlays' ? elementOf(index, beat.graphics.indexOf(graphic)) : undefined, staged = element && stagedPlace(element);
+                if (element && staged) drawn.add(element.id);
+                layered = true;
+                if (element && staged && staged !== 'face') {
+                    if (staged.inferred) gaps.inferred.push(index);
+                    layers.push({ field, beat: index, kind: media, item: { ...item, ...enterOf(element, index, span), ...motionOf(element, index), place: staged.place } });
+                    continue;
+                }
                 const position = graphic.position.replace(/^split_/, ''), wanted = (OVERLAY_POSITIONS as readonly string[]).includes(position) ? position as OverlayPosition : 'top_right';
                 // Off the face: the reference place, else a corner on its side (right by default), a band last.
                 const side = wanted.endsWith('left') ? 'left' : 'right', rank = (place: string) => place.endsWith(side) ? 0 : place.includes('_') ? 1 : 2;
                 const clear = (place: OverlayPosition) => !rectsOverlap(overlayRect(place, frameCanvasOf(DEFAULT_ASPECT_RATIO)), faceZone(DEFAULT_ASPECT_RATIO, framing));
                 const placed = clear(wanted) ? wanted : [...OVERLAY_POSITIONS].sort((left, right) => rank(left) - rank(right)).find(clear) ?? wanted;
-                if (field === 'overlays' && placed !== position) note(index, `${kind} at ${graphic.position}`, `${placed}, to keep the face clear`);
-                layers.push({ field, beat: index, kind, item: field === 'overlays' ? { ...item, position: placed }
+                if (staged === 'face') note(index, `${media}: its ${sourceOf(element!)} place, over the presenter's face`, `${placed}, to keep the face clear`);
+                else if (field === 'overlays' && placed !== position) note(index, `${media} at ${graphic.position}`, `${placed}, to keep the face clear`);
+                layers.push({ field, beat: index, kind: media, item: field === 'overlays' ? { ...item, position: placed }
                     : field === 'layout_windows' ? { ...item, layout: 'split' } : item });
                 layered = true; fullFrame ||= field === 'inserts'; windowed ||= field === 'layout_windows';
                 continue;
@@ -254,9 +368,19 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
             if ((built.kind === 'phone_call' || built.kind === 'notification') && /[^\p{Script=Latin}\p{N}\p{P}\p{S}\s]/u.test(script)) {
                 note(index, `${built.kind} card text stays English ("${built.kind === 'phone_call' ? 'Incoming call' : 'Messages'}")`, 'edit the plan to change it');
             }
-            const item = { ...envelope(built.kind), ...(built.placement ? { placement: built.placement } : {}), data: built.data };
+            const item: { place?: Place; data: Record<string, unknown> } & Record<string, unknown> = { ...envelope(built.kind),
+                ...(built.placement ? { placement: built.placement } : {}), data: built.data };
+            // A measured box over the presenter takes the template whole, drawn as its kind draws with no place of its own (#973 S4, S5).
+            const element = elementOf(index, beat.graphics.indexOf(graphic)), definition = TEMPLATE_KINDS.find(entry => entry.kind === built.kind);
+            const { position: _place, ...unplaced } = built.data, own = definition?.data.safeParse(unplaced);
+            const staged = element && own?.success && (built.placement ?? definition!.placements[0]) === 'over'
+                ? stagedPlace(element, definition!.rect(own.data, DEFAULT_ASPECT_RATIO, undefined, framing)) : undefined;
+            if (element && staged) drawn.add(element.id);
+            if (staged) item.data = unplaced;
+            if (staged === 'face') note(index, `${built.kind}: its ${sourceOf(element!)} place, over the presenter's face`, `the ${built.kind}'s default place, to keep the face clear`);
+            else if (staged) { item.place = staged.place; gaps.templates.push(index); }
             // A reference place over the face gives way to the kind's default, which every kind keeps off it.
-            if ('position' in built.data && templateFaceWarnings({ templates: [item], presenter_framing: framing }).length) {
+            if (!item.place && 'position' in built.data && templateFaceWarnings({ templates: [item], presenter_framing: framing }).length) {
                 const { position: _position, ...data } = built.data;
                 item.data = data;
                 note(index, `${built.kind} at ${graphic.position}`, `the ${built.kind}'s default place, to keep the face clear`);
@@ -372,19 +496,32 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         call = { after: before.anchor, lines: request.call.lines, ...(request.call.voices ? { voices: request.call.voices } : {}),
             phone: { ...CALL_PHONE_DEFAULTS, ...request.call.phone }, ...(stage ? { stage } : {}) };
         for (const layer of layers.filter(layer => layer.beat === listening && layer.kind === 'phone_call')) layers.splice(layers.indexOf(layer), 1);
+        // The call's own phone draws the staging, so the dropped card's word on it goes too.
+        for (const entry of notes.filter(entry => entry.beat_index === listening && entry.what.startsWith('phone_call: its '))) notes.splice(notes.indexOf(entry), 1);
     }
-    // Measured staging the composition draws only for the call's phone: any other measured graphic the plan places keeps its default place, and says
-    // so once per beat and kind (rule 3).
+    // Measured staging is drawn for overlays, templates over the presenter and the call's phone: any other measured graphic the plan places keeps its
+    // default place, and says so once per beat and kind (rule 3).
     const placed = new Set(layers.filter(layer => layer.field !== 'framing' && layer.field !== 'caption_emphasis').map(layer => layer.beat));
     const named = new Set<string>();
     for (const element of profile.staging?.elements ?? []) {
         const graphic = element.graphic_index === null ? undefined : profile.beats[element.beat_index]?.graphics[element.graphic_index];
         const key = `${element.beat_index}:${graphic?.kind}`;
-        if (!graphic || !placed.has(element.beat_index) || named.has(key) || (call && element.beat_index === listening && element.kind === 'phone_call')) continue;
+        if (!graphic || !placed.has(element.beat_index) || named.has(key) || drawn.has(element.id)
+            || (call && element.beat_index === listening && element.kind === 'phone_call')) continue;
         named.add(key);
-        // A box CV never measured comes from the vision pass, and the note says so (#930 S2).
-        const source = element.rect_method?.startsWith('vision') ? 'vision-pass' : 'measured';
-        note(element.beat_index, `${graphic.kind}: its ${source} place and entry (reference staging)`, 'its default place; measured staging is drawn for the call\'s phone only');
+        note(element.beat_index, `${graphic.kind}: its ${sourceOf(element)} place and entry (reference staging)`,
+            'its default place; measured staging is drawn for overlays, templates over the presenter and the call\'s phone');
+    }
+    const beatsOf = (list: readonly number[]) => [...new Set(list)].map(beat => beat + 1).join(', ');
+    if (gaps.entry.length) note(gaps.entry[0]!, `how the overlays on beats ${beatsOf(gaps.entry)} enter (reference staging did not measure it)`, 'a cut');
+    if (gaps.exit.length) note(gaps.exit[0]!, `how the overlays on beats ${beatsOf(gaps.exit)} leave (reference staging did not measure it)`, 'a cut');
+    for (const [what, list] of gaps.styles) {
+        note(list[0]!, `${what} of the overlays on beats ${beatsOf(list)}`, what.endsWith('exits') ? 'a cut' : `a cut: overlays enter by ${LAYER_ENTERS.join(', ')}`);
+    }
+    if (gaps.templates.length) note(gaps.templates[0]!, `the measured entry of the templates on beats ${beatsOf(gaps.templates)}`, 'each template\'s own entry');
+    if (gaps.inferred.length) {
+        note(gaps.inferred[0]!, `the reference's caption box, for the graphics on beats ${beatsOf(gaps.inferred)} (not measured)`,
+            `placed under the captions: each sits centred just below where the reference's ${profile.captions.position} captions are`);
     }
 
     const aggregate = (values: (string | undefined)[], keep: (value: string) => boolean, what: (value: string, beats: string) => string, substitute: string) => {
@@ -456,6 +593,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
                 ...(captionsPlaced ? { caption_position: profile.captions.position } : {}) } : {}),
             ...field('caption_emphasis'), ...field('templates'), ...field('overlays'), ...field('inserts'), ...field('layout_windows'), ...field('framing'),
             ...(call ? { call } : {}) };
+        if (presenter && isNarratedUgcInput(native)) native.presenter_place = presenter;
         // The quote refuses customer media without this policy; the note below discloses it (rule 3).
         if (['overlays', 'inserts', 'layout_windows'].some(name => native[name]) || templateMediaOf(native.templates as Parameters<typeof templateMediaOf>[0]).length) {
             native.broll_policy = 'anyone';

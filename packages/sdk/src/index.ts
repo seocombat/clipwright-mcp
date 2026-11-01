@@ -51,6 +51,8 @@ import {
   type AnalyzeReferenceRequest,
   referenceAnalysisRead,
   type ReferenceAnalysisRead,
+  referenceAnalysisQuery,
+  type ReferenceAnalysisQuery,
   makeFacelessInput,
   type MakeFacelessInputArgs,
   agentFailureReport,
@@ -393,6 +395,8 @@ export class ClipwrightClient {
     /** Whether THIS call could change server state; only the caller knows. */
     mayHaveTakenEffect: boolean,
     init?: RequestInit,
+    /** A request the server holds on purpose (a waiting read) gets at least this long. */
+    atLeastMs = 0,
   ): Promise<unknown> {
     // Anything failing after send is reported alike: a failed `fetch` does not
     // disprove delivery, so a paid path says "unknown".
@@ -400,7 +404,7 @@ export class ClipwrightClient {
     // Cancellation reaches the network: a per-request timeout plus the caller's
     // signal, pulled out of `init` so it cannot bypass the timeout.
     const { signal: callerSignal, ...rest } = init ?? {};
-    const timeout = AbortSignal.timeout(this.#requestTimeoutMs);
+    const timeout = AbortSignal.timeout(Math.max(this.#requestTimeoutMs, atLeastMs));
     const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout;
     // Every caller passes headers as a record and a body as a string or bytes, so the callback sees what is sent.
     const credential = typeof this.#apiKey === "string" ? this.#apiKey : this.#apiKey({
@@ -773,9 +777,13 @@ export class ClipwrightClient {
   }
 
   /** One reference analysis: queued, analyzing, succeeded with its profile and warnings, or failed with its error. Free. */
-  async getReferenceAnalysis(analysisIdValue: string): Promise<ReferenceAnalysisRead> {
-    const path = REFERENCE_ANALYSIS_PATH.replace(":id", encodeURIComponent(analysisIdValue));
-    return parseResponse(referenceAnalysisRead, await this.#request(path, false), path, false);
+  /** `frames_from`/`frames_to` page its one-a-second frames; `wait_seconds` (≤ 50) lets the server hold the read until it finishes. */
+  async getReferenceAnalysis(analysisIdValue: string, query: ReferenceAnalysisQuery = {}): Promise<ReferenceAnalysisRead> {
+    const item = REFERENCE_ANALYSIS_PATH.replace(":id", encodeURIComponent(analysisIdValue)), parsed = referenceAnalysisQuery.parse(query);
+    const search = new URLSearchParams(Object.entries(parsed)
+      .flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]]))).toString();
+    const path = search === "" ? item : `${item}?${search}`;
+    return parseResponse(referenceAnalysisRead, await this.#request(path, false, undefined, ((parsed.wait_seconds ?? 0) + 15) * 1000), item, false);
   }
 
   /** What one image would cost and its size; spends no credits. */
@@ -982,7 +990,7 @@ export type { GenerateImageRequest, GenerateVideoRequest, GenerationModels, Gene
 export type { TemplateSoundsList };
 export type { PricesResponseRead };
 export type { FeedbackRequest, FeedbackResponse };
-export type { AnalyzeReferenceRequest, ReferenceAnalysisRead };
+export type { AnalyzeReferenceRequest, ReferenceAnalysisQuery, ReferenceAnalysisRead };
 export type { UploadListRead };
 export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs, PlanReferenceRemakeArgs,
   WorkflowCatalogRead, WorkflowMethodRead, WorkflowPlanRead, WorkflowQuoteRead, WorkflowLaunchRead, WorkflowRunRead };

@@ -12,7 +12,7 @@ export const EDIT_ISSUE_CODES = [
   "shot_added_not_allowed", "too_short", "too_long", "action_not_allowed", "not_movable", "not_resizable", "overlap",
   "tracks_overlap", "uncovered", "first_shot_fixed", "foreign_source_asset", "kind_asset_mismatch", "candidate_for_other_shot",
   "unknown_asset", "upload_shape_refused", "duplicate_picture_asset", "too_many_generated", "footage_exceeded",
-  "presenter_out_of_sync", "presenter_outside_recording",
+  "presenter_out_of_sync", "presenter_outside_recording", "transition_invalid",
 ] as const;
 export type EditIssueCode = (typeof EDIT_ISSUE_CODES)[number];
 
@@ -32,7 +32,9 @@ export type EditSummary = {
   replaced: { shot_id: string; from: "candidate" | "upload" | "source" }[];
   /** Facts only: pricing decides what each entry costs. */
   generated: { shot_id: string; kind: ShotKind; mode: ShotOperationMode }[];
-  /** Any list above is non-empty. */
+  /** The document sets or removes the cut transitions. */
+  transitions?: true;
+  /** Any list above is non-empty, or transitions are set. */
   changed: boolean;
 };
 
@@ -127,7 +129,9 @@ export function diffEditDocument(document: EditDocument, shots: PlannedRunShots)
     if (shot.asset.from === "source" && shot.asset.shot_id !== shot.id) summary.replaced.push({ shot_id: shot.id, from: "source" });
     if (shot.asset.from === "generate") summary.generated.push({ shot_id: shot.id, kind: shot.kind, mode: shot.asset.operation.mode });
   }
-  summary.changed = [summary.retimed, summary.deleted, summary.added, summary.replaced, summary.generated].some(list => list.length > 0);
+  if (document.transitions !== undefined) summary.transitions = true;
+  summary.changed = [summary.retimed, summary.deleted, summary.added, summary.replaced, summary.generated].some(list => list.length > 0) ||
+    summary.transitions === true;
   return summary;
 }
 
@@ -306,6 +310,16 @@ export function validateEditDocument(document: EditDocument, shots: PlannedRunSh
   }
   if (generated > rules.max_generated_per_revision) {
     add("too_many_generated", `a revision generates at most ${rules.max_generated_per_revision} shots, this one asks for ${generated}`);
+  }
+  // A transition falls on a cut into a shot, so the named shot is in the document and is not the opening one.
+  const transitions = document.transitions;
+  if (transitions !== undefined && !rules.cut_transitions) add("transition_invalid", "this timeline draws no cut transitions");
+  else if (transitions && Array.isArray(transitions.at)) {
+    const opening = [...document.shots].sort((a, b) => a.start_frame - b.start_frame)[0]?.id;
+    for (const id of new Set(transitions.at)) {
+      if (!ids.has(id) || id === opening) add("transition_invalid", id === opening ? "the opening shot has no cut before it" : "no shot has this id", { shot_id: id });
+    }
+    if (new Set(transitions.at).size !== transitions.at.length) add("transition_invalid", "transitions.at names a shot twice");
   }
 
   if (!issues.length) return { ok: true, summary: diffEditDocument(document, shots) };

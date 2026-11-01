@@ -26,7 +26,7 @@ import { generateImageRequest, generateVideoRequest, generationModels, generatio
 import { pricesResponse } from "./prices.js";
 import { PUBLIC_API_BASE_URL, PUBLIC_APP_BASE_URL } from "./public-endpoints.js";
 import { healthResponse, publicSkillsResponse } from "./public-responses.js";
-import { analysisQuoteResponse, analyzeReferenceRequest, referenceAnalysis, referenceAnalysisId } from "./reference-analysis.js";
+import { analysisQuoteResponse, analyzeReferenceRequest, referenceAnalysis, referenceAnalysisId, referenceAnalysisQuery } from "./reference-analysis.js";
 import { runId } from "./runs.js";
 import { quoteResponse } from "./skills.js";
 import { templateSoundsList } from "./templates/sounds.js";
@@ -205,7 +205,7 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
     body: named("AnalyzeReferenceRequest", analyzeReferenceRequest),
     responses: { 202: named("ReferenceAnalysis", referenceAnalysis), 200: named("ReferenceAnalysis", referenceAnalysis) } },
   "GET /v1/reference-analyses/{id}": { exposure: "public", operationId: "getReferenceAnalysis", tag: "Reference analysis", params: { id: referenceAnalysisId },
-    responses: { 200: named("ReferenceAnalysis", referenceAnalysis) } },
+    query: referenceAnalysisQuery, responses: { 200: named("ReferenceAnalysis", referenceAnalysis) } },
   "POST /v1/feedback": { exposure: "public", operationId: "sendFeedback", tag: "Feedback",
     body: named("FeedbackRequest", feedbackRequest),
     responses: { 201: named("Feedback", feedbackResponse), 200: named("Feedback", feedbackResponse) } },

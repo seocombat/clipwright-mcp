@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { makeUgcInput, ugcSegment } from '../../skills.js';
 import { makeFacelessInput } from '../../faceless-public.js';
-import { referenceProfile, referenceProfileRead } from '../../reference-profile.js';
+import { referenceProfileInput, referenceProfileRead } from '../../reference-profile.js';
 import { workflowEvidenceSource } from './workflow-evidence.js';
 import { workflowFormat, workflowFormatRead, workflowText } from './workflow-primitives.js';
 
@@ -32,7 +32,7 @@ const briefShape = {
     required_terms: z.array(workflowText(200)).max(100).default([]), requirements: z.array(workflowRequirement).max(100).default([]),
     requested_format: workflowFormat.optional(), native: workflowNativeInput.optional(), references: z.array(workflowEvidenceSource).max(100).default([]),
     // The reference's style the plan was compiled from; the document byte bound holds it (A1).
-    reference_profile: referenceProfile.optional(),
+    reference_profile: referenceProfileInput.optional(),
 };
 export const workflowBrief = z.strictObject(briefShape);
 export type WorkflowBrief = z.infer<typeof workflowBrief>;

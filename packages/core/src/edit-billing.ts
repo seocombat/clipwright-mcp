@@ -41,6 +41,8 @@ export const editSummaryWire = z.strictObject({
   added: z.array(shotId),
   replaced: z.array(z.strictObject({ shot_id: shotId, from: z.enum(["candidate", "upload", "source"]) })),
   generated: z.array(z.strictObject({ shot_id: shotId, kind: shotKind, mode: z.enum(SHOT_OPERATION_MODES) })),
+  /** Present when the revision sets or removes the cut transitions. */
+  transitions: z.literal(true).optional(),
   changed: z.boolean(),
 });
 export type EditSummaryWire = z.infer<typeof editSummaryWire>;

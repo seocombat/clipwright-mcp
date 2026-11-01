@@ -53,6 +53,17 @@ import {
   type ReferenceAnalysisRead,
   referenceAnalysisQuery,
   type ReferenceAnalysisQuery,
+  CREATOR_PROFILES_PATH,
+  CREATOR_PROFILE_PATH,
+  CREATOR_PROFILE_QUOTE_PATH,
+  analyzeCreatorRequest,
+  type AnalyzeCreatorRequest,
+  creatorProfileQuote,
+  type CreatorProfileQuote,
+  creatorProfileRead,
+  type CreatorProfileRead,
+  creatorProfileQuery,
+  type CreatorProfileQuery,
   makeFacelessInput,
   type MakeFacelessInputArgs,
   agentFailureReport,
@@ -786,6 +797,28 @@ export class ClipwrightClient {
     return parseResponse(referenceAnalysisRead, await this.#request(path, false, undefined, ((parsed.wait_seconds ?? 0) + 15) * 1000), item, false);
   }
 
+  /** What analyzeCreator would hold and charge for this link now: 0 when a recent profile of the same creator would answer. Free. */
+  async quoteCreatorProfile(request: AnalyzeCreatorRequest): Promise<CreatorProfileQuote> {
+    const body = await this.#request(CREATOR_PROFILE_QUOTE_PATH, false, { method: "POST", body: JSON.stringify(analyzeCreatorRequest.parse(request)) });
+    return parseResponse(creatorProfileQuote, body, CREATOR_PROFILE_QUOTE_PATH, false);
+  }
+
+  /** Starts a creator's profile from a profile or video link, answered at once (state=queued); the same creator within an hour */
+  /** answers the same profile, so a retry needs no key. Paid: the price is held now and charged once it succeeds. */
+  async analyzeCreator(request: AnalyzeCreatorRequest): Promise<CreatorProfileRead> {
+    const body = await this.#request(CREATOR_PROFILES_PATH, true, { method: "POST", body: JSON.stringify(analyzeCreatorRequest.parse(request)) });
+    return parseResponse(creatorProfileRead, body, CREATOR_PROFILES_PATH, true);
+  }
+
+  /** One creator profile; `wait_seconds` (≤ 50) lets the server hold the read until it finishes. Free. */
+  async getCreatorProfile(profileIdValue: string, query: CreatorProfileQuery = {}): Promise<CreatorProfileRead> {
+    const item = CREATOR_PROFILE_PATH.replace(":id", encodeURIComponent(profileIdValue)), parsed = creatorProfileQuery.parse(query);
+    const search = new URLSearchParams(Object.entries(parsed)
+      .flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]]))).toString();
+    const path = search === "" ? item : `${item}?${search}`;
+    return parseResponse(creatorProfileRead, await this.#request(path, false, undefined, ((parsed.wait_seconds ?? 0) + 15) * 1000), item, false);
+  }
+
   /** What one image would cost and its size; spends no credits. */
   async quoteImage(request: GenerateImageRequest): Promise<GenerationQuote> {
     return this.#quoteGeneration(GENERATE_IMAGE_QUOTE_PATH, generateImageRequest.parse(request));
@@ -991,6 +1024,7 @@ export type { TemplateSoundsList };
 export type { PricesResponseRead };
 export type { FeedbackRequest, FeedbackResponse };
 export type { AnalyzeReferenceRequest, ReferenceAnalysisQuery, ReferenceAnalysisRead };
+export type { AnalyzeCreatorRequest, CreatorProfileQuery, CreatorProfileQuote, CreatorProfileRead };
 export type { UploadListRead };
 export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs, PlanReferenceRemakeArgs,
   WorkflowCatalogRead, WorkflowMethodRead, WorkflowPlanRead, WorkflowQuoteRead, WorkflowLaunchRead, WorkflowRunRead };

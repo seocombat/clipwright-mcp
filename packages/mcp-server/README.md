@@ -238,6 +238,16 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   failed analysis costs nothing. 10 new analyses per hour.
 - `get_reference_analysis` — the state of an analysis, with the profile and its
   warnings once it succeeded. Free.
+- `quote_creator_profile` — price of a creator profile for a link: 20 credits,
+  or 0 when a profile of the same creator from the last hour would answer. Free.
+- `analyze_creator` — profile the creator behind an Instagram or TikTok profile
+  or video link: their latest 12 videos with views, likes, comments and shares,
+  the median views and each video's x to it, top performers and cadence. Waits
+  for the result; an unfinished one is read with `get_creator_profile`. 20
+  credits held and charged once it succeeds; a private or empty account costs
+  nothing. 30 new profiles per hour.
+- `get_creator_profile` — the state of a creator profile, with its videos and
+  warnings once it succeeded. Free.
 - `quote_actor` — price of a personal actor before creating one. Free.
 - `create_actor` — **creates a personal actor from a description; this costs
   money.** Each requested format is a separate charged image. Returns a `run_id`

@@ -136,6 +136,8 @@ describe("makeUgcInput — script length gate", () => {
       "REFERENCE_HOOK_MAX_SECONDS",
       // How long a read of an analysis may wait for it to finish (#970): a free read's hold, never a price or a render length.
       "REFERENCE_WAIT_MAX_SECONDS",
+      // The creator profile task's ceiling (#999): a read of someone's account, priced per profile, never by its length.
+      "CREATOR_PROFILE_TASK_MAX_DURATION_SECONDS",
     ];
     const durationCaps = Object.keys(contract).filter(
       (name) =>

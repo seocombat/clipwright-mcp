@@ -18,6 +18,20 @@ listed under.
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-11-01
+
+### Added
+
+- `analyze_creator` profiles a creator from an Instagram or TikTok profile or video link (#999): their latest 12 videos
+  with views, likes, comments, shares, length, date and caption, the median views of those videos and each video's x to
+  it, with top performers flagged, plus followers and posting cadence. `quote_creator_profile` prices it first and
+  `get_creator_profile` reads it; the answer carries a ready table in `display_markdown`. 20 credits once it succeeds;
+  a private or empty account costs nothing, and the same link or creator again within an hour is free. *Server-side.*
+
+### Changed
+
+- The MCP server's guidance to your agent names the creator profile and asks the agent to show its table as it came.
+
 ## [0.37.2] - 2026-11-01
 
 ### Changed

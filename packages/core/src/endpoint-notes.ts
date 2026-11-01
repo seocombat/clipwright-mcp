@@ -1,5 +1,6 @@
 import { CANDIDATE_CHARGE_TEXT } from "./edit-candidate.js";
 import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
+import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_PER_HOUR, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
 import { FEEDBACK_PER_HOUR } from "./feedback.js";
 import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_ANALYSIS_PER_HOUR, REFERENCE_DATA_CREDITS, REFERENCE_DATA_PER_HOUR } from "./reference-analysis.js";
 
@@ -79,6 +80,16 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
     `${REFERENCE_ANALYSIS_PER_HOUR} new full and ${REFERENCE_DATA_PER_HOUR} new data analyses per hour.`,
   "GET /v1/reference-analyses/{id}":
     "One reference analysis: queued, analyzing, succeeded with reference_profile or data and warnings, or failed with its error. Free.",
+  "POST /v1/creator-profiles/quote":
+    `Prices a creator profile for this link: ${CREATOR_PROFILE_CREDITS} credits, or 0 when a profile of the same creator from the last hour ` +
+    "would answer. Charges nothing.",
+  "POST /v1/creator-profiles":
+    `Starts profiling the creator behind an Instagram or TikTok profile or video link: their latest ${CREATOR_PROFILE_VIDEOS} videos with ` +
+    "views, likes, comments and shares, the median views and each video's x to it. Answers at once; the same creator within an hour " +
+    `answers the same profile for free. Holds ${CREATOR_PROFILE_CREDITS} credits, charged once it succeeds; a private or empty account, ` +
+    `or any failure, costs nothing. ${CREATOR_PROFILE_PER_HOUR} new profiles per hour.`,
+  "GET /v1/creator-profiles/{id}":
+    "One creator profile: queued, analyzing, succeeded with the profile and warnings, or failed with its error. Free.",
   "POST /v1/skills/make_ugc/quote": "Prices a make_ugc call with this input. Charges nothing.",
   "POST /v1/skills/make_ugc/run":
     "Starts a video run and answers at once with a run_id. Poll the run for the result.",

@@ -90,4 +90,5 @@ export * from "./reference-staging.js";
 export * from "./reference-voice.js";
 export * from "./reference-analysis.js";
 export * from "./reference-display.js";
+export * from "./creator-profile.js";
 export * from "./presenter-beats.js";

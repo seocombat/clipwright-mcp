@@ -2,6 +2,7 @@
 /** prints the "what costs money" list from here. */
 import { ASSET_BYTES_PATH, ASSET_ITEM_PATH, ASSETS_PATH } from "./assets.js";
 import { ACTOR_DEFAULTS_PATH } from "./broll-policy.js";
+import { CREATOR_PROFILE_PATH, CREATOR_PROFILE_QUOTE_PATH, CREATOR_PROFILES_PATH } from "./creator-profile.js";
 import { FEEDBACK_PATH } from "./feedback.js";
 import { GENERATION_MODELS_PATH } from "./generations.js";
 import { PRICES_PATH } from "./prices.js";
@@ -97,6 +98,10 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "POST", path: REFERENCE_ANALYSIS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: REFERENCE_ANALYSES_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "GET", path: REFERENCE_ANALYSIS_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
+  // Creator profile (#999): paid, with its own hourly cap in the handler; the quote row stands before `:id`.
+  { method: "POST", path: CREATOR_PROFILE_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: CREATOR_PROFILES_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "GET", path: CREATOR_PROFILE_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   // Feedback from an agent (#941): free, with its own hourly cap in the handler.
   { method: "POST", path: FEEDBACK_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
 ];

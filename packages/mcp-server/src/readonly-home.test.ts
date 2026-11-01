@@ -135,6 +135,7 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
     try {
       const { tools } = await client.listTools();
       expect(tools.map((t) => t.name).sort()).toEqual([
+        "analyze_creator",
         "analyze_reference",
         "approve_workflow_plan",
         "create_actor",
@@ -148,6 +149,7 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
         "get_account",
         "get_actor_defaults",
         "get_asset",
+        "get_creator_profile",
         "get_reference_analysis",
         "get_run",
         "get_run_shots",
@@ -168,6 +170,7 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
         "quote_actor",
         "quote_analysis",
         "quote_candidate",
+        "quote_creator_profile",
         "quote_faceless",
         "quote_image",
         "quote_revision",

@@ -11,6 +11,7 @@ import { PRESENTER_ENGINES } from "./face-billing.js";
 import { listGenerationModels } from "./generations.js";
 import { PARTS_FACE_TARIFF, PRESENTER_ENGINE_LABELS } from "./parts-pricing.js";
 import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS } from "./reference-analysis.js";
+import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
 export const PRICES_PATH = "/v1/public/prices";
@@ -98,6 +99,8 @@ const FREE_TOOLS: Readonly<Record<string, string>> = {
   update_asset: "POST /v1/assets/{id}",
   delete_asset: "DELETE /v1/assets/{id}",
   get_reference_analysis: "GET /v1/reference-analyses/{id}",
+  quote_creator_profile: "POST /v1/creator-profiles/quote",
+  get_creator_profile: "GET /v1/creator-profiles/{id}",
   list_workflows: "GET /v1/public/workflows",
   get_workflow: "GET /v1/public/workflows/{id}",
   prepare_workflow_plan: "POST /v1/workflow-plans",
@@ -150,6 +153,10 @@ function buildPriceList(): PriceEntry[] {
     paid({ tool: "analyze_reference", route: "POST /v1/reference-analyses", variant: "data mode", unit: "call", credits: REFERENCE_DATA_CREDITS,
       quote_tool: "quote_analysis", notes: "mode: \"data\": duration, size, timed transcript, hook and a frame sheet, without the vision pass. " +
         "Held at the start and charged once it succeeds; a failed one costs nothing." }),
+    paid({ tool: "analyze_creator", route: "POST /v1/creator-profiles", unit: "call", credits: CREATOR_PROFILE_CREDITS,
+      quote_tool: "quote_creator_profile", notes: `A creator's latest ${CREATOR_PROFILE_VIDEOS} videos with each one's x to their median views. ` +
+        "Held at the start and charged once it succeeds; a private or empty account, or a failed profile, costs nothing. " +
+        "The same creator again within an hour answers the same profile for free." }),
     paid({ tool: "make_faceless", route: "POST /v1/skills/make_faceless/run", quote_tool: "quote_faceless",
       lines: [{ label: "generated picture", unit: "image", credits: FACELESS_IMAGE_CREDITS },
         { label: "opening clip", unit: "clip", credits: FACELESS_OPENER_CREDITS },

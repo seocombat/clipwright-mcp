@@ -27,6 +27,7 @@ import { pricesResponse } from "./prices.js";
 import { PUBLIC_API_BASE_URL, PUBLIC_APP_BASE_URL } from "./public-endpoints.js";
 import { healthResponse, publicSkillsResponse } from "./public-responses.js";
 import { analysisQuoteResponse, analyzeReferenceRequest, referenceAnalysis, referenceAnalysisId, referenceAnalysisQuery } from "./reference-analysis.js";
+import { analyzeCreatorRequest, creatorProfileAnswer, creatorProfileId, creatorProfileQuery, creatorProfileQuote } from "./creator-profile.js";
 import { runId } from "./runs.js";
 import { quoteResponse } from "./skills.js";
 import { templateSoundsList } from "./templates/sounds.js";
@@ -75,6 +76,7 @@ const TAGS = {
   Actors: "Actors saved on the account and their defaults.",
   Catalogs: "Voices, template sounds, generation models, skills and prices.",
   "Reference analysis": "A reference video read into a profile a remake plan takes.",
+  "Creator profiles": "A creator's latest videos with each one's views against their median.",
   Account: "Balance, debt and holds.",
   Feedback: "What is missing, confusing, wrong or slow; we read every one.",
 } as const;
@@ -206,6 +208,14 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
     responses: { 202: named("ReferenceAnalysis", referenceAnalysis), 200: named("ReferenceAnalysis", referenceAnalysis) } },
   "GET /v1/reference-analyses/{id}": { exposure: "public", operationId: "getReferenceAnalysis", tag: "Reference analysis", params: { id: referenceAnalysisId },
     query: referenceAnalysisQuery, responses: { 200: named("ReferenceAnalysis", referenceAnalysis) } },
+  "POST /v1/creator-profiles/quote": { exposure: "public", operationId: "quoteCreatorProfile", tag: "Creator profiles",
+    body: named("AnalyzeCreatorRequest", analyzeCreatorRequest), responses: { 200: named("CreatorProfileQuote", creatorProfileQuote) } },
+  "POST /v1/creator-profiles": { exposure: "public", operationId: "analyzeCreator", tag: "Creator profiles",
+    billedWithoutKey: "a resend within an hour answers the same creator's profile, and only a succeeded one is charged",
+    body: named("AnalyzeCreatorRequest", analyzeCreatorRequest),
+    responses: { 202: named("CreatorProfile", creatorProfileAnswer), 200: named("CreatorProfile", creatorProfileAnswer) } },
+  "GET /v1/creator-profiles/{id}": { exposure: "public", operationId: "getCreatorProfile", tag: "Creator profiles", params: { id: creatorProfileId },
+    query: creatorProfileQuery, responses: { 200: named("CreatorProfile", creatorProfileAnswer) } },
   "POST /v1/feedback": { exposure: "public", operationId: "sendFeedback", tag: "Feedback",
     body: named("FeedbackRequest", feedbackRequest),
     responses: { 201: named("Feedback", feedbackResponse), 200: named("Feedback", feedbackResponse) } },

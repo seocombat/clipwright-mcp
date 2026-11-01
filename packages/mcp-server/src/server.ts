@@ -61,6 +61,12 @@ import {
   ANALYZE_REFERENCE_DESCRIPTION,
   QUOTE_ANALYSIS_DESCRIPTION,
   analyzeReferenceRequest,
+  ANALYZE_CREATOR_DESCRIPTION,
+  GET_CREATOR_PROFILE_DESCRIPTION,
+  QUOTE_CREATOR_PROFILE_DESCRIPTION,
+  analyzeCreatorRequest,
+  creatorProfileId,
+  creatorProfileQuery,
   GET_REFERENCE_ANALYSIS_DESCRIPTION,
   referenceAnalysisId,
   referenceAnalysisQuery,
@@ -134,9 +140,20 @@ export function withPoll<T extends { analysis_id: string; state: string; retry_a
     retry_after_seconds: analysis.retry_after_seconds ?? 10 } };
 }
 
+/** An unfinished creator profile names the read that waits for it. */
+export function withProfilePoll<T extends { profile_id: string; state: string; retry_after_seconds?: number | null | undefined }>(profile: T):
+  T & { poll?: { tool: "get_creator_profile"; arguments: { profile_id: string; wait_seconds: number }; retry_after_seconds: number } } {
+  if (profile.state !== "queued" && profile.state !== "analyzing") return profile;
+  return { ...profile, poll: { tool: "get_creator_profile", arguments: { profile_id: profile.profile_id, wait_seconds: REFERENCE_WAIT_MAX_SECONDS },
+    retry_after_seconds: profile.retry_after_seconds ?? 5 } };
+}
+/** A start waits this long for its profile, inside an agent's usual 60 s tool timeout. */
+export const CREATOR_START_WAIT_SECONDS = 40;
+
 export const MAX_INLINE_FRAMES = 8;
 /** The read's query without `display`: the MCP read always asks for the breakdown. */
 const { display: _display, ...readQuery } = referenceAnalysisQuery.shape;
+const creatorProfileQueryWait = creatorProfileQuery.shape.wait_seconds;
 const FRAME_FETCH_TIMEOUT_MS = 10_000;
 
 /** The analysis's key frames as image blocks, the hook first, at most eight spread over the rest; a frame that does not load is left out. */
@@ -655,6 +672,51 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       // The only tool answering image blocks; the shared response type keeps text-only for every other tool's callers.
       return { content: [{ type: "text" as const, text: JSON.stringify(withPoll(analysis)) }, ...images] } as unknown as McpToolResponse;
     }),
+  );
+
+  // Creator profile (#999): paid per profile; the start waits for it, and an unfinished one is read with get_creator_profile.
+  server.registerTool(
+    "quote_creator_profile",
+    {
+      title: "Quote a creator profile",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: QUOTE_CREATOR_PROFILE_DESCRIPTION,
+      inputSchema: analyzeCreatorRequest.shape,
+    },
+    async (request) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.quoteCreatorProfile(request)) }],
+    })),
+  );
+
+  server.registerTool(
+    "analyze_creator",
+    {
+      title: "Profile a creator",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      description: withPriceLine("analyze_creator", ANALYZE_CREATOR_DESCRIPTION),
+      inputSchema: analyzeCreatorRequest.shape,
+    },
+    async (request) => withFailureReport(async () => {
+      const started = await client.analyzeCreator(request);
+      const done = started.state === "queued" || started.state === "analyzing"
+        ? await client.getCreatorProfile(started.profile_id, { wait_seconds: CREATOR_START_WAIT_SECONDS, display: "markdown" })
+        : await client.getCreatorProfile(started.profile_id, { display: "markdown" });
+      return { content: [{ type: "text", text: JSON.stringify(withProfilePoll(done)) }] };
+    }),
+  );
+
+  server.registerTool(
+    "get_creator_profile",
+    {
+      title: "Get a creator profile",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: GET_CREATOR_PROFILE_DESCRIPTION,
+      inputSchema: { profile_id: creatorProfileId, wait_seconds: creatorProfileQueryWait },
+    },
+    async ({ profile_id, wait_seconds }) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(withProfilePoll(await client.getCreatorProfile(profile_id,
+        { ...(wait_seconds === undefined ? {} : { wait_seconds }), display: "markdown" }))) }],
+    })),
   );
   server.registerTool(
     "list_voices",

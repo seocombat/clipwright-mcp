@@ -18,6 +18,22 @@ listed under.
 
 ## [Unreleased]
 
+## [0.37.2] - 2026-11-01
+
+### Changed
+
+- The MCP server's guidance to your agent is clearer: you can leave a choice to the agent, a talking-actor quote is
+  named as an estimate before the run, a lost answer is recovered without paying twice, warnings are quoted as they
+  came, and the agent offers to send us feedback when something falls short.
+
+## [0.37.1] - 2026-11-01
+
+### Added
+
+- The MCP server tells your agent how to use Clipwright when it connects: quote before every paid call, let you pick the
+  presenter, voice and hook, follow the run to its end and report the link, credits and warnings. Agents that reach
+  Clipwright over MCP alone, without the skill file, now follow the same rules.
+
 ## [0.37.0] - 2026-11-01
 
 ### Added

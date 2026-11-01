@@ -1,0 +1,5 @@
+{"t":0,"agent":"ac852dc","agent_type":"general-purpose","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"ac852dc","agent_type":"general-purpose","event":"agent_stop","success":true,"duration_ms":183406}
+{"t":0,"agent":"a295f0a","agent_type":"executor","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"acreato","agent_type":"creator-profile","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a295f0a","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":62794}

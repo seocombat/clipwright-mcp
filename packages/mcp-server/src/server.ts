@@ -32,6 +32,7 @@ import {
   MAKE_UGC_AGENT_PROTOCOL,
   MAKE_FACELESS_DESCRIPTION,
   MAKE_FACELESS_AGENT_PROTOCOL,
+  MCP_SERVER_INSTRUCTIONS,
   makeFacelessInput,
   offeredFacelessInput,
   REVISION_CHARGE_TEXT,
@@ -167,7 +168,7 @@ function uploadNextAction(upload: { width: number; height: number; expires_at: s
 /** Builds the MCP server with its tools registered but NO transport connected, */
 /** so tool registration is testable without a stdio process. */
 export function createServer(client: ClipwrightClient, options: CreateServerOptions = { fileAccess: "local" }): McpServer {
-  const server = new McpServer({ name: "clipwright", version: packageVersion() });
+  const server = new McpServer({ name: "clipwright", version: packageVersion() }, { instructions: MCP_SERVER_INSTRUCTIONS });
   registerWorkflowTools(server, client);
 
   // tools/list publishes the full schema; an empty schema leaves agents guessing.

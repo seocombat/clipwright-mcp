@@ -69,7 +69,9 @@ it("the create_candidate description says an identical request returns the same 
     const create = tools.find((tool) => tool.name === "create_candidate");
     expect(create?.description).toContain("An identical request returns the same run it started before");
     expect(create?.description).toContain("pass take 2");
-    expect(Object.keys(create?.inputSchema.properties ?? {})).toContain("take");
+    // The input is advertised once, on quote_candidate, and take is one of its fields (#1003).
+    expect(create?.description).toMatch(/^Input: the same fields as quote_candidate\. /);
+    expect(Object.keys(tools.find((tool) => tool.name === "quote_candidate")?.inputSchema.properties ?? {})).toContain("take");
     expect(create?.description).toContain("A delivered candidate is charged its one unit whether it is kept or discarded");
     expect(create?.description).toContain("one that fails is charged nothing");
     expect(create?.description).toContain("Call quote_candidate first and show the user the price.");

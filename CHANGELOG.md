@@ -18,6 +18,20 @@ listed under.
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-11-02
+
+### Changed
+
+- The MCP server's tool list is about a third of its old size, so clients that cap it, such as ChatGPT, load every tool
+  (#1003). The tools, their fields and what a call accepts are unchanged. A paid tool that takes its quote's fields
+  says so and lists only the fields the quote lacks, such as `attempt`; the quote carries the full schema. A field
+  copied from another answer, such as `reference_profile`, is described in words instead of by schema.
+
+### Fixed
+
+- A creator profile's table shows each video's x to the median with one decimal, so a video at the median reads
+  `1.0×`, not `1×`. *Server-side.*
+
 ## [0.38.0] - 2026-11-01
 
 ### Added

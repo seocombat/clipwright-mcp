@@ -300,7 +300,7 @@ export function creatorProfileMarkdown(answer: CreatorProfileAnswer): string {
     "", "| # | Posted | Views | x median | Likes | Comments | Shares | Length | Caption |", "|---:|---|---:|---:|---:|---:|---:|---:|---|");
   profile.videos.forEach((video, index) => {
     lines.push(`| [${index + 1}](${video.url}) | ${video.posted_at?.slice(0, 10) ?? "—"} | ${number(video.views)} | ` +
-      `${video.x_median === null ? "—" : `${video.top ? "**" : ""}${video.x_median}×${video.top ? "**" : ""}`} | ${number(video.likes)} | ` +
+      `${video.x_median === null ? "—" : `${video.top ? "**" : ""}${video.x_median.toFixed(1)}×${video.top ? "**" : ""}`} | ${number(video.likes)} | ` +
       `${number(video.comments)} | ${number(video.shares)} | ${video.duration_s === null ? "—" : `${Math.round(video.duration_s)} s`} | ` +
       `${video.caption ? quote(video.caption.text, 60) : "—"} |`);
   });

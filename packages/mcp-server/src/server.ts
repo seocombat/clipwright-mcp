@@ -80,6 +80,7 @@ import {
 } from "@clipwright/core";
 import { formatGetRun, type McpToolResponse, withFailureReport } from "./format.js";
 import { registerWorkflowTools } from './workflow-tools.js';
+import { advertiseSlimTools } from "./advertised-schema.js";
 
 /** A key outside the video tools is named before the SDK is asked, as the API names it (rule 3): stripped, it would vanish silently. */
 function ugcKeyRefusal(key: string): string {
@@ -924,5 +925,6 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     content: [{ type: "text", text: JSON.stringify(await client.sendFeedback(request)) }],
   })));
 
+  advertiseSlimTools(server);
   return server;
 }

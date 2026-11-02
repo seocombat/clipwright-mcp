@@ -78,9 +78,11 @@ import {
   rejectedFields,
   unknownFields,
 } from "@clipwright/core";
-import { formatGetRun, type McpToolResponse, withFailureReport } from "./format.js";
+import { formatGetRun, type McpToolResponse, RUN_WAIT_MAX_SECONDS, waitForRun, withFailureReport } from "./format.js";
+import { facelessQuoteMarkdown, RUN_DISPLAY_HINT, ugcQuoteMarkdown } from "./run-display.js";
 import { registerWorkflowTools } from './workflow-tools.js';
 import { advertiseSlimTools } from "./advertised-schema.js";
+import { answerInvalidArguments } from "./invalid-arguments.js";
 
 /** A key outside the video tools is named before the SDK is asked, as the API names it (rule 3): stripped, it would vanish silently. */
 function ugcKeyRefusal(key: string): string {
@@ -187,6 +189,7 @@ function uploadNextAction(upload: { width: number; height: number; expires_at: s
 /** so tool registration is testable without a stdio process. */
 export function createServer(client: ClipwrightClient, options: CreateServerOptions = { fileAccess: "local" }): McpServer {
   const server = new McpServer({ name: "clipwright", version: packageVersion() }, { instructions: MCP_SERVER_INSTRUCTIONS });
+  answerInvalidArguments(server);
   registerWorkflowTools(server, client);
 
   // tools/list publishes the full schema; an empty schema leaves agents guessing.
@@ -219,16 +222,17 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "Check the status of a video generation started by make_ugc or make_faceless, or of a generate_image or " +
-        "generate_video run. Pass the run_id. While the run " +
-        "is still working it returns status IN_PROGRESS with a next_action telling you to poll again; " +
-        "repeat every ~5 seconds until it reaches a terminal state — SUCCEEDED (with video_url, or generation.url for " +
-        "generate_image and generate_video) or FAILED.",
-      inputSchema: { run_id: runId },
+        "generate_video run. Pass the run_id, and wait_seconds to hold the answer until the run ends. While the run " +
+        "is still working it returns status IN_PROGRESS with poll.arguments: call again with them until it reaches a " +
+        "terminal state — SUCCEEDED (with video_url, or generation.url for generate_image and generate_video) or FAILED, " +
+        "with display_markdown to show.",
+      inputSchema: { run_id: runId, wait_seconds: z.number().int().min(0).max(RUN_WAIT_MAX_SECONDS).optional()
+        .describe(`Wait up to this many seconds (at most ${RUN_WAIT_MAX_SECONDS}) for the run to end before answering.`) },
     },
-    async ({ run_id }) =>
+    async ({ run_id, wait_seconds }, extra) =>
       withFailureReport(async () => {
         // Terminal shape lives in the pure `formatGetRun`: both `status` and `state`.
-        const run = await client.getRun(run_id);
+        const run = await waitForRun(() => client.getRun(run_id), wait_seconds ?? 0, extra.signal);
         return formatGetRun(run);
       }),
   );
@@ -300,7 +304,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         `start a second revision with the same request on purpose, pass attempt 2. ${REVISION_CHARGE_TEXT} An ` +
         "original has a limit on revisions running at once and on revisions failed or unfinished, and paid edits " +
         "of it close some days after it finished; a refusal names which. While paid edits are closed it answers " +
-        "editing_disabled and charges nothing. The result is a new run: poll it with get_run; once it succeeded " +
+        "editing_disabled and charges nothing. The result is a new run: call get_run with its poll.arguments; once it succeeded " +
         "it is editable under its own run_id."),
       inputSchema: { ...revisionShape, ...agentRetryShape },
     },
@@ -351,7 +355,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "call repeated after a lost answer starts nothing new; to make another candidate with the same request on " +
         "purpose, pass take 2. An original has a limit on candidates running at once and on candidates failed or " +
         "unfinished, apart from its revisions; a refusal names which. While shot candidates are closed it answers " +
-        "editing_disabled and charges nothing. The result is a new run: poll it with get_run; once it succeeded, its " +
+        "editing_disabled and charges nothing. The result is a new run: call get_run with its poll.arguments; once it succeeded, its " +
         "candidate.preview_url shows what was made."),
       inputSchema: candidateShape,
     },
@@ -411,7 +415,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: false, destructiveHint: false },
       description: withPriceLine("generate_image",
         "Generate one image from a prompt (paid): a NEW run of skill generate_image, charged the quoted credits per image " +
-        "once it is delivered. Call quote_image first and show the user the price. Poll the run with get_run; once it " +
+        "once it is delivered. Call quote_image first and show the user the price. Call get_run with its poll.arguments; once it " +
         "succeeded, generation.url is the image and its run_id can be a reference of a later generation. " + generationTerms),
       inputSchema: imageRunTool,
     },
@@ -443,8 +447,8 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description: withPriceLine("generate_video",
         "Generate one silent clip (paid): a NEW run of skill generate_video, charged unit_credits per second of duration_s " +
         "once it is delivered. Modes: text; first_frame (first_frame, optional last_frame, of the requested aspect ratio " +
-        "within 2%); reference (1 to 4 references). Call quote_video first and show the user the price. Poll the run with " +
-        "get_run; once it succeeded, generation.url is the clip. " + generationTerms),
+        "within 2%); reference (1 to 4 references). Call quote_video first and show the user the price. Call get_run with " +
+        "its poll.arguments; once it succeeded, generation.url is the clip. " + generationTerms),
       inputSchema: videoRunTool,
     },
     async ({ attempt, ...request }) =>
@@ -466,7 +470,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     async (args) =>
       withFailureReport(async () => {
         const quote = await client.quoteUgc(args as MakeUgcInputArgs);
-        return { content: [{ type: "text", text: JSON.stringify(quote) }] };
+        return { content: [{ type: "text", text: JSON.stringify({ ...quote, display_markdown: ugcQuoteMarkdown(quote), display_hint: RUN_DISPLAY_HINT }) }] };
       }),
   );
 
@@ -865,9 +869,10 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       inputSchema: offeredFacelessInput,
     },
     async (args) =>
-      withFailureReport(async () => ({
-        content: [{ type: "text", text: JSON.stringify(await client.quoteFaceless(makeFacelessInput.parse(args))) }],
-      })),
+      withFailureReport(async () => {
+        const quote = await client.quoteFaceless(makeFacelessInput.parse(args));
+        return { content: [{ type: "text", text: JSON.stringify({ ...quote, display_markdown: facelessQuoteMarkdown(quote), display_hint: RUN_DISPLAY_HINT }) }] };
+      }),
   );
 
   server.registerTool(

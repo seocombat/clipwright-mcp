@@ -189,8 +189,8 @@ export const MAKE_UGC_DESCRIPTION =
 /** names and polling are protocol details not meant for the REST catalog. */
 export const MAKE_UGC_AGENT_PROTOCOL =
   "Call quote_ugc before generating and show the cost. This does NOT wait for the video: it " +
-  "starts the run and returns a run_id IMMEDIATELY. You MUST then poll get_run with that " +
-  "run_id until the state is 'succeeded' (video_url) or 'failed'. A 'failed' run whose video " +
+  "starts the run and returns a run_id IMMEDIATELY. You MUST then call get_run with its " +
+  "poll.arguments until the state is 'succeeded' (video_url) or 'failed'. A 'failed' run whose video " +
   "is still being made can go back to 'queued' and reach 'succeeded' later; whenever that " +
   "happens it is named in warnings[]. Pass attempt=2,3,… to " +
   "deliberately start a NEW run for the same input (retry after a failure).";
@@ -212,7 +212,8 @@ export const MCP_SERVER_INSTRUCTIONS =
   "three. Recommend one option at each stop, but do not pick for the user; skip a stop only when the user already " +
   "answered it or explicitly left the choice to you.\n\n" +
   "Runs are asynchronous. A paid call returns a run_id at once: poll get_run until the state is succeeded or failed. " +
-  "Follow poll.arguments when an answer carries them. A null value means unknown, not zero. An error with retryable: " +
+  "Follow poll.arguments when an answer carries them: get_run with wait_seconds holds the answer up to 50 seconds, so " +
+  "no sleep is needed between calls. Show a quote's and a finished run's display_markdown as it came. A null value means unknown, not zero. An error with retryable: " +
   "false means: don't repeat the same call unchanged; fix the arguments it names, or tell the user. If a paid call's " +
   "answer is lost, repeat it with the same arguments, key and attempt: that returns the run already started. A higher " +
   "attempt starts a new paid run, and retryable: true alone never permits one.\n\n" +
@@ -235,7 +236,7 @@ export const MAKE_FACELESS_DESCRIPTION =
 /** How to call `make_faceless` over MCP, kept apart from the REST description. */
 export const MAKE_FACELESS_AGENT_PROTOCOL =
   "Call quote_faceless first and show the user the price. This does NOT wait for the video: it " +
-  "starts the run and returns a run_id IMMEDIATELY. Then poll get_run with that run_id until the " +
+  "starts the run and returns a run_id IMMEDIATELY. Then call get_run with its poll.arguments until the " +
   "state is 'succeeded' (video_url) or 'failed'. Pass attempt=2,3,… to deliberately start a NEW " +
   "run for the same input.";
 

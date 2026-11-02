@@ -2,6 +2,40 @@ import { FAILED_STATE, isTerminal, runMoney, VIDEO_URL_CHECK } from "@clipwright
 import type { WorkflowRunRead, WorkflowLaunchRead } from '@clipwright/core/workflows';
 import { ClipwrightApiError } from "@clipwright/sdk";
 
+import { RUN_DISPLAY_HINT, terminalRunMarkdown } from "./run-display.js";
+
+/** The longest a `get_run` holds its answer, inside an agent's usual 60 s tool timeout. */
+export const RUN_WAIT_MAX_SECONDS = 50;
+/** A waiting `get_run` reads the run this often. */
+export const RUN_WAIT_STEP_MS = 3000;
+/** When an agent that cannot hold the read reads an unfinished run again. */
+export const RUN_RETRY_AFTER_SECONDS = 5;
+
+/** Reads the run until it is terminal, the wait ends or the caller leaves. */
+export async function waitForRun(read: () => Promise<WorkflowRunRead>, waitSeconds: number, signal?: AbortSignal): Promise<WorkflowRunRead> {
+  const until = Date.now() + waitSeconds * 1000;
+  let run = await read();
+  while (!isTerminal(run.state) && Date.now() < until && !signal?.aborted) {
+    await pause(Math.min(RUN_WAIT_STEP_MS, until - Date.now()), signal);
+    if (signal?.aborted) break;
+    run = await read();
+  }
+  return run;
+}
+
+/** A sleep that ends early when the caller leaves. */
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
 /** MCP tool response: content blocks. The index signature matches the SDK's */
 /** `CallToolResult`; without it the handler does not type-check. */
 export interface McpToolResponse {
@@ -52,6 +86,8 @@ export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead[
               // Warnings are never silent: every get_run branch carries them.
               warnings: run.warnings,
               error: run.error,
+              display_markdown: terminalRunMarkdown(run),
+              display_hint: RUN_DISPLAY_HINT,
             }),
           },
         ],
@@ -82,6 +118,8 @@ export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead[
             // A succeeded create_actor names the actor_id an agent passes to make_ugc (#778).
             ...(run.created_actor === undefined ? {} : { created_actor: run.created_actor }),
             warnings: run.warnings,
+            display_markdown: terminalRunMarkdown(run),
+            display_hint: RUN_DISPLAY_HINT,
           }),
         },
       ],
@@ -101,10 +139,11 @@ export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead[
           video_url: null,
           warnings: run.warnings,
           next_action:
-            "Video is NOT ready. Call get_run with run_id=" +
+            "Video is NOT ready. Call get_run with poll.arguments (run_id=" +
             run.run_id +
-            " again in ~5 seconds. Repeat until state is 'succeeded' or 'failed'. Do NOT tell " +
-            "the user the video is done until you have a video_url.",
+            `, wait_seconds=${RUN_WAIT_MAX_SECONDS}): it waits up to ${RUN_WAIT_MAX_SECONDS} s for the run to end. Repeat until state is 'succeeded' or 'failed'. ` +
+            "Do NOT tell the user the video is done until you have a video_url.",
+          poll: { tool: "get_run", arguments: { run_id: run.run_id, wait_seconds: RUN_WAIT_MAX_SECONDS }, retry_after_seconds: RUN_RETRY_AFTER_SECONDS },
         }),
       },
     ],

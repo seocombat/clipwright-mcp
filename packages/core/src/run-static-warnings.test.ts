@@ -264,6 +264,19 @@ describe("derivation by run skill", () => {
     expect(composeRunWarnings([], null, NO_FACTS, "create_actor")).toEqual([UNREADABLE_CREATE_ACTOR_INPUT_WARNING]);
   });
 
+  // #1032: every skill a run is admitted under, `SKILLS` and the two analyses outside it, reads its input without the fallback.
+  it("no admitted skill falls back to the unreadable-input line", () => {
+    const inputs: Record<string, unknown> = {
+      analyze_reference: { source_url: "https://www.instagram.com/reel/abc/", asset_id: "ast_1", analysis_id: "ref_1", mode: "full" },
+      analyze_creator: { source_url: "https://www.tiktok.com/@someone", profile_id: "crp_1" },
+      generate_image: { prompt: "a cup" }, generate_video: { prompt: "a wave" }, edit_shot: {}, revise_long_form: {},
+      make_faceless: { input_mode: "brief", brief: "A story", duration_seconds: 30 },
+    };
+    for (const [skill, input] of Object.entries(inputs)) {
+      expect(composeRunWarnings(["its own line"], input, NO_FACTS, skill), skill).toEqual(["its own line"]);
+    }
+  });
+
   it("an unfamiliar skill reads neither as a clip nor as an actor", () => {
     expect(derivedRunWarnings(stored({ person: "x" }), FACTS, "x")).toEqual([UNREADABLE_RUN_INPUT_WARNING]);
   });

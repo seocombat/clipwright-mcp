@@ -5,7 +5,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ClipwrightClient } from "@clipwright/sdk";
 import { AI_DISCLOSURE_TEXT, PRESENTER_ENGINE_LABELS, quoteFaceless, type QuoteResponse, type RunRead } from "@clipwright/core";
 
-import { formatGetRun, RUN_RETRY_AFTER_SECONDS, RUN_WAIT_MAX_SECONDS, waitForRun } from "./format.js";
+import { formatGetRun, RUN_RETRY_AFTER_SECONDS, RUN_WAIT_MAX_SECONDS } from "./format.js";
 import { facelessQuoteMarkdown, RUN_DISPLAY_HINT, terminalRunMarkdown, ugcQuoteMarkdown } from "./run-display.js";
 import { createServer } from "./server.js";
 
@@ -38,36 +38,21 @@ async function connected() {
   return { client, close: async () => { await client.close(); await server.close(); } };
 }
 
-/** Advances fake time a second at a step until the call answers; returns the answer and the seconds it took. */
-async function answered(call: Promise<unknown>): Promise<{ result: unknown; seconds: number }> {
-  let result: unknown, done = false, seconds = 0;
-  void call.then((value) => { result = value; done = true; });
-  await vi.advanceTimersByTimeAsync(0);
-  while (!done && seconds < 120) {
-    await vi.advanceTimersByTimeAsync(1000);
-    seconds += 1;
-  }
-  return { result, seconds };
-}
-
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
-describe("get_run waits on the server (#1000)", () => {
-  /** Mutant: wait_seconds ignored, and the agent gets the queued run back and polls again. */
-  it("holds the answer until the run turns terminal on the third read", async () => {
-    const reads = [run("queued"), run("avatar"), SUCCEEDED];
-    const getRun = vi.spyOn(ClipwrightClient.prototype, "getRun").mockImplementation(async () => reads.shift() ?? SUCCEEDED);
+describe("get_run waits on the server (#1000, #1036)", () => {
+  /** Mutant: wait_seconds not passed on, and the agent gets the queued run back and polls again. */
+  it("asks the API to hold the read once and answers the run it ended with", async () => {
+    const getRun = vi.spyOn(ClipwrightClient.prototype, "getRun").mockResolvedValue(SUCCEEDED as never);
     const { client, close } = await connected();
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     try {
-      const { result, seconds } = await answered(client.callTool({ name: "get_run", arguments: { run_id: "run_wait1", wait_seconds: RUN_WAIT_MAX_SECONDS } }));
+      const result = await client.callTool({ name: "get_run", arguments: { run_id: "run_wait1", wait_seconds: RUN_WAIT_MAX_SECONDS } });
       expect(body(result)).toMatchObject({ status: "SUCCEEDED", video_url: "https://cdn.example/v.mp4", credits_charged: 350 });
       expect(body(result)).not.toHaveProperty("poll");
-      expect(getRun).toHaveBeenCalledTimes(3);
-      expect(seconds).toBeLessThan(RUN_WAIT_MAX_SECONDS);
+      expect(getRun.mock.calls).toEqual([["run_wait1", { wait_seconds: RUN_WAIT_MAX_SECONDS, signal: expect.any(AbortSignal) }]]);
     } finally {
       await close();
     }
@@ -82,53 +67,43 @@ describe("get_run waits on the server (#1000)", () => {
       expect(answer).toMatchObject({ status: "IN_PROGRESS", poll: { tool: "get_run",
         arguments: { run_id: "run_wait1", wait_seconds: RUN_WAIT_MAX_SECONDS }, retry_after_seconds: RUN_RETRY_AFTER_SECONDS } });
       expect(String(answer.next_action)).toContain("poll.arguments");
-      expect(getRun).toHaveBeenCalledTimes(1);
+      expect(getRun.mock.calls).toEqual([["run_wait1", { signal: expect.any(AbortSignal) }]]);
     } finally {
       await close();
     }
   });
 
-  /** Mutants: the deadline dropped, or a loop past it, and a client's tool timeout cuts the call. */
-  it("stops at its cap on a run that does not end, and refuses a wait above it", async () => {
+  /** Mutant: the cap dropped, and a client's tool timeout cuts a call the API would hold past it. */
+  it("refuses a wait above its cap without reading", async () => {
     const getRun = vi.spyOn(ClipwrightClient.prototype, "getRun").mockResolvedValue(run("avatar") as never);
     const { client, close } = await connected();
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     try {
-      const { result, seconds } = await answered(client.callTool({ name: "get_run", arguments: { run_id: "run_wait1", wait_seconds: RUN_WAIT_MAX_SECONDS } }));
-      expect(body(result)).toMatchObject({ status: "IN_PROGRESS", poll: { arguments: { wait_seconds: RUN_WAIT_MAX_SECONDS } } });
-      expect(seconds).toBe(RUN_WAIT_MAX_SECONDS);
-      expect(getRun.mock.calls.length).toBeGreaterThan(2);
-      expect(getRun.mock.calls.length).toBeLessThanOrEqual(1 + Math.ceil(RUN_WAIT_MAX_SECONDS / 3));
       const refused = await client.callTool({ name: "get_run", arguments: { run_id: "run_wait1", wait_seconds: RUN_WAIT_MAX_SECONDS + 1 } });
       expect(refused.isError).toBe(true);
+      expect(getRun).not.toHaveBeenCalled();
     } finally {
       await close();
     }
   });
 
-  /** Mutants: the sleep deaf to the abort, or one more read after it, and a call nobody waits for keeps reading. */
-  it("wakes at once when the caller leaves mid-wait and reads no more", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-    const left = new AbortController(), started = Date.now();
-    const read = vi.fn(async () => run("avatar"));
-    let answer: { state: string } | undefined;
-    void waitForRun(read, RUN_WAIT_MAX_SECONDS, left.signal).then((value) => { answer = value; });
-    await vi.advanceTimersByTimeAsync(100);
-    left.abort();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(answer?.state).toBe("avatar");
-    expect(Date.now() - started).toBe(100);
-    expect(read).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(RUN_WAIT_MAX_SECONDS * 1000);
-    expect(read).toHaveBeenCalledTimes(1);
-  });
-
-  it("reads once and stops when the caller left before the wait", async () => {
-    const left = new AbortController();
-    left.abort();
-    const read = vi.fn(async () => run("avatar"));
-    expect((await waitForRun(read, RUN_WAIT_MAX_SECONDS, left.signal)).state).toBe("avatar");
-    expect(read).toHaveBeenCalledTimes(1);
+  /** Mutant: the caller's signal not passed on, and a call nobody waits for keeps the API reading. */
+  it("aborts the held read when the caller cancels the call", async () => {
+    let held: AbortSignal | undefined;
+    vi.spyOn(ClipwrightClient.prototype, "getRun").mockImplementation((_id, opts) => new Promise((_resolve, reject) => {
+      held = opts?.signal;
+      held?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    }));
+    const { client, close } = await connected(), left = new AbortController();
+    try {
+      const call = client.callTool({ name: "get_run", arguments: { run_id: "run_wait1", wait_seconds: RUN_WAIT_MAX_SECONDS } }, undefined,
+        { signal: left.signal });
+      await vi.waitFor(() => expect(held).toBeDefined());
+      left.abort();
+      await expect(call).rejects.toThrow();
+      await vi.waitFor(() => expect(held?.aborted).toBe(true));
+    } finally {
+      await close();
+    }
   });
 
   /** Mutant: poll left out of a paid tool's first answer, and the agent without a shell has no call to make. */

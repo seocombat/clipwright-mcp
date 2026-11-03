@@ -18,6 +18,60 @@ listed under.
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-11-03
+
+### Added
+
+- *Server-side:* `get_account` and `GET /v1/account` carry `support_replies`: up to 10 of our replies to this
+  account's support requests and `send_feedback`, newest first. A reply to feedback carries the `feedback_id` that
+  `send_feedback` returned as its `request_id`. Clients from this release read the field; older ones ignore it.
+- *Dashboard:* Support → Your requests shows the start of each request's text, with the full text on hover or
+  expand, and our reply under each answered request.
+
+- *Server-side:* `quote_analysis` and a succeeded reference analysis carry `repeat_note`, also shown in its `display_markdown`:
+  asking again for the same asset or the same reel by its full link, in the same mode, is free and answers at once, with no
+  time limit; a short vm.tiktok.com link never repeats.
+- *Server-side:* `GET /v1/runs/{id}?wait_seconds=N` (up to 50) holds the answer until the run succeeds or fails,
+  the wait ends or the client disconnects. `getRun(id, { wait_seconds, signal })` in the SDK passes it on (#1036).
+
+### Changed
+
+- *Server-side:* `workflow.approved_plan` in `GET /v1/runs/{id}` and `get_run` leaves out `brief.reference_profile`,
+  so polling a remake no longer repeats up to 35 KB of reference analysis. What the plan does not reproduce from the
+  reference stays in `warnings`; `GET /v1/workflow-plans/{id}` returns the full current revision. The field is
+  optional, so earlier clients read the answer unchanged (#1035).
+
+- *Server-side:* An account that has not bought credits yet keeps up to 1 GB in its asset library; its first credit
+  purchase raises the ceiling to 20 GB. Assets already stored above 1 GB stay; only new ones are refused, and
+  `asset_cap_exceeded` names the account's ceiling. The 2,000-asset and 100-a-day caps are unchanged (#1009).
+- *Server-side:* a full reference analysis of a reel with on-screen graphics finishes sooner.
+
+### Fixed
+
+- MCP: the paid tools (`make_ugc`, `make_faceless`, `analyze_reference`, `generate_image`, `generate_video`,
+  `create_actor`, `create_candidate`, `revise_run`) list every input field with its type in `tools/list`. A client
+  that builds its arguments from the schema sent untyped values before, so `make_faceless` refused a numeric
+  `duration_seconds` that arrived as a string. The allowed values and the field descriptions stay on the matching
+  quote tool. The hosted server at mcp.clipwright.io has it from the day it was deployed (#1028).
+- *Server-side:* `run_workflow_plan` on the hosted MCP server no longer answers `unauthorized` to a connected app;
+  the quoted launch starts its run. With a credential callback, the SDK now passes it the `Idempotency-Key` the
+  request carries, whatever its letter case (#1027).
+- *Server-side:* `get_run` on a reference analysis or creator profile run no longer warns that the run input could
+  not be read (#1032).
+- *Dashboard:* a reference analysis run shows the analysis's own warnings word for word, the reel's link, the hook and
+  each beat with its time, words and frame; "Make it again" names the reel's link (#1032, #1033).
+- *Server-side:* a reference remake and a long `make_ugc` take a script that names a site, an email, a handle, a price,
+  a time or "24/7" (`clipwright.io`, `@brand_name`, `$29/mo`, `9:30`). Each such word counts as one word for inserts,
+  quotes and captions; the voice reads it aloud and the captions show it as written. A word glued to the next by a dash
+  or a comma without a space ("fast—really") is still refused with advice (#1029).
+- *Dashboard:* images and clips generated before 2 November get a preview in Assets instead of "Press Open to view"
+  (#1034).
+- *Dashboard:* in the editor, removing a shot gives its time to a neighbour that can take it, so a clip is never
+  stretched past its footage; a removal no neighbour can take is refused with the reason (#1037).
+- *Dashboard:* the editor names shots as the timeline does ("3 · picture") in its dialogs, issues and header, waits
+  for a save to land before opening Render, says which version the player shows, and lists every finished version
+  with its date, length and an Open link (#1038).
+
 ## [0.38.2] - 2026-11-02
 
 ### Added

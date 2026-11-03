@@ -53,6 +53,8 @@ import {
   type ReferenceAnalysisRead,
   referenceAnalysisQuery,
   type ReferenceAnalysisQuery,
+  runQuery,
+  type RunQuery,
   CREATOR_PROFILES_PATH,
   CREATOR_PROFILE_PATH,
   CREATOR_PROFILE_QUOTE_PATH,
@@ -203,6 +205,9 @@ export interface StartUgcOptions {
   /** Explicit key for an intentionally new run; overrides the computed one. */
   idempotencyKey?: string | undefined;
 }
+
+/** Options of `getRun`: the server-side wait (#1036) and a signal that cancels the read. */
+export type GetRunOptions = RunQuery & { signal?: AbortSignal | undefined };
 
 /** Options of the blocking `makeUgc`: `attempt` plus a polling deadline. */
 export interface MakeUgcOptions {
@@ -417,12 +422,12 @@ export class ClipwrightClient {
     const { signal: callerSignal, ...rest } = init ?? {};
     const timeout = AbortSignal.timeout(Math.max(this.#requestTimeoutMs, atLeastMs));
     const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout;
-    // Every caller passes headers as a record and a body as a string or bytes, so the callback sees what is sent.
+    // Every caller passes a body as a string or bytes; the key is read as `fetch` sends it, in any letter case.
     const credential = typeof this.#apiKey === "string" ? this.#apiKey : this.#apiKey({
       method: (rest.method ?? "GET").toUpperCase(),
       path,
       body: (rest.body as string | Uint8Array | null | undefined) ?? "",
-      idempotencyKey: (rest.headers as Record<string, string> | undefined)?.["Idempotency-Key"] ?? "",
+      idempotencyKey: new Headers(rest.headers).get("Idempotency-Key") ?? "",
     });
     try {
       res = await fetch(`${this.#baseUrl}${path}`, {
@@ -859,15 +864,16 @@ export class ClipwrightClient {
     await this.#request(actorItemPath(id), true, { method: "DELETE" });
   }
 
-  /** Reads a run tolerantly (`state: string`): a newer server stage must not */
-  /** break installed clients, so parsing falls back to the raw body. */
-  async getRun(runId: string): Promise<WorkflowRunRead> {
-    return this.#getRun(runId);
+  /** Reads a run tolerantly, falling back to the raw body for a newer server stage. */
+  /** `wait_seconds` (≤ 50) lets the server hold the read until the run ends; `signal` cancels it. */
+  async getRun(runId: string, opts: GetRunOptions = {}): Promise<WorkflowRunRead> {
+    const { signal, ...query } = opts;
+    return this.#getRun(runId, signal, runQuery.parse(query).wait_seconds);
   }
 
-  /** `signal` is internal only: the `makeUgc` deadline also aborts the poll. */
-  async #getRun(runId: string, signal?: AbortSignal): Promise<WorkflowRunRead> {
-    const path = `/v1/runs/${runId}`, body = await this.#request(path, false, { signal: signal ?? null });
+  async #getRun(runId: string, signal?: AbortSignal, waitSeconds?: number): Promise<WorkflowRunRead> {
+    const path = `/v1/runs/${runId}`, url = waitSeconds === undefined ? path : `${path}?wait_seconds=${waitSeconds}`;
+    const body = await this.#request(url, false, { signal: signal ?? null }, waitSeconds === undefined ? 0 : (waitSeconds + 15) * 1000);
     const parsed = tolerant(workflowRunRead).safeParse(body);
     if (parsed.success) return parsed.data;
     if (body !== null && typeof body === 'object' && 'workflow' in body) parseResponse(workflowRunIdentityRead, body, path, false);

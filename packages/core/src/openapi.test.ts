@@ -63,6 +63,13 @@ describe("the OpenAPI marking of the route registry", () => {
     }
   });
 
+  /** Mutant (#1036): the run read loses its query, and a client reading the document polls with sleeps. */
+  it("declares the run read's wait_seconds query, capped at 50", () => {
+    const parameters = (document.paths!["/v1/runs/{id}"]!.get!.parameters ?? []) as OpenAPIV3_1.ParameterObject[];
+    expect(parameters.find((parameter) => parameter.name === "wait_seconds")).toMatchObject({
+      in: "query", required: false, schema: { type: "integer", minimum: 0, maximum: 50 } });
+  });
+
   it("describes every refusal with the shared error envelope", () => {
     for (const { endpoint } of publicOpenApiRoutes()) {
       const operation = document.paths![openApiOperationPath(endpoint.path)]![endpoint.method.toLowerCase() as "get"]!;

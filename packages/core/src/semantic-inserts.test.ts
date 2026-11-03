@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { countActorShots, coverWordOf, planSemanticInserts, resolveSemanticInserts } from "./semantic-inserts.js";
-import type { WordTiming } from "./tts-backend.js";
+import { countActorShots, coverWordOf, lexicalTokens, planSemanticInserts, quoteOccurrences, resolveSemanticInserts } from "./semantic-inserts.js";
+import { charTimingsToWords, type WordTiming } from "./tts-backend.js";
 
 const SCRIPT = "one two three four five six";
 
@@ -100,5 +100,40 @@ describe("an insert window ends at the first uncovered word", () => {
 
   it("does not raise the rounding flag with the chosen frames", () => {
     expect(resolve([at(0, 1, 6)]).warnings).toEqual([]);
+  });
+});
+
+/** Mutant: split a chunk at "." "/" "_" "@" or ":", and a CTA with a site, handle, price or "24/7" is refused or its timings no longer match (#1029). */
+describe("a whitespace chunk with joined words is one spoken unit (#1029)", () => {
+  const cta = "We answer 24/7 for $29 a month: e-mail hi@clipwright.io, follow @clip_wright, or visit https://clipwright.io/pricing. Try clipwright.io today.";
+
+  it("counts a domain, handle, price, 24/7, time and hyphen word as one word each", () => {
+    expect(lexicalTokens(cta)).toEqual(["we", "answer", "24/7", "for", "29", "a", "month", "e-mail", "hi@clipwright.io", "follow", "clip_wright",
+      "or", "visit", "https://clipwright.io/pricing", "try", "clipwright.io", "today"]);
+    expect(lexicalTokens("Open 9:30 to 5, R&D and U.S. teams, $29.99 or 1,000 seats.")).toEqual(["open", "9:30", "to", "5", "r&d", "and", "u.s",
+      "teams", "29.99", "or", "1,000", "seats"]);
+  });
+
+  it("plans the script and anchors a quote that holds a domain", () => {
+    const plan = planSemanticInserts(cta, [{ insertId: "site", mediaId: "m", anchor: { quote: "Try clipwright.io" } }]);
+    expect(plan.inserts[0]).toMatchObject({ startWord: 14, endWord: 16 });
+    expect(quoteOccurrences(plan.sourceTokens, "clipwright.io")).toEqual([{ startWord: 15, endWord: 16 }]);
+    expect(quoteOccurrences(plan.sourceTokens, "clipwright io")).toEqual([]);
+  });
+
+  it("resolves the voice's per-chunk timings of the same script word for word", () => {
+    const characters = [...cta], starts = characters.map((_, at) => at * 0.05), ends = starts.map(start => start + 0.05);
+    const words = charTimingsToWords(characters, starts, ends);
+    expect(words.map(word => word.word)).toEqual(expect.arrayContaining(["24/7", "$29", "@clip_wright,", "clipwright.io"]));
+    const plan = planSemanticInserts(cta, [{ insertId: "site", mediaId: "m", anchor: { quote: "clipwright.io today" } }]);
+    const resolved = resolveSemanticInserts({ plan, words, durationSec: characters.length * 0.05 + 1, fps: FPS });
+    expect(resolved.shots.map(shot => shot.kind)).toEqual(["actor", "media"]);
+    expect(resolved.shots[1]!.fromFrame).toBe(Math.round(cta.indexOf("clipwright.io today") * 0.05 * FPS));
+  });
+
+  it("still refuses a chunk whose words a dash or comma joins", () => {
+    for (const script of ["It is fast—really fast.", "Pick red,blue or green."]) {
+      expect(() => planSemanticInserts(script, [])).toThrow(/Unsupported script tokenization/);
+    }
   });
 });

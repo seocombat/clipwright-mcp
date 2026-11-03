@@ -120,6 +120,7 @@ describe("makeUgcInput — script length gate", () => {
       "RATE_LIMIT_PAID_PER_MINUTE",
       "RATE_LIMIT_FREE_PER_MINUTE",
       "ACTOR_LIMIT_WINDOW_SECONDS", // the `create_actor` counting window: not video seconds, not money
+      "RUN_WAIT_MAX_SECONDS", // how long a run read may wait for the run to end: not video seconds, not money
       // A stored clip's length and the worker's budget to check it (clipwright#724 F2 S3): assets are free, nothing is billed by them.
       "ASSET_VIDEO_MAX_SECONDS",
       "ASSET_INGEST_TASK_MAX_DURATION_SECONDS",

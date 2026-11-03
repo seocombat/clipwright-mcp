@@ -78,7 +78,7 @@ import {
   rejectedFields,
   unknownFields,
 } from "@clipwright/core";
-import { formatGetRun, type McpToolResponse, RUN_WAIT_MAX_SECONDS, waitForRun, withFailureReport } from "./format.js";
+import { formatGetRun, type McpToolResponse, RUN_WAIT_MAX_SECONDS, withFailureReport } from "./format.js";
 import { facelessQuoteMarkdown, RUN_DISPLAY_HINT, ugcQuoteMarkdown } from "./run-display.js";
 import { registerWorkflowTools } from './workflow-tools.js';
 import { advertiseSlimTools } from "./advertised-schema.js";
@@ -231,8 +231,8 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     },
     async ({ run_id, wait_seconds }, extra) =>
       withFailureReport(async () => {
-        // Terminal shape lives in the pure `formatGetRun`: both `status` and `state`.
-        const run = await waitForRun(() => client.getRun(run_id), wait_seconds ?? 0, extra.signal);
+        // The API holds the read (#1036); the caller's cancel aborts it. Terminal shape lives in `formatGetRun`.
+        const run = await client.getRun(run_id, { ...(wait_seconds ? { wait_seconds } : {}), signal: extra.signal });
         return formatGetRun(run);
       }),
   );
@@ -364,14 +364,16 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   );
 
   // Single generations (clipwright#724): the tools are listed while the feature is closed and relay the API's refusal.
-  const generationTerms =
+  // The quote says what its input means; the paid tool points at it and says how a call is charged and repeated.
+  const generationCharge = "A generation that fails is charged nothing.";
+  const quoteTerms =
     "A reference is {upload_id, rights_confirmed: true} for a picture from upload_image or create_upload (rights_confirmed states you may use " +
     "the people and works in it), {run_id} of a succeeded generate_image run of this account until its reusable_until, " +
-    "or {asset_id} of a picture asset from create_asset, whose rights were confirmed when it was made. " +
-    "A generation that fails is charged nothing. An identical request returns the " +
+    `or {asset_id} of a picture asset from create_asset, whose rights were confirmed when it was made. ${generationCharge} ` +
+    "While generations are closed it answers generations_disabled or generations_marking_pending and charges nothing.";
+  const generationTerms = `${generationCharge} An identical request returns the ` +
     "same run it started before, so a call repeated after a lost answer starts nothing new; to make another one with the " +
-    "same request on purpose, pass attempt 2. While generations are closed it answers generations_disabled or " +
-    "generations_marking_pending and charges nothing.";
+    "same request on purpose, pass attempt 2.";
   // Strict objects: an unknown key is refused at the tool, not stripped. The clip's mode rules run in the handler.
   const imageTool = generateImageRequest, imageRunTool = generateImageRequest.extend(agentRetryShape);
   const videoTool = z.strictObject(generateVideoRequest.shape), videoRunTool = videoTool.extend(agentRetryShape);
@@ -400,7 +402,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description:
         "Price one generate_image call WITHOUT spending credits: its credits (one image at its model's unit_credits), " +
         "its width and height, and warnings. Always call this first and show the user the price before generate_image. " +
-        generationTerms,
+        quoteTerms,
       inputSchema: imageTool,
     },
     async (args) => withFailureReport(async () => ({
@@ -431,7 +433,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description:
         "Price one generate_video call WITHOUT spending credits: its credits (unit_credits per second of duration_s), " +
         "its width and height, and warnings. Always call this first and show the user the price before generate_video. " +
-        generationTerms,
+        quoteTerms,
       inputSchema: videoTool,
     },
     async (args) => withFailureReport(async () => ({
@@ -902,6 +904,8 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       "is refused with debt_outstanding whatever the balance, until the account buys credits; " +
       "with no debt, balance_credits is what a new run can spend. holds_credits are reserved for " +
       "runs still in progress and settle when they finish. grants lists unexpired credit grants. " +
+      "support_replies lists Clipwright's replies to this account's support requests and send_feedback, newest first; " +
+      "request_id is the feedback_id send_feedback returned. " +
       "quote_ugc already warns when make_ugc would be refused; this tool gives the numbers behind it.",
     inputSchema: {},
   }, async () => withFailureReport(async () => ({

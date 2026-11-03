@@ -12,6 +12,8 @@ export const ASSET_BYTES_PATH = "/v1/assets/bytes";
 export const ASSET_ITEM_PATH = "/v1/assets/:id";
 
 export const ASSET_ACCOUNT_MAX_COUNT = 2000;
+/** Storage per account: 1 GB until its first credit purchase, then 20 GB. */
+export const ASSET_TRIAL_MAX_BYTES = 1_000_000_000;
 export const ASSET_ACCOUNT_MAX_BYTES = 20_000_000_000;
 /** New assets per account over a sliding day, deleted ones included: a delete does not give the slot back. */
 export const ASSET_INGEST_DAILY_CAP = 100;
@@ -250,9 +252,20 @@ export function assetKey(accountId: string, id: string, sha256: string, mediaTyp
   return `assets/${accountId}/${id}/${sha256}.${extension}`;
 }
 
+const gigabytes = (bytes: number): string => `${bytes / 1e9} GB`;
+const STORAGE_TERMS = `${gigabytes(ASSET_TRIAL_MAX_BYTES)}, or ${gigabytes(ASSET_ACCOUNT_MAX_BYTES)} once it has bought credits`;
+
+/** The asset_cap_exceeded text: the account's own ceilings, and on a bytes refusal below 20 GB what raises it. */
+export function assetCapMessage(cap: "count" | "bytes", usage: { count: number; bytes: number }, maxBytes: number): string {
+  const raise = cap === "bytes" && maxBytes < ASSET_ACCOUNT_MAX_BYTES
+    ? ` Buying credits once raises this account's storage ceiling to ${gigabytes(ASSET_ACCOUNT_MAX_BYTES)}.` : "";
+  return `This account keeps ${usage.count} assets and ${usage.bytes} bytes; its ceiling is ${ASSET_ACCOUNT_MAX_COUNT} assets and ` +
+    `${gigabytes(maxBytes)} (${maxBytes} bytes).${raise}`;
+}
+
 export const ASSET_TOOL_TERMS =
   "Assets are free: creating, storing and using one spends no credits. An account keeps up to " +
-  `${ASSET_ACCOUNT_MAX_COUNT} assets and 20 GB, and makes up to ${ASSET_INGEST_DAILY_CAP} new ones per day.`;
+  `${ASSET_ACCOUNT_MAX_COUNT} assets and ${STORAGE_TERMS}, and makes up to ${ASSET_INGEST_DAILY_CAP} new ones per day.`;
 
 export const CREATE_ASSET_DESCRIPTION =
   "Save a picture or a clip as an asset of this account, kept until you delete it: a character, location, style, prop " +
@@ -275,7 +288,7 @@ export const LIST_ASSETS_DESCRIPTION =
   "List the assets of this account, newest first, each with a freshly signed url, its role, name, size and " +
   "content_digest; filter by role and kind, and pass next_cursor as cursor for the next page. pending lists assets " +
   "still awaiting their upload or processing, and those that failed today with the reason. usage says how much " +
-  `of the ${ASSET_ACCOUNT_MAX_COUNT} assets and 20 GB is used. Free.`;
+  `of the ${ASSET_ACCOUNT_MAX_COUNT} assets and of the storage (${STORAGE_TERMS}) is used. Free.`;
 
 export const GET_ASSET_DESCRIPTION =
   "Read one asset by asset_id with a freshly signed url (valid for an hour), its role, name, media_type, bytes, " +

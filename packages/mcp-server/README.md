@@ -223,7 +223,8 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   with `kind: "video"`), `base64`, a presigned `put`, and a local `path` on
   stdio. A clip is checked in the background: `get_asset` says when it is
   ready. Your own material needs `rights_confirmed: true` once. Free; 2000
-  assets and 20 GB per account, 100 new ones per day.
+  assets and 1 GB per account (20 GB once it has bought credits), 100 new
+  ones per day.
 - `list_assets`, `get_asset` — the account's assets with fresh urls and the
   usage of the caps. Free.
 - `update_asset` — rename an asset or change its role. Free.

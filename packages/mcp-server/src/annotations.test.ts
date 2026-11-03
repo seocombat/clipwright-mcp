@@ -93,14 +93,17 @@ it("the generation tools name their price unit, a free failure, rights_confirmed
     expect(described("list_generation_models")?.description).toContain("credits per image, or per second of a clip");
     expect(described("generate_image")?.description).toContain("credits per image");
     expect(described("generate_video")?.description).toContain("unit_credits per second of duration_s");
-    for (const name of ["quote_image", "generate_image", "quote_video", "generate_video"]) {
+    // The quote says what the input means and when the tools are closed; the paid tool points at it and says how a call repeats (#1028).
+    for (const name of ["quote_image", "quote_video"]) {
       const tool = described(name);
-      expect(tool?.description, name).toContain("A generation that fails is charged nothing. An identical request");
+      expect(tool?.description, name).toContain("A generation that fails is charged nothing.");
       expect(tool?.description, name).toContain("rights_confirmed: true");
-      expect(tool?.description, name).toContain("An identical request returns the same run it started before");
       expect(tool?.description, name).toContain("generations_disabled");
     }
     for (const name of ["generate_image", "generate_video"]) {
+      expect(described(name)?.description, name).toMatch(new RegExp(`^Input: the same fields as ${name.replace("generate", "quote")}, plus attempt\\. `));
+      expect(described(name)?.description, name).toContain("A generation that fails is charged nothing. An identical request");
+      expect(described(name)?.description, name).toContain("An identical request returns the same run it started before");
       expect(Object.keys(described(name)?.inputSchema.properties ?? {}), name).toContain("attempt");
       expect(described(name)?.description, name).toContain(`Call ${name.replace("generate", "quote")} first and show the user the price.`);
     }

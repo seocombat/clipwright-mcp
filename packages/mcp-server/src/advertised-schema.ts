@@ -23,7 +23,7 @@ export const COPIED_FIELDS: Record<string, Record<string, string>> = {
 };
 /** Field descriptions keep their first sentences up to this many characters; deeper ones keep fewer. */
 export const FIELD_DESCRIPTION_CHARS = 160;
-export const NESTED_DESCRIPTION_CHARS = 80;
+export const NESTED_DESCRIPTION_CHARS = 60;
 /** Tools whose field descriptions stay whole: quote_ugc's carry the templates catalog, the snap rule and the script limits. */
 export const WHOLE_FIELD_DESCRIPTIONS = new Set(["quote_ugc"]);
 
@@ -58,7 +58,7 @@ function walk(node: Schema, depth: number, visit: (node: Schema, depth: number) 
 const withoutDescriptions = (schema: unknown): string =>
   JSON.stringify(schema, (key, value: unknown) => (key === "description" && typeof value === "string") || key === "$schema" ? undefined : value);
 
-/** The paid tools whose input is their free quote's plus a few fields; the quote, read first, keeps the schema. */
+/** The paid tools whose input is their free quote's plus a few fields; the quote, read first, keeps the field descriptions. */
 export const PAID_TWINS: Record<string, string> = {
   make_ugc: "quote_ugc", revise_run: "quote_revision", generate_video: "quote_video", generate_image: "quote_image",
   create_actor: "quote_actor", make_faceless: "quote_faceless", create_candidate: "quote_candidate", analyze_reference: "quote_analysis",
@@ -133,6 +133,20 @@ export function hoistRepeats(schema: Schema, keep: ReadonlySet<Schema> = new Set
   return Object.keys(defs).length === 0 ? root : { ...root, $defs: defs };
 }
 
+/** A twin's field as its types only, so a client building the call sends the right types; the quote describes it and lists its values. */
+export function typeShape(field: unknown): unknown {
+  if (!isSchema(field)) return field;
+  const shape: Schema = {};
+  for (const keyword of ["type", "format"]) if (keyword in field) shape[keyword] = field[keyword];
+  if (isSchema(field.items)) shape.items = typeShape(field.items);
+  // oneOf turns anyOf: branches stripped of what told them apart could match a value twice.
+  const branches = ["anyOf", "oneOf"].flatMap(keyword => (Array.isArray(field[keyword]) ? (field[keyword] as unknown[]) : []).map(typeShape));
+  const distinct = [...new Map(branches.map(branch => [JSON.stringify(branch), branch])).values()];
+  if (distinct.length === 1 && Object.keys(shape).length === 0) return distinct[0];
+  if (distinct.length > 0) shape.anyOf = distinct;
+  return shape;
+}
+
 /** A paid twin's description starts by naming the quote whose fields it takes. */
 const withTwinNote = (description: string, twin: { of: string; plus: string[] }): string =>
   `Input: the same fields as ${twin.of}${twin.plus.length === 0 ? "" : `, plus ${twin.plus.join(", ")}`}. ${description}`.trim();
@@ -156,7 +170,7 @@ function advertise(tools: readonly Tool[]): Tool[] {
   }
   return tools.map(tool => {
     const twin = twins.get(tool.name);
-    let schema = structuredClone(tool.inputSchema) as Schema;
+    const schema = structuredClone(tool.inputSchema) as Schema;
     // A pointer is the field's only description, so no dedup, cut or $defs move touches it.
     const pointers = new Set<Schema>();
     for (const [path, description] of Object.entries(COPIED_FIELDS[tool.name] ?? {})) {
@@ -165,11 +179,10 @@ function advertise(tools: readonly Tool[]): Tool[] {
       pointers.add(node);
       put(container, key, node);
     }
-    if (twin !== undefined) {
-      // Open at the root: the quote's fields are named there, and the server parses this call against the full schema.
-      const fields = isSchema(schema.properties) ? schema.properties : {};
-      schema = { type: "object", properties: Object.fromEntries(twin.plus.map(key => [key, fields[key]])),
-        ...(schema.required === undefined ? {} : { required: schema.required }) };
+    if (twin !== undefined && isSchema(schema.properties)) {
+      schema.properties = Object.fromEntries(Object.entries(schema.properties).map(([key, field]) => [key, typeShape(field)]));
+      // Open at the root to save bytes: the server parses the call against the full schema and names an unknown field.
+      delete schema.additionalProperties;
     }
     delete schema.$schema;
     const own = new Set<string>();

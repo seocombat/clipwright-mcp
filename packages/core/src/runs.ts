@@ -202,3 +202,12 @@ export function runMoney(read: Pick<RunRead, RunMoneyField>): Pick<RunRead, RunM
 export function isTerminal(state: string): boolean {
   return (TERMINAL_STATES as readonly string[]).includes(state);
 }
+
+/** The longest `GET /v1/runs/{id}` holds its answer (#1036), inside an agent's usual 60 s tool timeout. */
+export const RUN_WAIT_MAX_SECONDS = 50;
+/** The query of `GET /v1/runs/{id}`; other query fields stay ignored, as they were before it had one. */
+export const runQuery = z.object({
+  wait_seconds: z.coerce.number().int().min(0).max(RUN_WAIT_MAX_SECONDS).optional()
+    .describe(`Wait up to this many seconds (at most ${RUN_WAIT_MAX_SECONDS}) for the run to succeed or fail before answering.`),
+});
+export type RunQuery = z.infer<typeof runQuery>;

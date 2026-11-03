@@ -48,7 +48,8 @@ function tokenize(text: string): string[] {
   const normalized = text.normalize("NFD").toLowerCase()
     .replace(/([аеиоуыэюя]\u0308?)\u0301/gu, "$1").normalize("NFC")
     .replace(/[’ʼ]/gu, "'");
-  return normalized.match(/[\p{L}\p{N}][\p{L}\p{N}\p{M}]*(?:['-][\p{L}\p{N}][\p{L}\p{N}\p{M}]*|[.,](?<=\p{N}[.,])\p{N}+)*/gu) ?? [];
+  // Joiners keep a site, handle, "24/7" or "9:30" one word, as the voice's timings are one per whitespace chunk (#1029).
+  return normalized.match(/[\p{L}\p{N}][\p{L}\p{N}\p{M}]*(?:[-'./_@:&+]+[\p{L}\p{N}][\p{L}\p{N}\p{M}]*|,(?<=\p{N},)\p{N}+)*/gu) ?? [];
 }
 
 /** The words of `text` as quotes and anchors count them. */

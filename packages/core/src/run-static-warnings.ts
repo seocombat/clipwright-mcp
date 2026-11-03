@@ -2,6 +2,8 @@ import { z } from "zod";
 import { buildFacelessVoiceWarnings } from "./faceless-voices.js";
 import { compositionVersionOf, parseSkill, resolvedScript, storedUgcInput, type MakeUgcInput } from "./skills.js";
 import { storedCreateActorInput } from "./account-actors.js";
+import { ANALYZE_CREATOR_SKILL } from "./creator-profile.js";
+import { ANALYZE_REFERENCE_SKILL } from "./reference-analysis.js";
 import { dispositionWarnings, legacyCaptionWarnings } from "./contract-dispositions.js";
 import { buildSpeechModelWarnings, buildVoiceWarnings, TTS_MODELS, ttsModelBeforeV4Default } from "./voices.js";
 import { buildActorGenderWarnings, buildVoiceActorMatchWarnings, presenterViewWarnings, renderedPresenterFraming, type Gender } from "./actors.js";
@@ -74,6 +76,8 @@ export function derivedRunWarnings(
   skill: string,
   voiceGenderOf: VoiceGenderResolver,
 ): string[] {
+  // An analysis and a creator profile are runs outside `SKILLS`: their own row writes their warnings (#1032).
+  if (skill === ANALYZE_REFERENCE_SKILL || skill === ANALYZE_CREATOR_SKILL) return [];
   const parsed = parseSkill(skill);
   switch (parsed) {
     case "make_ugc":

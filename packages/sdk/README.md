@@ -91,8 +91,11 @@ Workflow refusals retain every structured issue and warning in `failure` and
 `report()`, with kinds `workflow_invalid`, `workflow_conflict` or
 `workflow_not_ready` and no automatic retry.
 
-`getRun` includes optional `workflow` evidence: the immutable receipt and
-`approved_plan`, native state/warnings, `actual_output`, `asset_placements`,
+`getRun(id, { wait_seconds })` lets the server hold the read for up to 50
+seconds until the run succeeds or fails; `signal` cancels it.
+It includes optional `workflow` evidence: the immutable receipt and
+`approved_plan` (the purchased document without `brief.reference_profile`, whose
+gaps are in `warnings`; `getWorkflowPlan` returns the full current revision), native state/warnings, `actual_output`, `asset_placements`,
 advisory beat dispositions and validation issues. Verified native faceless
 settlement can prove the artifact digest, format and measured duration without
 later optional geometry. Placement proof needs an intact owned checkpoint;

@@ -49,14 +49,42 @@ describe.each([["stdio", { fileAccess: "local" }], ["hosted", { fileAccess: "ref
 
   it("keeps every tool, title, hint, field name and required field of the SDK's list", async () => {
     const [raw, advertised] = [await rawTools(options), await listTools(options)];
-    const byName = new Map(advertised.map(tool => [tool.name, tool]));
-    // An advertised paid twin's fields are its quote's, then its own.
-    const quoteFields = (tool: Tool) => byName.get(PAID_TWINS[tool.name] ?? "")?.inputSchema.properties ?? {};
-    const outline = (tools: Tool[], viaQuotes: boolean) => tools.map(tool => ({ name: tool.name, title: tool.title, annotations: tool.annotations,
-      fields: Object.keys({ ...(viaQuotes ? quoteFields(tool) : {}), ...tool.inputSchema.properties }), required: tool.inputSchema.required ?? [] }));
+    const outline = (tools: Tool[]) => tools.map(tool => ({ name: tool.name, title: tool.title, annotations: tool.annotations,
+      fields: Object.keys(tool.inputSchema.properties ?? {}), required: tool.inputSchema.required ?? [] }));
     expect(raw).toHaveLength(48);
-    expect(outline(advertised, true)).toEqual(outline(raw, false));
+    expect(outline(advertised)).toEqual(outline(raw));
     expect(advertised).toEqual(advertisedTools(raw));
+  });
+
+  /** #1028: a client building the call from the schema stringified a twin's untyped number, and the server refused it. */
+  it("gives every field of every tool the types of the SDK's schema, and its values unless its quote lists them", async () => {
+    const [raw, advertised] = [await rawTools(options), await listTools(options)];
+    type Node = Record<string, unknown>;
+    const resolve = (root: Node, node: Node): Node => typeof node.$ref === "string"
+      ? resolve(root, node.$ref.replace(/^#\//, "").split("/").reduce<Node>((at, key) => at[key] as Node, root)) : node;
+    // A field's accepted variants: its own type (and values), then each alternative's, whichever of anyOf and oneOf holds them.
+    const shape = (root: Node, value: unknown, values: boolean): string[] => {
+      const node = resolve(root, value as Node);
+      const own = { type: node.type, format: node.format, ...(values ? { enum: node.enum, const: node.const } : {}),
+        items: node.items === undefined ? undefined : shape(root, node.items, values) };
+      const branches = [...(node.anyOf as unknown[] | undefined ?? []), ...(node.oneOf as unknown[] | undefined ?? [])];
+      const mine = Object.values(own).some(entry => entry !== undefined) || branches.length === 0 ? [JSON.stringify(own)] : [];
+      return [...new Set([...mine, ...branches.flatMap(branch => shape(root, branch, values))])].sort();
+    };
+    const fields = (tools: Tool[], values: (tool: string) => boolean) => tools.flatMap(tool => Object.entries(tool.inputSchema.properties ?? {})
+      .map(([field, schema]) => [`${tool.name}.${field}`, shape(tool.inputSchema as Node, schema, values(tool.name))] as const));
+    const expected = fields(raw, name => !(name in PAID_TWINS));
+    expect(expected.length).toBeGreaterThan(200);
+    expect(Object.fromEntries(fields(advertised, name => !(name in PAID_TWINS)))).toEqual(Object.fromEntries(expected));
+    // A paid tool's values a client must pick from are on its quote, as the paid tool accepts them.
+    const byName = (tools: Tool[]) => new Map(tools.map(tool => [tool.name, tool]));
+    const [rawTool, listed] = [byName(raw), byName(advertised)];
+    const quoteValues = Object.entries(PAID_TWINS).flatMap(([paid, quote]) => Object.keys(listed.get(quote)!.inputSchema.properties ?? {}).map(field => {
+      const [own, theirs] = [rawTool.get(paid)!.inputSchema, listed.get(quote)!.inputSchema] as Node[];
+      return [`${paid}.${field}`, shape(theirs!, (theirs!.properties as Node)[field], true), shape(own!, (own!.properties as Node)[field], true)];
+    }));
+    expect(quoteValues.filter(([, quote]) => JSON.stringify(quote).includes('\\"enum\\":')).length).toBeGreaterThan(10);
+    expect(quoteValues.map(([key, quote]) => [key, quote])).toEqual(quoteValues.map(([key, , paid]) => [key, paid]));
   });
 
   it("resolves every $ref inside its own tool", async () => {
@@ -75,7 +103,7 @@ describe.each([["stdio", { fileAccess: "local" }], ["hosted", { fileAccess: "ref
   });
 });
 
-it("advertises each paid tool through its free quote, naming the quote first and the extra fields with their schemas", async () => {
+it("advertises each paid tool through its free quote, naming the quote first and the extra fields", async () => {
   const raw = await rawTools({ fileAccess: "refuse" });
   const twins = Object.fromEntries([...findTwins(raw)].map(([name, twin]) => [name, `${twin.of} +${twin.plus.join(",")}`]));
   expect(twins).toEqual({ make_ugc: "quote_ugc +attempt", revise_run: "quote_revision +attempt", generate_video: "quote_video +attempt",
@@ -85,8 +113,9 @@ it("advertises each paid tool through its free quote, naming the quote first and
   for (const [paid, quote] of Object.entries(PAID_TWINS)) {
     const tool = advertised.find(entry => entry.name === paid)!;
     expect(tool.description, paid).toMatch(new RegExp(`^Input: the same fields as ${quote}[,.] `));
-    expect(tool.inputSchema.additionalProperties, paid).toBeUndefined();
-    for (const field of Object.keys(tool.inputSchema.properties ?? {})) expect(tool.inputSchema.properties![field], `${paid}.${field}`).toHaveProperty("type");
+    const texts: unknown[] = [];
+    JSON.stringify(tool.inputSchema, (key, value: unknown) => { if (key === "description" && typeof value === "string") texts.push(value); return value; });
+    expect(texts, paid).toEqual([]);
   }
 });
 

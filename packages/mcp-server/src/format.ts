@@ -1,40 +1,13 @@
-import { FAILED_STATE, isTerminal, runMoney, VIDEO_URL_CHECK } from "@clipwright/core";
+import { FAILED_STATE, isTerminal, RUN_WAIT_MAX_SECONDS, runMoney, VIDEO_URL_CHECK } from "@clipwright/core";
 import type { WorkflowRunRead, WorkflowLaunchRead } from '@clipwright/core/workflows';
 import { ClipwrightApiError } from "@clipwright/sdk";
 
 import { RUN_DISPLAY_HINT, terminalRunMarkdown } from "./run-display.js";
 
-/** The longest a `get_run` holds its answer, inside an agent's usual 60 s tool timeout. */
-export const RUN_WAIT_MAX_SECONDS = 50;
-/** A waiting `get_run` reads the run this often. */
-export const RUN_WAIT_STEP_MS = 3000;
+/** The longest a `get_run` holds its answer; the API holds it (#1036). */
+export { RUN_WAIT_MAX_SECONDS };
 /** When an agent that cannot hold the read reads an unfinished run again. */
 export const RUN_RETRY_AFTER_SECONDS = 5;
-
-/** Reads the run until it is terminal, the wait ends or the caller leaves. */
-export async function waitForRun(read: () => Promise<WorkflowRunRead>, waitSeconds: number, signal?: AbortSignal): Promise<WorkflowRunRead> {
-  const until = Date.now() + waitSeconds * 1000;
-  let run = await read();
-  while (!isTerminal(run.state) && Date.now() < until && !signal?.aborted) {
-    await pause(Math.min(RUN_WAIT_STEP_MS, until - Date.now()), signal);
-    if (signal?.aborted) break;
-    run = await read();
-  }
-  return run;
-}
-
-/** A sleep that ends early when the caller leaves. */
-function pause(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const done = () => {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", done);
-      resolve();
-    };
-    const timer = setTimeout(done, ms);
-    signal?.addEventListener("abort", done, { once: true });
-  });
-}
 
 /** MCP tool response: content blocks. The index signature matches the SDK's */
 /** `CallToolResult`; without it the handler does not type-check. */

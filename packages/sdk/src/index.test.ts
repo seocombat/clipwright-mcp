@@ -197,6 +197,20 @@ describe("ClipwrightClient — an explicit clientId and a credential per request
     await client.listVoices({ language: "en" });
     expect(seen[1]).toEqual({ method: "GET", path: "/v1/voices?language=en", body: "", idempotencyKey: "" });
   });
+
+  // #1027: the workflow launch passes its key in lower case; the signed key must still be the one sent.
+  it("the callback sees the key a workflow launch sends", async () => {
+    const seen: string[] = [];
+    let sent: string | null = null;
+    globalThis.fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      sent = new Headers(init?.headers).get("Idempotency-Key");
+      return new Response("{}", { status: 401 });
+    }) as unknown as typeof fetch;
+    const client = new ClipwrightClient({ apiKey: (request) => { seen.push(request.idempotencyKey); return "cwm_x"; }, baseUrl: "http://x" });
+    await expect(client.runWorkflowPlan("wfp_1", { revision: 1, content_digest: "a".repeat(64),
+      semantic_input_digest: "b".repeat(64), quote_id: "wq_1", idempotency_key: "launch-key" })).rejects.toThrow();
+    expect([sent, seen]).toEqual(["launch-key", ["launch-key"]]);
+  });
 });
 
 describe("ClipwrightClient.makeUgc — attempt suffix", () => {
@@ -367,7 +381,8 @@ describe("ClipwrightClient.getAccount", () => {
 
     const client = new ClipwrightClient({ apiKey: "cw_test", baseUrl: "http://x" });
 
-    expect(await client.getAccount()).toEqual(body);
+    // A server older than #1008 sends no support_replies; the client reads it as an empty list.
+    expect(await client.getAccount()).toEqual({ ...body, support_replies: [] });
     expect(requestedPath).toBe("http://x/v1/account");
     expect(requestedMethod).toBe("GET");
   });
@@ -1156,5 +1171,40 @@ describe("ClipwrightClient — an expired deadline aborts the request itself", (
     // Each request has its own timeout; outside `makeUgc` there is no call deadline.
     expect((outcome as { error: unknown }).error).toMatchObject({ name: "TimeoutError" });
     expect(Date.now() - started).toBeLessThan(3000);
+  });
+});
+
+describe("ClipwrightClient.getRun — the server holds the read (#1036)", () => {
+  /** A fetch that answers after `delayMs` unless its signal aborts first; records what it was asked. */
+  function heldFetch(delayMs: number) {
+    const seen: { url: string; signal: AbortSignal }[] = [];
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      seen.push({ url, signal: init.signal as AbortSignal });
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, delayMs);
+        init.signal?.addEventListener("abort", () => { clearTimeout(timer); reject(init.signal?.reason); }, { once: true });
+      });
+      return new Response(JSON.stringify(runBody("succeeded", "run_1")), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    return seen;
+  }
+
+  /** Mutants: wait_seconds not sent, or the held read cut at requestTimeoutMs while the server still holds it. */
+  it("sends wait_seconds and gives the request the wait on top of its own timeout", async () => {
+    const seen = heldFetch(400);
+    const client = new ClipwrightClient({ apiKey: "cw_test", baseUrl: "http://held.invalid", requestTimeoutMs: 200 });
+    expect((await client.getRun("run_1", { wait_seconds: 1 })).state).toBe("succeeded");
+    expect(seen.map((call) => call.url)).toEqual(["http://held.invalid/v1/runs/run_1?wait_seconds=1"]);
+  });
+
+  it("cancels the held read when the caller's signal aborts, and refuses a wait above 50 before sending", async () => {
+    const seen = heldFetch(5000), left = new AbortController();
+    const client = new ClipwrightClient({ apiKey: "cw_test", baseUrl: "http://held.invalid" });
+    const read = client.getRun("run_1", { wait_seconds: 50, signal: left.signal });
+    setTimeout(() => left.abort(), 50);
+    await expect(read).rejects.toMatchObject({ name: "AbortError" });
+    expect(seen[0]?.signal.aborted).toBe(true);
+    await expect(client.getRun("run_1", { wait_seconds: 51 })).rejects.toThrow();
+    expect(seen).toHaveLength(1);
   });
 });

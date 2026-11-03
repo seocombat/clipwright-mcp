@@ -553,27 +553,33 @@ describe('a compiled plan always gets a quote on the long-form path (reference-u
         }
     });
 
-    /** Mutant: skip the word check, and a "24/7" or break-tag script compiles to a plan the long-form quote refuses (M10). */
+    /** Mutant: skip the word check, and a "fast—really" or break-tag script compiles to a plan the long-form quote refuses (M10). */
     it('refuses at script a script the long-form path cannot count word by word, and says how to write it', () => {
-        const slashed = 'We answer 24/7. Every call gets booked.', tagged = 'Call us today. <break time="1.0s" /> We answer every call.';
+        const slashed = 'We are fast—really fast. Every call gets booked.', tagged = 'Call us today. <break time="1.0s" /> We answer every call.';
         const refusal = (script: string) => compileReferenceRemake(request({ script }), capabilities(['long_form']));
         for (const script of [slashed, tagged]) {
             expect(compileReferenceRemake(request({ script }), capabilities()).kind).toBe('compiled');
             expect(refusal(script)).toMatchObject({ kind: 'invalid', issues: [{ kind: 'invalid_request', path: 'script' }] });
         }
         const message = (script: string) => (refusal(script) as { issues: { message: string }[] }).issues[0]!.message;
-        expect(message(slashed)).toContain('Write "24/7" as separate words, as "24/7" becomes "twenty-four seven" or "around the clock"');
+        expect(message(slashed)).toContain('Write "fast—really" as separate words, as "fast—really" becomes "fast — really"');
         expect(message(tagged)).toContain('Remove the break tags');
         for (const [script, symbol] of [['It costs $ 29 a month.', '$'], ['Missed a call 📞 again?', '📞'], ['AI + you wins.', '+']] as const) {
             expect(message(script)).not.toContain('undefined');
             expect(message(script)).toContain(`Write "${symbol}" as a word or remove it`);
         }
-        const both = message('Call us today. <break time="1.0s" /> We answer 24/7.');
+        const both = message('Call us today. <break time="1.0s" /> We pick red,blue.');
         expect(both).toContain('Remove the break tags');
-        expect(both).toContain('Write "24/7" as separate words');
-        const two = message('It costs $ 29 and runs 24/7.');
+        expect(both).toContain('Write "red,blue" as separate words');
+        const two = message('It costs $ 29 and runs fast—really.');
         expect(two).toContain('Write "$" as a word or remove it');
-        expect(two).toContain('Write "24/7" as separate words');
+        expect(two).toContain('Write "fast—really" as separate words');
+    });
+
+    /** Mutant: split a chunk at its joiners, and a CTA naming a site, handle, price or "24/7" is refused on the long-form path (#1029). */
+    it('compiles a long-form remake whose script names a site, a handle, a price and 24/7', () => {
+        const script = 'We answer 24/7. Plans start at $29 a month. Follow @clip_wright. Try it free at clipwright.io.';
+        expect(compileReferenceRemake(request({ script }), capabilities(['long_form'])).kind).toBe('compiled');
     });
 
     /** Mutant: leave inserts out of the broll check, and an inserts-only remake with the client's picture is refused at quote. */
@@ -747,9 +753,13 @@ describe('the live remake of a nine-beat reel (#884)', () => {
     it('cuts the site out of the end card\'s call to action, spoken or written', () => {
         const spoken = live().input.templates!.find(item => item.kind === 'end_card')!;
         expect(spoken.data).toEqual({ site: 'clipwright.io', cta: 'Try it free' });
-        // The long-form path refuses "clipwright.io" as one chunk; the single-take path takes it.
-        const script = LIVE_SCRIPT.replace('clipwright dot io', 'clipwright.io');
-        expect(live(undefined, script, []).input.templates!.find(item => item.kind === 'end_card')!.data).toEqual({ site: 'clipwright.io', cta: 'Try it free' });
+        // Both paths take a written site as one word (#1029).
+        for (const site of ['clipwright.io', 'https://www.clipwright.io']) {
+            const script = LIVE_SCRIPT.replace('clipwright dot io', site);
+            for (const features of [undefined, []]) {
+                expect(live(undefined, script, features).input.templates!.find(item => item.kind === 'end_card')!.data).toEqual({ site: 'clipwright.io', cta: 'Try it free' });
+            }
+        }
         // Codex r1: every trailing preposition goes, and a site that opens the clause leaves no call to action.
         const card = (close: string) => live(undefined, LIVE_SCRIPT.replace('Try it free at clipwright dot io.', close)).input.templates!
             .find(item => item.kind === 'end_card')!.data;

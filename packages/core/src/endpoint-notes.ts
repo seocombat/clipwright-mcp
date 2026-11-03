@@ -23,7 +23,7 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "GET /v1/voices": "Voices you can name in voice or voice_id for make_ugc; skill=make_faceless lists the narration voices of make_faceless instead.",
   "GET /v1/template-sounds":
     "The sounds make_ugc templates play, by beat: where each beat plays, its default and every name template_sounds takes. Free.",
-  "GET /v1/account": "Balance, debt and holds of the account behind the key.",
+  "GET /v1/account": "Balance, debt and holds of the account behind the key, and our replies to its support requests and feedback.",
   "POST /v1/feedback":
     `Tells us what is missing, confusing, wrong or slow, optionally about a run of this account; we read every one. Free. The same kind, text and run within 24 hours answer the same feedback_id; ${FEEDBACK_PER_HOUR} per hour.`,
   "GET /v1/public/skills": "Catalogue of skills and their input, without a key.",
@@ -61,7 +61,7 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "GET /v1/uploads/{id}":
     "One upload with a freshly signed url and its usable_until. After a presigned PUT it confirms the file: upload_not_finished until it is there, upload_expired after 24 hours. Free.",
   "POST /v1/assets":
-    "Saves a picture as an account asset, kept until you delete it: from a run_id, an upload_id, a public https url or base64. Your own material needs rights_confirmed: true, or analysis_only: true for a reference kept for analyze_reference alone, which no render or generation takes. 2000 assets and 20 GB per account, 100 new ones per day. Free.",
+    "Saves a picture as an account asset, kept until you delete it: from a run_id, an upload_id, a public https url or base64. Your own material needs rights_confirmed: true, or analysis_only: true for a reference kept for analyze_reference alone, which no render or generation takes. 2000 assets and 1 GB per account, 20 GB once it has bought credits, 100 new ones per day. Free.",
   "POST /v1/assets/bytes":
     "Saves the PNG or JPEG in the body (up to 10 MB) as an asset; role, name and rights_confirmed=true (or analysis_only=true, for analyze_reference alone) travel in the query. Free.",
   "GET /v1/assets":

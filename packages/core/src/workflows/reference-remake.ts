@@ -183,7 +183,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
                 ...new RegExp(BREAK_TAG_SOURCE).test(script) ? ['Remove the break tags; commas and full stops set the pauses'] : [],
                 ...bad.map(chunk => lexicalTokens(chunk).length === 0
                     ? `Write "${chunk}" as a word or remove it, as "$" becomes "dollars"`
-                    : `Write "${chunk.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')}" as separate words, as "24/7" becomes "twenty-four seven" or "around the clock"`),
+                    : `Write "${chunk.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')}" as separate words, as "fast—really" becomes "fast — really"`),
             ];
             const fix = fixes.join('. ');
             return { kind: 'invalid', issues: [{ kind: 'invalid_request', path: 'script', message: `${error instanceof Error ? error.message : 'Unsupported script'}. ` +
@@ -464,9 +464,10 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
             }
             case 'end_card': {
                 // The card prints the site itself: the label stops before it, spoken ("x dot io") or written, and drops the preposition left over.
-                const site = lexicalTokens(request.site ?? '').filter(part => !['www', 'http', 'https'].includes(part));
-                const named = (at: number) => site.length > 0 && words.slice(at, at + 2 * site.length).map(word => word.token).filter(token => token !== 'dot')
-                    .slice(0, site.length).join(' ') === site.join(' ');
+                const parts = (text: string) => lexicalTokens(text.replace(/[./_@:&+]+/gu, ' ')).filter(part => !['www', 'http', 'https'].includes(part));
+                const site = parts(request.site ?? '');
+                const named = (at: number) => site.length > 0 && words.slice(at, at + 2 * site.length).flatMap(word => parts(word.token))
+                    .filter(token => token !== 'dot').slice(0, site.length).join(' ') === site.join(' ');
                 const until = Array.from({ length: first.end - first.start }, (_, at) => first.start + at).find(named) ?? first.end;
                 const cta = until > first.start ? label(first.start, until, 48)?.replace(/\s+(at|on|via|from|to)$/iu, '') || undefined : undefined;
                 return request.site ? { kind, data: { site: request.site, ...(cta ? { cta } : {}) } } : textCard('no site: pass site');

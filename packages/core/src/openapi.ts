@@ -28,7 +28,7 @@ import { PUBLIC_API_BASE_URL, PUBLIC_APP_BASE_URL } from "./public-endpoints.js"
 import { healthResponse, publicSkillsResponse } from "./public-responses.js";
 import { analysisQuoteResponse, analyzeReferenceRequest, referenceAnalysis, referenceAnalysisId, referenceAnalysisQuery } from "./reference-analysis.js";
 import { analyzeCreatorRequest, creatorProfileAnswer, creatorProfileId, creatorProfileQuery, creatorProfileQuote } from "./creator-profile.js";
-import { runId } from "./runs.js";
+import { runId, runQuery } from "./runs.js";
 import { quoteResponse } from "./skills.js";
 import { templateSoundsList } from "./templates/sounds.js";
 import {
@@ -117,7 +117,7 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
   "GET /v1/account": { exposure: "public", operationId: "getAccount", tag: "Account", responses: { 200: named("Account", account) } },
   "POST /v1/skills/make_ugc/quote": { exposure: "public", operationId: "quoteMakeUgc", tag: "Skills",
     body: MakeUgcInput, responses: { 200: named("UgcQuote", quoteResponse) } },
-  "GET /v1/runs/{id}": { exposure: "public", operationId: "getRun", tag: "Runs", params: RUN, responses: { 200: Run } },
+  "GET /v1/runs/{id}": { exposure: "public", operationId: "getRun", tag: "Runs", params: RUN, query: runQuery, responses: { 200: Run } },
   "GET /v1/runs/{id}/shots": { exposure: "public", operationId: "getRunShots", tag: "Runs", params: RUN,
     responses: { 200: named("RunShots", runShots) } },
   "GET /v1/runs/{id}/edit": { exposure: "public", operationId: "getRunEdit", tag: "Runs", params: RUN, responses: { 200: named("RunEdit", runEdit) } },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FACELESS_TEMPLATE_MEDIA_REFUSAL, facelessStoredInput, makeFacelessInput, offeredFacelessInput } from "./faceless-public.js";
+import { facelessStoredInput, makeFacelessInput, offeredFacelessInput } from "./faceless-public.js";
 import { quoteFaceless } from "./faceless-price.js";
 
 // #1113: make_faceless takes templates on its script's words, as make_ugc does.
@@ -37,13 +37,14 @@ describe("make_faceless templates", () => {
     expect(plain).not.toHaveProperty("sceneCredits");
   });
 
-  /** Mutant: accept a slot of the customer's media, and the run is admitted with a picture it cannot fetch. */
-  it("refuses a template slot that shows the customer's picture or clip, before money", () => {
+  /** Mutant: refuse a slot of the customer's media again, and a template cannot show the product; or let a body carry the pins the server writes. */
+  it("takes a template slot that shows the customer's picture, and stores pins only from the server", () => {
     const grid = { id: "g1", kind: "compare", anchor: { quote: "track one number" },
       data: { before: { asset_id: `ast_${"a".repeat(32)}` }, after: { asset_id: `ast_${"b".repeat(32)}` }, reveal_at: "number" } };
-    const refused = makeFacelessInput.safeParse({ ...script, templates: [grid] });
-    expect(refused.success).toBe(false);
-    expect(refused.error!.issues.filter(issue => issue.message === FACELESS_TEMPLATE_MEDIA_REFUSAL).map(issue => issue.path))
-      .toEqual([["templates", 0, "data", "before"], ["templates", 0, "data", "after"]]);
+    expect(makeFacelessInput.safeParse({ ...script, templates: [grid] }).success).toBe(true);
+    const pin = { insert_id: "g1", slot: "before", asset_id: `ast_${"a".repeat(32)}`, key: "assets/k.png", sha256: "c".repeat(64), bytes: 10, kind: "image",
+      media_type: "image/png", width: 100, height: 100 };
+    expect(makeFacelessInput.safeParse({ ...script, templates: [grid], insert_assets: [pin] }).success).toBe(false);
+    expect(facelessStoredInput.safeParse({ ...script, templates: [grid], insert_assets: [pin] }).success).toBe(true);
   });
 });

@@ -30,7 +30,6 @@ export function isMusicEnabled(env: Record<string, string | undefined> = typeof 
 }
 
 export const MUSIC_DISABLED_MESSAGE = "music is not available right now; omit it";
-export const FACELESS_MUSIC_REFUSAL = "music is not available for make_faceless right now; omit it, or ask make_ugc for it";
 
 /** A delivered video that asked for music and carries none says why, and the music is not charged. */
 export function musicNotAddedWarning(reason: string): string {

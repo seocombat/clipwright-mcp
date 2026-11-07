@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FACELESS_SHOTS_BRIEF_REFUSAL, facelessStoredInput, makeFacelessInput, offeredFacelessInput, offeredFacelessInputShape } from "./faceless-public.js";
 import { FACELESS_MAX_SHOTS, FACELESS_SHOT_CREDITS_PER_SECOND, quoteFaceless } from "./faceless-price.js";
-import { facelessShotTransitionLook, resolveFacelessActionShots } from "./faceless-action-shots.js";
+import { facelessAssetSource, facelessSceneImagesOf, facelessShotTransitionLook, resolveFacelessActionShots } from "./faceless-action-shots.js";
 import { readFileSync } from "node:fs";
 import { parseCutStyle } from "./faceless-cut-style.js";
 import { planPublicFacelessStory, type FacelessPublicStory } from "./faceless-public-plan.js";
@@ -53,6 +53,17 @@ describe("make_faceless shots", () => {
       .toEqual([{ path: ["shots", 0, "anchor"], message: "a shot animates a picture the video draws; these words show your scene image" }]);
   });
 
+  /** Mutants: the asset field dropped, so the product shot is refused as an unknown key; the opener's words taken by a picture of the customer's. */
+  it("takes a shot that starts from the customer's image asset, but not on the opening words", () => {
+    const owned = { ...run, asset_id: `ast_${"a".repeat(32)}` };
+    expect(makeFacelessInput.parse({ ...script, shots: [owned] })).toMatchObject({ shots: [owned] });
+    expect(facelessSceneImagesOf({ shots: [owned, { ...run, id: "s2", anchor: { quote: "week two" } }] }))
+      .toEqual([{ image_url: facelessAssetSource(owned.asset_id), anchor: owned.anchor }]);
+    expect(issues({ ...script, shots: [{ ...owned, anchor: { startWord: 0, endWord: 3 } }] }))
+      .toEqual([{ path: ["shots", 0, "asset_id"], message: "the first words belong to the opening clip; start a shot from your image on later words" }]);
+    expect(makeFacelessInput.safeParse({ ...script, shots: [{ ...run, asset_id: "not-an-asset" }] }).success).toBe(false);
+  });
+
   /** Mutant: the quote prices no shot, or prices one of them; the reserve then misses the shots' ceiling. */
   it("quotes 30 credits a second, five seconds a shot: 450 for three shots inside the total", () => {
     const plain = quoteFaceless({ outputFrames: 750, captions: true });
@@ -92,7 +103,7 @@ describe("make_faceless shots", () => {
 
   /** Mutant: give the field a shape, and tools/list grows past its budget; the text is the contract the brief fixed. */
   it("offers the field shape-free in tools/list", () => {
-    expect(offeredFacelessInputShape.shots.description).toBe("Script only: 1-10 {id, anchor, action}, 5 s max each.");
+    expect(offeredFacelessInputShape.shots.description).toBe("Script only: 1-10 {id, anchor, action, asset_id?}, 5 s max each.");
     expect(offeredFacelessInputShape.shots.description).toContain(`1-${FACELESS_MAX_SHOTS} `);
     expect(offeredFacelessInputShape.shots.safeParse({ any: "thing" }).success).toBe(true);
   });

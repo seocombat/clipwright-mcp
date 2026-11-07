@@ -31,6 +31,7 @@ function generatedRecord(): FacelessMediaRecord {
 /** A run with the customer's two references: both come from the customer, the character first. */
 function referencedRecord(): FacelessMediaRecord {
   return { ...generatedRecord(),
+    template_media: [{ template_id: "g1", slot: "before", media: stored("image", "3", 4101) }],
     references: [{ ...stored("image", "1", 3101), role: "character", from: "customer" }, { ...stored("image", "2", 3202), role: "style", from: "customer" }],
     settings: { captions: false, character_reference: true, character_details: "Mira: a black bob haircut and a red scarf.",
       image_model: "gpt-image-2", voice: "warm_narrator", lambda_site_sha256: sha("9"), transitions: { look: "flash", at: ["beat-2"] },
@@ -166,6 +167,7 @@ const SHAPE = new Map<string, Leaf>([
   ...under("shots.[].media", OBJECT), ...under("opener_still", OBJECT),
   ...under("references.[]", { ...OBJECT, role: oneOf("style", "character", "product"), from: oneOf("customer", "lead_picture") }),
   ...under("narration", OBJECT),
+  ["template_media.[].template_id", text], ["template_media.[].slot", text], ...under("template_media.[].media", OBJECT),
   ...under("settings", { captions: flag, character_reference: flag, character_details: orNull(text), image_model: text, voice: orNull(text),
     lambda_site_sha256: text }),
   ["settings.transitions.look", oneOf("flash", "light_leak")], ["settings.transitions.at.[]", text],
@@ -173,7 +175,7 @@ const SHAPE = new Map<string, Leaf>([
   ...(["flash", "whoosh", "edit"] as const).map(beat => [`settings.sounds.${beat}`, { ...oneOf(...TEMPLATE_SOUNDS[beat].names), optional: true as const }] as const),
 ]);
 /** Objects a record may leave out whole: a run drawn without transitions has none, one that chose no sounds none either. */
-const OPTIONAL_OBJECTS = new Set(["settings.transitions", "settings.sounds"]);
+const OPTIONAL_OBJECTS = new Set(["settings.transitions", "settings.sounds", "template_media"]);
 const placeOf = (path: Path) => path.map(step => typeof step === "number" ? "[]" : step).join(".");
 
 /** Every object, list and leaf of a value, each by its path. */
@@ -215,20 +217,20 @@ describe("the shape of the media record, walked from one fully populated record"
 
   it("the walk reaches every leaf the schema names, and the schema names the leaves written out here and no other", () => {
     const named = [...SHAPE.keys()].sort();
-    expect(named).toHaveLength(49);
+    expect(named).toHaveLength(59);
     expect(schemaLeaves(facelessMediaRecord).sort()).toEqual(named);
     expect([...new Set(leaves.map(placeOf))].sort()).toEqual(named);
     // Three shots, two references, the still, the narration, the settings, their transitions and sounds: a smaller walk would be a thinner record.
-    expect([leaves.length, objects.length, lists.length, stored.length]).toEqual([81, 14, 3, 7]);
+    expect([leaves.length, objects.length, lists.length, stored.length]).toEqual([91, 16, 4, 8]);
     expect(refused(referencedRecord())).toBe(false);
   });
 
   it("requires every original key and permits omission only of the new raw identity", () => {
     const keys = objects.flatMap(path => Object.keys(valueAt(path) as object).map(key => [...path, key]));
-    expect(keys).toHaveLength(91);
+    expect(keys).toHaveLength(103);
     const isOptional = (path: Path) => SHAPE.get(placeOf(path))?.optional || OPTIONAL_OBJECTS.has(placeOf(path));
     const optional = keys.filter(isOptional);
-    expect(optional).toHaveLength(12);
+    expect(optional).toHaveLength(14);
     const required = keys.filter(path => !isOptional(path));
     expect(required.filter(path => !refused(changedAt(path, (holder, key) => { delete holder[key]; }))).map(path => shown(path))).toEqual([]);
     // `undefined` is no value either: a key that is there and holds nothing is as absent as a key that is not.
@@ -257,7 +259,7 @@ describe("the shape of the media record, walked from one fully populated record"
     expect(nulls).toEqual([]);
     // Every populated leaf refuses at least the six samples of other types and containers.
     expect(tried).toBeGreaterThanOrEqual(76 * 6);
-    expect(leaves.filter(path => SHAPE.get(placeOf(path))!.nullable)).toHaveLength(3 + 7 * 3 + 2);
+    expect(leaves.filter(path => SHAPE.get(placeOf(path))!.nullable)).toHaveLength(3 + 8 * 3 + 2);
   });
 
   it("refuses another type where an object or a list stands", () => {
@@ -279,7 +281,7 @@ describe("the shape of the media record, walked from one fully populated record"
     ["bytes", sizes], ["width", sizes], ["height", sizes],
     ["duration_sec", [[0.04, true], [1, true], [0, false], [-0.04, false], [-1, false], [Number.NaN, false], [Number.POSITIVE_INFINITY, false]]],
   ])("holds `%s` of every stored object to its bound, a value on each side", (key, cases) => {
-    expect(stored).toHaveLength(7);
+    expect(stored).toHaveLength(8);
     const off = stored.flatMap(path => cases.filter(([value, accepted]) => refused(put([...path, key], value)) === accepted)
       .map(([value]) => shown([...path, key], value)));
     expect(off).toEqual([]);

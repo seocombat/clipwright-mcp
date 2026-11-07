@@ -4,7 +4,17 @@ import type { FacelessSceneAnchor } from "./faceless-public.js";
 /** How an action shot (#1113) may enter: a plain cut, or one of the looks a faceless cut already draws. */
 export const FACELESS_SHOT_TRANSITIONS = ["cut", "flash", "light_leak", "whoosh"] as const;
 export type FacelessShotTransition = (typeof FACELESS_SHOT_TRANSITIONS)[number];
-export type FacelessActionShotInput = { id: string; anchor: FacelessSceneAnchor; action: string; transition?: FacelessShotTransition | undefined };
+export type FacelessActionShotInput = { id: string; anchor: FacelessSceneAnchor; action: string; transition?: FacelessShotTransition | undefined;
+  asset_id?: string | undefined };
+
+/** A shot that starts from the account's own image asset reaches the stage as a scene image under this source name, like a picture by link. */
+export const facelessAssetSource = (assetId: string): string => `asset:${assetId}`;
+/** The scene images of a run as the stage plans them: the customer's own, then one for each shot that starts from an asset. */
+export function facelessSceneImagesOf(input: { scene_images?: ReadonlyArray<{ image_url: string; anchor: FacelessSceneAnchor }> | undefined;
+  shots?: readonly FacelessActionShotInput[] | undefined }): Array<{ image_url: string; anchor: FacelessSceneAnchor }> {
+  return [...input.scene_images ?? [], ...(input.shots ?? []).flatMap(shot => shot.asset_id === undefined ? []
+    : [{ image_url: facelessAssetSource(shot.asset_id), anchor: shot.anchor }])];
+}
 /** A shot on the script's lexical words [first, end), as the planner reads it. */
 export type ResolvedFacelessActionShot = FacelessActionShotInput & { first: number; end: number };
 
@@ -36,6 +46,10 @@ export function facelessActionShotRefusals(input: { script: string; shots: reado
       issues.push({ path: ["shots", index, "anchor"], message: error instanceof Error && error.message === "ambiguous_customer_anchor"
         ? "the quote is said more than once in the script; add occurrence (0 is the first)" : "the anchor names no words of the script" });
     }
+  }
+  for (const range of ranges) {
+    if (range.first === 0 && input.shots[range.index]!.asset_id !== undefined)
+      issues.push({ path: ["shots", range.index, "asset_id"], message: "the first words belong to the opening clip; start a shot from your image on later words" });
   }
   for (const [k, range] of ranges.entries()) {
     if (ranges.slice(0, k).some(other => range.first < other.end && other.first < range.end))

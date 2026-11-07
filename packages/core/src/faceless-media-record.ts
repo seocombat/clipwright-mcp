@@ -45,6 +45,8 @@ export const facelessMediaRecord = z.strictObject({
   opener_still: storedObject,
   references: z.array(storedObject.extend({ role: z.enum(["style", "character", "product"]), from: z.enum(["customer", "lead_picture"]) })),
   narration: storedObject,
+  /** The customer's pictures and clips a template slot showed, staged for the render; absent on a run with none. */
+  template_media: z.array(z.strictObject({ template_id: z.string().min(1).max(64), slot: z.string().min(1).max(32), media: storedObject })).max(64).optional(),
   settings: z.strictObject({ captions: z.boolean(), character_reference: z.boolean(), character_details: z.string().nullable(),
     image_model: z.string(), voice: z.string().nullable(), lambda_site_sha256: z.string(),
     /** Present only on a run drawn with transitions: a revision keeps them unless its document says otherwise. */

@@ -188,12 +188,15 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         { label: "production (story, voice and render)", unit: "second", credits: FACELESS_CREDITS_PER_1500_FRAMES / 60 },
         // Action shots and scenes are sold only while they can be ordered (#1113).
         ...(facelessShots ? [{ label: "action shot", unit: "clip_second", credits: FACELESS_SHOT_CREDITS_PER_SECOND } satisfies PriceEntryLine] : []),
-        ...(facelessScenes ? [{ label: "scene made for the video", unit: "scene", credits: SCENE_CREDITS } satisfies PriceEntryLine] : [])],
+        ...(facelessScenes ? [{ label: "scene made for the video", unit: "scene", credits: SCENE_CREDITS } satisfies PriceEntryLine] : []),
+        // Music is sold only while it can be ordered (#1063).
+        ...(music ? [{ label: "music under the voice", unit: "track", credits: MUSIC_BED_CREDITS } satisfies PriceEntryLine] : [])],
       minimum_credits: FACELESS_MIN_BASE_CREDITS,
       notes: `Pictures we generated for the delivered video and its seconds, never above the selected length. The quote is the most a ` +
         `selection is charged, every picture it may generate: ${facelessAt(FACELESS_MIN_SELECTED_SECONDS)} for ` +
         `${FACELESS_MIN_SELECTED_SECONDS} s, ${facelessAt(FACELESS_MAX_SELECTED_SECONDS)} for ${FACELESS_MAX_SELECTED_SECONDS} s. ` +
-        "Captions do not change the price." }),
+        "Captions do not change the price." +
+        (music ? " Music is added only when you ask for it and charged only when the delivered video carries it." : "") }),
     paid({ tool: "revise_run", route: "POST /v1/runs/{id}/revisions", quote_tool: "quote_revision",
       formula: `each shot generated anew: picture ${unit.picture}, clip ${unit.clip}, clip with a new picture ${unit.clip_with_new_picture}; ` +
         `plus ${EDIT_RENDER_PRICE} to render. A revision that generates nothing: ${EDIT_ZERO_UNIT_PRICE}. A kept candidate adds nothing`,

@@ -5,6 +5,7 @@ import { EDIT_RENDER_PRICE, EDIT_UNIT_PRICES, EDIT_ZERO_UNIT_PRICE } from "./edi
 import { API_ENDPOINTS, endpointLabel } from "./endpoints.js";
 import { FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_BASE_CREDITS, FACELESS_MIN_SELECTED_SECONDS, quoteFaceless } from "./faceless-price.js";
 import { listGenerationModels } from "./generations.js";
+import { MUSIC_BED_CREDITS } from "./music.js";
 import { OPENAPI_ROUTES } from "./openapi.js";
 import { PARTS_DURATION_TARIFF, PARTS_FACE_TARIFF } from "./parts-pricing.js";
 import { isPaidEntry, PRICE_LIST, priceEntry, priceLine, priceListFor, PRICES_PATH, pricesResponse, priceText, withPriceLine } from "./prices.js";
@@ -65,6 +66,18 @@ describe("the price list covers the registry", () => {
     const line = `Price: ${text}. Quote first with ${parts.quote_tool}.`;
     expect(priceLine(parts.tool!, [priceEntry.parse(parts)])).toBe(line);
     expect(withPriceLine(parts.tool!, "Starts a run.", [priceEntry.parse(parts)])).toBe(`Starts a run. ${line}`);
+  });
+});
+
+// #1063 S1b. Mutant: the music line missing from one skill's entry, so the list hides a price the quote carries, or sold with the switch off.
+describe("the music line of the price list", () => {
+  it.each(["make_ugc", "make_faceless"])("%s sells the track only while the switch is on, at the constant it is charged by", (tool) => {
+    const lineOf = (list: readonly { tool: string | null; lines: readonly { unit: string; credits: number | null }[] }[]) =>
+      list.filter((item) => item.tool === tool).flatMap((item) => item.lines).filter((line) => line.unit === "track");
+    expect(lineOf(PRICE_LIST)).toEqual([]);
+    const on = lineOf(priceListFor({ CLIPWRIGHT_MUSIC: "1" }));
+    expect(on.length).toBeGreaterThan(0);
+    for (const line of on) expect(line.credits).toBe(MUSIC_BED_CREDITS);
   });
 });
 

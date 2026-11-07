@@ -3,11 +3,12 @@ import { editSummaryWire, revisionBilling } from "./edit-billing.js";
 import { editDocument } from "./edit-document.js";
 import { runId } from "./runs.js";
 import { uploadResponse } from "./uploads.js";
-import { MAX_URL_LENGTH, motionStyle, ugcScene, ugcTemplate } from "./skills.js";
+import { MAX_URL_LENGTH, motionStyle, pinnedInsertAsset, ugcScene, ugcTemplate } from "./skills.js";
 import { MOTION_STYLE_UNUSED_WARNING, motionStyleAsked, motionStyleHasCanvas, motionStyleRefusals } from "./motion-styles.js";
 import { MAX_SCENES, sceneRefusals } from "./ugc-scenes.js";
 import { MAX_MOVES, moveRefusals, MOVES_DESCRIPTION, ugcMove } from "./moves.js";
-import { MAX_TEMPLATES, templateMediaOf, templateRefusals } from "./templates/index.js";
+import { MAX_TEMPLATE_MEDIA, MAX_TEMPLATES, templateRefusals } from "./templates/index.js";
+import { assetId } from "./asset-identity.js";
 import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
 import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MAX_SHOTS, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_MIN_SELECTED_SECONDS,
   facelessQuote } from "./faceless-price.js";
@@ -15,7 +16,7 @@ import { DEFAULT_FACELESS_VOICE } from "./faceless-voices.js";
 import { resolveFacelessCustomerAnchors } from "./faceless-customer-anchors.js";
 import { FACELESS_TRANSITION_LOOKS } from "./faceless-media-record.js";
 import { VOICE_NAME_PATTERN } from "./voices.js";
-import { FACELESS_MUSIC_REFUSAL, musicRequest } from "./music.js";
+import { MUSIC_DESCRIPTION, musicRequest } from "./music.js";
 import { facelessSoundRefusals, facelessTemplateSounds, mcpTemplateSounds } from "./templates/sounds.js";
 import { FACELESS_SHOT_TRANSITIONS, facelessActionShotRefusals } from "./faceless-action-shots.js";
 
@@ -96,14 +97,9 @@ export function facelessMotionStyleWarnings(input: { motion_style?: Parameters<t
   return motionStyleAsked(input) && !motionStyleHasCanvas({ ...input, captions: input.captions !== false }) ? [MOTION_STYLE_UNUSED_WARNING] : [];
 }
 
-/** Templates over the pictures (#1113): kinds on the script's words; a slot that shows a picture or clip of the customer's is refused. */
-export const FACELESS_TEMPLATE_MEDIA_REFUSAL = "a template that shows your picture or clip (asset_id) is not available on make_faceless; " +
-  "drop that slot or the template";
+/** Templates over the pictures (#1113): kinds on the script's words; a slot may show the account's own picture or clip (asset_id), as on make_ugc. */
 function refuseTemplates(input: { script: string; templates?: z.infer<typeof ugcTemplate>[] | undefined }, context: z.RefinementCtx) {
   if (!input.templates) return;
-  for (const media of templateMediaOf(input.templates)) {
-    context.addIssue({ code: customIssue, path: ["templates", media.index, "data", media.slot], message: FACELESS_TEMPLATE_MEDIA_REFUSAL });
-  }
   for (const { path, message } of templateRefusals({ script: input.script, templates: input.templates, aspect_ratio: "9:16" })) {
     context.addIssue({ code: customIssue, path, message });
   }
@@ -115,13 +111,15 @@ export const facelessActionShot = z.strictObject({
   anchor: facelessSceneAnchor,
   action: z.string().trim().min(1).max(1500),
   transition: z.enum(FACELESS_SHOT_TRANSITIONS).optional(),
+  /** An image asset of this account (rights_confirmed) the clip starts from, in place of a picture the run draws; that picture is not charged. */
+  asset_id: assetId.optional(),
 });
 export type FacelessActionShot = z.infer<typeof facelessActionShot>;
 export const FACELESS_SHOTS_BRIEF_REFUSAL = "shots need input_mode script: they sit on the narration's words";
 export const FACELESS_SHOTS_DISABLED_MESSAGE = "shots are not available on make_faceless right now; omit shots";
 export const FACELESS_SCENES_DISABLED_MESSAGE = "scenes are not available on make_faceless right now; omit scenes";
 
-const scriptInput = z.object({ ...common,
+const scriptShape = { ...common,
   input_mode: z.literal("script"),
   script: z.string().trim().min(1).max(10_000),
   transitions: orPlainCuts(scriptTransitions).optional(),
@@ -129,7 +127,9 @@ const scriptInput = z.object({ ...common,
   shots: z.array(facelessActionShot).min(1).max(FACELESS_MAX_SHOTS, `at most ${FACELESS_MAX_SHOTS} shots a video`).optional(),
   scenes: z.array(ugcScene).min(1).max(MAX_SCENES).optional(),
   moves: z.array(ugcMove).min(1).max(MAX_MOVES).optional(),
-}).strict().superRefine((input, context) => {
+};
+const scriptBase = z.object(scriptShape).strict();
+function refineScript(input: z.infer<typeof scriptBase>, context: z.RefinementCtx) {
   refuseSounds(input, context);
   refuseTemplates(input, context);
   for (const { path, message } of moveRefusals({ script: input.script, moves: input.moves })) context.addIssue({ code: customIssue, path, message });
@@ -150,7 +150,12 @@ const scriptInput = z.object({ ...common,
           : "the anchor names no words of the script" });
     }
   }
-});
+}
+const scriptInput = scriptBase.superRefine(refineScript);
+/** What a run stores for a script: the request plus the assets admission pinned for it, which a public body never carries. */
+const storedScriptInput = z.object({ ...scriptShape,
+  insert_assets: z.array(pinnedInsertAsset).min(1).max(MAX_TEMPLATE_MEDIA + FACELESS_MAX_SHOTS).optional(),
+}).strict().superRefine(refineScript);
 const briefInput = z.object({ ...common,
   input_mode: z.literal("brief"),
   brief: z.string().trim().min(1).max(10_000),
@@ -179,7 +184,7 @@ export const facelessRevisionInput = z.strictObject({
 export type FacelessRevisionInput = z.infer<typeof facelessRevisionInput>;
 
 /** What a `make_faceless` run stores as its input: a generate request or a revision. */
-export const facelessStoredInput = z.discriminatedUnion("input_mode", [scriptInput, briefInput, facelessRevisionInput]);
+export const facelessStoredInput = z.discriminatedUnion("input_mode", [storedScriptInput, briefInput, facelessRevisionInput]);
 export type FacelessStoredInput = z.infer<typeof facelessStoredInput>;
 
 /** Admission and the run validate accepted input without canonicalizing its narration again. */
@@ -224,10 +229,10 @@ export const offeredFacelessInputShape = {
   edit_sounds: common.edit_sounds.describe("A low sound on every scene change, its peak on the cut; template_sounds.edit picks it. Price unchanged."),
   // The slim form keeps tools/list small; the client parses with makeFacelessInput, which checks beats and names.
   template_sounds: mcpTemplateSounds.optional().describe("false for no sounds, or { flash, whoosh (light leak), edit: name } from list_template_sounds."),
-  music: common.music.describe(`REJECTED for now: ${FACELESS_MUSIC_REFUSAL}. Before any charge.`),
+  music: common.music.describe(MUSIC_DESCRIPTION),
   // No shape here keeps tools/list small: the items are make_ugc's, which the client and the server check strictly.
-  templates: z.unknown().optional().describe("Script only: as make_ugc, no asset_id. Free."),
-  shots: z.unknown().optional().describe(`Script only: 1-${FACELESS_MAX_SHOTS} {id, anchor, action}, 5 s max each.`),
+  templates: z.unknown().optional().describe("Script only: as make_ugc, a slot may show your image or video asset (asset_id, rights_confirmed). Free."),
+  shots: z.unknown().optional().describe(`Script only: 1-${FACELESS_MAX_SHOTS} {id, anchor, action, asset_id?}, 5 s max each.`),
   scenes: z.unknown().optional().describe("Script only: as make_ugc scenes."),
   motion_style: z.unknown().optional().describe("As make_ugc motion_style; spans script only. Free."),
   moves: z.unknown().optional().describe(`Script only: ${MOVES_DESCRIPTION}`),

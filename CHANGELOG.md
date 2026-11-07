@@ -18,6 +18,19 @@ listed under.
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-11-07
+
+### Added
+
+- `make_faceless` takes `music`, `"auto"` or `{ mood }`: a music track under the voice for 60 credits, on the quote
+  and charged only when the delivered video carries it. When a track cannot be added, the video is delivered
+  without it and `warnings[]` says so (#1063).
+- *Server-side:* `make_faceless` draws `scenes` on the script's words, as `make_ugc` does: 25 credits for each scene
+  the delivered video draws (#1147). *Dashboard:* /pricing lists the scene line.
+- `make_faceless` templates can show your own image or video asset in a slot (`asset_id`, `rights_confirmed`), and a
+  shot can start from your image asset (`shots[].asset_id`). The clip is priced as before; your picture is not
+  charged.
+
 ## [0.43.1] - 2026-11-07
 
 ### Fixed

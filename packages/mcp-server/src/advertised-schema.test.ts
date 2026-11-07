@@ -285,7 +285,7 @@ const WRITTEN_FROM: Record<string, string> = {
   analyze_creator: "7b719565ce3545fb", analyze_reference: "7470cd3b5d69774e", brand_kit: "1b5d31f10debd2ea", extract_brand: "112b76358d1111aa",
   prepare_workflow_plan: "dcc184695ee43de7", create_actor: "64dc97d2adf395ca", create_asset: "a72d252508f84fe1",
   create_candidate: "ac7da0d7f8974609", create_upload: "d851091117ab3350", delete_actor: "e625ea18d3d26377", delete_asset: "dd3a4991f04a444f",
-  delete_creator_profile: "c5ee9a4029150781", find_trends: "177c65c2faeb00cd", delete_run_media: "e4f93b3a9cd5ea05", delete_upload: "ebb515f237d976c0", generate_image: "92cdec4c8c45facb",
+  delete_creator_profile: "c5ee9a4029150781", find_trends: "fc42bb71d6a811d0", delete_run_media: "e4f93b3a9cd5ea05", delete_upload: "ebb515f237d976c0", generate_image: "92cdec4c8c45facb",
   generate_video: "a186d4a3edb2902b", get_account: "69e49b07e4b1be32", get_asset: "508a09c765a61f1f", get_creator_profile: "ccb8cc20d52ad7c9",
   get_reference_analysis: "cf4027c19e9a3dd3", get_run: "0ad53c727736d024", get_run_shots: "2b13db5cf3bca267", get_upload: "4bd3baac899982b4",
   list_actors: "89ca3249262caa88", list_assets: "ffa330bb764bedab", list_generation_models: "5737b2f41d69b048", list_moves: "067d552b22260a07", list_prices: "73634ccff928eacc",

@@ -18,6 +18,22 @@ listed under.
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-11-07
+
+### Added
+
+- `find_trends` cards carry how a reel is moving now: `speed_now` (views per hour between the last two measurements),
+  `accel`, `x_at_age` and `takeoff` (`surging` or `rising`), with `measurements` and `previous_measured_at`. A field
+  without enough data is `null` and `warnings[]` says why (#1201).
+- *Dashboard:* a gift link (`clipwright.io/gift/<code>`) adds credits to a new account on sign-up, or on a visit when
+  signed in. One gift per account, and credits from a gift do not expire (#1208).
+
+### Fixed
+
+- *Server-side:* `make_faceless` with `music` delivers the video with its track instead of failing (#1063).
+- *Server-side:* `make_faceless` no longer fails when the narration's last word ends a moment after its audio.
+- *Server-side:* a failed `make_faceless` run reports a plain sentence in `error`, not an internal reason.
+
 ## [0.44.0] - 2026-11-07
 
 ### Added

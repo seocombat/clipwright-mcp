@@ -61,7 +61,17 @@ export const TREND_SORTS = ["best", "x", "x_size_norm", "views", "views_per_hour
 export type TrendSort = (typeof TREND_SORTS)[number];
 export const trendSort = z.enum(TREND_SORTS)
   .describe("The order of the reels: best (default), or the highest first of x, x_size_norm, views, views_per_hour, comment_rate or comment_rate_x. Free.");
-export const TREND_REASON_SIGNALS =["x", "late_takeoff", "new_creator", "size_norm", "comments", "views_per_hour", "funnel", "short", "views"] as const;
+export const TREND_REASON_SIGNALS = ["takeoff", "x", "x_at_age", "late_takeoff", "new_creator", "size_norm", "comments", "views_per_hour", "funnel", "short",
+  "views"] as const;
+/** A reel measured more than once (#1201): speed now is read between two measurements at least this far apart. */
+export const TREND_SPEED_MIN_GAP_HOURS = 1;
+/** x at age compares the reel with the creator's other videos measured at an age within this factor of its own, at least this many. */
+export const TREND_X_AT_AGE_WINDOW = 1.5;
+export const TREND_X_AT_AGE_MIN_VIDEOS = 3;
+/** A take-off: not slowing (accel at least 1) at `rising` from the creator's top line, `surging` from 3× it, never for a new creator. */
+export const TREND_TAKEOFF_TIERS = ["surging", "rising"] as const;
+export const TREND_TAKEOFF_MIN_ACCEL = 1;
+export const TREND_SURGING_X = 3;
 
 export const TREND_SEARCH_STATES = ["queued", "searching", "succeeded", "failed"] as const;
 export const TREND_SEARCH_ERRORS = ["timed_out", "no_results", "source_failed", "enqueue_failed"] as const;
@@ -123,6 +133,16 @@ export const trendReel = z.strictObject({
   size_norm_views: z.number().int().nonnegative().nullable()
     .describe("The usual views of an account with about as many followers; null when the followers are unknown or too few such accounts are known."),
   x_size_norm: z.number().nonnegative().nullable().describe("views over size_norm_views, one decimal; null when either is unknown or the norm is 0."),
+  measurements: z.number().int().nonnegative().describe("How many times the reel's views have been measured, this search included."),
+  previous_measured_at: z.string().datetime().nullable().describe("The measurement speed_now is read from, at least an hour before measured_at; null when none."),
+  speed_now: z.number().int().nonnegative().nullable()
+    .describe("views per hour between previous_measured_at and measured_at; null with fewer than two such measurements."),
+  accel: z.number().nonnegative().nullable()
+    .describe("speed_now over the views per hour of the interval before it, two decimals rounded down: 1 or more, the reel is not slowing; null when either is unknown."),
+  x_at_age: z.number().nonnegative().nullable()
+    .describe(`views over the median views of the creator's other videos measured at about the same age, one decimal; null under ${TREND_X_AT_AGE_MIN_VIDEOS} such videos.`),
+  takeoff: z.enum(TREND_TAKEOFF_TIERS).nullable().describe(`surging: accel at least ${TREND_TAKEOFF_MIN_ACCEL} and x_at_age (else x_median) at least ` +
+    `${TREND_SURGING_X}; rising: the same with ${CREATOR_TOP_X} or more; null otherwise and for a new creator.`),
   reasons: z.array(trendReason).min(1).max(TREND_REASONS_MAX).describe("Why the reel is here, strongest first; each number is a field of this card."),
   cover: z.string().url().nullable().describe("The platform's preview image; it expires."),
   funnel: z.string().min(1).max(TREND_FUNNEL_MAX_CHARS).nullable()
@@ -253,6 +273,66 @@ const DAY_MS = 86_400_000, HOUR_MS = 3_600_000;
 const oneDecimal = (value: number) => Math.round(value * 10) / 10;
 /** A creator is one handle on one platform: the same handle on the other platform is another account with its own median. */
 export const trendCreatorKey = (reel: Pick<TrendSourceReel, "platform" | "handle">): string => `${reel.platform}:${reel.handle.toLowerCase()}`;
+/** A video by `platform:id`, the key a creator's page read names it by; `null` when the link names no video. */
+export function trendReelKey(reel: Pick<TrendSourceReel, "platform" | "url">): string | null {
+  const id = /\/(?:reel|video)\/([^/?#]+)\/?$/.exec(reel.url)?.[1];
+  return id === undefined ? null : `${reel.platform}:${id}`;
+}
+
+/** One measurement of a video's views (#1201). */
+export interface TrendPoint { at: Date; views: number }
+/** A creator's video with its measurements so far. */
+export interface TrendPoolVideo { key: string; postedAt: Date | null; points: readonly TrendPoint[] }
+type Momentum = Pick<TrendReel, "measurements" | "previous_measured_at" | "speed_now" | "accel" | "x_at_age">;
+
+const hoursBetween = (from: Date, to: Date) => (to.getTime() - from.getTime()) / HOUR_MS;
+
+/** A reel's numbers across measurements: speed between its last two at least an hour apart, that speed over the one before it (the */
+/** posting time counts as zero views), and its views over the creator's other videos measured at about its age. No extrapolation. */
+export function trendMomentum(reel: { postedAt: Date | null; series: readonly TrendPoint[] }, peers: readonly TrendPoolVideo[]): Momentum {
+  const series = [...reel.series].sort((a, b) => a.at.getTime() - b.at.getTime());
+  const last = series.at(-1);
+  const before = (point: TrendPoint): TrendPoint | null => {
+    const earlier = series.filter((other) => hoursBetween(other.at, point.at) >= TREND_SPEED_MIN_GAP_HOURS).at(-1);
+    if (earlier !== undefined) return earlier;
+    return reel.postedAt !== null && hoursBetween(reel.postedAt, point.at) >= TREND_SPEED_MIN_GAP_HOURS ? { at: reel.postedAt, views: 0 } : null;
+  };
+  const measured = last === undefined ? undefined : series.filter((other) => hoursBetween(other.at, last.at) >= TREND_SPEED_MIN_GAP_HOURS).at(-1);
+  const speed = (from: TrendPoint, to: TrendPoint) => Math.max(0, to.views - from.views) / hoursBetween(from.at, to.at);
+  const speedNow = last === undefined || measured === undefined ? null : speed(measured, last);
+  const prior = measured === undefined ? null : before(measured);
+  const priorSpeed = prior === null || measured === undefined ? null : speed(prior, measured);
+  return {
+    measurements: series.length,
+    previous_measured_at: measured?.at.toISOString() ?? null,
+    speed_now: speedNow === null ? null : Math.round(speedNow),
+    // Rounded down, so a reel slowing by a hair never reads 1.00 and never reaches a take-off tier.
+    accel: speedNow === null || priorSpeed === null || priorSpeed === 0 ? null : Math.floor((speedNow / priorSpeed) * 100) / 100,
+    x_at_age: last === undefined || reel.postedAt === null ? null : xAtAge(last, hoursBetween(reel.postedAt, last.at), peers),
+  };
+}
+
+function xAtAge(last: TrendPoint, ageHours: number, peers: readonly TrendPoolVideo[]): number | null {
+  if (ageHours < TREND_SPEED_MIN_GAP_HOURS) return null;
+  const views = peers.flatMap((peer) => {
+    if (peer.postedAt === null) return [];
+    // The window's bounds are compared as ages, inclusive both ways; the log only orders the points inside it.
+    const near = peer.points.map((point) => ({ point, age: hoursBetween(peer.postedAt!, point.at) }))
+      .filter(({ age }) => age * TREND_X_AT_AGE_WINDOW >= ageHours && age <= ageHours * TREND_X_AT_AGE_WINDOW)
+      .sort((a, b) => Math.abs(Math.log(a.age / ageHours)) - Math.abs(Math.log(b.age / ageHours)))[0];
+    return near === undefined ? [] : [near.point.views];
+  });
+  if (views.length < TREND_X_AT_AGE_MIN_VIDEOS) return null;
+  const median = medianOf(views);
+  return median === null || median === 0 ? null : oneDecimal(last.views / median);
+}
+
+/** The take-off tier of a card: strong cases only. */
+export function trendTakeoff(card: Pick<TrendReel, "x_median" | "x_at_age" | "accel" | "new_creator">): TrendReel["takeoff"] {
+  const x = card.x_at_age ?? card.x_median;
+  if (card.new_creator || card.accel === null || x === null || card.accel < TREND_TAKEOFF_MIN_ACCEL) return null;
+  return x >= TREND_SURGING_X ? "surging" : x >= CREATOR_TOP_X ? "rising" : null;
+}
 
 function captionOf(text: string | null): TrendReel["caption"] {
   const trimmed = text?.trim() ?? "";
@@ -317,16 +397,20 @@ function creatorCommentRate(views: readonly (number | null)[] | null, comments: 
 }
 
 type ReasonFields = Pick<TrendReel, "x_median" | "new_creator" | "late_takeoff" | "age_days" | "x_size_norm" | "comment_rate_x" | "views_per_hour"
-  | "views" | "funnel" | "duration_s">;
+  | "views" | "funnel" | "duration_s" | "takeoff" | "speed_now" | "accel" | "x_at_age">;
 const times = (value: number) => `${value.toFixed(1)}×`;
 
-/** Why a card is here, strongest first, each number read from the card: ratios of at least the top line by size, then speed and mechanics. */
+/** Why a card is here, strongest first, each number read from the card: a take-off now, ratios of at least the top line by size, then speed */
+/** and mechanics. */
 export function trendReelReasons(reel: ReasonFields): TrendReason[] {
   const ratios: (TrendReason & { strength: number })[] = [];
   if (reel.x_median !== null && !reel.new_creator && reel.x_median >= CREATOR_TOP_X) {
     ratios.push(reel.late_takeoff && reel.age_days !== null
       ? { signal: "late_takeoff", strength: reel.x_median, text: `${times(reel.x_median)} the creator's median after ${reel.age_days} days` }
       : { signal: "x", strength: reel.x_median, text: `${times(reel.x_median)} the creator's median` });
+  }
+  if (reel.x_at_age !== null && !reel.new_creator && reel.x_at_age >= CREATOR_TOP_X) {
+    ratios.push({ signal: "x_at_age", strength: reel.x_at_age, text: `${times(reel.x_at_age)} the creator's usual at this age` });
   }
   if (reel.x_size_norm !== null && reel.x_size_norm >= CREATOR_TOP_X) {
     ratios.push({ signal: "size_norm", strength: reel.x_size_norm, text: `${times(reel.x_size_norm)} the usual views for this many followers` });
@@ -335,7 +419,10 @@ export function trendReelReasons(reel: ReasonFields): TrendReason[] {
     ratios.push({ signal: "comments", strength: reel.comment_rate_x, text: `comments ${times(reel.comment_rate_x)} the creator's norm` });
   }
   const speed = reel.views_per_hour === null ? null : `${reel.views_per_hour.toLocaleString("en-US")} views/h`;
+  const takeoff = reel.takeoff === null || reel.speed_now === null || reel.accel === null ? []
+    : [{ signal: "takeoff" as const, text: `${reel.takeoff}: ${reel.speed_now.toLocaleString("en-US")} views/h now, ${reel.accel.toFixed(2)}× the speed before` }];
   const reasons: TrendReason[] = [
+    ...takeoff,
     ...(reel.new_creator && speed !== null ? [{ signal: "new_creator" as const, text: `new creator, ${speed}` }] : []),
     ...ratios.sort((a, b) => b.strength - a.strength).map(({ signal, text }) => ({ signal, text })),
     ...(!reel.new_creator && speed !== null ? [{ signal: "views_per_hour" as const, text: speed }] : []),
@@ -346,11 +433,30 @@ export function trendReelReasons(reel: ReasonFields): TrendReason[] {
     : [{ signal: "views", text: reel.views === null ? "views unknown" : `${reel.views.toLocaleString("en-US")} views` }];
 }
 
+/** A creator's page as this search read it, by `trendCreatorKey`. */
+export type TrendCreatorPage = readonly { key: string; postedAt: Date | null; views: number | null }[];
+
+/** Each reel's measurements and its creator's other videos: the stored ones before this search, then this search's own reads. */
+function momentumOf(reel: TrendSourceReel, at: Date, stored: readonly TrendPoolVideo[], page: TrendCreatorPage | null): Momentum {
+  const key = trendReelKey(reel);
+  const videos = new Map(stored.map((video) => [video.key, { postedAt: video.postedAt, points: [...video.points] }]));
+  for (const video of page ?? []) {
+    if (video.views === null || video.key === key) continue;
+    const held = videos.get(video.key) ?? { postedAt: video.postedAt, points: [] };
+    videos.set(video.key, { postedAt: held.postedAt ?? video.postedAt, points: [...held.points, { at, views: video.views }] });
+  }
+  const own = key === null ? [] : videos.get(key)?.points ?? [];
+  const series = [...own.filter((point) => point.at.getTime() < at.getTime()), ...(reel.views === null ? [] : [{ at, views: reel.views }])];
+  const peers = [...videos].flatMap(([peerKey, video]) => (peerKey === key ? [] : [{ key: peerKey, ...video }]));
+  return trendMomentum({ postedAt: reel.postedAt, series }, peers);
+}
+
 /** The result from the shortlist, each creator's latest views and comments by `trendCreatorKey` (`null`: the read failed) and the usual */
-/** views by `trendSizeNormKey`; unknowns named in warnings. */
+/** views by `trendSizeNormKey`; with `pages` and `history` (#1201) its measurements across time; unknowns named in warnings. */
 export function buildTrendResult(input: { found: number; inWindow: number; shortlist: readonly TrendSourceReel[];
   creatorViews: ReadonlyMap<string, readonly (number | null)[] | null>; creatorComments?: ReadonlyMap<string, readonly (number | null)[] | null>;
-  sizeNorms?: ReadonlyMap<string, number>; measuredAt: Date }): { result: TrendResult; warnings: string[] } {
+  sizeNorms?: ReadonlyMap<string, number>; pages?: ReadonlyMap<string, TrendCreatorPage | null>;
+  history?: ReadonlyMap<string, readonly TrendPoolVideo[]>; measuredAt: Date }): { result: TrendResult; warnings: string[] } {
   const now = input.measuredAt.getTime(), measuredAt = input.measuredAt.toISOString();
   const reels = input.shortlist.map((reel): TrendReel => {
     const views = input.creatorViews.get(trendCreatorKey(reel)) ?? null;
@@ -367,8 +473,10 @@ export function buildTrendResult(input: { found: number; inWindow: number; short
     const rate = reel.comments === null || reel.views === null || reel.views === 0 ? null : reel.comments / reel.views;
     const card = { ...base, ...trendReelSignals(base, measuredAt), creator_comment_rate: commentNorm === null ? null : fourDecimals(commentNorm),
       comment_rate_x: rate === null ? null : ratio(rate, commentNorm), size_norm_views: sizeNormViews, x_size_norm: ratio(reel.views, sizeNormViews),
-      cover: trendCoverUrl(reel.cover), funnel: trendFunnelWord(reel.caption) };
-    return { ...card, reasons: trendReelReasons(card) };
+      cover: trendCoverUrl(reel.cover), funnel: trendFunnelWord(reel.caption),
+      ...momentumOf(reel, input.measuredAt, input.history?.get(trendCreatorKey(reel)) ?? [], input.pages?.get(trendCreatorKey(reel)) ?? null) };
+    const timed = { ...card, takeoff: trendTakeoff(card) };
+    return { ...timed, reasons: trendReelReasons(timed) };
   }).sort(byRank);
   const warnings: string[] = [];
   const unread = reels.filter((reel) => reel.creator_median_views === null).length;
@@ -381,14 +489,23 @@ export function buildTrendResult(input: { found: number; inWindow: number; short
   if (noSizeNorm > 0) {
     warnings.push(`x_size_norm: the followers, or the usual views for that many, are unknown for ${noSizeNorm} of ${reels.length} reels; null there`);
   }
+  const unmeasured = reels.filter((reel) => reel.speed_now === null).length;
+  if (unmeasured > 0) {
+    warnings.push(`speed_now: ${unmeasured} of ${reels.length} reels have no two measurements an hour apart yet; speed_now, accel and takeoff are null there`);
+  }
+  const noAgeNorm = reels.filter((reel) => reel.x_at_age === null).length;
+  if (noAgeNorm > 0) {
+    warnings.push(`x_at_age: fewer than ${TREND_X_AT_AGE_MIN_VIDEOS} of the creator's other videos were measured at about the same age for ` +
+      `${noAgeNorm} of ${reels.length} reels; null there`);
+  }
   if (input.found > 0 && input.inWindow < input.found) {
     warnings.push(`window: ${input.found - input.inWindow} of ${input.found} reels found were older than the window, in another language or without a view count, and were left out`);
   }
   return { result: trendResult.parse({ measured_at: measuredAt, found: input.found, in_window: input.inWindow, reels }), warnings };
 }
 
-/** An older stored result reads in stored order: before the mix (#1154) it gains the row's platform and the signals of its fields, before */
-/** #917 an unknown cover and the funnel of its caption, before #1200 unknown norms and the reasons of its fields. */
+/** An older stored result reads in stored order, gaining what it predates: the row's platform and signals (#1154), an unknown cover and */
+/** its caption's funnel (#917), unknown norms and reasons (#1200), one measurement (none without views) and no speed (#1201). */
 export function storedTrendResult(result: unknown, platform: TrendPlatform): unknown {
   if (result === null || typeof result !== "object" || !Array.isArray((result as { reels?: unknown }).reels)) return result;
   const stored = result as { measured_at: string; reels: Record<string, unknown>[] };
@@ -396,7 +513,9 @@ export function storedTrendResult(result: unknown, platform: TrendPlatform): unk
     const signed = platform === "mix" || "views_per_hour" in reel ? reel
       : { ...reel, platform, ...trendReelSignals(reel as Parameters<typeof trendReelSignals>[0], stored.measured_at) };
     const caption = (reel.caption as { text?: unknown } | null | undefined)?.text;
-    const covered = "funnel" in signed ? signed : { ...signed, cover: null, funnel: trendFunnelWord(typeof caption === "string" ? caption : null) };
+    const funneled = "funnel" in signed ? signed : { ...signed, cover: null, funnel: trendFunnelWord(typeof caption === "string" ? caption : null) };
+    const covered = "measurements" in funneled ? funneled : { ...funneled, measurements: typeof funneled.views === "number" ? 1 : 0,
+      previous_measured_at: null, speed_now: null, accel: null, x_at_age: null, takeoff: null };
     if ("reasons" in covered) return covered;
     const normed = { ...covered, creator_comment_rate: null, comment_rate_x: null, size_norm_views: null, x_size_norm: null };
     return { ...normed, reasons: trendReelReasons(normed as unknown as ReasonFields) };
@@ -439,9 +558,11 @@ export function trendSearchMarkdown(answer: TrendSearchAnswer): string {
   "|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|");
   const handle = (reel: TrendReel) => `@${reel.creator.handle.replace(/_/g, "\\_")}`;
   const ratioCell = (value: number | null) => (value === null ? "—" : times(value));
+  const speedCell = (reel: TrendReel) => `${number(reel.views_per_hour)}${reel.speed_now === null ? "" : ` · now ${number(reel.speed_now)}` +
+    `${reel.accel === null ? "" : ` (${reel.accel.toFixed(2)}×)`}${reel.takeoff === null ? "" : ` **${reel.takeoff}**`}`}`;
   result.reels.forEach((reel, index) => {
     lines.push(`| [${index + 1}](${reel.url}) | ${TREND_PLATFORM_NAMES[reel.platform]} | ${handle(reel)} | ` +
-      `${reel.posted_at?.slice(0, 10) ?? "—"} | ${number(reel.views)} | ${number(reel.views_per_hour)} | ${xCell(reel)} | ${ratioCell(reel.x_size_norm)} | ` +
+      `${reel.posted_at?.slice(0, 10) ?? "—"} | ${number(reel.views)} | ${speedCell(reel)} | ${xCell(reel)} | ${ratioCell(reel.x_size_norm)} | ` +
       `${ratioCell(reel.comment_rate_x)} | ${number(reel.creator_median_views)} | ` +
       `${reel.duration_s === null ? "—" : `${Math.round(reel.duration_s)} s`} | ${reel.caption ? quote(reel.caption.text, 60) : "—"} |`);
   });
@@ -453,6 +574,10 @@ export function trendSearchMarkdown(answer: TrendSearchAnswer): string {
   const top = result.reels.filter((reel) => reel.top).length, late = result.reels.filter((reel) => reel.late_takeoff).length;
   lines.push("", top ? `Took off (bold, at least ${CREATOR_TOP_X}× the creator's median): ${top}.` : `No reel reaches ${CREATOR_TOP_X}× its creator's median.`);
   if (late) lines.push(`Late take-offs (older than ${TREND_PRELIMINARY_HOURS} h, at least ${TREND_LATE_TAKEOFF_X}×): ${late}.`);
+  if (result.reels.some((reel) => reel.speed_now !== null)) {
+    const now = result.reels.filter((reel) => reel.takeoff !== null).length;
+    lines.push(`now: views per hour since the previous measurement, (×) against the speed before it. Taking off now (surging or rising): ${now}.`);
+  }
   if (result.reels.some((reel) => reel.x_preliminary)) lines.push(`early: under ${TREND_PRELIMINARY_HOURS} h old, x is still growing.`);
   if (result.reels.some((reel) => reel.new_creator)) {
     lines.push(`new: the creator's median is under ${number(TREND_NEW_CREATOR_MEDIAN)}, so x says little; ranked by views per hour, never bold.`);
@@ -465,7 +590,7 @@ export function trendSearchMarkdown(answer: TrendSearchAnswer): string {
 export const FIND_TRENDS_DESCRIPTION =
   `Reels that took off on a topic: up to ${TREND_SEARCH_REELS} per platform, one per creator, TikTok and Instagram in one ranking by ` +
   "x_median (views over the creator's median). Charged only on success, a mix that reached one platform too; " +
-  `${TREND_SEARCH_PER_HOUR} per hour. poll repeats this call. Each reel says why it is here; the same call with another sort ` +
-  "reorders the same search for free within the hour.";
+  `${TREND_SEARCH_PER_HOUR} per hour. poll repeats this call. Each reel says why it is here, and a reel measured before carries its speed now; ` +
+  "the same call with another sort reorders the same search for free within the hour.";
 
 export const QUOTE_TRENDS_DESCRIPTION = "Price find_trends: 0 when the same query from the last hour would answer. Free.";

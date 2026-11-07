@@ -9,6 +9,13 @@ import {
   actorItemPath,
   actorsResponse,
   type ActorCatalogEntry,
+  BRAND_EXTRACT_PATH,
+  BRAND_KIT_PATH,
+  brandKit,
+  type BrandKit,
+  type DesignInput,
+  extractBrandResponse,
+  type ExtractBrandResponse,
   CREATE_ACTOR_QUOTE_PATH,
   CREATE_ACTOR_RUN_PATH,
   createActorQuote,
@@ -42,6 +49,10 @@ import {
   TEMPLATE_SOUNDS_PATH,
   templateSoundsList,
   type TemplateSoundsList,
+  MOVES_PATH,
+  motionMovesList,
+  type MotionMovesList,
+  type MotionMovesQueryArgs,
   REFERENCE_ANALYSES_PATH,
   REFERENCE_ANALYSIS_PATH,
   REFERENCE_ANALYSIS_QUOTE_PATH,
@@ -66,6 +77,17 @@ import {
   type CreatorProfileRead,
   creatorProfileQuery,
   type CreatorProfileQuery,
+  TREND_SEARCHES_PATH,
+  TREND_SEARCH_PATH,
+  TREND_SEARCH_QUOTE_PATH,
+  findTrendsRequest,
+  type FindTrendsArgs,
+  trendSearchQuote,
+  type TrendSearchQuote,
+  trendSearchRead,
+  type TrendSearchRead,
+  trendSearchQuery,
+  type TrendSearchQuery,
   makeFacelessInput,
   type MakeFacelessInputArgs,
   agentFailureReport,
@@ -126,6 +148,7 @@ import {
   ASSET_BYTES_PATH,
   ASSET_ITEM_PATH,
   ASSETS_PATH,
+  runMediaPath,
   assetItemRead,
   type AssetItemRead,
   assetListRead,
@@ -159,7 +182,7 @@ import {
   assetBytesIdempotencyKeyFor,
   assetRequestIdempotencyKeyFor,
 } from "@clipwright/core/idempotency";
-import { createWorkflowPlan, saveWorkflowPlan, approveWorkflowPlan, launchWorkflow, planReferenceRemake, type PlanReferenceRemakeArgs,
+import { createWorkflowPlan, saveWorkflowPlan, approveWorkflowPlan, launchWorkflow, planReferenceRemakeRequest, type PlanReferenceRemakeArgs,
   workflowCatalogResponseRead, workflowMethodResponseRead, workflowPlanRead, workflowQuoteBindingRead,
   workflowLaunchResponseRead, workflowRunRead, workflowRunIdentityRead, type CreateWorkflowPlanArgs, type SaveWorkflowPlanArgs,
   type ApproveWorkflowPlanArgs, type LaunchWorkflowArgs, type WorkflowCatalogRead, type WorkflowMethodRead,
@@ -565,6 +588,11 @@ export class ClipwrightClient {
     return parseResponse(uploadItemRead, await this.#request(path, false), path, false);
   }
 
+  /** Deletes an upload: unusable at once, its file erased later. The answer is 204 with no body, a repeat too. Free. */
+  async deleteUpload(uploadIdValue: string): Promise<void> {
+    await this.#request(UPLOAD_ITEM_PATH.replace(":id", encodeURIComponent(uploadIdValue)), true, { method: "DELETE" });
+  }
+
   /** Saves an asset of the account from a generation, an upload, a url, base64 or a PUT. Free; a repeat within a day answers the */
   /** same asset. A clip by url and a PUT answer a pending asset: read it with `getAsset` until its state is ready or failed. */
   async createAsset(input: CreateAssetRequest): Promise<AssetItemRead> {
@@ -619,6 +647,11 @@ export class ClipwrightClient {
     await this.#request(ASSET_ITEM_PATH.replace(":id", encodeURIComponent(assetIdValue)), true, { method: "DELETE" });
   }
 
+  /** Deletes the files of a finished run; the run and its charge stay. The answer is 204 with no body, a repeat too. Free. */
+  async deleteRunMedia(runIdValue: string): Promise<void> {
+    await this.#request(runMediaPath(runIdValue), true, { method: "DELETE" });
+  }
+
   /** Curated voice catalog for `voice`/`voice_id`; other voices stay reachable by raw `voice_id`. */
   async listVoices(filters: VoicesQuery = {}): Promise<VoiceCatalogEntry[]> {
     // Keys pass as is: the server rejects an unknown one (`unknown_field`); the client does not strip it.
@@ -651,6 +684,23 @@ export class ClipwrightClient {
     const path = actorDefaultsPath(id);
     const body = await this.#request(path, false, { method: "POST", body: JSON.stringify(input) });
     return parseResponse(actorDefaults, body, path, false);
+  }
+
+  /** The account's saved design DNA (#1122); `design` is null when none is saved. */
+  async getBrandKit(): Promise<BrandKit> {
+    return parseResponse(brandKit, await this.#request(BRAND_KIT_PATH, false), BRAND_KIT_PATH, false);
+  }
+
+  /** Saves the account's design DNA, or clears it with `null`; spends no credits. */
+  async setBrandKit(design: DesignInput | null): Promise<BrandKit> {
+    const body = await this.#request(BRAND_KIT_PATH, false, { method: "POST", body: JSON.stringify({ design }) });
+    return parseResponse(brandKit, body, BRAND_KIT_PATH, false);
+  }
+
+  /** A proposed design DNA read from a public site, for the customer to confirm; spends no credits. */
+  async extractBrand(url: string): Promise<ExtractBrandResponse> {
+    const body = await this.#request(BRAND_EXTRACT_PATH, false, { method: "POST", body: JSON.stringify({ url }) });
+    return parseResponse(extractBrandResponse, body, BRAND_EXTRACT_PATH, false);
   }
 
   /** `create_actor` estimate; spends no credits. */
@@ -770,6 +820,15 @@ export class ClipwrightClient {
     return parseResponse(templateSoundsList, await this.#request(TEMPLATE_SOUNDS_PATH, false), TEMPLATE_SOUNDS_PATH, false);
   }
 
+  /** The catalogue of moves to put on lines of a script (#1175), filtered and paged; short lines unless detail full or names. Free. */
+  async listMoves(filters: MotionMovesQueryArgs = {}): Promise<MotionMovesList> {
+    const query = new URLSearchParams(
+      Object.entries(filters).flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]])),
+    ).toString();
+    const path = query === "" ? MOVES_PATH : `${MOVES_PATH}?${query}`;
+    return parseResponse(motionMovesList, await this.#request(path, false), MOVES_PATH, false);
+  }
+
   /** What analyzeReference would hold and charge for this asset now: 0 when a live analysis of it would answer. Free. */
   async quoteAnalysis(request: AnalyzeReferenceRequest): Promise<AnalysisQuoteResponse> {
     const body = await this.#request(REFERENCE_ANALYSIS_QUOTE_PATH, false,
@@ -822,6 +881,33 @@ export class ClipwrightClient {
       .flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]]))).toString();
     const path = search === "" ? item : `${item}?${search}`;
     return parseResponse(creatorProfileRead, await this.#request(path, false, undefined, ((parsed.wait_seconds ?? 0) + 15) * 1000), item, false);
+  }
+
+  /** Deletes a finished creator profile; its run and charge stay. The answer is 204 with no body, a repeat too. Free. */
+  async deleteCreatorProfile(profileIdValue: string): Promise<void> {
+    await this.#request(CREATOR_PROFILE_PATH.replace(":id", encodeURIComponent(profileIdValue)), true, { method: "DELETE" });
+  }
+
+  /** What findTrends would hold and charge for this query now: 0 when a search of the same query from the last hour would answer. Free. */
+  async quoteTrends(request: FindTrendsArgs): Promise<TrendSearchQuote> {
+    const body = await this.#request(TREND_SEARCH_QUOTE_PATH, false, { method: "POST", body: JSON.stringify(findTrendsRequest.parse(request)) });
+    return parseResponse(trendSearchQuote, body, TREND_SEARCH_QUOTE_PATH, false);
+  }
+
+  /** Starts a search for reels on a topic, answered at once (state=queued); the same query within an hour answers the same */
+  /** search, so a retry needs no key. Paid: the price is held now and charged once it succeeds. */
+  async findTrends(request: FindTrendsArgs): Promise<TrendSearchRead> {
+    const body = await this.#request(TREND_SEARCHES_PATH, true, { method: "POST", body: JSON.stringify(findTrendsRequest.parse(request)) });
+    return parseResponse(trendSearchRead, body, TREND_SEARCHES_PATH, true);
+  }
+
+  /** One topic search; `wait_seconds` (≤ 50) lets the server hold the read until it finishes. Free. */
+  async getTrendSearch(searchIdValue: string, query: TrendSearchQuery = {}): Promise<TrendSearchRead> {
+    const item = TREND_SEARCH_PATH.replace(":id", encodeURIComponent(searchIdValue)), parsed = trendSearchQuery.parse(query);
+    const search = new URLSearchParams(Object.entries(parsed)
+      .flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]]))).toString();
+    const path = search === "" ? item : `${item}?${search}`;
+    return parseResponse(trendSearchRead, await this.#request(path, false, undefined, ((parsed.wait_seconds ?? 0) + 15) * 1000), item, false);
   }
 
   /** What one image would cost and its size; spends no credits. */
@@ -891,9 +977,9 @@ export class ClipwrightClient {
     const parsed = createWorkflowPlan.parse(input), path = WORKFLOW_PLANS_PATH;
     return parseResponse(workflowPlanRead, await this.#request(path, false, { method: 'POST', body: JSON.stringify(parsed) }), path, false);
   }
-  /** Free: the server compiles a reference profile and the accepted script into a new plan; its warnings name what it does not reproduce. */
+  /** Free: the server compiles a reference profile, or the analysis_id that holds one, and the accepted script into a new plan, or with plan_id and base_version into a draft revision of it; warnings name what it does not reproduce. */
   async planReferenceRemake(input: PlanReferenceRemakeArgs): Promise<WorkflowPlanRead> {
-    const parsed = planReferenceRemake.parse(input), path = WORKFLOW_REFERENCE_REMAKE_PATH;
+    const parsed = planReferenceRemakeRequest.parse(input), path = WORKFLOW_REFERENCE_REMAKE_PATH;
     return parseResponse(workflowPlanRead, await this.#request(path, false, { method: 'POST', body: JSON.stringify(parsed) }), path, false);
   }
   async getWorkflowPlan(planId: string): Promise<WorkflowPlanRead> {
@@ -1031,6 +1117,7 @@ export type { PricesResponseRead };
 export type { FeedbackRequest, FeedbackResponse };
 export type { AnalyzeReferenceRequest, ReferenceAnalysisQuery, ReferenceAnalysisRead };
 export type { AnalyzeCreatorRequest, CreatorProfileQuery, CreatorProfileQuote, CreatorProfileRead };
+export type { FindTrendsArgs, TrendSearchQuery, TrendSearchQuote, TrendSearchRead };
 export type { UploadListRead };
 export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs, PlanReferenceRemakeArgs,
   WorkflowCatalogRead, WorkflowMethodRead, WorkflowPlanRead, WorkflowQuoteRead, WorkflowLaunchRead, WorkflowRunRead };

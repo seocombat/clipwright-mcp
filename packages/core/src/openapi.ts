@@ -7,9 +7,11 @@ import {
   asset, assetId, ASSET_PUT_MEDIA_TYPES, assetBytesQuery, assetList, assetListQuery, createAssetRequest, pendingAsset, updateAssetRequest,
 } from "./assets.js";
 import { actorDefaults, actorDefaultsInput } from "./broll-policy.js";
+import { brandKit, brandKitInput, extractBrandInput, extractBrandResponse } from "./design.js";
 import { offeredUgcInput } from "./contract-dispositions.js";
 import { workflowCatalogResponse, workflowMethodResponse } from "./contracts/v1/workflow-catalog.js";
-import { launchWorkflow, workflowLaunchResponse, workflowQuoteBinding } from "./contracts/v1/workflow-execution.js";
+import { workflowLaunchResponse } from "./contracts/v1/workflow-execution.js";
+import { launchWorkflowRequest, workflowQuoteAnswer } from "./contracts/v1/workflow-next.js";
 import { approveWorkflowPlan, createWorkflowPlan, saveWorkflowPlan, workflowPlanRead } from "./contracts/v1/workflow-plan.js";
 import { workflowId, workflowMethodId } from "./contracts/v1/workflow-primitives.js";
 import { workflowRun } from "./contracts/v1/workflow-run-read.js";
@@ -28,16 +30,18 @@ import { PUBLIC_API_BASE_URL, PUBLIC_APP_BASE_URL } from "./public-endpoints.js"
 import { healthResponse, publicSkillsResponse } from "./public-responses.js";
 import { analysisQuoteResponse, analyzeReferenceRequest, referenceAnalysis, referenceAnalysisId, referenceAnalysisQuery } from "./reference-analysis.js";
 import { analyzeCreatorRequest, creatorProfileAnswer, creatorProfileId, creatorProfileQuery, creatorProfileQuote } from "./creator-profile.js";
+import { findTrendsRequest, trendSearchAnswer, trendSearchId, trendSearchQuery, trendSearchQuote } from "./trend-search.js";
 import { runId, runQuery } from "./runs.js";
 import { quoteResponse } from "./skills.js";
 import { templateSoundsList } from "./templates/sounds.js";
+import { motionMovesList, motionMovesQuery } from "./moves.js";
 import {
   UPLOAD_MEDIA_TYPES, uploadId, uploadImportRequest, uploadIntentRequest, uploadIntentResponse, uploadItemResponse, uploadList, uploadResponse,
 } from "./uploads.js";
 import { serverFacelessInput } from "./voice-admission.js";
 import { serverVoicesQuery } from "./voice-listing.js";
 import { voicesResponse } from "./voices.js";
-import { planReferenceRemake } from "./workflows/reference-remake.js";
+import { planReferenceRemakeRequest } from "./workflows/reference-remake.js";
 
 /** `/openapi.json`: every registry route is marked public or excluded, and a */
 /** public route names its request and response schemas; API tests parse their real responses with them. */
@@ -74,9 +78,11 @@ const TAGS = {
   Uploads: "Pictures you send for a run, kept for a limited time.",
   Assets: "Pictures and clips kept on the account until you delete them.",
   Actors: "Actors saved on the account and their defaults.",
+  Brand: "The look a video draws in: a brand read from a site, and the kit saved on the account.",
   Catalogs: "Voices, template sounds, generation models, skills and prices.",
   "Reference analysis": "A reference video read into a profile a remake plan takes.",
   "Creator profiles": "A creator's latest videos with each one's views against their median.",
+  "Trend searches": "Reels on a topic, each with its views against its creator's median.",
   Account: "Balance, debt and holds.",
   Feedback: "What is missing, confusing, wrong or slow; we read every one.",
 } as const;
@@ -114,6 +120,8 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
     responses: { 200: named("Voices", voicesResponse) } },
   "GET /v1/template-sounds": { exposure: "public", operationId: "listTemplateSounds", tag: "Catalogs",
     responses: { 200: named("TemplateSounds", templateSoundsList) } },
+  "GET /v1/moves": { exposure: "public", operationId: "listMoves", tag: "Catalogs", query: motionMovesQuery,
+    responses: { 200: named("Moves", motionMovesList) } },
   "GET /v1/account": { exposure: "public", operationId: "getAccount", tag: "Account", responses: { 200: named("Account", account) } },
   "POST /v1/skills/make_ugc/quote": { exposure: "public", operationId: "quoteMakeUgc", tag: "Skills",
     body: MakeUgcInput, responses: { 200: named("UgcQuote", quoteResponse) } },
@@ -133,6 +141,7 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
     body: named("CandidateRequest", candidateRequest), responses: { 202: Run, 200: Run } },
   "GET /v1/runs/{id}/candidates": { exposure: "public", operationId: "listCandidates", tag: "Runs", params: RUN,
     responses: { 200: named("RunCandidates", runCandidates) } },
+  "DELETE /v1/runs/{id}/media": { exposure: "public", operationId: "deleteRunMedia", tag: "Runs", params: RUN, responses: { 204: null } },
   "POST /v1/skills/make_ugc/run": { exposure: "public", operationId: "runMakeUgc", tag: "Skills",
     body: MakeUgcInput, responses: { 202: Run, 200: Run } },
   "GET /v1/public/skills": { exposure: "public", operationId: "listPublicSkills", tag: "Catalogs", anonymous: true,
@@ -140,11 +149,18 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
   "GET /v1/public/prices": { exposure: "public", operationId: "listPrices", tag: "Catalogs", anonymous: true,
     responses: { 200: named("Prices", pricesResponse) } },
   "GET /v1/actors": { exposure: "public", operationId: "listActors", tag: "Actors", responses: { 200: named("Actors", actorsResponse) } },
+  "GET /v1/public/actor-previews/{actor_id}/{version}/{file}": { exposure: "excluded",
+    reason: "A PNG that list_actors and quotes link to; a client loads it as a picture, not as a JSON operation." },
   "DELETE /v1/actors/{id}": { exposure: "public", operationId: "deleteActor", tag: "Actors", params: ACTOR, responses: { 204: null } },
   "GET /v1/actors/{id}/defaults": { exposure: "public", operationId: "getActorDefaults", tag: "Actors", params: ACTOR,
     responses: { 200: named("ActorDefaults", actorDefaults) } },
   "POST /v1/actors/{id}/defaults": { exposure: "public", operationId: "setActorDefaults", tag: "Actors", params: ACTOR,
     body: named("ActorDefaultsInput", actorDefaultsInput), responses: { 200: named("ActorDefaults", actorDefaults) } },
+  "GET /v1/brand-kit": { exposure: "public", operationId: "getBrandKit", tag: "Brand", responses: { 200: named("BrandKit", brandKit) } },
+  "POST /v1/brand-kit": { exposure: "public", operationId: "setBrandKit", tag: "Brand",
+    body: named("BrandKitInput", brandKitInput), responses: { 200: named("BrandKit", brandKit) } },
+  "POST /v1/brand/extract": { exposure: "public", operationId: "extractBrand", tag: "Brand",
+    body: named("ExtractBrandInput", extractBrandInput), responses: { 200: named("ExtractBrand", extractBrandResponse) } },
   "POST /v1/skills/create_actor/quote": { exposure: "public", operationId: "quoteCreateActor", tag: "Skills",
     body: named("CreateActorInput", createActorInput), responses: { 200: named("CreateActorQuote", createActorQuote) } },
   "POST /v1/skills/create_actor/run": { exposure: "public", operationId: "runCreateActor", tag: "Skills",
@@ -159,6 +175,7 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
     responses: { 201: named("UploadIntent", uploadIntentResponse), 200: named("UploadIntent", uploadIntentResponse) } },
   "GET /v1/uploads/{id}": { exposure: "public", operationId: "getUpload", tag: "Uploads", params: { id: uploadId },
     responses: { 200: named("UploadItem", uploadItemResponse) } },
+  "DELETE /v1/uploads/{id}": { exposure: "public", operationId: "deleteUpload", tag: "Uploads", params: { id: uploadId }, responses: { 204: null } },
   "POST /v1/assets": { exposure: "public", operationId: "createAsset", tag: "Assets", optionalIdempotencyKey: true,
     body: named("CreateAssetRequest", createAssetRequest), responses: { 201: AssetItem, 202: AssetItem, 200: AssetItem } },
   "POST /v1/assets/bytes": { exposure: "public", operationId: "createAssetFromBytes", tag: "Assets", optionalIdempotencyKey: true,
@@ -180,15 +197,15 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
   "GET /v1/workflow-plans/{id}": { exposure: "public", operationId: "getWorkflowPlan", tag: "Workflows", params: PLAN,
     responses: { 200: named("WorkflowPlan", workflowPlanRead) } },
   "POST /v1/workflow-plans/reference-remake": { exposure: "public", operationId: "planReferenceRemake", tag: "Workflows",
-    body: named("PlanReferenceRemake", planReferenceRemake), responses: { 201: named("WorkflowPlan", workflowPlanRead) } },
+    body: named("PlanReferenceRemake", planReferenceRemakeRequest), responses: { 201: named("WorkflowPlan", workflowPlanRead), 200: named("WorkflowPlan", workflowPlanRead) } },
   "POST /v1/workflow-plans/{id}/revisions": { exposure: "public", operationId: "saveWorkflowPlan", tag: "Workflows", params: PLAN,
     body: named("SaveWorkflowPlan", saveWorkflowPlan), responses: { 200: named("WorkflowPlan", workflowPlanRead) } },
   "POST /v1/workflow-plans/{id}/approve": { exposure: "public", operationId: "approveWorkflowPlan", tag: "Workflows", params: PLAN,
     body: named("ApproveWorkflowPlan", approveWorkflowPlan), responses: { 200: named("WorkflowPlan", workflowPlanRead) } },
   "POST /v1/workflow-plans/{id}/quote": { exposure: "public", operationId: "quoteWorkflowPlan", tag: "Workflows", params: PLAN,
-    responses: { 200: named("WorkflowQuote", workflowQuoteBinding) } },
+    responses: { 200: named("WorkflowQuote", workflowQuoteAnswer) } },
   "POST /v1/workflow-plans/{id}/run": { exposure: "public", operationId: "runWorkflowPlan", tag: "Workflows", params: PLAN,
-    body: named("LaunchWorkflow", launchWorkflow),
+    body: named("LaunchWorkflow", launchWorkflowRequest),
     responses: { 202: named("WorkflowLaunch", workflowLaunchResponse), 200: named("WorkflowLaunch", workflowLaunchResponse) } },
   "GET /v1/generations/models": { exposure: "public", operationId: "listGenerationModels", tag: "Catalogs",
     responses: { 200: named("GenerationModels", generationModels) } },
@@ -216,6 +233,16 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
     responses: { 202: named("CreatorProfile", creatorProfileAnswer), 200: named("CreatorProfile", creatorProfileAnswer) } },
   "GET /v1/creator-profiles/{id}": { exposure: "public", operationId: "getCreatorProfile", tag: "Creator profiles", params: { id: creatorProfileId },
     query: creatorProfileQuery, responses: { 200: named("CreatorProfile", creatorProfileAnswer) } },
+  "DELETE /v1/creator-profiles/{id}": { exposure: "public", operationId: "deleteCreatorProfile", tag: "Creator profiles",
+    params: { id: creatorProfileId }, responses: { 204: null } },
+  "POST /v1/trend-searches/quote": { exposure: "public", operationId: "quoteTrends", tag: "Trend searches",
+    body: named("FindTrendsRequest", findTrendsRequest), responses: { 200: named("TrendSearchQuote", trendSearchQuote) } },
+  "POST /v1/trend-searches": { exposure: "public", operationId: "findTrends", tag: "Trend searches",
+    billedWithoutKey: "a resend within an hour answers the same search, and only a succeeded one is charged",
+    body: named("FindTrendsRequest", findTrendsRequest),
+    responses: { 202: named("TrendSearch", trendSearchAnswer), 200: named("TrendSearch", trendSearchAnswer) } },
+  "GET /v1/trend-searches/{id}": { exposure: "public", operationId: "getTrendSearch", tag: "Trend searches", params: { id: trendSearchId },
+    query: trendSearchQuery, responses: { 200: named("TrendSearch", trendSearchAnswer) } },
   "POST /v1/feedback": { exposure: "public", operationId: "sendFeedback", tag: "Feedback",
     body: named("FeedbackRequest", feedbackRequest),
     responses: { 201: named("Feedback", feedbackResponse), 200: named("Feedback", feedbackResponse) } },

@@ -11,7 +11,9 @@ import {
   mcpUgcInputShape,
   type MakeUgcInputArgs,
   actorDefaultsInput,
-  BROLL_POLICY_DESCRIPTION,
+  type DesignInput,
+  extractBrandInput,
+  mcpDesign,
   CANDIDATE_CHARGE_TEXT,
   candidateRequest,
   type CandidateRequest,
@@ -24,8 +26,8 @@ import {
   generateVideoRequest,
   MODEL_VOICE_MODEL,
   MODEL_VOICE_NAMES,
-  SCRIPT_LENGTH_DESCRIPTION,
   voicesQueryShape,
+  motionMovesQuery,
   agentRetryShape,
   runId,
   MAKE_UGC_DESCRIPTION,
@@ -55,6 +57,9 @@ import {
   CREATE_ASSET_DESCRIPTION,
   createAssetRequest,
   DELETE_ASSET_DESCRIPTION,
+  DELETE_RUN_MEDIA_DESCRIPTION,
+  DELETE_UPLOAD_DESCRIPTION,
+  DELETE_CREATOR_PROFILE_DESCRIPTION,
   GET_ASSET_DESCRIPTION,
   LIST_ASSETS_DESCRIPTION,
   UPDATE_ASSET_DESCRIPTION,
@@ -64,6 +69,9 @@ import {
   ANALYZE_CREATOR_DESCRIPTION,
   GET_CREATOR_PROFILE_DESCRIPTION,
   QUOTE_CREATOR_PROFILE_DESCRIPTION,
+  FIND_TRENDS_DESCRIPTION,
+  QUOTE_TRENDS_DESCRIPTION,
+  findTrendsRequest,
   analyzeCreatorRequest,
   creatorProfileId,
   creatorProfileQuery,
@@ -81,7 +89,7 @@ import {
 import { formatGetRun, type McpToolResponse, RUN_WAIT_MAX_SECONDS, withFailureReport } from "./format.js";
 import { facelessQuoteMarkdown, RUN_DISPLAY_HINT, ugcQuoteMarkdown } from "./run-display.js";
 import { registerWorkflowTools } from './workflow-tools.js';
-import { advertiseSlimTools } from "./advertised-schema.js";
+import { advertiseSlimTools, describeTool } from "./advertised-schema.js";
 import { answerInvalidArguments } from "./invalid-arguments.js";
 
 /** A key outside the video tools is named before the SDK is asked, as the API names it (rule 3): stripped, it would vanish silently. */
@@ -109,6 +117,11 @@ export const REMOTE_UPLOAD_REFUSAL =
   "This Clipwright server is remote and cannot read files on your machine, so upload_image takes no path here. " +
   "Pass a public https URL as upload_image({url}), or call create_upload and PUT the file to the returned put_url " +
   "(for example with curl), then use the upload_id.";
+
+/** tools/list says each tool in short (#1142); this read gives the rest. */
+export const DESCRIBE_TOOL_DESCRIPTION =
+  "Free. tools/list gives each tool in short; this answers a tool's full description and every field's guidance, or one field's " +
+  "with its subfields. Read it before the first call of a tool or field you have not used, such as quote_ugc templates.";
 
 /** What `create_asset` answers a path on a server that reads no files. */
 export const REMOTE_ASSET_PATH_REFUSAL =
@@ -143,6 +156,21 @@ export function withPoll<T extends { analysis_id: string; state: string; retry_a
     retry_after_seconds: analysis.retry_after_seconds ?? 10 } };
 }
 
+/** What an MCP analysis answer leaves out unless asked (#1172): the profile and the frame links, about 25 KB and 23 KB of a reel's answer. */
+export const REFERENCE_INCLUDES = ["profile", "frames"] as const;
+export const REFERENCE_OMITTED_NOTE = "Left out to keep this answer small: get_reference_analysis with include: [\"profile\", \"frames\"] " +
+  "returns them. plan_reference_remake reads the profile by analysis_id.";
+/** The answer without the parts not asked for, each named in `omitted`; one already absent is not named. */
+export function lightAnalysis<T extends { reference_profile?: unknown; frames?: unknown }>(analysis: T, include: readonly string[] = []):
+  T | (Omit<T, "reference_profile" | "frames"> & { omitted: { fields: string[]; note: string } }) {
+  const fields = [...(include.includes("profile") || analysis.reference_profile == null ? [] : ["reference_profile"]),
+    ...(include.includes("frames") || analysis.frames == null ? [] : ["frames"])];
+  if (fields.length === 0) return analysis;
+  const light: Record<string, unknown> = { ...analysis };
+  for (const field of fields) delete light[field];
+  return { ...light, omitted: { fields, note: REFERENCE_OMITTED_NOTE } } as Omit<T, "reference_profile" | "frames"> & { omitted: { fields: string[]; note: string } };
+}
+
 /** An unfinished creator profile names the read that waits for it. */
 export function withProfilePoll<T extends { profile_id: string; state: string; retry_after_seconds?: number | null | undefined }>(profile: T):
   T & { poll?: { tool: "get_creator_profile"; arguments: { profile_id: string; wait_seconds: number }; retry_after_seconds: number } } {
@@ -150,8 +178,16 @@ export function withProfilePoll<T extends { profile_id: string; state: string; r
   return { ...profile, poll: { tool: "get_creator_profile", arguments: { profile_id: profile.profile_id, wait_seconds: REFERENCE_WAIT_MAX_SECONDS },
     retry_after_seconds: profile.retry_after_seconds ?? 5 } };
 }
+/** An unfinished topic search names the same call again (#921): it replays the search in flight for free and waits for it. */
+export function withTrendPoll<T extends { state: string; retry_after_seconds?: number | null | undefined }, A>(search: T, request: A):
+  T & { poll?: { tool: "find_trends"; arguments: A; retry_after_seconds: number } } {
+  if (search.state !== "queued" && search.state !== "searching") return search;
+  return { ...search, poll: { tool: "find_trends", arguments: request, retry_after_seconds: search.retry_after_seconds ?? 5 } };
+}
 /** A start waits this long for its profile, inside an agent's usual 60 s tool timeout. */
 export const CREATOR_START_WAIT_SECONDS = 40;
+/** How a paid edit or generation answers a repeat: one sentence, said the same way in every tool. */
+const REPEAT_TEXT = (another: string) => `Repeating an identical request returns the run it started, starting nothing new; pass ${another} for another one.`;
 
 export const MAX_INLINE_FRAMES = 8;
 /** The read's query without `display`: the MCP read always asks for the breakdown. */
@@ -261,6 +297,20 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       })),
   );
 
+  server.registerTool(
+    "delete_run_media",
+    {
+      title: "Delete a run's files",
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+      description: DELETE_RUN_MEDIA_DESCRIPTION,
+      inputSchema: { run_id: runId },
+    },
+    async ({ run_id }) => withFailureReport(async () => {
+      await client.deleteRunMedia(run_id);
+      return { content: [{ type: "text", text: JSON.stringify({ deleted: run_id }) }] };
+    }),
+  );
+
   // The revision pair: a flat object for tools/list, and the union parse refuses none or both of `changes` and `document`.
   const [byDocument, byChanges] = revisionRequest.options;
   const revisionShape = {
@@ -280,8 +330,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "Price a revision of a run WITHOUT spending credits: what it would change (summary) and what it costs " +
-        "(billing.total_credits). Pass run_id and exactly one of changes or document, the same as revise_run. Always " +
-        `call this first and show the user the price before revise_run. ${REVISION_CHARGE_TEXT} While paid edits are ` +
+        `(billing.total_credits). Pass run_id and exactly one of changes or document, the same as revise_run. ${REVISION_CHARGE_TEXT} While paid edits are ` +
         "closed it answers editing_disabled and charges nothing.",
       inputSchema: revisionShape,
     },
@@ -299,13 +348,10 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description: withPriceLine("revise_run",
         "Start a revision of a run made by make_faceless (paid): a NEW run that renders the video again with the " +
         "shots you change, by changes (a shot and what to generate for it) or by document (the whole edited " +
-        "document); pass exactly one. Call quote_revision first and show the user the price. An identical request " +
-        "returns the same run it started before, so a call repeated after a lost answer starts nothing new; to " +
-        `start a second revision with the same request on purpose, pass attempt 2. ${REVISION_CHARGE_TEXT} An ` +
+        `document); pass exactly one. ${REPEAT_TEXT("attempt 2")} ${REVISION_CHARGE_TEXT} An ` +
         "original has a limit on revisions running at once and on revisions failed or unfinished, and paid edits " +
         "of it close some days after it finished; a refusal names which. While paid edits are closed it answers " +
-        "editing_disabled and charges nothing. The result is a new run: call get_run with its poll.arguments; once it succeeded " +
-        "it is editable under its own run_id."),
+        "editing_disabled and charges nothing. Poll the new run with get_run; once it succeeded it is editable under its own run_id."),
       inputSchema: { ...revisionShape, ...agentRetryShape },
     },
     async ({ run_id, attempt, ...request }) =>
@@ -332,8 +378,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description:
         "Price one shot candidate of a run WITHOUT spending credits: one picture or clip made for one shot, to keep " +
         "or discard in a revision. Pass run_id, shot_id and operation, the same as create_candidate; the answer names " +
-        "the unit, its credits and usable_until, the last moment the candidate can enter a revision. Always call this " +
-        `first and show the user the price before create_candidate. ${CANDIDATE_CHARGE_TEXT} While shot candidates are ` +
+        `the unit, its credits and usable_until, the last moment the candidate can enter a revision. ${CANDIDATE_CHARGE_TEXT} While shot candidates are ` +
         "closed it answers editing_disabled and charges nothing.",
       inputSchema: candidateShape,
     },
@@ -350,13 +395,10 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: false, destructiveHint: false },
       description: withPriceLine("create_candidate",
         "Make a shot candidate of a run made by make_faceless (paid): a NEW run of skill edit_shot that generates one " +
-        "picture or clip for one shot, to keep or discard in a later revision. Call quote_candidate first and show the " +
-        `user the price. ${CANDIDATE_CHARGE_TEXT} An identical request returns the same run it started before, so a ` +
-        "call repeated after a lost answer starts nothing new; to make another candidate with the same request on " +
-        "purpose, pass take 2. An original has a limit on candidates running at once and on candidates failed or " +
+        `picture or clip for one shot, to keep or discard in a later revision. ${CANDIDATE_CHARGE_TEXT} ${REPEAT_TEXT("take 2")} ` +
+        "An original has a limit on candidates running at once and on candidates failed or " +
         "unfinished, apart from its revisions; a refusal names which. While shot candidates are closed it answers " +
-        "editing_disabled and charges nothing. The result is a new run: call get_run with its poll.arguments; once it succeeded, its " +
-        "candidate.preview_url shows what was made."),
+        "editing_disabled and charges nothing. Poll the new run with get_run; once it succeeded, its candidate.preview_url shows what was made."),
       inputSchema: candidateShape,
     },
     async ({ run_id, ...request }) =>
@@ -366,14 +408,12 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   // Single generations (clipwright#724): the tools are listed while the feature is closed and relay the API's refusal.
   // The quote says what its input means; the paid tool points at it and says how a call is charged and repeated.
   const generationCharge = "A generation that fails is charged nothing.";
+  const closedTerms = `${generationCharge} While generations are closed it answers generations_disabled or generations_marking_pending and charges nothing.`;
   const quoteTerms =
     "A reference is {upload_id, rights_confirmed: true} for a picture from upload_image or create_upload (rights_confirmed states you may use " +
     "the people and works in it), {run_id} of a succeeded generate_image run of this account until its reusable_until, " +
-    `or {asset_id} of a picture asset from create_asset, whose rights were confirmed when it was made. ${generationCharge} ` +
-    "While generations are closed it answers generations_disabled or generations_marking_pending and charges nothing.";
-  const generationTerms = `${generationCharge} An identical request returns the ` +
-    "same run it started before, so a call repeated after a lost answer starts nothing new; to make another one with the " +
-    "same request on purpose, pass attempt 2.";
+    `or {asset_id} of a picture asset from create_asset, whose rights were confirmed when it was made. ${closedTerms}`;
+  const generationTerms = `${generationCharge} ${REPEAT_TEXT("attempt 2")}`;
   // Strict objects: an unknown key is refused at the tool, not stripped. The clip's mode rules run in the handler.
   const imageTool = generateImageRequest, imageRunTool = generateImageRequest.extend(agentRetryShape);
   const videoTool = z.strictObject(generateVideoRequest.shape), videoRunTool = videoTool.extend(agentRetryShape);
@@ -401,8 +441,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "Price one generate_image call WITHOUT spending credits: its credits (one image at its model's unit_credits), " +
-        "its width and height, and warnings. Always call this first and show the user the price before generate_image. " +
-        quoteTerms,
+        `its width and height, and warnings. ${quoteTerms}`,
       inputSchema: imageTool,
     },
     async (args) => withFailureReport(async () => ({
@@ -417,8 +456,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: false, destructiveHint: false },
       description: withPriceLine("generate_image",
         "Generate one image from a prompt (paid): a NEW run of skill generate_image, charged the quoted credits per image " +
-        "once it is delivered. Call quote_image first and show the user the price. Call get_run with its poll.arguments; once it " +
-        "succeeded, generation.url is the image and its run_id can be a reference of a later generation. " + generationTerms),
+        "once it is delivered. Poll get_run; once it succeeded, generation.url is the image and its run_id can be a reference of a later generation. " + generationTerms),
       inputSchema: imageRunTool,
     },
     async ({ attempt, ...request }) =>
@@ -432,8 +470,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "Price one generate_video call WITHOUT spending credits: its credits (unit_credits per second of duration_s), " +
-        "its width and height, and warnings. Always call this first and show the user the price before generate_video. " +
-        quoteTerms,
+        `its width and height, and warnings. A reference is as quote_image states it. ${closedTerms}`,
       inputSchema: videoTool,
     },
     async (args) => withFailureReport(async () => ({
@@ -449,8 +486,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description: withPriceLine("generate_video",
         "Generate one silent clip (paid): a NEW run of skill generate_video, charged unit_credits per second of duration_s " +
         "once it is delivered. Modes: text; first_frame (first_frame, optional last_frame, of the requested aspect ratio " +
-        "within 2%); reference (1 to 4 references). Call quote_video first and show the user the price. Call get_run with " +
-        "its poll.arguments; once it succeeded, generation.url is the clip. " + generationTerms),
+        "within 2%); reference (1 to 4 references). Poll get_run; once it succeeded, generation.url is the clip. " + generationTerms),
       inputSchema: videoRunTool,
     },
     async ({ attempt, ...request }) =>
@@ -463,8 +499,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Quote a video",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "Estimate the credit cost of a make_ugc call WITHOUT spending credits. " +
-        "Always call this first and show the user the price before make_ugc.",
+        "Estimate the credit cost of a make_ugc call WITHOUT spending credits; show the user the price before make_ugc.",
       // Same core shape as make_ugc, so the quote prices exactly what make_ugc
       // would render.
       inputSchema: ugcTool,
@@ -540,6 +575,20 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     async ({ upload_id }) => withFailureReport(async () => ({
       content: [{ type: "text", text: JSON.stringify(await client.getUpload(upload_id)) }],
     })),
+  );
+
+  server.registerTool(
+    "delete_upload",
+    {
+      title: "Delete an upload",
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+      description: DELETE_UPLOAD_DESCRIPTION,
+      inputSchema: { upload_id: uploadId },
+    },
+    async ({ upload_id }) => withFailureReport(async () => {
+      await client.deleteUpload(upload_id);
+      return { content: [{ type: "text", text: JSON.stringify({ deleted: upload_id }) }] };
+    }),
   );
 
   // Account assets (clipwright#724 F2). A path is read only by a server on the caller's machine, as with upload_image.
@@ -659,7 +708,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       inputSchema: analyzeReferenceRequest.shape,
     },
     async (request) => withFailureReport(async () => ({
-      content: [{ type: "text", text: JSON.stringify(withPoll(await client.analyzeReference(request))) }],
+      content: [{ type: "text", text: JSON.stringify(withPoll(lightAnalysis(await client.analyzeReference(request)))) }],
     })),
   );
 
@@ -670,14 +719,16 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: true, destructiveHint: false },
       description: GET_REFERENCE_ANALYSIS_DESCRIPTION,
       inputSchema: { analysis_id: referenceAnalysisId, ...readQuery,
-        frames_as: z.enum(["links", "images"]).optional().describe(`images: also return up to ${MAX_INLINE_FRAMES} key frames as images in this answer`) },
+        frames_as: z.enum(["links", "images"]).optional().describe(`images: also return up to ${MAX_INLINE_FRAMES} key frames as images in this answer`),
+        include: z.array(z.enum(REFERENCE_INCLUDES)).max(REFERENCE_INCLUDES.length).optional()
+          .describe("profile: also the reference_profile; frames: also the frame links. Both are left out by default.") },
     },
-    async ({ analysis_id, frames_as, ...query }) => withFailureReport(async () => {
+    async ({ analysis_id, frames_as, include, ...query }) => withFailureReport(async () => {
       // Every MCP read carries the ready breakdown (#990): an agent shows the same table without composing its own.
       const analysis = await client.getReferenceAnalysis(analysis_id, { ...query, display: "markdown" });
       const images = frames_as === "images" ? await keyFrameImages(analysis.frames) : [];
       // The only tool answering image blocks; the shared response type keeps text-only for every other tool's callers.
-      return { content: [{ type: "text" as const, text: JSON.stringify(withPoll(analysis)) }, ...images] } as unknown as McpToolResponse;
+      return { content: [{ type: "text" as const, text: JSON.stringify(withPoll(lightAnalysis(analysis, include))) }, ...images] } as unknown as McpToolResponse;
     }),
   );
 
@@ -725,6 +776,49 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         { ...(wait_seconds === undefined ? {} : { wait_seconds }), display: "markdown" }))) }],
     })),
   );
+  // Topic search (#921): paid per search, the first step of a guided brief; the start waits for it like a creator profile.
+  server.registerTool(
+    "quote_trends",
+    {
+      title: "Quote a trend search",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: QUOTE_TRENDS_DESCRIPTION,
+      inputSchema: findTrendsRequest.shape,
+    },
+    async (request) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.quoteTrends(request)) }],
+    })),
+  );
+  server.registerTool(
+    "find_trends",
+    {
+      title: "Find trending reels on a topic",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      description: withPriceLine("find_trends", FIND_TRENDS_DESCRIPTION),
+      inputSchema: findTrendsRequest.shape,
+    },
+    // A repeat of the same request replays the search in flight for free and waits again, so no read tool is listed (tools/list budget).
+    async (request) => withFailureReport(async () => {
+      const started = await client.findTrends(request);
+      const done = started.state === "queued" || started.state === "searching"
+        ? await client.getTrendSearch(started.search_id, { wait_seconds: CREATOR_START_WAIT_SECONDS, display: "markdown" })
+        : await client.getTrendSearch(started.search_id, { display: "markdown" });
+      return { content: [{ type: "text", text: JSON.stringify(withTrendPoll(done, request)) }] };
+    }),
+  );
+  server.registerTool(
+    "delete_creator_profile",
+    {
+      title: "Delete a creator profile",
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+      description: DELETE_CREATOR_PROFILE_DESCRIPTION,
+      inputSchema: { profile_id: creatorProfileId },
+    },
+    async ({ profile_id }) => withFailureReport(async () => {
+      await client.deleteCreatorProfile(profile_id);
+      return { content: [{ type: "text", text: JSON.stringify({ deleted: profile_id }) }] };
+    }),
+  );
   server.registerTool(
     "list_voices",
     {
@@ -732,27 +826,21 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "List the voices for the `voice` field of make_ugc, or of make_faceless with skill=make_faceless. " +
-        "Without `skill` the list holds the make_ugc voices only. Each voice names the one skill that speaks it " +
-        "in `skill`, and the other skill refuses it before any charge. skill=make_faceless lists " +
-        `the ${FACELESS_VOICE_NAMES.length} narration voices of make_faceless (kind faceless_voice, each with a ` +
-        `language and a gender; without voice it speaks ${DEFAULT_FACELESS_VOICE}; it takes no voice_id). ` +
-        "The rest of this text is about the make_ugc voices: the presets first, then the " +
+        "Without `skill` the list holds the make_ugc voices only. Each voice names in `skill` the one skill that speaks it; " +
+        "the other refuses it before any charge. skill=make_faceless lists " +
+        `the ${FACELESS_VOICE_NAMES.length} narration voices of make_faceless (kind faceless_voice, with a ` +
+        `language and a gender; default ${DEFAULT_FACELESS_VOICE}; no voice_id). ` +
+        "make_ugc voices: the presets, then the " +
         `${MODEL_VOICE_NAMES.length} voices of ${MODEL_VOICE_MODEL} (kind model_voice), then catalog voices in ` +
-        `${CATALOG_LANGUAGES.length} languages. Filter by \`language\` (the voice's native language; any voice ` +
-        "speaks any supported language), `gender`, `age`, `use_case` and `model`; an unknown filter value is " +
-        "refused with the allowed values. Pick a voice by `name` (e.g. voice=\"george\"); a name always means " +
-        "the same voice. A model_voice voice is spoken only by its `model`: naming it selects that model, " +
-        "it has no language of its own and matches the languages measured on the model, and its gender is " +
-        "listed only where it is known. `voice_id` is an escape hatch for a raw vendor voice id that is not listed, such as a " +
-        "cloned voice. Without voice or voice_id the default voice follows the actor's gender: sarah for a " +
-        "woman, george for a man, taken from actor_id or from actor_gender next to image. With image and no " +
-        "actor_gender the voice is george and a warning says so: pass the gender of the person in the photo as " +
-        "actor_gender (ask the user only when you cannot tell), or pick a voice here. Keep any voice the user chose. A voice with `preview_url` has a short-lived audio sample " +
-        "spoken by that voice with that model; play it to the user before a paid render instead of judging a " +
-        "voice by its description. A model_voice sample is in English, or in the language you filter by. " +
-        "It expires at `preview_expires_at`: call this tool again for a fresh link, " +
-        "never store it. A voice without `preview_url` has no sample yet. `words_per_second` is an English voice's measured pace; " +
-        "eleven_v4 has no speed setting, so to match a reference presenter pick the voice nearest its pace. Free. " + SCRIPT_LENGTH_DESCRIPTION,
+        `${CATALOG_LANGUAGES.length} languages. Filter by \`language\` (native; any voice speaks any supported ` +
+        "language), `gender`, `age`, `use_case` and `model`; an unknown value is refused with the allowed ones. " +
+        "Pick a voice by `name` (voice=\"george\"), always the same voice. " +
+        "A model_voice voice is spoken only by its `model`: naming it selects that model; its languages are those " +
+        "measured on the model, its gender listed only where known. `voice_id` takes an unlisted raw vendor id, such as a " +
+        "cloned voice. Keep any voice the user chose. `preview_url` is a short sample in that voice and model (a model_voice " +
+        "one in English or the filtered language): play it before a paid render. It expires at `preview_expires_at`: call " +
+        "again, never store it; none means no sample yet. `words_per_second` is an English voice's measured pace; eleven_v4 " +
+        "has no speed, so match a presenter by the nearest pace. Free. Script limits by speech model: the script field of quote_ugc.",
       inputSchema: voicesQueryShape,
     },
     async (filters) =>
@@ -780,10 +868,28 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     })),
   );
 
+  server.registerTool(
+    "list_moves",
+    {
+      title: "List moves",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "The catalogue of moves: motion and graphics to put on lines of a script, for make_ugc, make_faceless and plan_reference_remake " +
+        "moves. Filter by beat (hook, problem, demo, proof, social_proof, offer, cta, transition), content (what the line has: number, list, " +
+        "quote, rating, photo, screenshot, footage, link, words, none), surface, mood, skill or q; next_cursor pages. Each line says what the " +
+        "move does for the viewer and its credits per use (0 is free). names=a,b gives those moves in full: look, data to pass, what must " +
+        "already be on the line, how often a video takes it and what pairs with it. A soon move is coming and cannot be picked yet. Free.",
+      inputSchema: motionMovesQuery.shape,
+    },
+    async (filters) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.listMoves(filters)) }],
+    })),
+  );
+
   server.registerTool("list_actors", {
     title: "List actors",
     annotations: { readOnlyHint: true, destructiveHint: false },
-    description: "List saved Clipwright actors with stable IDs, gender, age and verified image formats. Choose actor_id for quote_ugc and make_ugc. Preview URLs expire; actor IDs remain reusable. Do not combine actor_id with image, person or actor_gender. Without voice, the actor speaks the default voice of their gender.",
+    description: "List saved Clipwright actors with stable IDs, gender, age and verified image formats. Choose actor_id for quote_ugc and make_ugc. Show a preview_url as a markdown image; a personal actor's expires, so list again for a fresh one; actor IDs remain reusable. Do not combine actor_id with image, person or actor_gender. Without voice, the actor speaks the default voice of their gender.",
     inputSchema: {},
   }, async () => withFailureReport(async () => ({
     content: [{ type: "text", text: JSON.stringify({ actors: await client.listActors() }) }],
@@ -792,7 +898,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   server.registerTool("get_actor_defaults", {
     title: "Get actor B-roll default",
     annotations: { readOnlyHint: true, destructiveHint: false },
-    description: `Read this account actor's saved B-roll default. ${BROLL_POLICY_DESCRIPTION}`,
+    description: "Read this account actor's saved B-roll default; set_actor_defaults' broll_policy says what each value does.",
     inputSchema: { actor_id: z.string().min(1) },
   }, async ({ actor_id }) => withFailureReport(async () => ({
     content: [{ type: "text", text: JSON.stringify(await client.getActorDefaults(actor_id)) }],
@@ -801,10 +907,30 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   server.registerTool("set_actor_defaults", {
     title: "Set actor B-roll default",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-    description: `Save this account actor's B-roll default without spending credits. ${BROLL_POLICY_DESCRIPTION}`,
+    description: "Save this account actor's B-roll default without spending credits; broll_policy says what each value does.",
     inputSchema: { actor_id: z.string().min(1), ...actorDefaultsInput.shape },
   }, async ({ actor_id, ...input }) => withFailureReport(async () => ({
     content: [{ type: "text", text: JSON.stringify(await client.setActorDefaults(actor_id, input)) }],
+  })));
+
+  server.registerTool("extract_brand", {
+    title: "Read a brand from a site",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    description: "Free. A public site's colours, fonts, logo and corners as a proposed design; the user confirms it. " +
+      "logo_url: import with create_asset for design.logo_asset_id.",
+    inputSchema: extractBrandInput.shape,
+  }, async ({ url }) => withFailureReport(async () => ({
+    content: [{ type: "text", text: JSON.stringify(await client.extractBrand(url)) }],
+  })));
+
+  // One tool reads and saves the kit: a second would cost tools/list bytes no client has to spare (#1003).
+  server.registerTool("brand_kit", {
+    title: "Read or save the brand kit",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    description: "Free. No design: the saved one (used when a video names none), our looks and faces. design: save the user's confirmed one.",
+    inputSchema: { design: mcpDesign.optional() },
+  }, async ({ design }) => withFailureReport(async () => ({
+    content: [{ type: "text", text: JSON.stringify(design === undefined ? await client.getBrandKit() : await client.setBrandKit(design as DesignInput)) }],
   })));
 
   // Personal actor: the same schema the server checks, so offered and accepted
@@ -834,7 +960,9 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "Estimate the credit cost of create_actor WITHOUT spending credits. Call this first and show the " +
-        "price before create_actor: each requested format is a separate charged image.",
+        "price before create_actor: each requested format is a separate charged image, except a portrait from your own " +
+        "image (portrait), which costs nothing. A portrait that is not your own image asset within 2% of 9:16 is " +
+        "refused here; one without exactly one well-framed face fails the run at no charge.",
       inputSchema: createActorInputShape,
     },
     async (args) =>
@@ -866,8 +994,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Quote a faceless video",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "Estimate the credit cost of make_faceless WITHOUT spending credits. " +
-        "Always call this first and show the user the price before make_faceless.",
+        "Estimate the credit cost of make_faceless WITHOUT spending credits; show the user the price before make_faceless.",
       inputSchema: offeredFacelessInput,
     },
     async (args) =>
@@ -934,6 +1061,21 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     content: [{ type: "text", text: JSON.stringify(await client.sendFeedback(request)) }],
   })));
 
-  advertiseSlimTools(server);
+  server.registerTool("describe_tool", {
+    title: "Describe a tool",
+    annotations: { readOnlyHint: true, destructiveHint: false },
+    description: DESCRIBE_TOOL_DESCRIPTION,
+    inputSchema: {
+      tool: z.string().min(1).describe("The tool's name, such as quote_ugc."),
+      field: z.string().min(1).optional().describe("One field and its subfields, such as templates; omitted, every field."),
+    },
+  }, async ({ tool, field }) => {
+    const described = describeTool(await fullList(), tool, field);
+    return described === undefined
+      ? { content: [{ type: "text", text: `No tool is named "${tool}"; tools/list names every tool.` }], isError: true }
+      : { content: [{ type: "text", text: JSON.stringify(described) }] };
+  });
+
+  const fullList = advertiseSlimTools(server);
   return server;
 }

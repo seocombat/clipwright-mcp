@@ -1,6 +1,8 @@
+import { ASSET_DELETE_GRACE_DAYS } from "./assets.js";
 import { CANDIDATE_CHARGE_TEXT } from "./edit-candidate.js";
 import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_PER_HOUR, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
+import { TREND_SEARCH_CREDITS, TREND_SEARCH_PER_HOUR, TREND_SEARCH_REELS } from "./trend-search.js";
 import { FEEDBACK_PER_HOUR } from "./feedback.js";
 import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_ANALYSIS_PER_HOUR, REFERENCE_DATA_CREDITS, REFERENCE_DATA_PER_HOUR } from "./reference-analysis.js";
 
@@ -23,6 +25,8 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "GET /v1/voices": "Voices you can name in voice or voice_id for make_ugc; skill=make_faceless lists the narration voices of make_faceless instead.",
   "GET /v1/template-sounds":
     "The sounds make_ugc templates play, by beat: where each beat plays, its default and every name template_sounds takes. Free.",
+  "GET /v1/moves": "The catalogue of moves to put on lines of a script as moves of make_ugc, make_faceless and a reference remake: what each " +
+    "does for the viewer, the lines it serves and its credits per use, filtered and paged; names gives full lines. Free.",
   "GET /v1/account": "Balance, debt and holds of the account behind the key, and our replies to its support requests and feedback.",
   "POST /v1/feedback":
     `Tells us what is missing, confusing, wrong or slow, optionally about a run of this account; we read every one. Free. The same kind, text and run within 24 hours answer the same feedback_id; ${FEEDBACK_PER_HOUR} per hour.`,
@@ -30,9 +34,14 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "GET /v1/public/prices":
     "The price of every action in credits: a fixed number per unit, or a formula where the price depends on the input; the quote gives the exact number. Free, without a key.",
   "GET /v1/actors": "Actors saved on the account, with the id make_ugc takes.",
+  "GET /v1/public/actor-previews/{actor_id}/{version}/{file}": "A library actor's picture as PNG, the link list_actors and quotes give. Answers without a key.",
   "GET /v1/actors/{id}/defaults": "Reads the saved actor's default policy for people in inserts.",
   "POST /v1/actors/{id}/defaults": "Sets the saved actor's default policy for people in inserts. A run can override it.",
   "DELETE /v1/actors/{id}": "Forgets a saved actor. An actor used by a live run is kept.",
+  "GET /v1/brand-kit": "Reads the account's saved design: colours, fonts, logo, corners and motion. Null when none is saved.",
+  "POST /v1/brand-kit": "Saves the account's design, or clears it with null. A video that names neither design nor template_theme draws in it. Free.",
+  "POST /v1/brand/extract": "Reads a public site's colours, fonts, logo and corners into a proposed design with readable text, for you to confirm. " +
+    "Free; counts towards the hourly url downloads.",
   "GET /v1/runs/{id}": "State of one run of any skill, its warnings and its video url.",
   "GET /v1/runs/{id}/shots":
     "The shots of one run: each shot's span, words, description and preview, and whether the run can be edited.",
@@ -50,6 +59,8 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
     `Starts a shot candidate and holds the price of its one unit. ${CANDIDATE_CHARGE_TEXT} The same Idempotency-Key with the same request and take returns the first candidate; take + 1 makes another, charged again. While shot candidates are closed it answers editing_disabled and charges nothing.`,
   "GET /v1/runs/{id}/candidates":
     "The shot candidates of a faceless run's family, oldest first, each with its state, its charge and a preview once made. While shot candidates are closed it answers editing_disabled.",
+  "DELETE /v1/runs/{id}/media":
+    `Deletes the files of a finished run: no link to them is given from now on, and they are erased from storage after ${ASSET_DELETE_GRACE_DAYS} days. The run and its charge stay. Refused with run_media_in_use while another unfinished run uses them. Free.`,
   "POST /v1/uploads":
     "Takes image bytes and returns a signed https url, upload_id and content_digest (SHA-256 of the original bytes). Use upload_id as a workflow asset_id and copy content_digest directly; native video and actor calls use url.",
   "GET /v1/uploads":
@@ -60,6 +71,8 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
     "Returns a presigned PUT url for a local PNG or JPEG of the declared type, size and sha256. The upload_id is usable once the PUT lands; before that generations answer upload_not_finished. Free.",
   "GET /v1/uploads/{id}":
     "One upload with a freshly signed url and its usable_until. After a presigned PUT it confirms the file: upload_not_finished until it is there, upload_expired after 24 hours. Free.",
+  "DELETE /v1/uploads/{id}":
+    `Deletes an upload: no call takes it from now on, and its file is erased from storage after ${ASSET_DELETE_GRACE_DAYS} days unless another upload of the same picture is kept. Refused with upload_in_use while an unfinished run uses it. Free.`,
   "POST /v1/assets":
     "Saves a picture as an account asset, kept until you delete it: from a run_id, an upload_id, a public https url or base64. Your own material needs rights_confirmed: true, or analysis_only: true for a reference kept for analyze_reference alone, which no render or generation takes. 2000 assets and 1 GB per account, 20 GB once it has bought credits, 100 new ones per day. Free.",
   "POST /v1/assets/bytes":
@@ -90,6 +103,18 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
     `or any failure, costs nothing. ${CREATOR_PROFILE_PER_HOUR} new profiles per hour.`,
   "GET /v1/creator-profiles/{id}":
     "One creator profile: queued, analyzing, succeeded with the profile and warnings, or failed with its error. Free.",
+  "DELETE /v1/creator-profiles/{id}":
+    "Deletes a finished creator profile at once; the run that made it and its charge stay. Refused with run_not_finished while it is being made. Free.",
+  "POST /v1/trend-searches/quote":
+    `Prices a topic search: ${TREND_SEARCH_CREDITS} credits, or 0 when a search of the same query from the last hour would answer. Charges nothing.`,
+  "POST /v1/trend-searches":
+    `Starts a search for reels on a topic, TikTok and Instagram ranked together unless platform names one: up to ${TREND_SEARCH_REELS} ` +
+    "reels per platform, one per creator, each with its views against its creator's median. Answers at once; the same query within an " +
+    `hour answers the same search for free. Holds ${TREND_SEARCH_CREDITS} credits, charged once it succeeds, a mix that reaches only one ` +
+    "platform included (warnings[] names the other); no reel found, or any failure, costs nothing. " +
+    `${TREND_SEARCH_PER_HOUR} new searches per hour.`,
+  "GET /v1/trend-searches/{id}":
+    "One topic search: queued, searching, succeeded with the reels and warnings, or failed with its error. Free.",
   "POST /v1/skills/make_ugc/quote": "Prices a make_ugc call with this input. Charges nothing.",
   "POST /v1/skills/make_ugc/run":
     "Starts a video run and answers at once with a run_id. Poll the run for the result.",

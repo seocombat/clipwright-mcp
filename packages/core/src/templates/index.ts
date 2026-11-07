@@ -1,30 +1,40 @@
 import { z } from "zod";
 import { captionLanguageOf } from "../caption-language.js";
 import { lexicalTokens, quoteOccurrences } from "../semantic-inserts.js";
-import { admissionScene, type AnchoredItem, faceZone, frameCanvasOf, type LayerCheckInput, type LayerRect, type LayerRefusal, layerWordRange,
-  MAX_OVERLAYS_AT_ONCE, overlayFootprints, placedRefusals, type PlaceableOverlay, type PresenterFraming, rectsOverlap, type WordRange } from "../ugc-layers.js";
+import { admissionFramings, admissionScene, type AnchoredItem, faceZone, frameCanvasOf, type LayerCheckInput, type LayerRect, type LayerRefusal, layerWordRange,
+  MAX_OVERLAYS_AT_ONCE, overlayCrowd, overlayFootprints, placedRefusals, type PlaceableOverlay, type PresenterFraming, rectsOverlap, type WordRange } from "../ugc-layers.js";
 import { placeAnchorOf, placeByCaptions, type Place } from "../scene-place.js";
 import { callout } from "./callout.js";
+import { chatWindow, chatWindowV1 } from "./chat-window.js";
 import { checklist } from "./checklist.js";
-import { compare } from "./compare.js";
+import { compare, compareV1 } from "./compare.js";
 import { endCard } from "./end-card.js";
-import { lowerThird } from "./lower-third.js";
-import { notification } from "./notification.js";
+import { lowerThird, lowerThirdV1 } from "./lower-third.js";
+import { notification, notificationV1 } from "./notification.js";
 import { phoneCall } from "./phone-call.js";
+import { phoneScreen } from "./phone-screen.js";
+import { pointerChips } from "./pointer-chips.js";
+import { chart } from "./chart.js";
+import { handTitle } from "./hand-title.js";
+import { race } from "./race.js";
 import { progress } from "./progress.js";
 import { quote } from "./quote.js";
 import { rating } from "./rating.js";
 import type { TemplateSlot } from "./slot.js";
 import { stat } from "./stat.js";
 import { tag } from "./tag.js";
+import { terminal, terminalV1 } from "./terminal.js";
 import { DEFAULT_TEMPLATE_PRESET, templateAccentRefusal, type TemplatePreset } from "./theme.js";
 import { titleCard } from "./title-card.js";
+import { videoGrid } from "./video-grid.js";
+import { wordFill } from "./word-fill.js";
+import { wordTitle } from "./word-title.js";
 
 // The graphic template catalog of any `make_ugc` script run (#778 S3, #840): one entry per kind, from which both schemas and every refusal come.
 
 export const TEMPLATE_PLACEMENTS = ["over", "full"] as const;
 export type TemplatePlacement = (typeof TEMPLATE_PLACEMENTS)[number];
-export const MAX_TEMPLATES = 12;
+export const MAX_TEMPLATES = 40;
 export { contrastRatio, DEFAULT_TEMPLATE_PRESET, TEMPLATE_MIN_CONTRAST, TEMPLATE_PRESET_SURFACES, TEMPLATE_PRESETS, templateAccentRefusal, templateTheme,
   type TemplatePreset, type TemplateTheme } from "./theme.js";
 
@@ -44,6 +54,10 @@ export interface TemplateKind<D extends z.ZodObject = z.ZodObject> {
   spreads?: string;
   /** The first frame a beat may land on: the kind has entered and, for a checklist, its cursor has reached the rows; absent is the frame after the enter. */
   beatsFrom?: number;
+  /** Its first beat plays on its first frame whatever its quote: the first beat draws its first element, and a full frame is never bare (#1129). */
+  firstBeatAtStart?: true;
+  /** It fills the frame at medium, so large draws as medium, and says so (#1128). */
+  fillsFrame?: true;
   /** Media fields, each `{ asset_id }`, and what each takes; they pin as `<id>.<slot>` (A1). */
   slots: Readonly<Record<string, TemplateSlot>>;
   /** Whether captions are hidden while it shows: it sits in the caption spot. */
@@ -61,12 +75,14 @@ export interface TemplateKind<D extends z.ZodObject = z.ZodObject> {
 }
 
 export const TEMPLATE_KINDS: readonly TemplateKind[] = [tag, lowerThird, endCard, titleCard, quote, stat, callout, checklist, phoneCall, compare,
-  notification, progress, rating] as unknown as readonly TemplateKind[];
+  notification, progress, rating, chatWindow, videoGrid, wordTitle, phoneScreen, terminal, pointerChips, chart, race, handTitle, wordFill] as unknown as readonly TemplateKind[];
 export const TEMPLATE_KIND_IDS = ["tag", "lower_third", "end_card", "title_card", "quote", "stat", "callout", "checklist", "phone_call", "compare",
-  "notification", "progress", "rating"] as const;
-/** Earlier versions of kinds a frozen timeline may still name, each with its own footprint (A8, #819). The phone's version 2 (#857 S5) only adds
- *  optional fields, so version 1 keeps its geometry. */
-export const TEMPLATE_KIND_HISTORY: readonly TemplateKind[] = [{ ...phoneCall, kindVersion: 1 } as TemplateKind];
+  "notification", "progress", "rating", "chat_window", "video_grid", "word_title", "phone_screen", "terminal", "pointer_chips", "chart", "race",
+  "hand_title", "word_fill"] as const;
+/** Earlier versions of kinds a frozen timeline may still name, each with its own footprint (A8, #819). The phone's version 2 (#857 S5) and the
+ *  five kinds' version 2 (#1119) only add optional fields, so version 1 keeps its geometry. */
+export const TEMPLATE_KIND_HISTORY: readonly TemplateKind[] = [{ ...phoneCall, kindVersion: 1 } as TemplateKind,
+  ...[chatWindowV1, notificationV1, terminalV1, lowerThirdV1, compareV1] as unknown as TemplateKind[]];
 
 /** A kind as it was at `version`: the current entry or one from its history; a version neither holds has no footprint to draw. */
 export function templateKindAt(kind: string, version: number | undefined, kinds: readonly TemplateKind[] = TEMPLATE_KINDS,
@@ -79,7 +95,8 @@ export function templateKindAt(kind: string, version: number | undefined, kinds:
   return past;
 }
 export { TEMPLATE_SIZES } from "./size.js";
-export { DEFAULT_TEMPLATE_SOUNDS, editSoundRefusals, editSounds, listTemplateSounds, mcpTemplateSounds, TEMPLATE_KIND_SOUNDS, TEMPLATE_SOUND_BEATS, TEMPLATE_SOUNDS, TEMPLATE_SOUNDS_PATH, templateSoundBeats, templateSoundMap,
+export { DEFAULT_TEMPLATE_SOUNDS, editSoundRefusals, editSounds, FACELESS_LOOK_SOUND, FACELESS_SOUND_BEATS, facelessSoundMap, facelessSoundRefusals,
+  facelessTemplateSounds, type FacelessSoundMap, type FacelessTemplateSounds, listTemplateSounds, mcpTemplateSounds, TEMPLATE_KIND_SOUNDS, TEMPLATE_SOUND_BEATS, TEMPLATE_SOUNDS, TEMPLATE_SOUNDS_PATH, templateSoundBeats, templateSoundMap,
   templateSounds, templateSoundsList, type TemplateSoundBeat, type TemplateSoundMap, type TemplateSounds, type TemplateSoundsList } from "./sounds.js";
 export { TAG_RECT_EMS } from "./tag.js";
 export { END_CARD_RECT_EMS } from "./end-card.js";
@@ -88,10 +105,21 @@ export { QUOTE_RECT_EMS } from "./quote.js";
 export { STAT_RECT_EMS } from "./stat.js";
 export { CALLOUT_LABEL_EMS, calloutParts } from "./callout.js";
 export { CHECKLIST_EMS } from "./checklist.js";
-export { COMPARE_CARD_SHAPE } from "./compare.js";
-export { NOTIFICATION_EMS } from "./notification.js";
+export { COMPARE_CARD_SHAPE, COMPARE_REVEALS } from "./compare.js";
+export { LOWER_THIRD_STYLES } from "./lower-third.js";
+export { NOTIFICATION_EMS, notificationEms } from "./notification.js";
 export { PROGRESS_EMS } from "./progress.js";
 export { RATING_EMS } from "./rating.js";
+export { CHAT_WINDOW_EMS, CHAT_WINDOW_ZOOM, chatWindowEms } from "./chat-window.js";
+export { VIDEO_GRID_EMS, VIDEO_GRID_LAYOUTS, videoGridLayout, videoGridShape } from "./video-grid.js";
+export { WORD_TITLE_RECT_EMS, WORD_TITLE_REVEALS } from "./word-title.js";
+export { PHONE_SCREEN_EMS, PHONE_SCREEN_STATES } from "./phone-screen.js";
+export { TERMINAL_CHANGES, TERMINAL_EMS, terminalEms } from "./terminal.js";
+export { POINTER_CHIPS_EMS, pointerChipsParts } from "./pointer-chips.js";
+export { CHART_EMS, CHART_TYPES, chartEms } from "./chart.js";
+export { RACE_EMS, raceEms } from "./race.js";
+export { HAND_MARKS, HAND_TITLE_EMS } from "./hand-title.js";
+export { WORD_FILL_EMS } from "./word-fill.js";
 export { templateMedia, type TemplateSlot } from "./slot.js";
 
 /** Every value at a dotted path of a kind's data, one per element where the path crosses or ends in a list, with its own path; an absent last
@@ -145,6 +173,17 @@ export function templateMomentWords(kind: TemplateKind, data: unknown, tokens: r
   });
 }
 
+/** Frames an over-the-presenter template starts before its words, so its first quoted beat lands on its word once it is on screen (#1198 item 3):
+ *  at most `beatsFrom`, never before the video's first frame. */
+export function templateLeadFrames(kind: TemplateKind, data: unknown, tokens: readonly string[], range: WordRange,
+  words: readonly { word: string; startSec: number }[], fps: number, span: { startFrame: number }): number {
+  const first = kind.firstBeatAtStart ? undefined : templateMomentWords(kind, data, tokens, range)[0];
+  if (first?.word === undefined) return 0;
+  const lexical = words.filter(word => !/^\p{P}+$/u.test(word.word)), from = kind.beatsFrom ?? TEMPLATE_ENTER_FRAMES + 1;
+  const at = Math.round(lexical[first.word]!.startSec * fps) - span.startFrame;
+  return Math.max(0, Math.min(from - at, from, span.startFrame));
+}
+
 /** Frames between a moved beat and the next, so a checklist's cursor still travels between two clicks. */
 export const TEMPLATE_BEAT_GAP = 6;
 
@@ -158,6 +197,7 @@ export function templateMoments(kind: TemplateKind, data: unknown, tokens: reado
   let before: number | undefined;
   const moments = beats.map((beat, index) => {
     if (beat.refusal) throw new Error(`template beat ${beat.path.join(".")} ${beat.refusal}`);
+    if (index === 0 && kind.firstBeatAtStart) { before = 0; return 0; }
     const at = beat.word === undefined
       ? TEMPLATE_ENTER_FRAMES + Math.round(((0.8 * duration - TEMPLATE_ENTER_FRAMES) * (index + 1)) / beats.length)
       : Math.round(lexical[beat.word]!.startSec * fps) - span.startFrame;
@@ -263,11 +303,25 @@ export function templateFootprint(item: { kind: string; kindVersion?: number | u
     ...(kind.parts ? { parts: kind.parts(item.data, aspectRatio, framing) } : {}) };
 }
 
+/** Templates asked at size large whose kind already fills the frame at medium: drawn at medium, and named (rule 3, #1128). */
+export function templateSizeWarnings(input: { templates?: unknown }): string[] {
+  if (!Array.isArray(input.templates)) return [];
+  return (input.templates as { id?: unknown; kind?: unknown; data?: { size?: unknown } }[]).flatMap(item =>
+    item.data?.size === "large" && TEMPLATE_KINDS.find(entry => entry.kind === item.kind)?.fillsFrame
+      ? [`template "${String(item.id)}" is drawn at medium: a ${String(item.kind)} already fills the frame there, so size large draws no larger`] : []);
+}
+
+/** Whether a template takes the whole frame: its entry and exit are cuts edit_sounds sounds. */
+export function hasFullFrameTemplate(templates: unknown): boolean {
+  return Array.isArray(templates) && (templates as { kind?: unknown; placement?: unknown }[]).some(item =>
+    (item.placement ?? TEMPLATE_KINDS.find(kind => kind.kind === item.kind)?.placements[0]) === "full");
+}
+
 /** Over-presenter templates whose footprint meets the face: drawn as asked, and named (rule 3); every kind's default stays off it. */
 export function templateFaceWarnings(input: { templates?: unknown; aspect_ratio?: unknown; presenter_framing?: unknown }): string[] {
   if (!Array.isArray(input.templates)) return [];
   const aspect = typeof input.aspect_ratio === "string" ? input.aspect_ratio : "9:16";
-  const framing = input.presenter_framing === "wide" ? "wide" : "close";
+  const framing = input.presenter_framing === "wide" || input.presenter_framing === "full" ? input.presenter_framing : "close";
   return (input.templates as { id?: unknown; kind?: unknown; placement?: unknown; data?: unknown; place?: unknown }[]).flatMap(item => {
     const kind = TEMPLATE_KINDS.find(entry => entry.kind === item.kind);
     const placement = item.placement ?? kind?.placements[0];
@@ -281,29 +335,35 @@ export function templateFaceWarnings(input: { templates?: unknown; aspect_ratio?
   });
 }
 
+function catalogField(kind: TemplateKind, key: string, schema: z.ZodType, path = key): string {
+  const def = schema._zod.def as { type: string; innerType?: z.ZodType; element?: z.ZodType };
+  if (def.type === "optional") return `${catalogField(kind, key, def.innerType!, path)}?`.replace(/^(\S+)(.*)\?$/, "$1?$2");
+  const options = (schema as unknown as { options?: readonly string[] }).options;
+  if (kind.slots[path]) return `${key} {asset_id} ${kind.slots[path].type}${kind.slots[path].cover ? " (cut to fill)" : ""}`;
+  if (def.type === "number") return `${key} number`;
+  if (def.type === "boolean") return `${key} true|false`;
+  if (def.type === "array") {
+    // zod 4.6 fills `_zod.bag` lazily, so the bounds come from the public JSON Schema export.
+    const { minItems, maxItems } = z.toJSONSchema(schema, { unrepresentable: "any" }) as { minItems?: number; maxItems?: number };
+    return `${key} ${minItems ?? 0}–${maxItems} of ${catalogField(kind, "", def.element!, path).trim()}`;
+  }
+  if (def.type === "object") {
+    const shape = Object.entries((schema as z.ZodObject).shape);
+    // An object holding text or a quote lists its fields; a plain one, such as a target, its keys.
+    const deep = [...Object.keys(kind.text), ...(kind.quotes ?? [])].some(name => name.startsWith(`${path}.`));
+    return `${key} {${deep ? shape.map(([name, inner]) => catalogField(kind, name, inner as z.ZodType, `${path}.${name}`)).join(", ") : shape.map(([name]) => name).join(",")}}`;
+  }
+  if (kind.quotes?.includes(path)) return `${key} inner quote`;
+  return options ? `${key} ${options.join("|")}` : `${key} ≤ ${kind.text[path]}`;
+}
+
+/** A kind's data fields as its catalog line names them: types, text limits, media slots and inner quotes. */
+export function templateDataText(kind: TemplateKind): string {
+  return Object.entries(kind.data.shape).map(([key, schema]) => catalogField(kind, key, schema as z.ZodType)).join(", ");
+}
+
 /** The `templates` description: the gate, the text rules and one catalog line per kind, all from the registry. */
 export function templateCatalogText(kinds: readonly TemplateKind[] = TEMPLATE_KINDS): string {
-  const field = (kind: TemplateKind, key: string, schema: z.ZodType, path = key): string => {
-    const def = schema._zod.def as { type: string; innerType?: z.ZodType; element?: z.ZodType };
-    if (def.type === "optional") return `${field(kind, key, def.innerType!, path)}?`.replace(/^(\S+)(.*)\?$/, "$1?$2");
-    const options = (schema as unknown as { options?: readonly string[] }).options;
-    if (kind.slots[path]) return `${key} {asset_id} ${kind.slots[path].type}${kind.slots[path].cover ? " (cut to fill)" : ""}`;
-    if (def.type === "number") return `${key} number`;
-    if (def.type === "boolean") return `${key} true|false`;
-    if (def.type === "array") {
-      // zod 4.6 fills `_zod.bag` lazily, so the bounds come from the public JSON Schema export.
-      const { minItems, maxItems } = z.toJSONSchema(schema, { unrepresentable: "any" }) as { minItems?: number; maxItems?: number };
-      return `${key} ${minItems ?? 0}–${maxItems} of ${field(kind, "", def.element!, path).trim()}`;
-    }
-    if (def.type === "object") {
-      const shape = Object.entries((schema as z.ZodObject).shape);
-      // An object holding text or a quote lists its fields; a plain one, such as a target, its keys.
-      const deep = [...Object.keys(kind.text), ...(kind.quotes ?? [])].some(name => name.startsWith(`${path}.`));
-      return `${key} {${deep ? shape.map(([name, inner]) => field(kind, name, inner as z.ZodType, `${path}.${name}`)).join(", ") : shape.map(([name]) => name).join(",")}}`;
-    }
-    if (kind.quotes?.includes(path)) return `${key} inner quote`;
-    return options ? `${key} ${options.join("|")}` : `${key} ≤ ${kind.text[path]}`;
-  };
   return "Graphic templates, each { id, kind, anchor, cover_words?, placement?, transition?, data }. On any script run. Templates never " +
     "change the price: every run is billed by its parts as list_prices states them, and a presenter a template covers is still " +
     "presenter time. Ids are unique across inserts, overlays, layout_windows " +
@@ -315,8 +375,8 @@ export function templateCatalogText(kinds: readonly TemplateKind[] = TEMPLATE_KI
     "leaves them. A full-frame template also hides the presenter, overlays " +
     "and over-presenter templates while it shows, never meets a wipe or zoom insert, and the covered presenter is billed. " +
     `At most ${MAX_OVERLAYS_AT_ONCE} overlays and over-presenter templates show at once, on footprints that do not ` +
-    "overlap. template_theme sets the look of them all. Kinds: " + kinds.map(kind => `${kind.kind} (${kind.placements.join("|")}): ${kind.description}; data ` +
-      Object.entries(kind.data.shape).map(([key, schema]) => field(kind, key, schema as z.ZodType)).join(", ")).join(". ") + ".";
+    "overlap. template_theme sets the look of them all. Kinds: " +
+    kinds.map(kind => `${kind.kind} (${kind.placements.join("|")}): ${kind.description}; data ${templateDataText(kind)}`).join(". ") + ".";
 }
 
 const overlaps = (a: WordRange, b: WordRange) => a.startWord < b.coverWord && b.startWord < a.coverWord;
@@ -338,6 +398,7 @@ export interface TemplateCheckInput {
   template_theme?: { preset?: TemplatePreset | undefined; accent?: string | undefined } | undefined;
   template_sounds?: unknown;
   edit_sounds?: boolean | undefined;
+  shots?: readonly { transition?: string | undefined }[] | undefined;
   call?: unknown;
   captions?: boolean | undefined;
   caption_style?: string | undefined;
@@ -351,12 +412,15 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
   if (input.templates === undefined) {
     // The edit sound alone needs no templates; it and `false` beside edit_sounds are judged by `editSoundRefusals`.
     const sounds = input.template_sounds;
-    const editOnly = (sounds === false && input.edit_sounds === true) ||
-      (typeof sounds === "object" && sounds !== null && Object.keys(sounds).length > 0 && Object.keys(sounds).every(beat => beat === "edit"));
+    const named = typeof sounds === "object" && sounds !== null ? Object.keys(sounds) : [];
+    const editOnly = (sounds === false && input.edit_sounds === true) || (named.length > 0 && named.every(beat => beat === "edit"));
+    // A live shot's flash, light leak or whoosh plays the flash or whoosh sound, which template_sounds names or mutes (#1129).
+    const shotSounds = (input.shots ?? []).some(shot => shot.transition !== undefined && shot.transition !== "cut") &&
+      (sounds === false || named.every(beat => beat === "flash" || beat === "whoosh" || beat === "edit"));
     // A call brings its own phone (#857 S5), which the run's theme and sounds style as any template.
     if (input.call !== undefined) return [];
     return [...(input.template_theme === undefined ? [] : [{ path: ["template_theme"], message: "template_theme styles templates: add templates or drop it" }]),
-      ...(sounds === undefined || editOnly ? [] : [{ path: ["template_sounds"], message: "template_sounds sounds templates: add templates or drop it" }])];
+      ...(sounds === undefined || editOnly || shotSounds ? [] : [{ path: ["template_sounds"], message: "template_sounds sounds templates: add templates or drop it" }])];
   }
   if (input.script === undefined || input.segments !== undefined) {
     return [{ path: ["templates"], message: "templates require script and cannot be combined with segments" }];
@@ -372,9 +436,8 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
   const ranged = <T extends AnchoredItem>(items: readonly T[] | undefined) =>
     (items ?? []).flatMap(item => { const range = layerWordRange(tokens, item); return typeof range === "string" ? [] : [{ item, range }]; });
   const inserts = ranged(input.inserts), windows = ranged(input.layout_windows);
-  // A wide request may render close when the actor has no wide view, so footprints are checked in both framings; wide needs an actor and 9:16.
-  const wideCanRender = input.presenter_framing === "wide" && input.actor_id !== undefined && aspect === "9:16";
-  const framings: PresenterFraming[] = wideCanRender ? ["close", "wide"] : ["close"];
+  // A wider request may render narrower when the actor has no such view, so footprints are checked in every framing it may render.
+  const framings: PresenterFraming[] = admissionFramings({ ...input, aspect_ratio: aspect });
   // An overlay's footprint is its preset's, or the box its place resolves to (#973 S1); a place on a broken chain is refused with the overlays.
   // A template's is its kind's rect, or that rect scaled whole into its place (S4); overlays and templates may stand by one another.
   const scenes = framings.map(framing => {
@@ -464,9 +527,9 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
     const clash = together.find(other => !over(other.id, entry.id) && !over(entry.id, other.id) &&
       other.rects.some((rect, at) => rectsOverlap(rect, entry.rects[at]!)));
     if (clash) { refuse(`shares the screen with "${clash.id}" at the same time on an overlapping footprint: move one of them or its words`); continue; }
-    const crowd = together.flatMap((a, i) => together.slice(i + 1).filter(b => Math.max(a.range.startWord, b.range.startWord, entry.range.startWord) <
-      Math.min(a.range.coverWord, b.range.coverWord, entry.range.coverWord)).map(b => [a, b] as const))[0];
-    if (crowd) refuse(`would be on screen together with "${crowd[0].id}" and "${crowd[1].id}": at most ${MAX_OVERLAYS_AT_ONCE} overlays and templates show at once`);
+    const crowd = overlayCrowd(together, entry.range);
+    if (crowd) refuse(`would be on screen together with ${crowd.map(other => `"${other.id}"`).join(", ")}: at most ${MAX_OVERLAYS_AT_ONCE} ` +
+      "overlays and templates show at once");
   }
   for (const overlay of overlays) {
     if (fulls.some(other => overlaps(other.range, overlay.range)) && coveredBy(overlay.range, [...inserts, ...fulls].map(other => other.range))) {

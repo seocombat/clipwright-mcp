@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   AI_DISCLOSURE_OBJECT_METADATA,
+  ADMISSION_PROVEN_FIELDS,
   AI_DISCLOSURE_TEXT,
   aiDisclosureObjectMetadata,
   aiDisclosureText,
@@ -60,10 +61,23 @@ describe("FIELD_DISPOSITIONS — completeness guard", () => {
     expect(Object.keys(FIELD_DISPOSITIONS).sort()).toEqual([...FIELDS].sort());
   });
 
-  it("the table matches today's contract (43 fields)", () => {
+  it("the table matches today's contract (49 fields)", () => {
     // Pinned: growing the shape is a deliberate contract change, not a side effect (#778, reference-elements S1–S7, #884 caption_position,
-    // presenter_framing, presenter_mic, #857 S5 call, #973 S2 caption_place, presenter_place, #972 interview, presenter_gaze, #991 end_hold_s).
-    expect(FIELDS).toHaveLength(43);
+    // presenter_framing, presenter_mic, #857 S5 call, #973 S2 caption_place, presenter_place, #972 interview, presenter_gaze, #991 end_hold_s,
+    // #1063 music, #1103 shots and product_asset_id, #1107 scenes, #1122 design, #1123 motion_style, #1175 moves).
+    expect(FIELDS).toHaveLength(50);
+    // Motion styles open with their own switch and composition, and not without either (#1123).
+    expect(FIELD_DISPOSITIONS.motion_style).toEqual({ kind: "implemented", provenBy: "composition" });
+    expect(resolveDispositions({ remoteFetch: true, compose: true }).motion_style.kind).toBe("rejected");
+    expect(resolveDispositions({ remoteFetch: true, compose: false, motionStyles: true }).motion_style.kind).toBe("rejected");
+    expect(resolveDispositions({ remoteFetch: true, compose: true, motionStyles: true }).motion_style.kind).toBe("implemented");
+    expect(resolveDispositions({ remoteFetch: true, compose: true, longForm: true }).scenes.kind).toBe("rejected");
+    expect(resolveDispositions({ remoteFetch: true, compose: true, longForm: false, scenes: true }).scenes.kind).toBe("rejected");
+    expect(resolveDispositions({ remoteFetch: true, compose: true, longForm: true, scenes: true }).scenes.kind).toBe("implemented");
+    expect(FIELD_DISPOSITIONS.shots).toEqual({ kind: "implemented", provenBy: "composition" });
+    expect(resolveDispositions({ remoteFetch: true, compose: true, longForm: true }).shots.kind).toBe("rejected");
+    expect(resolveDispositions({ remoteFetch: true, compose: true, longForm: true, liveShots: true }).shots.kind).toBe("implemented");
+    expect(resolveDispositions({ remoteFetch: true, compose: true, longForm: false, liveShots: true }).product_asset_id.kind).toBe("rejected");
     expect(FIELD_DISPOSITIONS.end_hold_s).toEqual({ kind: "implemented", provenBy: "composition" });
     expect(FIELD_DISPOSITIONS.interview).toEqual({ kind: "implemented", provenBy: "composition" });
     expect(FIELD_DISPOSITIONS.presenter_gaze).toEqual({ kind: "implemented", provenBy: "egress" });
@@ -641,13 +655,13 @@ describe("resolveDispositions — composition kill switch", () => {
 // Every proof category must participate in a behavior suite and this exhaustive partition.
 describe("split-proof guard", () => {
   it("egress ∪ composition ∪ finalization covers ALL implemented fields", () => {
-    expect([...EGRESS_PROVEN_FIELDS, ...COMPOSITION_PROVEN_FIELDS, ...FINALIZATION_PROVEN_FIELDS].sort()).toEqual(
+    expect([...EGRESS_PROVEN_FIELDS, ...COMPOSITION_PROVEN_FIELDS, ...FINALIZATION_PROVEN_FIELDS, ...ADMISSION_PROVEN_FIELDS].sort()).toEqual(
       [...IMPLEMENTED_FIELDS].sort(),
     );
   });
 
   it("the lists do not overlap: a field has one kind of proof", () => {
-    const groups = [EGRESS_PROVEN_FIELDS, COMPOSITION_PROVEN_FIELDS, FINALIZATION_PROVEN_FIELDS];
+    const groups = [EGRESS_PROVEN_FIELDS, COMPOSITION_PROVEN_FIELDS, FINALIZATION_PROVEN_FIELDS, ADMISSION_PROVEN_FIELDS];
     for (let first = 0; first < groups.length; first++) {
       for (let second = first + 1; second < groups.length; second++) {
         expect(groups[first]!.filter(field => groups[second]!.includes(field))).toEqual([]);

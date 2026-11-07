@@ -310,7 +310,7 @@ describe("the validator's table", () => {
         issues: [on("shot_added_not_allowed", "take-9"), on("kind_asset_mismatch", "take-9")] },
       { code: "shot_added_not_allowed", name: "one added shot more than a timeline holds inserts", view: pictureFrom(1), facts: FACTS,
         document: edited(l, {}, Array.from({ length: MAX_INSERTS + 1 }, (_, at) =>
-          ({ ...COVER, id: `cover-${at}`, start_frame: 1800 + at * 10, end_frame: 1810 + at * 10 }))),
+          ({ ...COVER, id: `cover-${at}`, start_frame: 1800 + at * 5, end_frame: 1805 + at * 5 }))),
         issues: [on("shot_added_not_allowed", `cover-${MAX_INSERTS}`)], reason: `at most ${MAX_INSERTS} shots lie over the presenter` },
       { code: "shot_added_not_allowed", name: "a new shot named like the source's own tiling", view: l, facts: FACTS,
         document: edited(l, {}, [{ ...COVER, id: "insert-9" }]), issues: [on("shot_added_not_allowed", "insert-9")], reason: "shaped like the run's own shots" },

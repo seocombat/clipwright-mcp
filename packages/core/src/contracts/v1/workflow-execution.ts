@@ -4,7 +4,7 @@ import { facelessQuoteResponse } from '../../faceless-public.js';
 import { run, runId, runRead, runStep } from '../../runs.js';
 import { faceBillingTariffSchema } from '../../face-billing.js';
 import { speechRhythmResult } from '../../speech-rhythm-contract.js';
-import { workflowDigest, workflowFormatRead, workflowId, workflowIssue, workflowIssueRead, workflowLocalId, workflowMethodPin, workflowMethodPinRead, workflowRevision, workflowText } from './workflow-primitives.js';
+import { workflowDigest, workflowFormatRead, workflowId, workflowIssue, workflowIssueRead, workflowLocalId, workflowMethodPin, workflowMethodPinRead, workflowNextRead, workflowRevision, workflowText } from './workflow-primitives.js';
 
 const workflowQuoteId = z.string().regex(/^wq_[a-zA-Z0-9_-]{1,64}$/);
 export const launchWorkflow = z.strictObject({
@@ -29,7 +29,7 @@ const nativeQuoteRead = z.union([
     z.looseObject({ skill: z.string().refine(skill => skill !== 'make_ugc' && skill !== 'make_faceless'), quote: z.record(z.string(), z.unknown()) }),
 ]);
 export const workflowQuoteBindingRead = z.looseObject({ ...workflowQuoteBinding.shape, v: z.number(), method: workflowMethodPinRead, native_quote: nativeQuoteRead,
-    warnings: z.array(z.string()).default([]), launch: launchWorkflow.optional() });
+    warnings: z.array(z.string()).default([]), launch: launchWorkflow.optional(), next: workflowNextRead.optional() });
 export const workflowReceipt = z.strictObject({
     v: z.literal(1), account_id: workflowText(200), plan_id: workflowId, revision: workflowRevision, content_digest: workflowDigest, method: workflowMethodPin,
     semantic_input_digest: workflowDigest, transport_request_digest: workflowDigest, run_id: runId, skill: z.enum(['make_ugc', 'make_faceless']), admitted_at: z.string().datetime(),

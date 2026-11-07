@@ -307,7 +307,7 @@ describe('WF-01 review: native source and tools-list boundaries', () => {
             { ...input, scene_images: [{ image_url: 'https://example.com/item.png', anchor: { startWord: 0, endWord: 1, unknown_anchor_field: true } }] },
         ]) expect(workflowNativeInput.safeParse({ skill: 'make_faceless', input: changed }).success).toBe(false);
     });
-    it.each([{ mode: 'script', maximum: 10_000 }, { mode: 'brief', maximum: 5000 }])('publishes strict faceless $mode limits and required fields to tools/list', ({ mode, maximum }) => {
+    it.each([{ mode: 'script', maximum: 10_000 }, { mode: 'brief', maximum: 10_000 }])('publishes strict faceless $mode limits and required fields to tools/list', ({ mode, maximum }) => {
         const schema = z.toJSONSchema(workflowNativeInput, { io: 'input' }) as ToolSchema;
         const native = (schema.oneOf ?? schema.anyOf ?? []).find(branch => branch.properties?.skill?.const === 'make_faceless');
         const input = native?.properties?.input?.oneOf?.find(branch => branch.properties?.input_mode?.const === mode);
@@ -357,7 +357,7 @@ describe('WF-01 review: native source and tools-list boundaries', () => {
         const native = (schema.oneOf ?? schema.anyOf ?? []).find(branch => typeof branch === 'object' && branch.properties?.skill?.const === 'make_ugc');
         const segments = native?.properties?.input?.properties?.segments;
         expect(segments?.minItems).toBe(1);
-        expect(segments?.maxItems).toBe(5);
+        expect(segments?.maxItems).toBe(20);
         expect(segments?.items).toHaveProperty('additionalProperties', false);
         expect(segments?.items).toHaveProperty('properties.image_motion.additionalProperties', false);
     });

@@ -47,22 +47,22 @@ describe("caption contract", () => {
     expect(parsed.error?.issues).toEqual([expect.objectContaining({ path: ["caption_emphasis", 1], message: expect.stringContaining("free trial") })]);
   });
 
-  it("accepts exactly 20 emphasis items and refuses 21 (#778 r2)", () => {
-    expect(makeUgcInput.safeParse({ script, captions: true, caption_emphasis: Array(20).fill("money") }).success).toBe(true);
-    expect(makeUgcInput.safeParse({ script, captions: true, caption_emphasis: Array(21).fill("money") }).success).toBe(false);
+  it("accepts exactly 60 emphasis items and refuses 61 (#778 r2, #1192)", () => {
+    expect(makeUgcInput.safeParse({ script, captions: true, caption_emphasis: Array(60).fill("money") }).success).toBe(true);
+    expect(makeUgcInput.safeParse({ script, captions: true, caption_emphasis: Array(61).fill("money") }).success).toBe(false);
   });
 
-  it("accepts a quote of exactly 40 characters and refuses 41, in both item forms (#778 r2)", () => {
-    const long = `${script} ${"x".repeat(40)} ${"y".repeat(41)}`;
-    expect(makeUgcInput.safeParse({ script: long, captions: true, caption_emphasis: ["x".repeat(40)] }).success).toBe(true);
-    expect(makeUgcInput.safeParse({ script: long, captions: true, caption_emphasis: ["y".repeat(41)] }).success).toBe(false);
-    expect(makeUgcInput.safeParse({ script: long, captions: true, caption_emphasis: [{ quote: "y".repeat(41) }] }).success).toBe(false);
+  it("accepts a quote of exactly 120 characters and refuses 121, in both item forms (#778 r2, #1192)", () => {
+    const long = `${script} ${"x".repeat(120)} ${"y".repeat(121)}`;
+    expect(makeUgcInput.safeParse({ script: long, captions: true, caption_emphasis: ["x".repeat(120)] }).success).toBe(true);
+    expect(makeUgcInput.safeParse({ script: long, captions: true, caption_emphasis: ["y".repeat(121)] }).success).toBe(false);
+    expect(makeUgcInput.safeParse({ script: long, captions: true, caption_emphasis: [{ quote: "y".repeat(121) }] }).success).toBe(false);
   });
 
   it("refuses emphasis without captions, and over the count or length limits", () => {
     expect(makeUgcInput.safeParse({ script, caption_emphasis: ["money"] }).error?.issues[0]?.path).toEqual(["caption_emphasis"]);
-    expect(makeUgcInput.safeParse({ script, captions: true, caption_emphasis: Array(21).fill("money") }).success).toBe(false);
-    expect(makeUgcInput.safeParse({ script, captions: true, caption_emphasis: ["m".repeat(41)] }).success).toBe(false);
+    expect(makeUgcInput.safeParse({ script, captions: true, caption_emphasis: Array(61).fill("money") }).success).toBe(false);
+    expect(makeUgcInput.safeParse({ script, captions: true, caption_emphasis: ["m".repeat(121)] }).success).toBe(false);
   });
 
   it("accepts an emphasis item as a plain quote or { quote, look }, with the same quote-must-occur rule", () => {

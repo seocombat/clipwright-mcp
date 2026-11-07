@@ -104,6 +104,11 @@ export const runCandidate = z.object({
 });
 export type RunCandidate = z.infer<typeof runCandidate>;
 
+/** Where a drawn element of a delivered run came from: a library kind, or a graphic made for this run (#1107). */
+export const RUN_ELEMENT_ORIGINS = ["library", "generated"] as const;
+export const runElement = z.object({ id: z.string().min(1).max(64), kind: z.string().min(1).max(64), origin: z.enum(RUN_ELEMENT_ORIGINS) }).strict();
+export type RunElement = z.infer<typeof runElement>;
+
 export const run = z.object({
   run_id: runId,
   actor: actorSelection.optional(),
@@ -159,6 +164,8 @@ export const run = z.object({
       final_aspect_ratio: z.string().optional(),
       /** How the clip was fitted into the frame: `exact` or a background mode. */
       composition_policy: z.string().optional(),
+      /** Each drawn template and scene with its origin; one left out is in `warnings[]`, not here. */
+      elements: z.array(runElement).max(64).optional(),
     })
     .nullable(),
   steps: z.array(runStep).default([]),

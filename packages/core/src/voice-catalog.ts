@@ -33,6 +33,7 @@ export const catalogFileVoice = z.strictObject({
   notice_period_days: z.number().int(),
   featured: z.boolean(),
   rank: z.number().int().positive(),
+  pinned: z.literal(true).optional(),
   retired_at: z.iso.datetime().optional(),
   refreshed_at: z.iso.datetime(),
 });

@@ -23,6 +23,7 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   upload_image: { readOnlyHint: false, destructiveHint: false },
   create_upload: { readOnlyHint: false, destructiveHint: false },
   get_upload: { readOnlyHint: true, destructiveHint: false },
+  delete_upload: { readOnlyHint: false, destructiveHint: true },
   create_asset: { readOnlyHint: false, destructiveHint: false },
   list_assets: { readOnlyHint: true, destructiveHint: false },
   get_asset: { readOnlyHint: true, destructiveHint: false },
@@ -34,10 +35,16 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   quote_creator_profile: { readOnlyHint: true, destructiveHint: false },
   analyze_creator: { readOnlyHint: false, destructiveHint: false },
   get_creator_profile: { readOnlyHint: true, destructiveHint: false },
+  delete_creator_profile: { readOnlyHint: false, destructiveHint: true },
+  quote_trends: { readOnlyHint: true, destructiveHint: false },
+  find_trends: { readOnlyHint: false, destructiveHint: false },
   set_actor_defaults: { readOnlyHint: false, destructiveHint: false },
+  extract_brand: { readOnlyHint: true, destructiveHint: false },
+  brand_kit: { readOnlyHint: false, destructiveHint: false },
   delete_actor: { readOnlyHint: false, destructiveHint: true },
   get_run: { readOnlyHint: true, destructiveHint: false },
   get_run_shots: { readOnlyHint: true, destructiveHint: false },
+  delete_run_media: { readOnlyHint: false, destructiveHint: true },
   quote_revision: { readOnlyHint: true, destructiveHint: false },
   revise_run: { readOnlyHint: false, destructiveHint: false },
   quote_candidate: { readOnlyHint: true, destructiveHint: false },
@@ -51,10 +58,12 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   quote_actor: { readOnlyHint: true, destructiveHint: false },
   list_voices: { readOnlyHint: true, destructiveHint: false },
   list_template_sounds: { readOnlyHint: true, destructiveHint: false },
+  list_moves: { readOnlyHint: true, destructiveHint: false },
   list_actors: { readOnlyHint: true, destructiveHint: false },
   get_actor_defaults: { readOnlyHint: true, destructiveHint: false },
   get_account: { readOnlyHint: true, destructiveHint: false },
   list_prices: { readOnlyHint: true, destructiveHint: false },
+  describe_tool: { readOnlyHint: true, destructiveHint: false },
   send_feedback: { readOnlyHint: false, destructiveHint: false },
 };
 
@@ -67,14 +76,14 @@ it("the create_candidate description says an identical request returns the same 
   try {
     const { tools } = await client.listTools();
     const create = tools.find((tool) => tool.name === "create_candidate");
-    expect(create?.description).toContain("An identical request returns the same run it started before");
+    expect(create?.description).toContain("Repeating an identical request returns the run it started");
     expect(create?.description).toContain("pass take 2");
     // The input is advertised once, on quote_candidate, and take is one of its fields (#1003).
     expect(create?.description).toMatch(/^Input: the same fields as quote_candidate\. /);
     expect(Object.keys(tools.find((tool) => tool.name === "quote_candidate")?.inputSchema.properties ?? {})).toContain("take");
     expect(create?.description).toContain("A delivered candidate is charged its one unit whether it is kept or discarded");
     expect(create?.description).toContain("one that fails is charged nothing");
-    expect(create?.description).toContain("Call quote_candidate first and show the user the price.");
+    expect(create?.description).toContain("Quote first with quote_candidate.");
   } finally {
     await client.close();
     await server.close();
@@ -97,15 +106,17 @@ it("the generation tools name their price unit, a free failure, rights_confirmed
     for (const name of ["quote_image", "quote_video"]) {
       const tool = described(name);
       expect(tool?.description, name).toContain("A generation that fails is charged nothing.");
-      expect(tool?.description, name).toContain("rights_confirmed: true");
       expect(tool?.description, name).toContain("generations_disabled");
     }
+    // quote_image says what a reference is; quote_video points at it, which keeps tools/list small (#1045).
+    expect(described("quote_image")?.description).toContain("rights_confirmed: true");
+    expect(described("quote_video")?.description).toContain("A reference is as quote_image states it.");
     for (const name of ["generate_image", "generate_video"]) {
       expect(described(name)?.description, name).toMatch(new RegExp(`^Input: the same fields as ${name.replace("generate", "quote")}, plus attempt\\. `));
-      expect(described(name)?.description, name).toContain("A generation that fails is charged nothing. An identical request");
-      expect(described(name)?.description, name).toContain("An identical request returns the same run it started before");
+      expect(described(name)?.description, name).toContain("A generation that fails is charged nothing. Repeating an identical request");
+      expect(described(name)?.description, name).toContain("Repeating an identical request returns the run it started");
       expect(Object.keys(described(name)?.inputSchema.properties ?? {}), name).toContain("attempt");
-      expect(described(name)?.description, name).toContain(`Call ${name.replace("generate", "quote")} first and show the user the price.`);
+      expect(described(name)?.description, name).toContain(`Quote first with ${name.replace("generate", "quote")}.`);
     }
   } finally {
     await client.close();
@@ -122,10 +133,10 @@ it("the revise_run description says an identical request returns the same run an
   try {
     const { tools } = await client.listTools();
     const revise = tools.find((tool) => tool.name === "revise_run");
-    expect(revise?.description).toContain("An identical request returns the same run it started before");
+    expect(revise?.description).toContain("Repeating an identical request returns the run it started");
     expect(revise?.description).toContain("pass attempt 2");
     expect(Object.keys(revise?.inputSchema.properties ?? {})).toContain("attempt");
-    expect(revise?.description).toContain("Call quote_revision first and show the user the price.");
+    expect(revise?.description).toContain("Quote first with quote_revision.");
   } finally {
     await client.close();
     await server.close();

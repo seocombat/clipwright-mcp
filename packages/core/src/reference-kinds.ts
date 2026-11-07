@@ -3,7 +3,8 @@ import { TEMPLATE_KIND_IDS } from "./templates/index.js";
 // A reference graphic's kinds, shared by the profile's beats and its staging (#914): their own module, so neither imports the other.
 
 /** Our template kinds, media laid over or instead of the presenter, a split layout, and what we cannot draw yet. */
-export const REFERENCE_GRAPHIC_KINDS = [...TEMPLATE_KIND_IDS, "overlay_media", "insert_media", "layout_split", "particles", "unmapped"] as const;
+/** `scene`: a graphic no kind draws that a remake plan draws as a scene made for the run (#1107); the analyser never names it. */
+export const REFERENCE_GRAPHIC_KINDS = [...TEMPLATE_KIND_IDS, "overlay_media", "insert_media", "layout_split", "scene", "particles", "unmapped"] as const;
 export type ReferenceGraphicKind = (typeof REFERENCE_GRAPHIC_KINDS)[number];
 /** Kinds an analysis also reads from an element's description when the model said other: what the Ana reel's answer called other (#930). */
 export const REFERENCE_DESCRIBED_KINDS = ["banner", "logo_card", "comment_box", "price_card", "concept_card"] as const;

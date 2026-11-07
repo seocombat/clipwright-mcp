@@ -97,6 +97,19 @@ it("create-actor passes the chosen formats and quality, age as a number", async 
   expect(calls[0]).toMatchObject({ approximate_age: 32, quality: "high", aspect_ratios: ["9:16", "1:1"] });
 });
 
+it("--style-reference sends the photo asset as style_reference", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  vi.spyOn(console, "log").mockImplementation(() => {});
+  vi.stubGlobal("fetch", async (_url: unknown, init: RequestInit) => {
+    calls.push(JSON.parse(String(init.body)));
+    return new Response(JSON.stringify(QUOTE_BODY), { headers: { "Content-Type": "application/json" } });
+  });
+  const { program } = await import("./index.js");
+  const asset = `ast_${"a".repeat(32)}`;
+  await program.parseAsync(["node", "clipwright", "quote-actor", ...ACTOR_ARGV, "--style-reference", asset]);
+  expect(calls[0]).toMatchObject({ style_reference: { asset_id: asset } });
+});
+
 /** Mutant: drop `.choices(...)` on `--gender` or `--quality`, and garbage reaches */
 /** the API, wasting a request before the schema refuses it. */
 it.each([

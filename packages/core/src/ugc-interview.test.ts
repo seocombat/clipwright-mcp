@@ -93,8 +93,9 @@ describe("interview contract", () => {
   it("refuses an interview whose presenter would appear in more takes than the cap", () => {
     const answers = Array.from({ length: MAX_INTERVIEW_TAKES + 1 }, (_, index) => `Question number ${index + 1}? Answer ${index + 1}.`).join(" ");
     const turns = Array.from({ length: MAX_INTERVIEW_TAKES + 1 }, (_, index) => ({ anchor: { quote: `Question number ${index + 1}` } }));
-    expect(interviewRefusals({ script: answers, interview: { turns: turns.slice(0, 12) } }))
-      .toEqual([{ path: ["interview"], message: "the presenter appears in 11 takes, more than 10; merge answers or drop a change of gaze" }]);
+    expect(interviewRefusals({ script: answers, interview: { turns } }))
+      .toEqual([{ path: ["interview"], message: "the presenter appears in 17 takes, more than 16; merge answers or drop a change of gaze" }]);
+    expect(interviewRefusals({ script: answers, interview: { turns: turns.slice(0, MAX_INTERVIEW_TAKES) } })).toEqual([]);
   });
 
   it("checks the off-screen voice against the catalog, as the call's voices are", () => {

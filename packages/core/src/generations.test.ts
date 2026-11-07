@@ -15,6 +15,7 @@ import {
 } from "./generations.js";
 import * as generationsModule from "./generations.js";
 import { runGeneration } from "./generations-output.js";
+import { templateMedia } from "./templates/slot.js";
 import { API_ENDPOINTS, endpointLabel } from "./endpoints.js";
 
 const UPLOAD = "upl_" + "a".repeat(32);
@@ -31,7 +32,7 @@ const D1_VIDEO: Record<string, Partial<Record<string, number>>> = {
   "seedance-2.0-fast": { "480p": 9, "720p": 20 },
   "seedance-2.0": { "480p": 12, "720p": 24, "1080p": 59 },
   "seedance-2.5": { "480p": 17, "720p": 37, "1080p": 90 },
-  "kling-3.0": { "720p": 11 },
+  "kling-3.0": { "720p": 12 },
   "gemini-omni-flash-1.1": { "360p": 13, "720p": 13 },
 };
 
@@ -141,7 +142,7 @@ describe("findCapabilityRow and priceGeneration", () => {
     expect(priceGeneration(omni(4))).toEqual({ unit_credits: 13, units: 4, credits: 52 });
     expect(priceGeneration(omni(10))).toEqual({ unit_credits: 13, units: 10, credits: 130 });
     expect(findCapabilityRow(omni(5))).toBeNull();
-    expect(priceGeneration(video({ model: "kling-3.0", aspect_ratio: "16:9" }))).toEqual({ unit_credits: 11, units: 4, credits: 44 });
+    expect(priceGeneration(video({ model: "kling-3.0", aspect_ratio: "16:9" }))).toEqual({ unit_credits: 12, units: 4, credits: 48 });
   });
 
   it.each(["16:9", "1:1"] as const)("refuses an unmeasured %s image", (aspect_ratio) => {
@@ -264,8 +265,8 @@ describe("models list", () => {
     expect(listed.find((one) => one.model === "kling-3.0")).toEqual({
       model: "kling-3.0", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 3, max: 15 }, max_references: 0,
       rows: [
-        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 11 },
-        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 11 },
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 12 },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 12 },
       ],
     });
     expect(listed.find((one) => one.model === "gemini-omni-flash-1.1")).toEqual({
@@ -302,5 +303,13 @@ describe("run generation block", () => {
     expect(runGeneration.safeParse({ ...base, kind: "image", model: "seedream-5.0-flash", duration_s: null }).success).toBe(true);
     expect(runGeneration.safeParse({ ...base, kind: "video", model: "seedance-2.0", mime: "video/mp4", duration_s: 4.04 }).success).toBe(true);
     expect(runGeneration.safeParse({ ...base, kind: "audio", model: "x", duration_s: null }).success).toBe(false);
+  });
+});
+
+describe("generation results name create_asset for templates and inserts (#1157)", () => {
+  /** Mutant: the hint leaves a schema description, so OpenAPI and tools/list stop telling agents the next step. */
+  it("says so on reusable_until, the template slot", () => {
+    expect(runGeneration.shape.reusable_until.description).toContain("create_asset with source.run_id");
+    expect(templateMedia.shape.asset_id.description).toContain("create_asset from a generate_* run");
   });
 });

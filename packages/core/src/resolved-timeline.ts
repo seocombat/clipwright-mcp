@@ -5,9 +5,11 @@ import { CANVAS_FPS, completeFrames, secondsToFrames } from "./media-timebase.js
 import { coverWordOf } from "./semantic-inserts.js";
 import { MAX_INSERTS } from "./skills.js";
 import { place } from "./scene-place.js";
-import { LAYER_ENTERS, LAYER_EXITS, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS } from "./ugc-layers.js";
+import { resolvedDesign } from "./design.js";
+import { LAYER_ENTERS, LAYER_EXITS, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS, SPLIT_MEDIA_SHARE, SPLIT_MEDIA_SIDES } from "./ugc-layers.js";
 import { MAX_TEMPLATES, TEMPLATE_PLACEMENTS, TEMPLATE_SOUND_BEATS } from "./templates/index.js";
 import { FRAMING_SIZES, MAX_FRAMING } from "./ugc-framing.js";
+import { LIVE_SHOT_KINDS } from "./live-shot-kinds.js";
 
 // The long-form timeline a render freezes: the run writes it, the editor reads it.
 
@@ -22,7 +24,9 @@ const interval = { position: positive, startFrame: frame, endFrame: positive };
 const actorSlot = z.object({ ...interval, kind: z.literal("actor"), requestHash: digest,
   speechDurationSec: z.number().positive().finite(), audio: audioArtifact.optional(),
   /** The actor's view the take is rendered from (#972); absent keeps the hash of every take frozen before it. */
-  gaze: z.enum(["camera", "left", "right"]).optional() }).strict();
+  gaze: z.enum(["camera", "left", "right"]).optional(),
+  /** The live shot the take draws (#1103): its id in the input and its kind; absent is the presenter's usual take, which keeps every hash before it. */
+  shot: z.object({ id: z.string().min(1).max(64), kind: z.enum(LIVE_SHOT_KINDS) }).strict().optional() }).strict();
 const mediaSlot = z.object({ ...interval, kind: z.literal("media"), key: z.string().min(1), sha256: digest,
   bytes: positive, width: positive, height: positive, durationSec: z.number().positive().finite(),
   mediaType: z.enum(["image", "video"]), contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]),
@@ -41,13 +45,17 @@ const layerMedia = { id: z.string().min(1).max(64), startFrame: frame, endFrame:
 const layerSlot = z.discriminatedUnion("kind", [
   z.object({ ...layerMedia, kind: z.literal("overlay"), position: z.enum(OVERLAY_POSITIONS).optional(), place: place.optional() }).strict()
     .refine(layer => (layer.position === undefined) !== (layer.place === undefined), { path: ["position"], message: "an overlay holds a position or a place" }),
-  z.object({ ...layerMedia, kind: z.literal("window"), layout: z.enum(LAYOUT_WINDOW_KINDS), blurPresenter: z.boolean() }).strict(),
+  /** A split's media side and share (#1030); absent is the bottom half, which keeps the hash of every window frozen before them. */
+  z.object({ ...layerMedia, kind: z.literal("window"), layout: z.enum(LAYOUT_WINDOW_KINDS), blurPresenter: z.boolean(),
+    mediaSide: z.enum(SPLIT_MEDIA_SIDES).optional(), mediaShare: z.number().min(SPLIT_MEDIA_SHARE.min).max(SPLIT_MEDIA_SHARE.max).optional() }).strict(),
 ]);
 /** A frozen template, in a long-form timeline or in a single take's record. */
 export const resolvedTimelineTemplate = z.object({ id: z.string().min(1).max(64), kind: z.string().min(1).max(64), kindVersion: positive,
   placement: z.enum(TEMPLATE_PLACEMENTS), preset: z.string().min(1).max(64), startFrame: frame, endFrame: positive,
   /** The run's accent as admitted (#778 S3a(iii)); absent draws the preset's own. */
   accent: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  /** The run's design DNA as admitted (#1122); absent draws the preset and keeps the hash of every template frozen before it. */
+  design: resolvedDesign.optional(),
   data: z.record(z.string(), z.unknown()),
   /** A full frame's wipe, flash or zoom; absent is a cut. */
   transition: z.enum(["wipe", "flash", "zoom"]).optional(),
@@ -64,13 +72,15 @@ const contentSchema = z.object({ version: z.literal(1), mode: z.enum(["segments"
   runId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/), accountId: z.string().min(1).max(200), inputHash: digest,
   fps: z.literal(CANVAS_FPS), outputFrames: positive, fullSpeechDurationSec: z.number().positive().finite(),
   slots: z.array(z.discriminatedUnion("kind", [actorSlot, mediaSlot, holdSlot, liveSlot])).min(1).max(RESOLVED_TIMELINE_MAX_SLOTS),
-  warnings: z.array(z.string().max(2000)).max(100),
+  warnings: z.array(z.string().max(2000)).max(400),
   narration: audioArtifact.extend({ alignmentHash: digest, semanticPlan: semanticPlanSchema }).strict().optional(),
   layers: z.array(layerSlot).min(1).max(MAX_OVERLAYS + MAX_LAYOUT_WINDOWS).optional(),
   /** Templates with the data as admitted and the kind version they were admitted at (#778 S3, D11); absent keeps the hash. */
   templates: z.array(resolvedTimelineTemplate).min(1).max(MAX_TEMPLATES).optional(),
   /** The edit sound a run with edit_sounds plays on its cuts, frozen at admission (reference-elements S1); absent keeps the hash and plays none. */
   editSound: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
+  /** The flash and whoosh names a live shot's cuts play (#1129), frozen at admission like the edit sound; absent keeps the hash and plays none. */
+  shotSounds: z.object({ flash: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/), whoosh: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/) }).strict().optional(),
   /** Presenter sizes by frame (reference-elements S2); absent keeps the hash, and a flash is the only transition written. */
   framing: z.array(z.object({ id: z.string().min(1).max(64), startFrame: frame, endFrame: positive, size: z.enum(FRAMING_SIZES),
     transition: z.literal("flash").optional() }).strict()).min(1).max(MAX_FRAMING).optional(),
@@ -221,7 +231,8 @@ export function faceBillingUnitsOf(timeline: ResolvedTimelineContent) {
   return timeline.slots.flatMap(slot => slot.kind === "actor" || slot.kind === "live" ? [{
     unitId: slot.kind === "live" ? `live:${slot.position}` : `segment:${slot.position}`,
     requestHash: slot.requestHash, audioDurationSec: (slot.endFrame - slot.startFrame) / timeline.fps,
-    faceIntervals: [{ startFrame: slot.startFrame, endFrame: slot.endFrame }], ...(slot.kind === "live" ? { optional: true as const } : {}) }] : []);
+    faceIntervals: [{ startFrame: slot.startFrame, endFrame: slot.endFrame }], ...(slot.kind === "live" ? { optional: true as const } : {}),
+    ...(slot.kind === "actor" && slot.shot ? { shot: slot.shot.kind } : {}) }] : []);
 }
 
 /** Where a run's resolved timeline is stored, and the most bytes it may take there. */

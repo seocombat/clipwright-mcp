@@ -257,7 +257,7 @@ describe("long-form edits (#604 S7b-1)", () => {
 
   it("covers carried from earlier revisions count toward the cap of shots over the presenter", () => {
     const carried = (count: number) => revisionView(revisionRecordFixture(Array.from({ length: count }, (_, at) =>
-      overlayFixture(`cover-${at + 1}`, at * 7, at * 7 + 5))));
+      overlayFixture(`cover-${at + 1}`, at * 3, at * 3 + 2))));
     const added = cover(901, 926, fromUpload, "cover-100");
     const full = carried(MAX_INSERTS);
     expect(issuesOf(edited(full, {}, [added]), full, uploadOf())).toEqual([{ code: "shot_added_not_allowed", shot_id: "cover-100" }]);

@@ -1,22 +1,23 @@
 import { z } from "zod";
-import { ACTOR_PORTRAIT_ASPECT, ACTOR_UNIT_CREDITS } from "./account-actors.js";
+import { ACTOR_PORTRAIT_ASPECT, ACTOR_UNIT_CREDITS, ACTOR_VIEW_PORTRAIT_CREDITS, type ActorQualityAccepted } from "./account-actors.js";
 import { CANDIDATE_CHARGE_TEXT } from "./edit-candidate.js";
 import { EDIT_RENDER_PRICE, EDIT_UNIT_PRICES, EDIT_ZERO_UNIT_PRICE } from "./edit-billing.js";
 import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
 import {
   FACELESS_CREDITS_PER_1500_FRAMES, FACELESS_IMAGE_CREDITS, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_BASE_CREDITS,
-  FACELESS_MIN_SELECTED_SECONDS, FACELESS_OPENER_CREDITS, quoteFaceless,
+  FACELESS_MIN_SELECTED_SECONDS, FACELESS_OPENER_CREDITS, FACELESS_SHOT_CREDITS_PER_SECOND, facelessScenesEnabled, quoteFaceless,
 } from "./faceless-price.js";
-import { PRESENTER_ENGINES } from "./face-billing.js";
+import { PRESENTER_ENGINES, SHOT_ENGINES } from "./face-billing.js";
 import { listGenerationModels } from "./generations.js";
-import { PARTS_FACE_TARIFF, PRESENTER_ENGINE_LABELS } from "./parts-pricing.js";
+import { PARTS_FACE_TARIFF, PRESENTER_ENGINE_LABELS, SCENE_CREDITS, SHOT_CREDITS_PER_SECOND, SHOT_ENGINE_LABELS } from "./parts-pricing.js";
 import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS } from "./reference-analysis.js";
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
+import { TREND_SEARCH_CREDITS, TREND_SEARCH_REELS } from "./trend-search.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
 export const PRICES_PATH = "/v1/public/prices";
 
-export const PRICE_UNITS = ["call", "second", "face_second", "image", "clip", "clip_second", "still"] as const;
+export const PRICE_UNITS = ["call", "second", "face_second", "image", "clip", "clip_second", "still", "scene"] as const;
 export type PriceUnit = (typeof PRICE_UNITS)[number];
 
 /** One part of a price: credits per unit. A price of several parts adds them, then applies the entry's minimum. */
@@ -83,16 +84,21 @@ const FREE_TOOLS: Readonly<Record<string, string>> = {
   quote_workflow_plan: "POST /v1/workflow-plans/{id}/quote",
   get_run: "GET /v1/runs/{id}",
   get_run_shots: "GET /v1/runs/{id}/shots",
+  delete_run_media: "DELETE /v1/runs/{id}/media",
   list_voices: "GET /v1/voices",
   list_template_sounds: "GET /v1/template-sounds",
+  list_moves: "GET /v1/moves",
   list_generation_models: "GET /v1/generations/models",
   list_actors: "GET /v1/actors",
   delete_actor: "DELETE /v1/actors/{id}",
   get_actor_defaults: "GET /v1/actors/{id}/defaults",
   set_actor_defaults: "POST /v1/actors/{id}/defaults",
+  brand_kit: "POST /v1/brand-kit",
+  extract_brand: "POST /v1/brand/extract",
   upload_image: "POST /v1/uploads/import",
   create_upload: "POST /v1/uploads/intents",
   get_upload: "GET /v1/uploads/{id}",
+  delete_upload: "DELETE /v1/uploads/{id}",
   create_asset: "POST /v1/assets",
   list_assets: "GET /v1/assets",
   get_asset: "GET /v1/assets/{id}",
@@ -101,6 +107,8 @@ const FREE_TOOLS: Readonly<Record<string, string>> = {
   get_reference_analysis: "GET /v1/reference-analyses/{id}",
   quote_creator_profile: "POST /v1/creator-profiles/quote",
   get_creator_profile: "GET /v1/creator-profiles/{id}",
+  delete_creator_profile: "DELETE /v1/creator-profiles/{id}",
+  quote_trends: "POST /v1/trend-searches/quote",
   list_workflows: "GET /v1/public/workflows",
   get_workflow: "GET /v1/public/workflows/{id}",
   prepare_workflow_plan: "POST /v1/workflow-plans",
@@ -134,19 +142,27 @@ function generationEntries(): PriceEntry[] {
   });
 }
 
-function buildPriceList(): PriceEntry[] {
+function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false): PriceEntry[] {
   const unit = EDIT_UNIT_PRICES;
   const parts = PARTS_FACE_TARIFF;
+  const shotRates = parts.shotCreditsPerSecond ?? SHOT_CREDITS_PER_SECOND;
   return [
     ...PRESENTER_ENGINES.map((engine) => paid({ tool: "make_ugc", route: "POST /v1/skills/make_ugc/run",
       variant: engine === "heygen" ? "HeyGen presenter" : "OmniHuman presenter", quote_tool: "quote_ugc", minimum_credits: parts.minimumCredits,
       lines: [{ label: PRESENTER_ENGINE_LABELS[engine], unit: "face_second", credits: parts.presenterCreditsPerSecond[engine] },
+        // Live shots are sold only while they can be ordered (#1103).
+        ...(liveShots ? SHOT_ENGINES.map((shot): PriceEntryLine => ({ label: SHOT_ENGINE_LABELS[shot], unit: "face_second", credits: shotRates[shot] }))
+          : []),
         { label: "production (voice and render)", unit: "second", credits: parts.productionCreditsPerSecond },
-        { label: "live avatar on a call", unit: "still", credits: parts.liveAvatarStillCredits }],
+        { label: "live avatar on a call", unit: "still", credits: parts.liveAvatarStillCredits },
+        // Scenes are sold only while they can be ordered (#1107).
+        ...(scenes ? [{ label: "scene made for the video", unit: "scene", credits: SCENE_CREDITS } satisfies PriceEntryLine] : [])],
       notes: "Short and long videos alike. Presenter seconds are the seconds a presenter take fills, covered by an insert, overlay, " +
         "window or template or not, counted once over the video and rounded up; the engine that renders each take sets its rate " +
         (engine === "heygen" ? "(today every take renders on HeyGen). " : "(no take renders on OmniHuman today). ") +
-        "Production seconds are every second of the finished video. A live avatar is charged per call still in the video." })),
+        "Production seconds are every second of the finished video. A live avatar is charged per call still in the video." +
+        (liveShots ? " A live shot's seconds take its own line in place of the presenter's; talking shots stay on the presenter line." : "") +
+        (scenes ? " A scene made for the video is charged only when it is drawn in the delivered video." : "") })),
     paid({ tool: "analyze_reference", route: "POST /v1/reference-analyses", unit: "call", credits: REFERENCE_ANALYSIS_CREDITS,
       quote_tool: "quote_analysis", notes: "Held at the start and charged once the analysis succeeds; a failed one costs nothing. " +
         "Starting it again on the same asset answers the same analysis for free." }),
@@ -157,10 +173,18 @@ function buildPriceList(): PriceEntry[] {
       quote_tool: "quote_creator_profile", notes: `A creator's latest ${CREATOR_PROFILE_VIDEOS} videos with each one's x to their median views. ` +
         "Held at the start and charged once it succeeds; a private or empty account, or a failed profile, costs nothing. " +
         "The same creator again within an hour answers the same profile for free." }),
+    paid({ tool: "find_trends", route: "POST /v1/trend-searches", unit: "call", credits: TREND_SEARCH_CREDITS,
+      quote_tool: "quote_trends", notes: `Up to ${TREND_SEARCH_REELS} reels per platform on a topic, TikTok and Instagram together by ` +
+        "default, each with its x to its creator's median views. The same price for one platform or both. " +
+        "Held at the start and charged once it succeeds, a mix that reaches only one platform included; no reel found, or a failed search, costs nothing. " +
+        "The same query again within an hour answers the same search for free." }),
     paid({ tool: "make_faceless", route: "POST /v1/skills/make_faceless/run", quote_tool: "quote_faceless",
       lines: [{ label: "generated picture", unit: "image", credits: FACELESS_IMAGE_CREDITS },
         { label: "opening clip", unit: "clip", credits: FACELESS_OPENER_CREDITS },
-        { label: "production (story, voice and render)", unit: "second", credits: FACELESS_CREDITS_PER_1500_FRAMES / 60 }],
+        { label: "production (story, voice and render)", unit: "second", credits: FACELESS_CREDITS_PER_1500_FRAMES / 60 },
+        // Action shots and scenes are sold only while they can be ordered (#1113).
+        ...(facelessShots ? [{ label: "action shot", unit: "clip_second", credits: FACELESS_SHOT_CREDITS_PER_SECOND } satisfies PriceEntryLine] : []),
+        ...(facelessScenes ? [{ label: "scene made for the video", unit: "scene", credits: SCENE_CREDITS } satisfies PriceEntryLine] : [])],
       minimum_credits: FACELESS_MIN_BASE_CREDITS,
       notes: `Pictures we generated for the delivered video and its seconds, never above the selected length. The quote is the most a ` +
         `selection is charged, every picture it may generate: ${facelessAt(FACELESS_MIN_SELECTED_SECONDS)} for ` +
@@ -175,7 +199,11 @@ function buildPriceList(): PriceEntry[] {
         unit: priceUnit, credits, quote_tool: "quote_candidate", notes: CANDIDATE_CHARGE_TEXT })),
     ...Object.entries(ACTOR_UNIT_CREDITS).flatMap(([quality, credits]) => [
       paid({ tool: "create_actor", route: "POST /v1/skills/create_actor/run", variant: `${quality} portrait`, unit: "image",
-        credits: credits.portrait, quote_tool: "quote_actor", notes: "Each published image; a refused description or an unusable portrait costs nothing." }),
+        credits: credits.portrait, quote_tool: "quote_actor",
+        notes: "Each published image; a refused description or an unusable portrait costs nothing, and so does your own image passed in portrait." }),
+      paid({ tool: "create_actor", route: "POST /v1/skills/create_actor/run", variant: `${quality} view of an existing actor`, unit: "image",
+        credits: ACTOR_VIEW_PORTRAIT_CREDITS[quality as ActorQualityAccepted], quote_tool: "quote_actor",
+        notes: "The portrait of a view made with from_actor_id, once published; a face that does not match costs nothing." }),
       paid({ tool: "create_actor", route: "POST /v1/skills/create_actor/run", variant: `${quality} other format`, unit: "image",
         credits: credits.variant, quote_tool: "quote_actor", notes: `Each requested format besides the ${ACTOR_PORTRAIT_ASPECT} portrait, once published.` }),
     ]),
@@ -187,19 +215,27 @@ function buildPriceList(): PriceEntry[] {
   ];
 }
 
-export const PRICE_LIST: readonly PriceEntry[] = Object.freeze(pricesResponse.parse({ prices: buildPriceList() }).prices);
+/** The price list as the given environment sells it: live-shot and scene lines only while their switches are on. */
+export function priceListFor(env: Record<string, string | undefined>): readonly PriceEntry[] {
+  const longForm = env.CLIPWRIGHT_LONG_FORM_QUALIFICATION === "1" && env.CLIPWRIGHT_COMPOSE === "1" && env.CLIPWRIGHT_REMOTE_FETCH === "1";
+  const liveShots = env.CLIPWRIGHT_LIVE_SHOTS === "1" && longForm, scenes = env.CLIPWRIGHT_SCENES === "1" && longForm;
+  return Object.freeze(pricesResponse.parse({ prices: buildPriceList(liveShots, scenes, env.CLIPWRIGHT_FACELESS_SHOTS === "1",
+    scenes && facelessScenesEnabled(env)) }).prices);
+}
+
+export const PRICE_LIST: readonly PriceEntry[] = priceListFor(typeof process === "undefined" ? {} : process.env);
 
 const UNIT_TEXT: Readonly<Record<PriceUnit, string>> = {
   call: "call", second: "second of video", face_second: "second the presenter is in the video, covered or not", image: "image", clip: "clip",
-  clip_second: "second of clip", still: "call still in the video",
+  clip_second: "second of clip", still: "call still in the video", scene: "scene drawn in the video",
 };
 /** Past this many one-line prices of one unit, the sentence names their range and list_prices names each. */
 const LISTED_PRICES = 4;
 
 /** One entry's price in words: its lines added up and its minimum, or its formula. */
 export const priceText = (entry: PriceEntry): string => entry.lines.length === 0 ? entry.formula ?? "" :
-  entry.lines.map((line) => `${line.label === null ? "" : `${line.label} `}${line.credits} credits per ${UNIT_TEXT[line.unit]}`).join(" plus ") +
-  (entry.minimum_credits === null ? "" : `, at least ${entry.minimum_credits}`);
+  entry.lines.map(lineText).join(" plus ") + (entry.minimum_credits === null ? "" : `, at least ${entry.minimum_credits}`);
+const lineText = (line: PriceEntry["lines"][number]): string => `${line.label === null ? "" : `${line.label} `}${line.credits} credits per ${UNIT_TEXT[line.unit]}`;
 
 /** The price sentence a billed tool's description ends with; `null` for a free tool. */
 export function priceLine(tool: string, list: readonly PriceEntry[] = PRICE_LIST): string | null {
@@ -209,11 +245,16 @@ export function priceLine(tool: string, list: readonly PriceEntry[] = PRICE_LIST
   const unit = first.lines[0]?.unit;
   const single = entries.flatMap((entry) => (entry.formula === null && entry.lines.length === 1 && entry.lines[0]!.unit === unit
     ? [entry.lines[0]!.credits] : []));
+  // Variants that differ only in their first line say the shared rest once (tools/list has a byte ceiling, #1122).
+  const rest = (entry: PriceEntry) => JSON.stringify([entry.lines.slice(1), entry.minimum_credits]);
+  const shared = entries.length > 1 && entries.every((entry) => entry.formula === null && entry.lines.length > 1 && rest(entry) === rest(first));
   const text = unit !== undefined && single.length === entries.length && single.length > LISTED_PRICES
     ? `${Math.min(...single)} to ${Math.max(...single)} credits per ${UNIT_TEXT[unit]}, by model and size`
-    : entries.map((entry) => `${entry.variant === null ? "" : `${entry.variant}: `}${priceText(entry)}`)
-      .join("; ");
-  return `Price: ${text}. Quote first with ${first.quote_tool}; list_prices names every price.`;
+    : shared
+      ? `${entries.map((entry) => `${entry.variant === null ? "" : `${entry.variant}: `}${lineText(entry.lines[0]!)}`).join("; ")}; each plus ` +
+        `${first.lines.slice(1).map(lineText).join(" plus ")}${first.minimum_credits === null ? "" : `, at least ${first.minimum_credits}`}`
+      : entries.map((entry) => `${entry.variant === null ? "" : `${entry.variant}: `}${priceText(entry)}`).join("; ");
+  return `Price: ${text}. Quote first with ${first.quote_tool}.`;
 }
 
 /** A billed tool's description with its price line at the end. */

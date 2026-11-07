@@ -32,7 +32,7 @@ export type GenerationVideoMode = (typeof GENERATION_VIDEO_MODES)[number];
 
 export const GENERATION_MAX_REFERENCES = 4;
 export const GENERATION_VIDEO_FPS = 24;
-export const GENERATION_PROMPT_MAX_CHARS = 2000;
+export const GENERATION_PROMPT_MAX_CHARS = 5000;
 
 /** One output shape. `measured: false` is refused by the API and never listed (D7). */
 export interface GenerationImageRow {
@@ -161,7 +161,7 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     fps: GENERATION_VIDEO_FPS,
     modes: { text: true, first_frame: true, reference: false },
     duration_s: { min: 3, max: 15 },
-    rows: video("720p", 720, 1280, 11, H264, { vertical: true, horizontal: true }),
+    rows: video("720p", 720, 1280, 12, H264, { vertical: true, horizontal: true }),
   },
   // 360p 9:16 is not yet seen live.
   "gemini-omni-flash-1.1": {

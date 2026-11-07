@@ -218,6 +218,16 @@ const SHORT_SIDE_BY_RESOLUTION: Record<Resolution, number> = {
   "4k": 2160,
 };
 
+/** A delivered video whose short side is not the requested resolution's is named (#1173, rules 3 and 4). */
+export function deliveredResolutionWarning(
+  requested: Resolution,
+  delivered: { width: number; height: number },
+): string | null {
+  if (Math.min(delivered.width, delivered.height) === SHORT_SIDE_BY_RESOLUTION[requested]) return null;
+  return `resolution ${requested} was requested, but the video is delivered at ` +
+    `${delivered.width}×${delivered.height}; resolution does not change the price`;
+}
+
 /** The frame we expect from the vendor: format PLUS resolution. Format alone flagged */
 /** every 720p run as a mismatch. */
 export function expectedVendorFrame(

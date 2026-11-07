@@ -6,12 +6,12 @@ import { type AnchoredItem, type LayerRefusal, layerWordRange } from "./ugc-laye
 
 export const CALL_SPEAKERS = ["agent", "caller"] as const;
 export type CallSpeaker = (typeof CALL_SPEAKERS)[number];
-export const MAX_CALL_LINES = 12;
-export const MAX_CALL_LINE_CHARS = 400;
-export const MAX_CALL_CHARS = 1500;
+export const MAX_CALL_LINES = 30;
+export const MAX_CALL_LINE_CHARS = 1000;
+export const MAX_CALL_CHARS = 5000;
 /** A call's length before synthesis, at the reference's 19 characters a second (D10). */
 export const CALL_CHARS_PER_SEC = 19;
-export const MAX_CALL_SEC = 45;
+export const MAX_CALL_SEC = 120;
 /** Past this the presenter holds still long enough to name it (D1). */
 export const CALL_WARN_SEC = 20;
 /** The bake-off's pair (S5-0): agent Cassidy, caller Mark; the agent is never the narration's voice. */

@@ -21,7 +21,11 @@ import {
   CREATE_ACTOR_FIELD_DISPOSITIONS,
   CREATE_ACTOR_RUN_ERROR_CODES,
   actorIdScope,
+  ACTOR_PORTRAIT_MIN_FACE_HEIGHT,
+  actorPortraitFraming,
+  actorPortraitFramingRefusal,
   actorVariantWarning,
+  isActorPortraitShape,
   createActorRunErrorWith,
   actorPricingSnapshot,
   admittedActorPricingSnapshot,
@@ -117,7 +121,7 @@ describe("createActorInput — strict input", () => {
   it("an unknown field and an image are refused and named", () => {
     expect(refusal(createActorInput.safeParse({ ...VALID, voice: "sarah" }))).toMatch(/unknown field\(s\) voice/);
     expect(refusal(createActorInput.safeParse({ ...VALID, image: "https://example.com/a.png" }))).toMatch(
-      /takes no image/,
+      /takes no image link/,
     );
   });
 });
@@ -136,11 +140,15 @@ describe("create_actor input stays TEXTUAL", () => {
     "gender",
     "holding",
     "name",
+    "portrait",
     "quality",
     "setting",
+    "style_reference",
   ];
 
-  it("there are EXACTLY TEN keys, all read from the schema", () => {
+  /** #975: `style_reference` is a photo that may show a person; only an asset id, whose faces the worker gates against, never copies. */
+  /** #1095: `portrait` is the account's own rights-confirmed image of the presenter, an asset id; the worker checks one face and framing. */
+  it("there are EXACTLY TWELVE keys, all read from the schema", () => {
     expect(Object.keys(createActorInput.shape).sort()).toEqual(TEXT_ONLY_KEYS);
   });
 
@@ -409,9 +417,11 @@ describe("reading stored data does not depend on intake bounds", () => {
 });
 
 describe("price snapshot and responses", () => {
-  it("the snapshot requires positive prices and at least one format", () => {
+  it("the snapshot requires a positive format price, a portrait price of zero or more, and at least one format", () => {
     expect(actorPricingSnapshot.safeParse(SNAPSHOT).success).toBe(true);
-    expect(actorPricingSnapshot.safeParse({ ...SNAPSHOT, unit_credits: { portrait: 0, variant: 10 } }).success).toBe(false);
+    expect(actorPricingSnapshot.safeParse({ ...SNAPSHOT, unit_credits: { portrait: 0, variant: 10 } }).success).toBe(true);
+    expect(actorPricingSnapshot.safeParse({ ...SNAPSHOT, unit_credits: { portrait: -1, variant: 10 } }).success).toBe(false);
+    expect(actorPricingSnapshot.safeParse({ ...SNAPSHOT, unit_credits: { portrait: 10, variant: 0 } }).success).toBe(false);
     expect(actorPricingSnapshot.safeParse({ ...SNAPSHOT, requested_aspects: [] }).success).toBe(false);
   });
 
@@ -540,11 +550,14 @@ describe("dispositions and admission warnings", () => {
     expect(createActorAdmissionWarnings({}, table)).toEqual([]);
   });
 
-  it("there are exactly twelve failure codes; each starts its text and promises zero charge", () => {
+  it("there are exactly fifteen failure codes; each starts its text and promises zero charge", () => {
     expect([...CREATE_ACTOR_RUN_ERROR_CODES].sort()).toEqual(
       [
         "actor_generation_disabled",
         "actor_identity_not_kept",
+        "actor_portrait_framing",
+        "actor_portrait_not_one_face",
+        "actor_resembles_reference",
         "actor_source_unreadable",
         "actor_views_disabled",
         "actor_portrait_not_delivered",
@@ -621,18 +634,35 @@ describe("an actor derived from an actor", () => {
     }
   });
 
-  it("refuses description, gender and age next to from_actor_id, each by name", () => {
-    for (const [field, value] of [["description", "a woman"], ["gender", "female"], ["approximate_age", 30]] as const) {
+  /** #1192. Mutant (description refused again, or gender let through): a view cannot change its look, or changes who the person is. */
+  it("refuses gender and age next to from_actor_id, each by name, and takes description as the view's look", () => {
+    for (const [field, value] of [["gender", "female"], ["approximate_age", 30]] as const) {
       expect(issues({ ...DERIVED, [field]: value })).toEqual([`${field}: ${field} comes from the source actor with from_actor_id; omit it`]);
     }
+    expect(createActorInput.safeParse({ ...DERIVED, description: "a red raincoat, arms crossed" }).success).toBe(true);
+    expect(createActorInput.safeParse({ name: "Anna", from_actor_id: "actor_anna", description: "a red raincoat" }).success).toBe(true);
   });
 
-  it("refuses a source without a change, and a change without a source", () => {
-    expect(issues({ name: "Anna", from_actor_id: "actor_anna" })).toEqual(["from_actor_id: from_actor_id needs a change: framing, holding or setting"]);
-    for (const [field, value] of [["framing", "wide"], ["holding", [{ description: "a mug" }]], ["setting", "a studio"]] as const) {
-      expect(issues({ ...VALID, [field]: value })).toEqual([
-        `${field}: ${field} needs from_actor_id: create the actor first, then derive a view of it with from_actor_id`]);
+  /** #1192. Mutant (holding or setting on a new actor refused again): a new presenter cannot be drawn in a place or with an object. */
+  it("refuses a source without a change, and takes holding and setting on a new actor", () => {
+    expect(issues({ name: "Anna", from_actor_id: "actor_anna" })).toEqual([
+      "from_actor_id: from_actor_id needs a change: framing, holding, setting, description or style_reference"]);
+    for (const change of [{ holding: [{ description: "a mug" }] }, { setting: "a studio" }]) {
+      expect(createActorInput.safeParse({ ...VALID, ...change }).success).toBe(true);
+      expect(createActorInput.safeParse({ ...VALID, ...change, style_reference: { asset_id: ASSET } }).success).toBe(true);
     }
+    expect(issues({ ...VALID, holding: [{ description: "a", hand: "left" }, { description: "b", hand: "left" }] })).toEqual([
+      "holding: holding names the same hand twice: one object per hand"]);
+  });
+
+  /** #1175 S7. Mutant (framing from words refused, or let through with an image source): words cannot ask a shot size, or an image's is overridden. */
+  it("takes a shot size from words, and refuses one beside an image that sets its own", () => {
+    for (const framing of ["close", "wide", "full"] as const) expect(createActorInput.safeParse({ ...VALID, framing }).success).toBe(true);
+    expect(createActorInput.safeParse({ name: "Anna", from_actor_id: "actor_anna", framing: "full" }).success).toBe(true);
+    expect(issues({ ...VALID, framing: "full", style_reference: { asset_id: "ast_0123456789abcdef0123456789abcdef" } })).toEqual([
+      "framing: framing does not combine with style_reference: its image sets the shot size; omit it"]);
+    expect(issues({ name: "Anna", from_actor_id: "actor_anna", framing: "close" })).toEqual([
+      "framing: framing close is not a change of view: with from_actor_id, framing is wide or full"]);
   });
 
   it("a described actor still needs its words, gender and age, named", () => {
@@ -646,10 +676,12 @@ describe("an actor derived from an actor", () => {
     expect(issues({ ...DERIVED, holding: [item("left"), item("left")] })).toEqual(["holding: holding names the same hand twice: one object per hand"]);
     expect(createActorInput.safeParse({ ...DERIVED, holding: [item(), item(), item()] }).success).toBe(false);
     expect(createActorInput.safeParse({ ...DERIVED, holding: [] }).success).toBe(false);
-    expect(createActorInput.safeParse({ ...DERIVED, holding: [{ description: "x".repeat(200) }] }).success).toBe(true);
-    expect(createActorInput.safeParse({ ...DERIVED, holding: [{ description: "x".repeat(201) }] }).success).toBe(false);
-    expect(createActorInput.safeParse({ ...DERIVED, setting: "x".repeat(300) }).success).toBe(true);
-    expect(createActorInput.safeParse({ ...DERIVED, setting: "x".repeat(301) }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...DERIVED, holding: [{ description: "x".repeat(1000) }] }).success).toBe(true);
+    expect(createActorInput.safeParse({ ...DERIVED, holding: [{ description: "x".repeat(1001) }] }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...DERIVED, setting: "x".repeat(2000) }).success).toBe(true);
+    expect(createActorInput.safeParse({ ...DERIVED, setting: "x".repeat(2001) }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...DERIVED, description: "x".repeat(2000) }).success).toBe(true);
+    expect(createActorInput.safeParse({ ...DERIVED, description: "x".repeat(2001) }).success).toBe(false);
     expect(createActorInput.safeParse({ ...DERIVED, holding: [{ description: "a mug", hand: "both" }] }).success).toBe(false);
     expect(createActorInput.safeParse({ ...DERIVED, framing: "close" }).success).toBe(false);
   });
@@ -657,7 +689,7 @@ describe("an actor derived from an actor", () => {
   it("the unknown-field refusal names the view fields", () => {
     expect(refusal(createActorInput.safeParse({ ...DERIVED, prop: "mic" }))).toBe(
       "unknown field(s) prop: create_actor accepts description, gender, approximate_age, name, quality, aspect_ratios, " +
-        "from_actor_id, framing, holding, setting");
+        "from_actor_id, framing, holding, setting, style_reference, portrait");
   });
 
   it("the stored input reads only with the source admission resolved and each picture it found", () => {
@@ -682,9 +714,157 @@ describe("an actor derived from an actor", () => {
     expect(createActorAdmissionWarnings({ ...DERIVED }, off)).toEqual([]);
   });
 
+  /** #1192. Mutant (style_reference beside from_actor_id refused again): an existing actor cannot be put into a reference's scene. */
+  it("a style reference makes a new person from words, or puts a source actor into its scene (#975, #1192)", () => {
+    const style = { style_reference: { asset_id: ASSET } };
+    expect(createActorInput.parse({ ...VALID, ...style }).style_reference).toEqual({ asset_id: ASSET });
+    expect(issues({ name: "Mira", ...style }).map((line) => line.split(":")[0])).toEqual(["description", "gender", "approximate_age"]);
+    expect(createActorInput.safeParse({ name: "Anna", from_actor_id: "actor_anna", ...style }).success).toBe(true);
+    expect(issues({ ...DERIVED, ...style })).toEqual(["framing: framing does not combine with style_reference: its image sets the shot size; omit it"]);
+    expect(createActorInput.safeParse({ ...VALID, style_reference: { asset_id: ASSET, url: "https://example.com/a.jpg" } }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...VALID, style_reference: { asset_id: "upl_1" } }).success).toBe(false);
+    expect(createActorRejectedFields({ ...VALID, ...style }, createActorDispositions(false))).toEqual([]);
+    expect(createActorAdmissionWarnings({ ...VALID, ...style })).toEqual([]);
+  });
+
+  it("a stored style reference carries the asset admission found, beside a source actor too (#1192); a look only with one", () => {
+    const snapshot = { quality: "medium", unit_credits: { portrait: 10, variant: 10 }, requested_aspects: ["9:16"] } as const;
+    const stored = { ...VALID, aspect_ratios: ["9:16"], quality: "medium", pricing_snapshot: snapshot,
+      style_reference: { asset_id: ASSET, key: `assets/acc_1/${ASSET}/${"d".repeat(64)}.jpg`, mime: "image/jpeg" } };
+    const derived = { ...stored, from_actor_id: "actor_anna", source_actor: { actor_id: "actor_anna",
+      scope: "clipwright", key: "candidates/anna.png", sha256: "c".repeat(64), width: 941, height: 1672, framing: "close" } };
+    expect(storedCreateActorInput.safeParse(stored).success).toBe(true);
+    expect(storedCreateActorInput.safeParse({ ...stored, style_reference: { asset_id: ASSET } }).success).toBe(false);
+    expect(storedCreateActorInput.safeParse(derived).success).toBe(true);
+    expect(storedCreateActorInput.safeParse({ ...derived, look: "a red raincoat" }).data?.look).toBe("a red raincoat");
+    expect(storedCreateActorInput.safeParse({ ...stored, look: "a red raincoat" }).success).toBe(false);
+  });
+
   it("the switch needs generation and the fetch surface as well", () => {
     const on = { CLIPWRIGHT_ACTOR_VIEWS: "1", CLIPWRIGHT_ACTOR_GENERATION: "1", CLIPWRIGHT_REMOTE_FETCH: "1" };
     expect(isActorViewsEnabled(on)).toBe(true);
     for (const key of Object.keys(on)) expect(isActorViewsEnabled({ ...on, [key]: "0" }), key).toBe(false);
+  });
+});
+
+// #1095: an actor from the account's own portrait image — gender and age from the caller, the face and look from the image.
+describe("an actor from an own portrait image", () => {
+  const ASSET = `ast_${"c".repeat(32)}`;
+  const IMPORTED = { name: "Nell", gender: "female", approximate_age: 34, portrait: { asset_id: ASSET } } as const;
+  const issues = (body: unknown) => {
+    const result = createActorInput.safeParse(body);
+    expect(result.success).toBe(false);
+    return (result.error?.issues ?? []).map((issue) => `${issue.path.join(".")}: ${issue.message}`);
+  };
+
+  it("passes with a name, gender, age and the asset, defaults filled", () => {
+    expect(createActorInput.parse(IMPORTED)).toEqual({ ...IMPORTED, quality: ACTOR_DEFAULT_QUALITY, aspect_ratios: [...ASPECT_RATIOS] });
+    expect(createActorAdmissionWarnings(createActorInput.parse(IMPORTED))).toEqual([]);
+    expect(createActorRejectedFields(IMPORTED, createActorDispositions(false))).toEqual([]);
+  });
+
+  it("refuses description, style_reference and from_actor_id next to portrait, each by name", () => {
+    expect(issues({ ...IMPORTED, description: "a woman" })).toEqual([
+      "description: description does not combine with portrait: the face and look come from the portrait image; omit it"]);
+    expect(issues({ ...IMPORTED, style_reference: { asset_id: ASSET } })).toEqual([
+      "style_reference: style_reference draws a new face and does not combine with portrait; omit it"]);
+    expect(issues({ name: "Nell", portrait: { asset_id: ASSET }, from_actor_id: "actor_anna", framing: "wide" })).toEqual([
+      "portrait: portrait makes a new actor and does not combine with from_actor_id; create the actor first, then derive a view of it"]);
+  });
+
+  it("requires gender and age, with the adult bounds", () => {
+    expect(issues({ name: "Nell", portrait: { asset_id: ASSET } })).toEqual([
+      "gender: gender is required with portrait: it fixes the actor's gender and default voice",
+      "approximate_age: approximate_age is required with portrait: the actor's approximate age in years"]);
+    expect(createActorInput.safeParse({ ...IMPORTED, approximate_age: ACTOR_MIN_AGE - 1 }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...IMPORTED, approximate_age: ACTOR_MAX_AGE + 1 }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...IMPORTED, approximate_age: ACTOR_MIN_AGE }).success).toBe(true);
+  });
+
+  it("takes only an asset id, and is used as it is: no setting or holding drawn into it", () => {
+    expect(createActorInput.safeParse({ ...IMPORTED, portrait: { asset_id: ASSET, url: "https://example.com/a.jpg" } }).success).toBe(false);
+    expect(createActorInput.safeParse({ ...IMPORTED, portrait: { asset_id: "upl_1" } }).success).toBe(false);
+    for (const [field, value] of [["setting", "a studio"], ["holding", [{ description: "a mug" }]]] as const) {
+      expect(issues({ ...IMPORTED, [field]: value })).toEqual([`${field}: ${field} does not combine with portrait: the image is used as it is; ` +
+        "create the actor, then derive a view of it with from_actor_id"]);
+    }
+  });
+
+  it("the stored input reads only with the admitted asset and a zero portrait unit, never next to another source", () => {
+    const snapshot = { quality: "medium", unit_credits: { portrait: 0, variant: 8 }, requested_aspects: ["9:16", "1:1"] } as const;
+    const portrait = { asset_id: ASSET, key: `assets/acc_1/${ASSET}/${"d".repeat(64)}.jpg`, mime: "image/jpeg" } as const;
+    const stored = { ...IMPORTED, description: "x", aspect_ratios: ["9:16", "1:1"], quality: "medium", pricing_snapshot: snapshot, portrait };
+    expect(storedCreateActorInput.safeParse(stored).success).toBe(true);
+    expect(storedCreateActorInput.safeParse({ ...stored, portrait: { asset_id: ASSET } }).success, "not admitted").toBe(false);
+    expect(storedCreateActorInput.safeParse({ ...stored, pricing_snapshot: { ...snapshot, unit_credits: { portrait: 4, variant: 8 } } }).success,
+      "a charged portrait unit next to an imported portrait").toBe(false);
+    // Account deletion drops the portrait and the input still reads; the worker refuses such a run before generating (task test).
+    const { portrait: _portrait, ...dropped } = stored;
+    expect(storedCreateActorInput.safeParse(dropped).success, "the portrait dropped by account deletion").toBe(true);
+    expect(storedCreateActorInput.safeParse({ ...stored, style_reference: portrait }).success).toBe(false);
+    expect(storedCreateActorInput.safeParse({ ...stored, from_actor_id: "actor_anna", source_actor: { actor_id: "actor_anna",
+      scope: "clipwright", key: "candidates/anna.png", sha256: "c".repeat(64), width: 941, height: 1672, framing: "close" } }).success)
+      .toBe(false);
+  });
+
+  it("a portrait within 2% of 9:16 is the actor's shape; further off is not", () => {
+    expect(isActorPortraitShape(1080, 1920)).toBe(true);
+    expect(isActorPortraitShape(359, 640)).toBe(true);
+    expect(isActorPortraitShape(1101, 1920)).toBe(true);
+    expect(isActorPortraitShape(1103, 1920)).toBe(false);
+    expect(isActorPortraitShape(1059, 1920)).toBe(true);
+    expect(isActorPortraitShape(1057, 1920)).toBe(false);
+    expect(isActorPortraitShape(1080, 1080)).toBe(false);
+  });
+
+  it("framing takes the measured lip-sync floor and the presenter_place ceiling: a face 5.5% to 60% of the height, wholly inside", () => {
+    const face = (top: number, height: number, left = 0.4, width = 0.2) => ({ left, top, width, height });
+    // The live check (#1171): a face of 0.055 talked on a delivered take, 0.031 did not.
+    expect(ACTOR_PORTRAIT_MIN_FACE_HEIGHT).toBe(0.055);
+    expect(actorPortraitFramingRefusal(face(0.4, 0.031))).toMatch(/too small: 0\.03 of the height, at least 0\.055/);
+    expect(actorPortraitFramingRefusal(face(0.2, 0.25))).toBeNull();
+    expect(actorPortraitFramingRefusal(face(0.2, ACTOR_PORTRAIT_MIN_FACE_HEIGHT))).toBeNull();
+    expect(actorPortraitFramingRefusal(face(0.2, 0.6))).toBeNull();
+    expect(actorPortraitFramingRefusal(face(0.2, ACTOR_PORTRAIT_MIN_FACE_HEIGHT - 0.001))).toMatch(/too small/);
+    // Mutant (zero floor): any face, however small, passes.
+    expect(actorPortraitFramingRefusal(face(0.2, 0.005))).toMatch(/too small/);
+    expect(actorPortraitFramingRefusal(face(0.2, 0.601))).toMatch(/too large/);
+    expect(actorPortraitFramingRefusal(face(-0.01, 0.25))).toMatch(/cut off/);
+    expect(actorPortraitFramingRefusal(face(0.8, 0.25))).toMatch(/cut off/);
+    expect(actorPortraitFramingRefusal(face(0.2, 0.25, 0.9, 0.2))).toMatch(/cut off/);
+  });
+
+  // Mutant (Codex 1095 r2 M5): drop any one edge of the cut-off check, and a face past that edge passes.
+  it.each([
+    ["the top", { left: 0.4, top: -0.01, width: 0.2, height: 0.25 }],
+    ["the bottom", { left: 0.4, top: 0.8, width: 0.2, height: 0.25 }],
+    ["the left", { left: -0.01, top: 0.2, width: 0.2, height: 0.25 }],
+    ["the right", { left: 0.81, top: 0.2, width: 0.2, height: 0.25 }],
+  ])("a face past %s edge is cut off", (_edge, box) => {
+    expect(actorPortraitFramingRefusal(box)).toMatch(/cut off/);
+  });
+
+  // #1171: the full-height portraits of the live check (YuNet boxes: the reference 0.0869, the actor drawn from it 0.0916).
+  /** Mutant (the presenter_place floor 0.08 back): a full-height portrait whose face is 0.07 is refused. */
+  it("a full-height portrait passes, and so does one with a face of 0.07", () => {
+    for (const height of [0.0869, 0.0916, 0.07]) {
+      expect(actorPortraitFramingRefusal({ left: 0.44, top: 0.17, width: 0.12, height }), String(height)).toBeNull();
+    }
+  });
+
+  /** Mutant ("wide" never set): a full-height or waist-up portrait comes back close, and make_ugc frames it as a chest-up shot. */
+  /** Mutant (#1175 S7, "full" never set, or the line moved past a library wide view): a full-height actor is filed waist-up, or one the other way. */
+  it("a face smaller than a chest-up portrait's makes the portrait wide, a full-height one's full; a chest-up one stays close", () => {
+    // Measured: live full-height faces 0.087–0.092, library wide views 0.149–0.195, generated chest-up portraits 0.286–0.315.
+    expect([0.055, 0.087, 0.0916, 0.119].map((height) => actorPortraitFraming({ height }))).toEqual(["full", "full", "full", "full"]);
+    expect([0.12, 0.149, 0.195, 0.239].map((height) => actorPortraitFraming({ height }))).toEqual(["wide", "wide", "wide", "wide"]);
+    expect([0.24, 0.286, 0.315, 0.6].map((height) => actorPortraitFraming({ height }))).toEqual(["close", "close", "close", "close"]);
+  });
+
+  it("the unknown-field refusal names portrait, and an image link points to it", () => {
+    expect(refusal(createActorInput.safeParse({ ...IMPORTED, prop: "mic" }))).toBe(
+      "unknown field(s) prop: create_actor accepts description, gender, approximate_age, name, quality, aspect_ratios, " +
+        "from_actor_id, framing, holding, setting, style_reference, portrait");
+    expect(refusal(createActorInput.safeParse({ ...VALID, image: "https://example.com/a.png" }))).toMatch(/portrait: \{ asset_id \}/);
   });
 });

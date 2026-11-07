@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { ACTOR_UNIT_CREDITS } from "./account-actors.js";
+import { ACTOR_UNIT_CREDITS, ACTOR_VIEW_PORTRAIT_CREDITS } from "./account-actors.js";
 import { EDIT_RENDER_PRICE, EDIT_UNIT_PRICES, EDIT_ZERO_UNIT_PRICE } from "./edit-billing.js";
 import { API_ENDPOINTS, endpointLabel } from "./endpoints.js";
 import { FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_BASE_CREDITS, FACELESS_MIN_SELECTED_SECONDS, quoteFaceless } from "./faceless-price.js";
 import { listGenerationModels } from "./generations.js";
 import { OPENAPI_ROUTES } from "./openapi.js";
 import { PARTS_DURATION_TARIFF, PARTS_FACE_TARIFF } from "./parts-pricing.js";
-import { isPaidEntry, PRICE_LIST, priceEntry, priceLine, PRICES_PATH, pricesResponse, priceText, withPriceLine } from "./prices.js";
+import { isPaidEntry, PRICE_LIST, priceEntry, priceLine, priceListFor, PRICES_PATH, pricesResponse, priceText, withPriceLine } from "./prices.js";
+
+const LIVE_SHOTS_ON = { CLIPWRIGHT_LIVE_SHOTS: "1", CLIPWRIGHT_LONG_FORM_QUALIFICATION: "1", CLIPWRIGHT_COMPOSE: "1", CLIPWRIGHT_REMOTE_FETCH: "1" };
 import { REFERENCE_ANALYSIS_CREDITS } from "./reference-analysis.js";
 
 const LABELS = new Map(API_ENDPOINTS.map((endpoint) => [endpointLabel(endpoint), endpoint]));
@@ -60,7 +62,7 @@ describe("the price list covers the registry", () => {
       "second of video, at least 50";
     expect(priceText(priceEntry.parse(parts))).toBe(text);
     // Through the line and the description a tool is registered with, which read the list, not one entry.
-    const line = `Price: ${text}. Quote first with ${parts.quote_tool}; list_prices names every price.`;
+    const line = `Price: ${text}. Quote first with ${parts.quote_tool}.`;
     expect(priceLine(parts.tool!, [priceEntry.parse(parts)])).toBe(line);
     expect(withPriceLine(parts.tool!, "Starts a run.", [priceEntry.parse(parts)])).toBe(`Starts a run. ${line}`);
   });
@@ -73,6 +75,28 @@ describe("each price is the constant billing charges by", () => {
       const entry = only("make_ugc", variant);
       expect(entry.lines.map((line) => [line.unit, line.credits])).toEqual([["face_second", PARTS_FACE_TARIFF.presenterCreditsPerSecond[engine]],
         ["second", PARTS_FACE_TARIFF.productionCreditsPerSecond], ["still", PARTS_FACE_TARIFF.liveAvatarStillCredits]]);
+      expect(entry.notes).not.toContain("live shot");
+      // Live shots (#1103), sold only with their switch on: labels say what the actor does, never who draws it; 30 as a literal.
+      const on = priceListFor(LIVE_SHOTS_ON).find((item) => item.tool === "make_ugc" && item.variant === variant)!;
+      expect(on.lines.slice(1, 3)).toEqual([{ label: "live shot, speaking while acting", unit: "face_second", credits: 30 },
+        { label: "live shot, acting under voice-over", unit: "face_second", credits: 30 }]);
+      // Mutant (Codex pricing r1): the shot switch alone, and the lines show while long-form, which shots ride on, is off.
+      for (const flag of Object.keys(LIVE_SHOTS_ON)) expect(priceListFor({ ...LIVE_SHOTS_ON, [flag]: "0" }), flag).toEqual(PRICE_LIST);
+      // #1107. Mutant: the scene line sold without its switch or without long-form, and the list sells what a request is refused.
+      const scenesOn = { ...LIVE_SHOTS_ON, CLIPWRIGHT_LIVE_SHOTS: "0", CLIPWRIGHT_SCENES: "1" };
+      const withScenes = priceListFor(scenesOn).find((item) => item.tool === "make_ugc" && item.variant === variant)!;
+      expect(withScenes.lines.at(-1)).toEqual({ label: "scene made for the video", unit: "scene", credits: 25 });
+      expect(withScenes.notes).toContain("charged only when it is drawn in the delivered video");
+      for (const flag of Object.keys(scenesOn).filter(name => name !== "CLIPWRIGHT_LIVE_SHOTS")) {
+        expect(priceListFor({ ...scenesOn, [flag]: "0" }), flag).toEqual(PRICE_LIST);
+      }
+      // #1113. Mutant: make_faceless sells its action shots or scenes while a request for them is refused, or never names their price.
+      const faceless = (env: Record<string, string>) => priceListFor(env).find((item) => item.tool === "make_faceless")!.lines.slice(3);
+      const facelessOn = { ...scenesOn, CLIPWRIGHT_FACELESS_SHOTS: "1", CLIPWRIGHT_FACELESS_SCENES: "1" };
+      expect(faceless(facelessOn)).toEqual([{ label: "action shot", unit: "clip_second", credits: 30 },
+        { label: "scene made for the video", unit: "scene", credits: 25 }]);
+      expect(faceless({ ...facelessOn, CLIPWRIGHT_SCENES: "0", CLIPWRIGHT_FACELESS_SHOTS: "0" })).toEqual([]);
+      expect(faceless({ ...facelessOn, CLIPWRIGHT_FACELESS_SCENES: "0" })).toEqual([{ label: "action shot", unit: "clip_second", credits: 30 }]);
       expect(entry.minimum_credits).toBe(PARTS_FACE_TARIFF.minimumCredits);
       expect(entry.quote_tool).toBe("quote_ugc");
     }
@@ -115,7 +139,9 @@ describe("each price is the constant billing charges by", () => {
   it("create_actor: a portrait and each other format at every accepted quality", () => {
     expect(entriesOf("create_actor").map((entry) => [entry.variant, ...part(entry)])).toEqual(
       Object.entries(ACTOR_UNIT_CREDITS).flatMap(([quality, units]) =>
-        [[`${quality} portrait`, "image", units.portrait], [`${quality} other format`, "image", units.variant]]));
+        [[`${quality} portrait`, "image", units.portrait], [`${quality} view of an existing actor`, "image",
+          ACTOR_VIEW_PORTRAIT_CREDITS[quality as "medium" | "high"]], [`${quality} other format`, "image", units.variant]]));
+    expect(ACTOR_VIEW_PORTRAIT_CREDITS).toEqual({ medium: 4, high: 12 });
   });
 
   /** Mutants: a listed row left out, a price that is no row's, a model under the other tool. */
@@ -137,18 +163,19 @@ describe("the price line of a tool", () => {
     expect(priceLine("get_account")).toBeNull();
     expect(() => withPriceLine("get_account", "x")).toThrow();
     for (const tool of new Set(PRICE_LIST.filter(isPaid).map((entry) => entry.tool!))) {
-      expect(priceLine(tool), tool).toMatch(new RegExp(`^Price: .+\\. Quote first with ${entriesOf(tool)[0]!.quote_tool}; list_prices names every price\\.$`));
+      expect(priceLine(tool), tool).toMatch(new RegExp(`^Price: .+\\. Quote first with ${entriesOf(tool)[0]!.quote_tool}\\.$`));
     }
   });
 
-  /** Mutants: the long-form minimum dropped from the line; the range taken over another unit. */
+  /** Mutants: the long-form minimum dropped from the line; the range taken over another unit; a part the variants share dropped or said per
+   *  variant again (#1122). */
   it("states every fixed price of a short list and the range of a long one", () => {
-    const parts = PARTS_FACE_TARIFF, rest = `plus production (voice and render) ${parts.productionCreditsPerSecond} credits per second of video ` +
+    const parts = PARTS_FACE_TARIFF, rest = `production (voice and render) ${parts.productionCreditsPerSecond} credits per second of video ` +
       `plus live avatar on a call ${parts.liveAvatarStillCredits} credits per call still in the video, at least ${parts.minimumCredits}`;
     expect(priceLine("make_ugc")).toBe(`Price: HeyGen presenter: presenter, HeyGen Avatar IV ${parts.presenterCreditsPerSecond.heygen} credits per ` +
-      `second the presenter is in the video, covered or not ${rest}; OmniHuman presenter: presenter, OmniHuman 2.0 ` +
-      `${parts.presenterCreditsPerSecond.omnihuman} credits per second the presenter is in the video, covered or not ${rest}. Quote first with ` +
-      "quote_ugc; list_prices names every price.");
+      `second the presenter is in the video, covered or not; OmniHuman presenter: presenter, OmniHuman 2.0 ` +
+      `${parts.presenterCreditsPerSecond.omnihuman} credits per second the presenter is in the video, covered or not; each plus ${rest}. ` +
+      "Quote first with quote_ugc.");
     const clips = entriesOf("generate_video").map((entry) => part(entry)[1]);
     expect(priceLine("generate_video")).toContain(`${Math.min(...clips)} to ${Math.max(...clips)} credits per second of clip`);
   });

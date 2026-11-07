@@ -21,8 +21,13 @@ export const REFERENCE_CAMERAS = ["static", "punch_in", "zoom_out", "shake", "ot
 export const REFERENCE_TRANSITIONS = ["none", "cut", "wipe", "flash", "zoom", "other"] as const;
 export const REFERENCE_SOUND_KINDS = [...TEMPLATE_SOUND_BEATS, "music", "recorded_audio", "other"] as const;
 export const REFERENCE_PRESENTER_BEHAVIOURS = ["speaking", "listening", "reacting", "absent"] as const;
+/** The presenter's shot size on a beat (#1175 S7): close (head and shoulders), medium (waist-up), wide (knees up or the room), full (head to feet). */
+export const REFERENCE_SHOT_SIZES = ["close", "medium", "wide", "full"] as const;
+export type ReferenceShotSize = (typeof REFERENCE_SHOT_SIZES)[number];
 export const REFERENCE_CAPTION_POSITIONS = ["top", "middle", "lower", "bottom"] as const;
 export const MAX_REFERENCE_SUMMARY_CHARS = 200;
+/** What a profile may hold in those fields: an analysis writes at most the cut above, a profile written to this schema up to this. */
+export const REFERENCE_PROFILE_SUMMARY_MAX_CHARS = 1000;
 export const MAX_REFERENCE_LABEL_CHARS = 120;
 /** The transcribed words of a 120 s reference stay well under this (Ana, 69 s: 147 words). */
 export const MAX_REFERENCE_TRANSCRIPT_WORDS = 1000;
@@ -32,6 +37,13 @@ export const REFERENCE_HOOK_MAX_SECONDS = 6;
 /** What a graphic does at a state change, in a closed set. The reference's words live in transcript, hook, spoken_summary and label_hint. */
 export const REFERENCE_STATE_CHANGES = ["appears", "disappears", "toggles_on", "toggles_off", "checked", "value_changes", "highlighted", "other"] as const;
 export type ReferenceStateChange = (typeof REFERENCE_STATE_CHANGES)[number];
+/** What a graphic we cannot draw shows, a camera move outside REFERENCE_CAMERAS and a transition outside REFERENCE_TRANSITIONS, by name (#1064). */
+export const REFERENCE_GRAPHIC_DEVICES = ["footage", "photo", "collage", "3d_object", "map", "chart", "icon", "emoji", "sticker", "arrow", "meme", "highlight",
+  "text_effect", "particles", "confetti", "sparkles", "light_leak", "glitch", "flash", "other"] as const;
+export const REFERENCE_CAMERA_DEVICES = ["shake", "whip_pan", "pan", "tilt", "zoom_in", "zoom_out", "rotate", "handheld", "dolly", "speed_ramp", "other"] as const;
+export const REFERENCE_TRANSITION_DEVICES = ["whip", "slide", "push", "light_leak", "glitch", "blur", "spin", "dissolve", "zoom", "flash", "wipe", "shape_mask",
+  "match_cut", "other"] as const;
+export type ReferenceGraphicDevice = (typeof REFERENCE_GRAPHIC_DEVICES)[number];
 
 const customIssue = "custom" as const;
 const frac = z.number().min(0).max(1);
@@ -46,6 +58,8 @@ const referenceGraphic = z.strictObject({
   position: z.enum(REFERENCE_POSITIONS),
   state_changes: z.array(z.strictObject({ at_frac: frac.describe("Share of the beat."), change: z.enum(REFERENCE_STATE_CHANGES) })).max(12),
   label_hint: text(MAX_REFERENCE_LABEL_CHARS).describe("What it shows, read off the screen, such as \"Blue banner 'DEVELOP THE STORY'\"; empty when it gave none."),
+  /** Optional since #1064. */
+  device: z.enum(REFERENCE_GRAPHIC_DEVICES).optional().describe("What a particles or unmapped graphic shows, such as a 3D object, a sticker or sparkles."),
 });
 
 /** Who speaks, where they look and what their hands do (#978): closed lists, each claim with the seconds of the frames that show it. */
@@ -79,7 +93,7 @@ export const referenceSpeaker = z.strictObject({
 export type ReferenceSpeaker = z.infer<typeof referenceSpeaker>;
 
 export const referenceSegment = z.strictObject({
-  start_s: seconds, end_s: seconds, text: text(MAX_REFERENCE_SUMMARY_CHARS),
+  start_s: seconds, end_s: seconds, text: text(REFERENCE_PROFILE_SUMMARY_MAX_CHARS),
   speaker: z.string().min(1).max(40).describe("A speakers[].id in a full analysis; the transcription's label in a data one."),
   mouth: z.strictObject({
     vision: z.enum(REFERENCE_MOUTHS).nullable().describe("The presenter's mouth as seen in the picture while these words play."),
@@ -94,12 +108,19 @@ const referenceBeat = z.strictObject({
   start_frac: frac, end_frac: frac,
   start_s: seconds.describe("Seconds of the reference, kept as evidence only."), end_s: seconds,
   role: z.enum(REFERENCE_BEAT_ROLES),
-  spoken_summary: text(MAX_REFERENCE_SUMMARY_CHARS).describe("The words spoken in the beat, cut at 200 characters; empty when none were heard."),
+  spoken_summary: text(REFERENCE_PROFILE_SUMMARY_MAX_CHARS).describe("The words spoken in the beat, cut at 200 characters; empty when none were heard."),
   graphics: z.array(referenceGraphic).max(8),
   camera: z.enum(REFERENCE_CAMERAS),
   transition_in: z.enum(REFERENCE_TRANSITIONS),
+  /** Optional since #1064, as is transition_device. */
+  camera_device: z.enum(REFERENCE_CAMERA_DEVICES).optional().describe("The camera move by name when camera is other, such as a whip pan or a slow zoom in."),
+  transition_device: z.enum(REFERENCE_TRANSITION_DEVICES).optional()
+    .describe("The transition by name when transition_in is other, such as a whip, a glitch or a light leak."),
   sounds: z.array(z.strictObject({ at_frac: frac, kind: z.enum(REFERENCE_SOUND_KINDS) })).max(12),
   presenter_behaviour: z.enum(REFERENCE_PRESENTER_BEHAVIOURS),
+  /** Optional since #1175 S7: a beat read before it, or one the model gave no size from the list, has none, and the remake keeps the profile's framing. */
+  shot_size: z.enum(REFERENCE_SHOT_SIZES).optional()
+    .describe("The presenter's shot size for most of the beat: close (head and shoulders), medium (waist-up), wide (knees up), full (head to feet)."),
   /** Optional since #979: the frames that show the beat, as seconds of the analysis's one-a-second frames. */
   key_frame_s: frameSecond.optional().describe("The second whose frame shows the beat, nearest its middle."),
   frames_s: z.array(claimSecond).max(MAX_BEAT_FRAMES).optional().describe("The seconds of the frames inside the beat, at most 12, evenly spread."),
@@ -120,7 +141,7 @@ export const referenceWord = z.strictObject({ text: z.string().min(1).max(64), s
 export const referenceLanguage = z.string().regex(/^[a-z]{2,3}$/).nullable()
   .describe("The spoken language the transcription detected, an ISO 639 code such as eng or ara; null when it named none.");
 export const referenceHook = z.strictObject({
-  text: text(MAX_REFERENCE_SUMMARY_CHARS).describe(`The words that start in the first ${REFERENCE_HOOK_SECONDS} s, through the end of their sentence `
+  text: text(REFERENCE_PROFILE_SUMMARY_MAX_CHARS).describe(`The words that start in the first ${REFERENCE_HOOK_SECONDS} s, through the end of their sentence `
     + `(no word starting past ${REFERENCE_HOOK_MAX_SECONDS} s); empty when none do.`),
   end_s: seconds.describe("Where the hook's last word ends, else where its window does."),
   caption: text(MAX_REFERENCE_LABEL_CHARS).optional().describe("The first on-screen caption line read inside the hook's window."),
@@ -131,7 +152,7 @@ const profileHead = {
   source: z.strictObject({ digest: z.string().regex(/^sha256:[0-9a-f]{64}$/), duration_s: z.number().positive(), width: z.number().int().positive(),
     height: z.number().int().positive(), url: z.string().url().max(2048).optional() }),
   format: z.enum(REFERENCE_FORMATS),
-  beats: z.array(referenceBeat).min(1).max(40),
+  beats: z.array(referenceBeat).min(1).max(120),
   captions: z.strictObject({ present: z.boolean(), words_per_caption_max: z.number().int().min(1).max(12), position: z.enum(REFERENCE_CAPTION_POSITIONS),
     emphasis_style: z.enum([...CAPTION_EMPHASIS_LOOKS, "none"]), hidden_under_graphics: z.boolean(),
     /** Optional since #973 S5: a profile without it parses, and the remake infers a layer under the captions from position. */
@@ -147,7 +168,8 @@ const profileTail = {
   voice: referenceVoice.optional(),
   /** Optional since #884 S5d; absent reads as close. */
   presenter_framing: z.enum(PRESENTER_FRAMINGS).optional()
-    .describe("wide: the top of the presenter's head is below ~35% of the frame height, with visible room above; close otherwise."),
+    .describe("full: the presenter from head to feet; wide: the top of the presenter's head is below ~35% of the frame height, with visible " +
+      "room above; close otherwise."),
   /** Optional since #884 S5d; absent reads as false. */
   presenter_mic: z.boolean().optional()
     .describe("true when the presenter holds a small handheld or clip-on microphone in their hand while speaking (not clipped to clothing)."),
@@ -257,13 +279,32 @@ export function spanFrameSeconds(start: number, end: number, duration: number, m
   return [...new Set(Array.from({ length: max }, (_, i) => all[Math.round((i * (all.length - 1)) / (max - 1))]!))];
 }
 
-/** What the plan does not reproduce from its reference, one warning per unmapped entry (rule 3, C5). */
+const LINE_EDIT_SUBSTITUTE = "your line edit on ";
+
+/** What the plan does not reproduce from its reference, one warning per unmapped entry, each said once (rule 3, C5). What the user's own */
+/** line edits replace is one line for all of them (#1198): the user asked for it, so a line per graphic only repeats the request. */
 export function referenceProfileWarnings(profile: z.input<typeof referenceProfileRead> | undefined): string[] {
   if (!profile) return [];
-  return (profile.unmapped ?? []).map(entry => {
-    const role = profile.beats?.[entry.beat_index]?.role;
-    return `Reference beat ${entry.beat_index + 1}${role ? ` (${role})` : ""}: ${entry.what} is not reproduced; instead: ${entry.suggested_substitute}.`;
-  });
+  const beatOf = (index: number) => { const role = profile.beats?.[index]?.role; return `${index + 1}${role ? ` (${role})` : ""}`; };
+  const lines: string[] = [], edited = new Map<number, string[]>(), entries = profile.unmapped ?? [];
+  for (const entry of entries.filter(entry => entry.suggested_substitute.startsWith(LINE_EDIT_SUBSTITUTE))) {
+    const whats = edited.get(entry.beat_index) ?? [];
+    if (!whats.includes(entry.what)) whats.push(entry.what);
+    edited.set(entry.beat_index, whats);
+  }
+  for (const entry of entries) {
+    if (entry.suggested_substitute.startsWith(LINE_EDIT_SUBSTITUTE)) {
+      if (!lines.includes(LINE_EDIT_SUBSTITUTE)) lines.push(LINE_EDIT_SUBSTITUTE);
+      continue;
+    }
+    // The analysis's own advice on a graphic a line edit replaced no longer applies.
+    if (edited.get(entry.beat_index)?.includes(entry.what)) continue;
+    const line = `Reference beat ${beatOf(entry.beat_index)}: ${entry.what} is not reproduced; instead: ${entry.suggested_substitute}.`;
+    if (!lines.includes(line)) lines.push(line);
+  }
+  const replaced = [...edited.entries()].sort(([a], [b]) => a - b).map(([beat, whats]) => `${beatOf(beat)}: ${whats.join(", ")}`).join("; ");
+  const said = `Your line edits replace what the reference draws on ${edited.size === 1 ? "beat" : "beats"} ${replaced}.`;
+  return lines.map(line => line === LINE_EDIT_SUBSTITUTE ? said : line);
 }
 
 const DIRECT: Readonly<Record<string, ReferenceGraphicKind>> = {
@@ -308,6 +349,27 @@ export function mapAnalyserSourceKind(text: string, description = ""): Reference
   if (s !== "other" && (REFERENCE_SOURCE_KINDS as readonly string[]).includes(s)) return s as ReferenceSourceKind;
   const plain = description.replace(QUOTED, " ").toLowerCase();
   return DESCRIBED.find(([, pattern]) => pattern.test(plain))?.[0] ?? "other";
+}
+
+/** A graphic device read from the analyser's description when it gave no name: the first pattern that fits, the specific before the general
+ *  (DfFtkhuiPAd: 'Three stacked horizontal clips' is a collage, '3D rotating Earth globe' a 3D object). */
+const DEVICE_DESCRIBED: readonly (readonly [ReferenceGraphicDevice, RegExp])[] = [
+  ["glitch", /\bglitch/], ["light_leak", /\blight leaks?\b|\blens flares?\b/], ["confetti", /\bconfetti\b/], ["sparkles", /\bsparkl|\bglitter|\bstars?\b/],
+  ["particles", /\bparticles?\b|\bdust\b|\bbokeh\b|\bsnow\b/], ["emoji", /\bemojis?\b/], ["sticker", /\bstickers?\b/], ["arrow", /\barrows?\b/],
+  ["meme", /\bmemes?\b/], ["map", /\bmaps?\b/], ["chart", /\bcharts?\b|\bgraphs?\b/], ["3d_object", /\b3d\b|\bglobe\b|\brotating\b|\bspinning\b/],
+  ["collage", /\bstack(ed|s)?\b|\bcollage\b|\bgrid of\b|\bmosaic\b/], ["footage", /\bclips?\b|\bfootage\b|\bvideos?\b|\bb-?roll\b/],
+  ["photo", /\bphotos?\b|\bpictures?\b|\bimages?\b/], ["icon", /\bicons?\b/], ["highlight", /\bhighlight|\bcircled\b|\bunderlin/],
+  ["text_effect", /\b(animated|kinetic) (text|title|words)\b|\btext effect/], ["flash", /\bflash/],
+];
+const DEVICE_LISTS = { graphic: REFERENCE_GRAPHIC_DEVICES, camera: REFERENCE_CAMERA_DEVICES, transition: REFERENCE_TRANSITION_DEVICES } as const;
+
+/** The analyser's name for a device on its own closed list; for a graphic, else the device its description names, else other (#1064). */
+export function mapAnalyserDevice<K extends keyof typeof DEVICE_LISTS>(list: K, name: string, description = ""): (typeof DEVICE_LISTS)[K][number] | undefined {
+  const said = name.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (said !== "other" && (DEVICE_LISTS[list] as readonly string[]).includes(said)) return said as (typeof DEVICE_LISTS)[K][number];
+  if (list !== "graphic") return said === "other" ? "other" as (typeof DEVICE_LISTS)[K][number] : undefined;
+  const plain = description.replace(QUOTED, " ").toLowerCase();
+  return (DEVICE_DESCRIBED.find(([, pattern]) => pattern.test(plain))?.[0] ?? "other") as (typeof DEVICE_LISTS)[K][number];
 }
 
 /** Our kind for an analyser's graphic: product UI and screenshots fill the frame as an insert, or sit over the presenter; what we cannot draw

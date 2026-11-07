@@ -26,7 +26,8 @@ describe("framing in the make_ugc contract", () => {
     const parsed = makeUgcInput.parse({ script, framing: [frame("in", 0, 2), frame("back", 2, 4, { size: "medium", transition: "flash", cover_words: 3 })] });
     expect(parsed.framing).toEqual([{ id: "in", anchor: { startWord: 0, endWord: 2 }, size: "close", transition: "cut" },
       { id: "back", anchor: { startWord: 2, endWord: 4 }, cover_words: 3, size: "medium", transition: "flash" }]);
-    expect(FRAMING_SCALE).toEqual({ close: 1.18, medium: 1 });
+    // full shows the take as rendered (#1175 S7): a scale above 1 would crop a full-height take, one below would draw past its edges.
+    expect(FRAMING_SCALE).toEqual({ close: 1.18, medium: 1, full: 1 });
   });
 
   /** Mutant: drop any one refusal, and a framing scales a presenter who is not on screen or is already reframed. */

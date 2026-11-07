@@ -107,4 +107,33 @@ describe("staging geometry helpers", () => {
     expect(thinStagingRects([at(0, 0.5), at(0.2, 0.501), at(0.4, 0.51), at(0.6, 0.511)]).map(sample => sample.t_s)).toEqual([0, 0.4, 0.6]);
     expect(thinStagingRects(Array.from({ length: 100 }, (_, index) => at(index, index / 200)), 0.003, 60)).toHaveLength(60);
   });
+
+  /** Mutant (#1051 S4): ignore `pinned`, and an entry's even samples thin to its change points, or spread away past the cap. */
+  it("keeps every pinned entry sample, and spreads only the rest past the cap", () => {
+    const at = (t_s: number, left: number) => ({ t_s, rect: { left, top: 0.1, width: 0.3, height: 0.4 } });
+    const entry = [at(0, 0.5), at(0.2, 0.5), at(0.4, 0.5)], pinned = new Set(entry), hold = Array.from({ length: 80 }, (_, i) => at(1 + i, i / 100));
+    expect(thinStagingRects(entry, 0.003, 60, sample => pinned.has(sample)).map(sample => sample.t_s)).toEqual([0, 0.2, 0.4]);
+    const kept = thinStagingRects([...entry, ...hold], 0.003, 20, sample => pinned.has(sample));
+    expect(kept).toHaveLength(20);
+    expect(kept.slice(0, 3)).toEqual(entry);
+    expect(kept.at(-1)).toBe(hold.at(-1));
+  });
+});
+
+describe("flash lights (#1051 S4)", () => {
+  const flash = { id: "flash#1", t_s: 43.4, length_s: 0.533, strength: 0.96, tint: "warm", color: "#FF9F76" };
+
+  it("parses a staging with and without flashes", () => {
+    expect(issues(profile({ ...GANESH, flashes: [flash] }))).toEqual([]);
+    expect(referenceStaging.parse(GANESH).flashes).toBeUndefined();
+  });
+
+  /** Mutant: drop the anchor lookup, and a measured light names a flash the anchors do not hold. */
+  it("refuses a flash that is not an anchor, measured twice, or lit past the source", () => {
+    const staged = (flashes: unknown[]) => profile({ ...GANESH, flashes });
+    expect(issues(staged([{ ...flash, id: "flash#2" }]))).toEqual(["staging.flashes.0.id: flash#2 is not in staging.anchors"]);
+    expect(issues(staged([flash, flash]))).toEqual(["staging.flashes.1.id: flash#1 is measured twice"]);
+    expect(issues(staged([{ ...flash, t_s: 71.8, length_s: 0.5 }]))).toEqual(["staging.flashes.0.length_s: lies past the source's 72 s"]);
+    expect(issues(staged([{ ...flash, tint: "orange" }]))[0]).toMatch(/^staging\.flashes\.0\.tint: /);
+  });
 });

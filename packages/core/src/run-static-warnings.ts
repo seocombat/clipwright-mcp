@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { buildFacelessVoiceWarnings } from "./faceless-voices.js";
+import { facelessMotionStyleWarnings } from "./faceless-public.js";
+import { motionStyle } from "./skills.js";
 import { compositionVersionOf, parseSkill, resolvedScript, storedUgcInput, type MakeUgcInput } from "./skills.js";
 import { storedCreateActorInput } from "./account-actors.js";
 import { ANALYZE_CREATOR_SKILL } from "./creator-profile.js";
+import { FIND_TRENDS_SKILL } from "./trend-search.js";
 import { ANALYZE_REFERENCE_SKILL } from "./reference-analysis.js";
 import { dispositionWarnings, legacyCaptionWarnings } from "./contract-dispositions.js";
 import { buildSpeechModelWarnings, buildVoiceWarnings, TTS_MODELS, ttsModelBeforeV4Default } from "./voices.js";
@@ -77,7 +80,7 @@ export function derivedRunWarnings(
   voiceGenderOf: VoiceGenderResolver,
 ): string[] {
   // An analysis and a creator profile are runs outside `SKILLS`: their own row writes their warnings (#1032).
-  if (skill === ANALYZE_REFERENCE_SKILL || skill === ANALYZE_CREATOR_SKILL) return [];
+  if (skill === ANALYZE_REFERENCE_SKILL || skill === ANALYZE_CREATOR_SKILL || skill === FIND_TRENDS_SKILL) return [];
   const parsed = parseSkill(skill);
   switch (parsed) {
     case "make_ugc":
@@ -107,17 +110,21 @@ const storedFacelessVoice = z.object({
   voice: z.string().optional(),
   script: z.string().optional(),
   brief: z.string().optional(),
+  captions: z.boolean().optional(),
+  templates: z.array(z.unknown()).optional(),
+  scenes: z.array(z.unknown()).optional(),
+  motion_style: motionStyle.optional(),
 });
 
-/** The one derived line of a faceless run: its chosen voice against its script or brief, as `quote` names it. */
+/** The derived lines of a faceless run: its chosen voice against its script or brief, and a style with nothing to dress, as `quote` names them. */
 function facelessRunWarnings(storedInput: unknown): string[] {
   const parsed = storedFacelessVoice.safeParse(storedInput);
-  return parsed.success ? buildFacelessVoiceWarnings(parsed.data) : [];
+  return parsed.success ? [...buildFacelessVoiceWarnings(parsed.data), ...facelessMotionStyleWarnings(parsed.data)] : [];
 }
 
 /** The pinned view, read beside `storedUgcInput`: widening that schema would change the timeline digest of runs admitted earlier. */
 const pinnedView = z.object({ gender: z.enum(["female", "male"]).optional(), actor_id: z.string().optional(),
-  asset: z.object({ aspect_ratio: z.string().optional(), framing: z.string().optional(), prop: z.string().optional() }).optional() });
+  asset: z.object({ aspect_ratio: z.string().optional(), framing: z.string().optional(), prop: z.string().optional(), width: z.number().optional() }).optional() });
 
 // The disposition registry and the preset language warning; the raw `voice_id` warning
 // is quote-only, since the run verifies the id itself.
@@ -160,6 +167,8 @@ function ugcRunWarnings(
     // model. If they diverge, a test turns red.
     ...buildSpeechModelWarnings({ ...input, script: resolvedScript(input) }, input.actor_gender, spokenModel),
     ...voiceFactWarnings(preflight.voice),
+    // The moves admission could not draw (#1175), pinned beside the input as the quote said them.
+    ...storedStrings((storedInput as { move_warnings?: unknown }).move_warnings),
   ];
 }
 

@@ -94,6 +94,13 @@ export function resolvePlace(item: Place, ctx: PlaceContext): LayerRect {
   }
 }
 
+/** The box kept whole inside the frame (#1161): shrunk about its centre to fit, keeping its shape, then moved in from any edge it crosses. */
+export function insideFrame(box: LayerRect): LayerRect {
+  const scale = Math.min(1, 1 / box.width, 1 / box.height), width = box.width * scale, height = box.height * scale;
+  const left = Math.min(1 - width, Math.max(0, box.left + (box.width - width) / 2)), top = Math.min(1 - height, Math.max(0, box.top + (box.height - height) / 2));
+  return { left, top, width, height };
+}
+
 /** The rect a picture takes in its box: the whole box for cover, else the picture's shape fitted and centred. */
 export function fitPlacedRect(box: LayerRect, media: { width: number; height: number }, canvas: { width: number; height: number },
   fit: PlaceFit = "contain"): LayerRect {
@@ -134,6 +141,10 @@ export type PresenterPlace = z.infer<typeof presenterPlace>;
 export const CLOSE_VIEW_FACE_HEIGHT = 0.275;
 /** Whether presenter_place starts from the actor's wide view: the crop only frames tighter, so a face smaller than the close view's needs it. */
 export const presenterPlaceWantsWide = (item: { face_height: number } | undefined): boolean => item !== undefined && item.face_height < CLOSE_VIEW_FACE_HEIGHT;
+
+/** The tightest crop a portrait holds sharp: its pixels across fill at least this share of the frame's width (#1196). */
+export const SHARP_PORTRAIT_SHARE = 0.65;
+export const sharpCropOf = (portraitWidth: number, frameWidth: number): number => portraitWidth / (SHARP_PORTRAIT_SHARE * frameWidth);
 
 /** The face a presenter_place asks for, 3:4 in pixels as the usual face. */
 export function presenterPlaceFace(item: PresenterPlace, canvas: { width: number; height: number }): LayerRect {

@@ -22,7 +22,8 @@ export const ASSET_INGEST_WINDOW_SECONDS = 86_400;
 export const ASSET_BASE64_MAX_BYTES = 700_000;
 export const ASSET_BASE64_MAX_CHARS = Math.ceil(ASSET_BASE64_MAX_BYTES / 3) * 4;
 export const ASSET_URL_TTL_SECONDS = 3600;
-/** A deleted asset's object stays this long, so a generation admitted just before the delete still reads it. */
+/** A deleted asset's object, and a run's files after its media delete (#1093), stay this long, so a generation admitted just */
+/** before the delete still reads it. The one number for both; the cleanups read it here. */
 export const ASSET_DELETE_GRACE_DAYS = 7;
 export const ASSET_NAME_MAX_CHARS = 80;
 export const ASSET_LIST_MAX_LIMIT = 100;
@@ -270,19 +271,17 @@ export const ASSET_TOOL_TERMS =
 export const CREATE_ASSET_DESCRIPTION =
   "Save a picture or a clip as an asset of this account, kept until you delete it: a character, location, style, prop " +
   "or other, with a name. source is {run_id} of a succeeded generate_image or generate_video run of this account, " +
-  "{upload_id} of an upload from upload_image or create_upload, a public https {url} the server downloads (add " +
+  "{upload_id} from upload_image or create_upload, a public https {url} the server downloads (add " +
   `kind: "video" for an MP4), {base64, media_type} of a PNG or JPEG up to ${ASSET_BASE64_MAX_BYTES} bytes, or ` +
-  "{put: {media_type, bytes, sha256}} to PUT a local file yourself: the answer carries upload.put_url and put_headers; " +
+  "{put: {media_type, bytes, sha256}} to PUT a local file: the answer carries upload.put_url and put_headers; " +
   "run `curl -X PUT -H 'content-type: <media_type>' --data-binary @<file> '<put_url>'` within 15 minutes, then call " +
   "get_asset. On a server running on your machine also {path} of a local PNG, JPEG or MP4. A clip is an MP4 in h264 " +
-  `or hevc, up to ${ASSET_VIDEO_MAX_SECONDS} seconds and 100 MB; a url clip or a PUT is checked in the background, ` +
-  "so the answer says state: \"processing\" (or \"awaiting_upload\") and get_asset says ready or failed within " +
-  "minutes. For your own material (upload_id, url, base64, put, path) pass rights_confirmed: true, which states once " +
-  "that you may use the people and works in it. A reference you only want analysed, such as someone else's ad for " +
-  "analyze_reference, takes analysis_only: true instead: no rights claim, and no render or generation ever takes it. " +
-  "Use a picture's asset_id as {asset_id} in references, first_frame or " +
-  "last_frame of quote_image, generate_image, quote_video and generate_video; clips are kept for assembly and are " +
-  "no generation reference yet. " + ASSET_TOOL_TERMS;
+  `or hevc, up to ${ASSET_VIDEO_MAX_SECONDS} seconds and 100 MB; a url clip or a PUT is checked in the background ` +
+  "(state \"processing\" or \"awaiting_upload\"; get_asset says ready or failed within minutes). For your own material " +
+  "pass rights_confirmed: true, stating once that you may use the people and works in it. A reference only to analyse, " +
+  "such as someone else's ad for analyze_reference, takes analysis_only: true instead: no rights claim, and no render " +
+  "or generation ever takes it. A picture's {asset_id} is a generation reference or frame (quote_image says how); a clip " +
+  "is not one yet. " + ASSET_TOOL_TERMS;
 
 export const LIST_ASSETS_DESCRIPTION =
   "List the assets of this account, newest first, each with a freshly signed url, its role, name, size and " +

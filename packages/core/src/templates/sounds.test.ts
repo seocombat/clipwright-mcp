@@ -3,7 +3,7 @@ import { makeUgcInput, storedUgcInput } from "../skills.js";
 import { mcpUgcInputShape, offeredUgcInputShape, resolveDispositions } from "../contract-dispositions.js";
 import { API_ENDPOINTS } from "../endpoints.js";
 import { DEFAULT_TEMPLATE_SOUNDS, listTemplateSounds, TEMPLATE_KIND_SOUNDS, TEMPLATE_KINDS, TEMPLATE_SOUND_BEATS, TEMPLATE_SOUNDS, templateSoundBeats, templateSoundMap,
-  templateSounds, templateSoundsList } from "./index.js";
+  templateSounds, templateSoundsList, hasFullFrameTemplate } from "./index.js";
 import { editSoundRefusals } from "./sounds.js";
 
 const script = "One two three four five six seven eight nine ten eleven twelve";
@@ -21,15 +21,17 @@ const OWNER = {
   ring: ["ring_classic", "ring_marimba", "ring_digital", "ring_double"], answer: ["answer_confirm", "answer_open", "answer_pop", "answer_select", "pickup"],
   notify: ["chime", "glass_ping", "glass_soft", "bong", "question_ping"], step: ["drop", "drop_high", "tick", "pluck", "pluck_bright"],
   whoosh: ["whoosh", "whip", "paper_swipe", "sweep", "slide_quick"], flash: ["shutter", "glitch", "swish"], pop: ["plop"], hangup: ["phone"],
-  money: ["cash_register", "coins"], edit: ["swell_hit", "whoosh_deep", "whoosh_low", "boom_low", "sub_drop", "riser_boom", "riser_hit"],
+  money: ["cash_register", "coins"],
+  // The owner's three short whooshes of 03.11 (#1076) lead, air_whoosh the default.
+  edit: ["air_whoosh", "swing", "swipe", "swell_hit", "whoosh_deep", "whoosh_low", "boom_low", "sub_drop", "riser_boom", "riser_hit"],
 };
 
 describe("template sounds (#778 S3c, C2–C4)", () => {
-  it("holds the owner's 45 sounds and the call's ring by beat, his default first in each", () => {
+  it("holds the owner's 48 sounds and the call's ring by beat, his default first in each", () => {
     expect(Object.fromEntries(TEMPLATE_SOUND_BEATS.map(beat => [beat, TEMPLATE_SOUNDS[beat].names]))).toEqual(OWNER);
     expect(DEFAULT_TEMPLATE_SOUNDS).toEqual({ click: "click_mouse", toggle: "switch_flip", ring: "ring_classic", answer: "answer_confirm", notify: "chime",
-      step: "drop", whoosh: "whoosh", flash: "shutter", pop: "plop", hangup: "phone", money: "cash_register", edit: "swell_hit" });
-    expect(Object.values(OWNER).flat()).toHaveLength(46);
+      step: "drop", whoosh: "whoosh", flash: "shutter", pop: "plop", hangup: "phone", money: "cash_register", edit: "air_whoosh" });
+    expect(Object.values(OWNER).flat()).toHaveLength(49);
   });
 
   /** Mutant: accept any string as a name, or any key as a beat, and an unknown sound reaches the composition. */
@@ -45,6 +47,16 @@ describe("template sounds (#778 S3c, C2–C4)", () => {
   it("refuses template_sounds without templates, the way template_theme is", () => {
     expect(refusals({ ...longForm, template_sounds: false })).toEqual(["template_sounds: template_sounds sounds templates: add templates or drop it"]);
     expect(refusals({ ...longForm, template_sounds: { step: "tick" } })).toEqual(["template_sounds: template_sounds sounds templates: add templates or drop it"]);
+  });
+
+  /** Mutant: refuse template_sounds beside a live shot's look, and a run can neither pick nor mute its flash or whoosh (#1129, Codex r1). */
+  it("takes template_sounds that name or mute a live shot transition's flash or whoosh, and refuses other beats there", () => {
+    const shot = (transition?: string) => ({ ...longForm, shots: [{ id: "s", kind: "talking", anchor: { startWord: 2, endWord: 3 }, ...(transition ? { transition } : {}) }] });
+    const sounds = (body: Record<string, unknown>) => refusals(body).filter(message => message.startsWith("template_sounds"));
+    expect([sounds({ ...shot("flash"), template_sounds: false }), sounds({ ...shot("whoosh"), template_sounds: { whoosh: "whip", flash: "glitch" } })])
+      .toEqual([[], []]);
+    expect(sounds({ ...shot("flash"), template_sounds: { step: "tick" } })).toEqual(["template_sounds: template_sounds sounds templates: add templates or drop it"]);
+    expect(sounds({ ...shot("cut"), template_sounds: false })).toEqual(["template_sounds: template_sounds sounds templates: add templates or drop it"]);
   });
 
   it("has no default in the schema: an omitted field stays absent in the parsed and stored request", () => {
@@ -89,8 +101,16 @@ describe("template sounds (#778 S3c, C2–C4)", () => {
     expect(makeUgcInput.parse({ script, ...longForm, edit_sounds: true, template_sounds: { edit: "riser_hit" } })).toMatchObject({ edit_sounds: true,
       template_sounds: { edit: "riser_hit" } });
     expect("edit_sounds" in makeUgcInput.parse({ script, ...longForm })).toBe(false);
-    expect(refusals({ edit_sounds: true })).toEqual(["edit_sounds: edit_sounds sounds the cuts of inserts, layout windows and framing: add inserts, " +
-      "layout_windows or framing, or drop it"]);
+    expect(refusals({ edit_sounds: true })).toEqual(["edit_sounds: edit_sounds sounds the cuts of inserts, full-frame templates, layout windows and framing: " +
+      "add one of them, or drop it"]);
+    // A full-frame template is a cut (#1156); an over-presenter one is not. The sound is one: a template's own whoosh or flash takes the edit sound's place in the composition.
+    // Through the request schema, so the wiring in skills.ts is pinned too: a full-frame template alone is accepted, an over one is refused.
+    const stat = { id: "s", kind: "stat", anchor: { startWord: 2, endWord: 4 }, data: { value: 87, suffix: "%", label: "faster" } };
+    expect([refusals({ edit_sounds: true, broll_policy: "anyone", templates: [stat] }), refusals({ edit_sounds: true, broll_policy: "anyone", templates: [{ ...stat, placement: "full" }] }),
+      refusals({ edit_sounds: true, broll_policy: "anyone", templates: [{ ...pill, placement: "over" }] }).length]).toEqual([[], [], 1]);
+    const refused = (templates: unknown) => editSoundRefusals({ edit_sounds: true, fullTemplates: hasFullFrameTemplate(templates) }).length;
+    expect([refused([{ id: "f", kind: "stat", placement: "full" }]), refused([{ id: "s", kind: "stat" }]), refused([{ ...pill, placement: "over" }]),
+      refused(undefined)]).toEqual([0, 0, 1, 1]);
     // Framing cuts are edits too (reference-elements S2): a run with framing alone takes edit_sounds.
     expect(refusals({ edit_sounds: true, framing: [{ id: "f", anchor: { quote: "two" } }] })).toEqual([]);
     expect(refusals({ ...longForm, template_sounds: { edit: "boom_low" } }))
@@ -103,7 +123,7 @@ describe("template sounds (#778 S3c, C2–C4)", () => {
     expect(refusals({ ...longForm, edit_sounds: true, template_sounds: { edit: "boom_low", click: "click_soft" } }))
       .toEqual(["template_sounds: template_sounds sounds templates: add templates or drop it"]);
     expect(refusals({ ...longForm, edit_sounds: true, template_sounds: { edit: "boom" } }))
-      .toEqual(["template_sounds: template_sounds.edit \"boom\" is not an edit sound: use swell_hit, whoosh_deep, whoosh_low, boom_low, sub_drop, riser_boom, riser_hit"]);
+      .toEqual(["template_sounds: template_sounds.edit \"boom\" is not an edit sound: use air_whoosh, swing, swipe, swell_hit, whoosh_deep, whoosh_low, boom_low, sub_drop, riser_boom, riser_hit"]);
     expect(refusals({ ...longForm, edit_sounds: "yes" })).toHaveLength(1);
     // Mutant (Codex r3): require inserts, and a run with only layout windows is refused.
     expect([editSoundRefusals({ edit_sounds: true, layout_windows: [] }), editSoundRefusals({ edit_sounds: true, inserts: [] })]).toEqual([[], []]);

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { AI_DISCLOSURE_TEXT, RUN_MONEY_FIELDS, VIDEO_URL_CHECK, type RunRead } from "@clipwright/core";
+import { AI_DISCLOSURE_TEXT, RUN_MONEY_FIELDS, SKILLS, VIDEO_URL_CHECK, type RunRead } from "@clipwright/core";
 
-import { formatGetRun } from "./format.js";
+import { formatGetRun, PENDING_RESULTS } from "./format.js";
 
 /** A run in the read projection (`state: string`) with any state. */
 function run(state: string, over: Partial<RunRead> = {}): RunRead {
@@ -117,6 +117,27 @@ describe("formatGetRun — terminal shape", () => {
     expect(out.status).toBe("IN_PROGRESS");
     expect(out.state).toBe("avatar");
     expect(out.video_url).toBeNull();
+  });
+
+  /** Mutant: say "Video is NOT ready" for every run, and an agent waiting on a picture tells the user about a video (#1172). */
+  it("an unfinished run names what it delivers: a video only for a video run", () => {
+    // Pinned by hand, not read from PENDING_RESULTS: a skill filed under the wrong result would pass a test that derives it (Codex r1).
+    const expected: Record<(typeof SKILLS)[number], [string, string]> = {
+      make_ugc: ["video", "video_url"], make_faceless: ["video", "video_url"], revise_long_form: ["video", "video_url"],
+      generate_image: ["image", "generation.url"], generate_video: ["clip", "generation.url"], edit_shot: ["shot candidate", "candidate"],
+      create_actor: ["actor", "created_actor.actor_id"],
+    };
+    expect(Object.keys(PENDING_RESULTS).sort()).toEqual([...SKILLS].sort());
+    for (const skill of SKILLS) {
+      const out = payload(formatGetRun(run("queued", { skill })));
+      const [noun, field] = expected[skill];
+      expect(out.next_action).toMatch(new RegExp(`^The ${noun} is NOT ready\\.`));
+      expect(out.next_action).toContain(`until you have ${field}.`);
+      const video = noun === "video";
+      expect(/video/i.test(out.next_action as string), skill).toBe(video);
+      expect("video_url" in out, skill).toBe(video);
+    }
+    expect(payload(formatGetRun(run("queued", { skill: "analyze_something" }))).next_action).toMatch(/^The result is NOT ready\./);
   });
 
   it("an unknown TERMINAL status falls back to IN_PROGRESS (deliberate degradation)", () => {

@@ -52,6 +52,8 @@ export const runCandidates = z.strictObject({
     created_at: z.string().datetime(),
     finished_at: z.string().datetime().nullable(),
   })),
+  /** One line per candidate whose files the customer deleted: its preview is gone, not pending. */
+  warnings: z.array(z.string()),
   contract_version: z.string().min(1),
 });
 export type RunCandidates = z.infer<typeof runCandidates>;
@@ -67,6 +69,7 @@ export const runCandidatesRead = runCandidates.extend({
   candidates: z.array(listedCandidate.extend({
     kind: z.string().min(1), operation_mode: z.string().min(1).nullable(), state: z.string().min(1),
   }).loose()),
+  warnings: z.array(z.string()).optional(),
 }).loose();
 export type RunCandidatesRead = z.infer<typeof runCandidatesRead>;
 

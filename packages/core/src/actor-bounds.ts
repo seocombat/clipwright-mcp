@@ -8,12 +8,12 @@ export const ACTOR_AGE_FLOOR = 18;
 
 /** Intake bounds are a product decision and may narrow. A separate module, so a test can */
 /** narrow each by mocking and check that no read schema depends on them. */
-export const ACTOR_DESCRIPTION_MAX_CHARS = 500;
+export const ACTOR_DESCRIPTION_MAX_CHARS = 2000;
 export const ACTOR_NAME_MAX_CHARS = 100;
 export const ACTOR_MIN_AGE = 18;
 export const ACTOR_MAX_AGE = 90;
 export const ACTOR_GENDERS_ACCEPTED = ["female", "male"] as const satisfies readonly ActorGender[];
 /** An actor derived from an actor (#898): two hands, so at most two held objects. */
 export const ACTOR_HOLDING_MAX_ITEMS = 2;
-export const ACTOR_HOLDING_DESCRIPTION_MAX_CHARS = 200;
-export const ACTOR_SETTING_MAX_CHARS = 300;
+export const ACTOR_HOLDING_DESCRIPTION_MAX_CHARS = 1000;
+export const ACTOR_SETTING_MAX_CHARS = 2000;

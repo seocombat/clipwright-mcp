@@ -8,7 +8,7 @@ export const RUN_DISPLAY_HINT = "Show display_markdown to the user as is, then y
 const FACELESS_FPS = 25;
 const ERROR_CHARS = 300;
 const PART_NAMES: Readonly<Record<PartsLine["unit"], string>> = {
-  face_second: "Presenter on screen", second: "Voice and render", still: "Live avatar on a call",
+  face_second: "Presenter on screen", second: "Voice and render", still: "Live avatar on a call", track: "Music", scene: "Scenes made for the video",
 };
 
 const credits = (value: number | null | undefined) => (value === null || value === undefined ? "—" : value.toLocaleString("en-US"));
@@ -27,7 +27,7 @@ const table = (rows: readonly (readonly [string, string, string])[]) =>
 export function ugcQuoteMarkdown(quote: QuoteResponse): string {
   const long = quote.long_form_pricing;
   const parts = quote.price_lines?.map((line) => [PART_NAMES[line.unit] ?? line.unit,
-    `${line.unit === "still" ? line.quantity : `${line.quantity} s`} × ${line.unit_credits}`, line.credits] as const)
+    `${line.unit === "still" || line.unit === "track" ? line.quantity : `${line.quantity} s`} × ${line.unit_credits}`, line.credits] as const)
     ?? (long ? [[PART_NAMES.face_second, `${long.estimatedFaceSeconds} s × ${long.rateCreditsPerFaceSecond}`,
       long.estimatedFaceSeconds * long.rateCreditsPerFaceSecond] as const] : []);
   // The rows add up to the quoted total: what the minimum adds is a row of its own.
@@ -37,11 +37,24 @@ export function ugcQuoteMarkdown(quote: QuoteResponse): string {
   const minimum = quote.minimum_credits ?? long?.minimumCredits;
   return [
     `**Quote** · ${quote.skill} · about ${seconds(quote.duration_estimate_sec)} · ${quote.resolved_aspect_ratio} · **about ${credits(quote.credits_estimate)} credits**`,
+    // A short link on our own host (#1125), which chat clients show inline.
+    ...(quote.actor?.preview_url ? ["", `![Presenter ${quote.actor.actor_id ?? ""}](${quote.actor.preview_url})`] : []),
     ...(rows.length ? ["", ...table(rows)] : []),
     "", `Estimate: the charge follows the finished video's measured length and can land above or below it.` +
       (minimum ? ` A delivered video costs at least ${credits(minimum)} credits.` : ""),
+    ...designLines(quote.design),
     ...warningLines(quote.warnings),
   ].join("\n");
+}
+
+/** The look the video draws in and where it came from (#1122), so the user confirms it before money. */
+function designLines(design: QuoteResponse["design"]): string[] {
+  if (!design) return [];
+  const { palette } = design;
+  return ["", `**Design** · ${design.source === "brand_kit" ? "your saved brand kit" : "as asked"}${design.look ? ` · look ${design.look}` : ""} · ` +
+    `background ${palette.background}, cards ${palette.surface}, text ${palette.ink}, accent ${palette.accent} (text on it ${palette.accent_ink}, ` +
+    `caption highlight ${palette.caption_accent}) · ${design.fonts.display} / ${design.fonts.body} · ${design.radius} corners · ${design.motion}` +
+    (design.logo_asset_id ? ` · logo ${design.logo_asset_id}` : "")];
 }
 
 export function facelessQuoteMarkdown(quote: FacelessQuoteResponse): string {
@@ -51,6 +64,9 @@ export function facelessQuoteMarkdown(quote: FacelessQuoteResponse): string {
     ...(pictures === null ? [] : [["Generated pictures, at most", `${quote.images} × ${quote.imageCredits}`, credits(pictures)] as const]),
     [pictures === null ? "Video" : "Story, voice and render", seconds(length), credits(quote.baseCredits - (pictures ?? 0))] as const,
     ["Opening animated clip", "1", credits(quote.openerCredits)] as const,
+    ...(quote.musicCredits === undefined ? [] : [["Music", "1", credits(quote.musicCredits)] as const]),
+    ...(quote.shotCredits === undefined ? [] : [["Action shots, seconds at most", seconds(quote.shotSeconds ?? 0), credits(quote.shotCredits)] as const]),
+    ...(quote.sceneCredits === undefined ? [] : [["Scenes made for the video", String(quote.scenes ?? 0), credits(quote.sceneCredits)] as const]),
   ];
   return [
     `**Quote** · make_faceless · ${seconds(length)} selected · captions ${quote.captions ? "on" : "off"} · **at most ${credits(quote.totalCredits)} credits**`,
@@ -83,5 +99,7 @@ export function terminalRunMarkdown(run: WorkflowRunRead): string {
   const out = delivered(run);
   return [`**${out.title}** · \`${run.run_id}\` · ${run.skill}`, "", "| File | Length |", "|---|---:|",
     `| ${out.link ? `[Download](${out.link})` : "—"} | ${out.length} |`, ...money,
-    ...(out.link ? ["", "The link is temporary: download the file."] : []), ...warningLines(run.warnings)].join("\n");
+    ...(out.link ? ["", "The link is temporary: download the file."] : []),
+    ...(run.generation ? [`To use it in a template or insert: create_asset with source {"run_id": "${run.run_id}"} until ${run.generation.reusable_until}, then pass the asset_id.`] : []),
+    ...warningLines(run.warnings)].join("\n");
 }

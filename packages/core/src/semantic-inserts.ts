@@ -41,7 +41,8 @@ export type SemanticInsertShot = {
 export interface SemanticInsertResolution {
   totalFrames: number;
   shots: SemanticInsertShot[];
-  warnings: string[];
+  /** Our own adjustments no viewer sees (half a frame at most): for the log, not warnings[] (#1047). */
+  notes: string[];
 }
 
 function tokenize(text: string): string[] {
@@ -196,10 +197,10 @@ export function resolveSemanticInserts(input: {
     cursor = endFrame;
   }
   if (cursor < totalFrames) shots.push({ kind: "actor", fromFrame: cursor, durationInFrames: totalFrames - cursor });
-  const warnings: string[] = [];
-  if (rounded) warnings.push("Semantic insert boundaries or measured duration were rounded to the nearest frame.");
-  if (lexicalWords.length !== words.length) warnings.push("Punctuation-only alignment entries were excluded from semantic word anchors.");
-  return { totalFrames, shots, warnings };
+  const notes: string[] = [];
+  if (rounded) notes.push("Semantic insert boundaries or measured duration were rounded to the nearest frame.");
+  if (lexicalWords.length !== words.length) notes.push("Punctuation-only alignment entries were excluded from semantic word anchors.");
+  return { totalFrames, shots, notes };
 }
 
 export function selectTimelineInput<T>(segments: readonly T[] | undefined, planner: () => SemanticInsertPlan):

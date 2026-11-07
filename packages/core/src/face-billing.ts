@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIVE_SHOT_KINDS } from "./live-shot-kinds.js";
 
 // Internal, closed-mode facts. These schemas do not enable a public input or tariff.
 export const identifier = z.string().min(1).max(200);
@@ -29,11 +30,21 @@ export type PresenterEngine = (typeof PRESENTER_ENGINES)[number];
 const tariffCredits = z.number().int().nonnegative().max(2_147_483_647);
 export const presenterRatesSchema = z.object({ heygen: tariffCredits.positive(), omnihuman: tariffCredits.positive() }).strict().readonly();
 
+/** The engines that draw a live shot (#1103), by the shot kind they serve: talking_action and action (product included). */
+export const SHOT_ENGINES = ["shot_talking_action", "shot_action"] as const;
+export type ShotEngine = (typeof SHOT_ENGINES)[number];
+/** Every engine a face unit may be charged at. */
+export const TAKE_ENGINES = [...PRESENTER_ENGINES, ...SHOT_ENGINES] as const;
+export type TakeEngine = (typeof TAKE_ENGINES)[number];
+export const shotRatesSchema = z.object({ shot_talking_action: tariffCredits.positive(), shot_action: tariffCredits.positive() }).strict().readonly();
+
 /** A parts tariff: presenter seconds by engine, plus every second of the video, plus each live-avatar still. */
 export const partsFaceTariffSchema = z.object({
   version: z.literal(3),
   pricingVersion: identifier,
   presenterCreditsPerSecond: presenterRatesSchema,
+  /** Live-shot seconds by engine (#1103); absent on every snapshot admitted before them, which then prices no shot. */
+  shotCreditsPerSecond: shotRatesSchema.optional(),
   productionCreditsPerSecond: tariffCredits,
   liveAvatarStillCredits: tariffCredits,
   minimumCredits: tariffCredits,
@@ -63,6 +74,8 @@ const unitSchema = z.object({
   faceIntervals: z.array(faceBillingIntervalSchema).min(1).readonly(),
   /** A unit the video may go without (S4d D8: a live take that fell back): charged only when accepted, never required for delivery. */
   optional: z.literal(true).optional(),
+  /** A live shot's kind (#1103), frozen with the plan; absent is the presenter's usual take. Its witness row must agree with it. */
+  shot: z.enum(LIVE_SHOT_KINDS).optional(),
 }).strict().readonly();
 
 const planShape = {
@@ -107,7 +120,7 @@ export const faceBillingFactsSchema = z.object({
   // Unknown vendor responses stay unresolved until authoritative reconciliation.
   unknownUnitIds: z.array(identifier).readonly(),
   /** Read from the vendor witnesses at settlement, never frozen: the engine each accepted unit's operation was sent to. */
-  acceptedEngines: z.record(identifier, z.enum(PRESENTER_ENGINES)).readonly().optional(),
+  acceptedEngines: z.record(identifier, z.enum(TAKE_ENGINES)).readonly().optional(),
 }).strict().readonly();
 
 export const faceBillingOutcomeSchema = z.discriminatedUnion("runState", [

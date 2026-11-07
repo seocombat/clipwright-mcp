@@ -4,13 +4,14 @@ import { type AnchoredItem, type LayerRefusal, layerWordRange, type LayoutWindow
 
 // Framing (reference-elements S2): word-anchored presenter sizes, cut or flashed in, drawn by the composition over the actor slots.
 
-export const FRAMING_SIZES = ["close", "medium"] as const;
+/** full (#1175 S7) shows the take as rendered, like medium: it is full height only on a full view, and a narrower take is named, never widened. */
+export const FRAMING_SIZES = ["close", "medium", "full"] as const;
 export type FramingSize = (typeof FRAMING_SIZES)[number];
 export const FRAMING_TRANSITIONS = ["cut", "flash"] as const;
 export type FramingTransition = (typeof FRAMING_TRANSITIONS)[number];
-export const MAX_FRAMING = 20;
+export const MAX_FRAMING = 60;
 /** The presenter's scale about the face: close clears a scene detector's 10% with margin and stays under the ×1.25 a 720p take stands. */
-export const FRAMING_SCALE: Readonly<Record<FramingSize, number>> = Object.freeze({ close: 1.18, medium: 1 });
+export const FRAMING_SCALE: Readonly<Record<FramingSize, number>> = Object.freeze({ close: 1.18, medium: 1, full: 1 });
 
 const overlaps = (a: WordRange, b: WordRange) => a.startWord < b.coverWord && b.startWord < a.coverWord;
 const coveredBy = (range: WordRange, cover: readonly WordRange[]) => Array.from({ length: range.coverWord - range.startWord },

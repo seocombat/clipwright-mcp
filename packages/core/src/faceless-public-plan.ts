@@ -90,7 +90,10 @@ export type FacelessPublicPlan = {
   shots: Array<{
     id: string; mediaType: "video" | "image"; startFrame: number; endFrame: number;
     beatIds: string[]; visualPrompts: string[]; phase: FacelessPublicStory["beats"][number]["phase"];
-    motion?: "PAN_UP" | "PAN_DOWN"; cutAfterWord?: number; score: Score;
+    /** The planner pans; the closing picture may zoom out instead (#1067). */
+    motion?: "PAN_UP" | "PAN_DOWN" | "ZOOM_IN" | "ZOOM_OUT"; cutAfterWord?: number; score: Score;
+    /** An action shot (#1113): a VIDEO after the opener, the clip made from its picture. */
+    action?: true;
   }>;
 };
 /** `keepBeats`: beat indices (1 and up) the opener may not absorb, such as beats a customer image is anchored to. */
@@ -101,6 +104,8 @@ export type FacelessPublicPlanOptions = { keepBeats?: ReadonlySet<number>;
   keepTogether?: ReadonlyArray<{ first: number; end: number }>;
   /** Lets the word gap fall after words of a kept range, which the opener then covers; the caller warns about them. */
   openerGapPastKept?: boolean;
+  /** Word ranges whose shot may last at most `maxFrames` (an action shot's clip, #1113); a shot over them that runs longer is not planned. */
+  capFrames?: ReadonlyArray<{ first: number; end: number; maxFrames: number }>;
   /** The longest IMAGE shot, from `FACELESS_IMAGE_MAX_FRAMES` up: a narration longer than its plan keeps its pictures and holds each longer. */
   imageMaxFrames?: number };
 
@@ -180,6 +185,9 @@ export function planPublicFacelessStory(
       const prior = states[start];
       const duration = nodes[end]!.frame - nodes[start]!.frame;
       if (!prior || duration < FACELESS_IMAGE_MIN_FRAMES || duration > imageMaxFrames) continue;
+      // The shot speaks words (nodes[start].afterWord, nodes[end].afterWord]; one holding a capped range keeps to its cap.
+      if (options.capFrames?.some(range => duration > range.maxFrames && range.first <= nodes[end]!.afterWord &&
+        range.end > nodes[start]!.afterWord + 1)) continue;
       const phase = story.beats[nodes[start]!.beatIndex]!.phase;
       const phaseRange = style.pacing.by_phase[phase];
       const range = phaseRange && phaseRange.n > 0 ? phaseRange : style.pacing.global_image_frames;

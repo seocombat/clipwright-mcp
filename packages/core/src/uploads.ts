@@ -8,7 +8,7 @@ export const UPLOAD_DAILY_CAP = 20;
 export const UPLOAD_WINDOW_SECONDS = 86_400;
 export const UPLOAD_URL_TTL_SECONDS = 86_400;
 /** As long as a run's media (`RENDER_RETENTION_DAYS`): a draft may name an upload on the run's first day. */
-export const UPLOAD_OBJECT_RETENTION_DAYS = 30;
+export const UPLOAD_OBJECT_RETENTION_DAYS = 365;
 
 /** No WebP on purpose: the probe cannot read its dimensions, and without them the format cannot be checked. */
 export const UPLOAD_MEDIA_TYPES = ["image/png", "image/jpeg"] as const;
@@ -123,21 +123,21 @@ export function uploadExtension(mediaType: UploadMediaType): "png" | "jpg" {
 
 export const UPLOAD_IMAGE_DESCRIPTION =
   "Get an upload_id and a signed https url for a PNG or JPEG up to 10 MB: from a LOCAL file (`path`, only when this " +
-  "server runs on your machine) or from a public https `url` that the server downloads (up to 20 seconds; redirects " +
-  "are followed up to 3 times). Pass the url as `image` to quote_ugc / make_ugc, and the upload_id as " +
-  "{upload_id, rights_confirmed: true} in references, first_frame or last_frame of quote_image, generate_image, " +
-  "quote_video and generate_video. The url is signed for 24 hours; the upload_id stays usable for 30 days. For " +
-  "workflow assets, use the upload_id as asset_id and content_digest directly: it is the SHA-256 of the original " +
+  "server runs on your machine) or a public https `url` the server downloads (up to 20 seconds and 3 redirects). " +
+  "Pass the url as `image` to quote_ugc / make_ugc, and the upload_id as a generation reference or frame (quote_image " +
+  "says how). The url is signed for 24 hours; the upload_id is usable for " +
+  `${UPLOAD_OBJECT_RETENTION_DAYS} days. For ` +
+  "workflow assets the upload_id is both asset_id and content_digest: the SHA-256 of the original " +
   "bytes. Set `aspect_ratio` EXPLICITLY to match the picture. For a file on your disk while this server is remote, " +
-  "use create_upload. Free: spends no credits; 20 uploads per day per account, and at most 30 url downloads per hour.";
+  "use create_upload. Free; 20 uploads per day per account, at most 30 url downloads per hour.";
 
 export const CREATE_UPLOAD_DESCRIPTION =
   "Upload a LOCAL PNG or JPEG (up to 10 MB) through a one-time presigned PUT; use it when this server is remote and " +
   "you have a shell. Pass media_type, the exact size in bytes and the file's sha256 (`sha256sum <file>` or " +
   "`shasum -a 256 <file>`). Within 15 minutes run: `curl -X PUT -H 'content-type: <media_type>' --data-binary " +
   "@<file> '<put_url>'` (curl sends the content-length itself; both headers must match what you declared). Once the " +
-  "PUT finished, the upload_id works as {upload_id, rights_confirmed: true} in quote_image, generate_image, " +
-  "quote_video and generate_video; before that they answer upload_not_finished. Call get_upload to confirm and to " +
+  "PUT finished, the upload_id works as a generation reference (quote_image says how); before that it answers " +
+  "upload_not_finished. Call get_upload to confirm and to " +
   "read content_digest, width and height; other tools that take an upload_id need that call first. Use the " +
   "upload_id within 24 hours. Free; counts toward 20 uploads per day.";
 

@@ -23,6 +23,8 @@ export const STAGING_HEAD_ROLLS = ["left", "right", "upright"] as const;
 export const STAGING_EXPRESSIONS = ["neutral", "smile", "surprised", "thinking", "other"] as const;
 export const STAGING_HANDS = ["at_chest", "gesturing", "out_of_frame", "other"] as const;
 export const STAGING_FREEZE_ENDS = ["cut", "flash", "unfreeze", "end"] as const;
+/** none: the step lands on a brighter shot with no light laid over it. */
+export const STAGING_FLASH_TINTS = ["white", "warm", "cool", "none"] as const;
 
 const frac = z.number().min(0).max(1);
 const seconds = z.number().min(0);
@@ -85,6 +87,16 @@ export const stagingFreeze = z.strictObject({
 });
 export type StagingFreeze = z.infer<typeof stagingFreeze>;
 
+export const stagingFlash = z.strictObject({
+  id: z.string().regex(/^flash#\d+$/).describe("The flash anchor it measures."),
+  t_s: seconds.describe("When the light starts."),
+  length_s: seconds.describe("How long the picture stays lit; 0 when no light is laid over it."),
+  strength: frac.describe("How far the peak goes toward white, from 0 to 1."),
+  tint: z.enum(STAGING_FLASH_TINTS).describe("The light's colour family; none when the step only lands on a brighter shot."),
+  color: z.string().regex(/^#[0-9A-F]{6}$/).optional().describe("The light's colour."),
+});
+export type StagingFlash = z.infer<typeof stagingFlash>;
+
 /** Elements one staging holds, measured or kept with only the vision pass's box and times (#930 S2). */
 export const MAX_STAGING_ELEMENTS = 40;
 
@@ -94,6 +106,8 @@ export const referenceStaging = z.strictObject({
   anchors: z.array(z.strictObject({ id: anchorId, t_s: seconds })).max(80),
   elements: z.array(stagingElement).max(MAX_STAGING_ELEMENTS),
   freezes: z.array(stagingFreeze).max(8),
+  /** Optional since #1051 S4: a staging without it parses, and its flash anchors then carry only their times. */
+  flashes: z.array(stagingFlash).max(80).optional().describe("Each flash anchor's light: when it starts, how long and how bright it is, and its colour."),
 });
 export type ReferenceStaging = z.infer<typeof referenceStaging>;
 
@@ -130,6 +144,11 @@ export function stagingIssues(staging: ReferenceStaging, beats: readonly { graph
       ["exit.last_visible_s", element.exit?.last_visible_s]]);
     element.rects?.forEach((sample, at) => { if (sample.t_s > duration) out.push({ path: [...path, "rects", at, "t_s"], message: `lies past the source's ${duration} s` }); });
   });
+  staging.flashes?.forEach((flash, index) => {
+    if (!ids.has(flash.id)) out.push({ path: ["flashes", index, "id"], message: `${flash.id} is not in staging.anchors` });
+    if (staging.flashes!.findIndex(other => other.id === flash.id) < index) out.push({ path: ["flashes", index, "id"], message: `${flash.id} is measured twice` });
+    if (flash.t_s + flash.length_s > duration + 0.05) out.push({ path: ["flashes", index, "length_s"], message: `lies past the source's ${duration} s` });
+  });
   staging.freezes.forEach((freeze, index) => {
     refs(["freezes", index, "anchors"], freeze.anchors);
     if (freeze.end_s <= freeze.start_s) out.push({ path: ["freezes", index, "end_s"], message: "ends where or before the freeze starts" });
@@ -146,15 +165,18 @@ export function faceRelativeRect(rect: StagingRect, face: StagingRect, width: nu
     height: round((rect.height * height) / unit) };
 }
 
-/** Samples thinned to change points: one is kept when an edge moved more than `tolerance` since the last kept, and the last always stays. */
-export function thinStagingRects<T extends { rect: StagingRect }>(samples: readonly T[], tolerance = 0.003, max = 60): T[] {
+/** Samples thinned to change points: one is kept when an edge moved more than `tolerance` since the last kept, and the last always stays. A
+ *  `pinned` sample (an entry or exit, at its even rate) always stays; past `max`, only the others are spread down (#1051 S4). */
+export function thinStagingRects<T extends { rect: StagingRect }>(samples: readonly T[], tolerance = 0.003, max = 60, pinned: (sample: T) => boolean = () => false): T[] {
   const kept: T[] = [];
   samples.forEach((sample, index) => {
     const last = kept.at(-1);
     const moved = !last || (["left", "top", "width", "height"] as const).some(edge => Math.abs(sample.rect[edge] - last.rect[edge]) > tolerance);
-    if (moved || index === samples.length - 1) kept.push(sample);
+    if (moved || index === samples.length - 1 || pinned(sample)) kept.push(sample);
   });
   if (kept.length <= max) return kept;
-  const step = (kept.length - 1) / (max - 1);
-  return Array.from({ length: max }, (_, index) => kept[Math.round(index * step)]!);
+  const fixed = kept.filter(pinned).slice(0, max), rest = kept.filter(sample => !pinned(sample)), room = max - fixed.length;
+  const step = room > 1 ? (rest.length - 1) / (room - 1) : 0;
+  const spread = new Set(room <= 0 ? [] : Array.from({ length: Math.min(room, rest.length) }, (_, index) => rest[Math.round(index * step)]!));
+  return kept.filter(sample => fixed.includes(sample) || spread.has(sample));
 }

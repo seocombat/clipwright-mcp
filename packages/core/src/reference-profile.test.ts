@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { keyFrameSecond, mapAnalyserGraphic, mapAnalyserSourceKind, REFERENCE_PROFILE_VERSION, referenceProfileInput as referenceProfile, spanFrameSeconds } from "./index.js";
+import { keyFrameSecond, mapAnalyserDevice, mapAnalyserGraphic, mapAnalyserSourceKind, REFERENCE_PROFILE_VERSION, referenceProfileInput as referenceProfile, spanFrameSeconds } from "./index.js";
 
 const beat = (start: number, end: number, extra: Record<string, unknown> = {}) => ({
   start_frac: start / 72, end_frac: end / 72, start_s: start, end_s: end, role: "demo", spoken_summary: "she answers calls", graphics: [],
@@ -73,9 +73,12 @@ describe("reference profile (reference-to-video S1)", () => {
   });
 
   /** Mutant: lift the cap, and a beat's summary grows into the whole transcript, which has its own field. */
-  it("keeps a beat's summary to 200 characters", () => {
+  /** #1192: a profile written to the schema holds up to 1000 characters a summary; an analysis still cuts its own at 200. */
+  it("keeps a beat's summary to 1000 characters", () => {
     const long = profile();
-    long.beats[2] = beat(26, 43.5, { spoken_summary: "word ".repeat(41) });
+    long.beats[2] = beat(26, 43.5, { spoken_summary: "word ".repeat(200) });
+    expect(issues(long)).toEqual([]);
+    long.beats[2] = beat(26, 43.5, { spoken_summary: "word ".repeat(201) });
     expect(issues(long)).toEqual([expect.stringMatching(/^beats\.2\.spoken_summary: /)]);
   });
 
@@ -167,5 +170,26 @@ describe("frame seconds", () => {
     const citing = (extra: Record<string, unknown>) => { const cited = profile(); return { ...cited, beats: [{ ...cited.beats[0]!, ...extra }, ...cited.beats.slice(1)] }; };
     expect(referenceProfile.safeParse(citing({ key_frame_s: 72 })).success).toBe(false);
     expect(referenceProfile.safeParse(citing({ key_frame_s: 2, frames_s: [0, 1, 2, 3] })).success).toBe(true);
+  });
+});
+
+/** #1064: what the analysis cannot draw is named from a closed list, so the gap list counts it by name; a profile without names still parses. */
+describe("named devices", () => {
+  /** Mutant: try the general patterns first, and the stacked clips read as footage, the globe's 'Earth' description as nothing. */
+  it("names a device the model gave, else the one its description names, quoted text left out, else other", () => {
+    expect(mapAnalyserDevice("graphic", "Light Leak")).toBe("light_leak");
+    expect(mapAnalyserDevice("graphic", "", "Three stacked horizontal clips from CapCut AI Festival")).toBe("collage");
+    expect(mapAnalyserDevice("graphic", "other", "3D rotating Earth globe behind presenter")).toBe("3d_object");
+    expect(mapAnalyserDevice("graphic", "", "Gold sparkles around the price")).toBe("sparkles");
+    expect(mapAnalyserDevice("graphic", "", "Card reading 'GLITCH'")).toBe("other");
+    expect(mapAnalyserDevice("camera", "whip pan")).toBe("whip_pan");
+    expect(mapAnalyserDevice("transition", "")).toBeUndefined();
+    expect(mapAnalyserDevice("transition", "starburst")).toBeUndefined();
+  });
+
+  it("parses the new names and refuses one off the list", () => {
+    const named = (devices: Record<string, string>) => { const base = profile(); return { ...base, beats: [{ ...base.beats[0]!, ...devices }, ...base.beats.slice(1)] }; };
+    expect(referenceProfile.safeParse(named({ camera: "other", camera_device: "whip_pan", transition_in: "other", transition_device: "glitch" })).success).toBe(true);
+    expect(referenceProfile.safeParse(named({ transition_in: "other", transition_device: "starburst" })).success).toBe(false);
   });
 });

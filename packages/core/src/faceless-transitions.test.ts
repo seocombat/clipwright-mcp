@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { editDocument } from "./edit-document.js";
 import { facelessMediaRecord } from "./faceless-media-record.js";
-import { facelessStoredInput, makeFacelessInput, offeredFacelessInput } from "./faceless-public.js";
+import { facelessStoredInput, makeFacelessInput, offeredFacelessInput, parseFacelessInputPreservingScript } from "./faceless-public.js";
 
 const script = { input_mode: "script", duration_seconds: 30,
   script: "An espresso first. Then the latte arrives, and a latte is milk. Finally the mocha." } as const;
@@ -43,6 +43,55 @@ describe("make_faceless transitions", () => {
   it("is offered to MCP clients with the same shape", () => {
     expect(offeredFacelessInput.parse({ ...script, transitions: { look: "flash" } }).transitions).toEqual({ look: "flash", at: "scene_changes" });
     expect(offeredFacelessInput.safeParse({ ...script, transitions: { look: "wipe" } }).success).toBe(false);
+  });
+});
+
+/** #1067. Mutants: default the flash in the schema, or for a script, and a run admitted before the default, or a script, gains a flash. */
+describe("a brief's default flash", () => {
+  const brief = { input_mode: "brief", duration_seconds: 30, brief: "Coffee drinks, one by one" } as const;
+
+  it("is frozen at admission for a brief that names no transitions, never for a script, and false keeps plain cuts", () => {
+    expect(parseFacelessInputPreservingScript(brief).transitions).toEqual({ look: "flash", at: "scene_changes" });
+    expect([parseFacelessInputPreservingScript({ ...brief, transitions: false }).transitions,
+      parseFacelessInputPreservingScript({ ...brief, transitions: { look: "light_leak" } }).transitions,
+      Object.hasOwn(parseFacelessInputPreservingScript(script), "transitions"), parseFacelessInputPreservingScript({ ...script, transitions: false }).transitions])
+      .toEqual([false, { look: "light_leak", at: "scene_changes" }, false, false]);
+    // The worker reads the stored input as written: a brief stored without the field draws plain cuts.
+    expect(Object.hasOwn(facelessStoredInput.parse(brief), "transitions")).toBe(false);
+    expect(offeredFacelessInput.parse({ ...brief, transitions: false }).transitions).toBe(false);
+  });
+});
+
+/** #1067. Mutants: let a name through for a beat the run never plays, or under a mute, and the request is silently ignored (rule 3). */
+describe("make_faceless sounds", () => {
+  const brief = { input_mode: "brief", duration_seconds: 30, brief: "Coffee drinks, one by one" } as const;
+
+  it("takes edit_sounds and the names of the beats the run plays", () => {
+    expect(makeFacelessInput.parse({ ...script, transitions: { look: "light_leak" }, edit_sounds: true, template_sounds: { whoosh: "sweep", edit: "sub_drop" } }))
+      .toMatchObject({ edit_sounds: true, template_sounds: { whoosh: "sweep", edit: "sub_drop" } });
+    expect(makeFacelessInput.parse({ ...brief, template_sounds: { flash: "glitch" } }).template_sounds).toEqual({ flash: "glitch" });
+    expect(makeFacelessInput.parse({ ...brief, template_sounds: false }).template_sounds).toBe(false);
+  });
+
+  it.each([
+    ["a beat make_faceless never plays", { template_sounds: { ring: "ring_classic" } }, "template_sounds of make_faceless has no beat ring: the beats are flash, whoosh, edit"],
+    ["a name of another beat", { template_sounds: { flash: "whoosh" } }, "template_sounds.flash \"whoosh\" is not a flash sound: use shutter, glitch, swish"],
+    ["a light leak's sound on a brief's default flash", { template_sounds: { whoosh: "sweep" } },
+      "template_sounds.whoosh: template_sounds.whoosh picks the sound of a light_leak cut, and this run draws flash cuts: drop it"],
+    ["a flash's sound with plain cuts", { transitions: false, template_sounds: { flash: "glitch" } },
+      "template_sounds.flash: template_sounds.flash picks the sound of a flash cut, and this run draws no transitions: drop it"],
+    ["an edit sound without the switch", { template_sounds: { edit: "boom_low" } }, "template_sounds.edit: template_sounds.edit picks the edit sound: add edit_sounds: true"],
+    ["edit_sounds under a mute", { edit_sounds: true, template_sounds: false }, "edit_sounds: edit_sounds plays a sound on each cut and template_sounds: false mutes"],
+  ])("refuses %s before any charge", (_what, fields, message) => {
+    expect(issues({ ...brief, ...fields }).join("\n")).toContain(message);
+  });
+
+  it("refuses a script's flash name without transitions, and records names by beat", () => {
+    expect(issues({ ...script, template_sounds: { flash: "glitch" } }).join()).toContain("this run draws no transitions");
+    const record = (sounds: unknown) => facelessMediaRecord.shape.settings.safeParse({ captions: true, character_reference: false,
+      character_details: null, image_model: "gpt-image-2", voice: null, lambda_site_sha256: "f", sounds }).success;
+    expect([record({ flash: "shutter", whoosh: "whoosh", edit: "boom_low" }), record({}), record({ flash: "whoosh" }), record({ ring: "ring_classic" })])
+      .toEqual([true, true, false, false]);
   });
 });
 

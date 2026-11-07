@@ -27,7 +27,7 @@ the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/pa
 | `listWorkflows()` | Seven public methods and which of them can run. Free. |
 | `getWorkflow(methodId)` | One method's guidance, limitations and capability snapshot. Free. |
 | `createWorkflowPlan({ document })` | Store a complete account-owned document. Free; starts no run. |
-| `planReferenceRemake(request)` | The server compiles a reference profile and the exact script into a new `reference-remake` plan; its warnings name what it does not reproduce. Free; starts no run. |
+| `planReferenceRemake(request)` | The server compiles a reference analysis (`analysis_id`, or `reference_profile` itself) and the exact script into a new `reference-remake` plan; its warnings name what it does not reproduce. Free; starts no run. |
 | `getWorkflowPlan(planId)` | Read the current revision, readiness issues and warnings. Free. |
 | `saveWorkflowPlan(planId, { base_version, document })` | Save an edited revision. Free; approval is separate. |
 | `approveWorkflowPlan(planId, { revision, content_digest })` | Explicitly approve that revision. Free; starts no run. |
@@ -188,7 +188,7 @@ While shot candidates are closed on the server, the three calls throw a
 
 `listUploads()` lists the account's uploads that a revision still takes, newest
 first and one per picture. Each carries a freshly signed `url` and
-`usable_until`: its creation plus 30 days of storage, less a two-hour margin.
+`usable_until`: its creation plus 365 days of storage, less a two-hour margin.
 Free.
 
 Requires `CLIPWRIGHT_CLIENT_ID`, or a writable `~/.clipwright/` for the SDK to

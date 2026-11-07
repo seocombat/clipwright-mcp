@@ -1,4 +1,4 @@
-import { FAILED_STATE, isTerminal, RUN_WAIT_MAX_SECONDS, runMoney, VIDEO_URL_CHECK } from "@clipwright/core";
+import { FAILED_STATE, isTerminal, RUN_WAIT_MAX_SECONDS, runMoney, VIDEO_URL_CHECK, type Skill } from "@clipwright/core";
 import type { WorkflowRunRead, WorkflowLaunchRead } from '@clipwright/core/workflows';
 import { ClipwrightApiError } from "@clipwright/sdk";
 
@@ -37,6 +37,17 @@ export async function withFailureReport(
     return formatFailure(error);
   }
 }
+
+/** What each run kind delivers and where a succeeded read names it: a picture's run is never "the video". */
+export const PENDING_RESULTS: Readonly<Record<Skill, { noun: string; field: string }>> = {
+  make_ugc: { noun: "video", field: "video_url" },
+  make_faceless: { noun: "video", field: "video_url" },
+  revise_long_form: { noun: "video", field: "video_url" },
+  generate_image: { noun: "image", field: "generation.url" },
+  generate_video: { noun: "clip", field: "generation.url" },
+  edit_shot: { noun: "shot candidate", field: "candidate" },
+  create_actor: { noun: "actor", field: "created_actor.actor_id" },
+};
 
 /** Pure `get_run` formatter. Terminal answers carry both `status` and `state`; */
 /** an unknown terminal state falls into IN_PROGRESS by design. */
@@ -98,7 +109,8 @@ export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead[
       ],
     };
   }
-  // Non-terminal (or unknown terminal) state: the same imperative format as make_ugc.
+  // Non-terminal (or unknown terminal) state: the same imperative format for every run, naming what this run delivers (#1172).
+  const pending = PENDING_RESULTS[run.skill as Skill] ?? { noun: "result", field: "a succeeded state" };
   return {
     content: [
       {
@@ -109,13 +121,13 @@ export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead[
           run_id: run.run_id,
           state: run.state,
           ...runMoney(run),
-          video_url: null,
+          ...(pending.field === "video_url" ? { video_url: null } : {}),
           warnings: run.warnings,
           next_action:
-            "Video is NOT ready. Call get_run with poll.arguments (run_id=" +
+            `The ${pending.noun} is NOT ready. Call get_run with poll.arguments (run_id=` +
             run.run_id +
             `, wait_seconds=${RUN_WAIT_MAX_SECONDS}): it waits up to ${RUN_WAIT_MAX_SECONDS} s for the run to end. Repeat until state is 'succeeded' or 'failed'. ` +
-            "Do NOT tell the user the video is done until you have a video_url.",
+            `Do NOT tell the user the ${pending.noun} is done until you have ${pending.field}.`,
           poll: { tool: "get_run", arguments: { run_id: run.run_id, wait_seconds: RUN_WAIT_MAX_SECONDS }, retry_after_seconds: RUN_RETRY_AFTER_SECONDS },
         }),
       },

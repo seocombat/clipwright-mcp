@@ -14,6 +14,6 @@ export const runGeneration = z.strictObject({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   duration_s: z.number().positive().nullable(),
-  reusable_until: z.string().datetime(),
+  reusable_until: z.string().datetime().describe("Until then, create_asset with source.run_id turns this file into an asset_id for templates and inserts."),
 });
 export type RunGeneration = z.infer<typeof runGeneration>;

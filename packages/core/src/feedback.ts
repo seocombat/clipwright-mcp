@@ -36,7 +36,7 @@ export type FeedbackResponse = z.infer<typeof feedbackResponse>;
 export const SEND_FEEDBACK_DESCRIPTION =
   "Tell Clipwright what is missing or wrong. Call it when no tool does what the user asked (kind missing_capability), " +
   "or when an answer was confusing (confusing), wrong (wrong_result) or far too slow (slow), instead of rephrasing the " +
-  "request and giving up. Say what the user wanted, what you tried and what came back; pass run_id when it is about a run. " +
+  "request and giving up. " +
   "We read every one; when we reply, get_account lists the reply under support_replies with this feedback_id. " +
   "Free, spends nothing. Sending the same kind, text and run again within 24 hours answers the same " +
   `feedback_id. ${FEEDBACK_PER_HOUR} per hour per account.`;

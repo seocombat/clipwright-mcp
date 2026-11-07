@@ -18,9 +18,252 @@ listed under.
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-11-07
+
+### Added
+
+- `cast` on live shots (#1192): a `talking_action` or `action` shot of `make_ugc`, and `plan_reference_remake`, take up
+  to 3 pictures of the people in the scene, each with a `role` and what that person does. Each face holds across the
+  shots of one setup. The pictures are your own picture assets with rights confirmed. Prices are unchanged.
+
+### Changed
+
+- *Server-side:* a full-frame stop move (smash title, colour block, colour sweep) plays its own length, as `list_moves`
+  `seconds` shows, and the presenter fills the rest of its words (#1196). A picture or card the reference flashed for
+  about a second covers only the words that time takes.
+- *Server-side:* the presenter is never cropped tighter than the actor's portrait holds sharp; the quote names the face
+  height it will draw (#1196).
+- *Server-side:* captions hide while a scene drawn over the presenter sits on their band, as they already did under
+  templates (#1190).
+- *Server-side:* `plan_reference_remake` never compiles a plan its quote would refuse: past the limit of presenter
+  takes it drops live shots, the shortest first, and names each one in the plan (#1197). A video insert covers only
+  the words its length fits, and the plan names the cut.
+- *Server-side:* shorter warnings (#1198): each reference beat is named once, your line edits fold into one line, the
+  pronunciation note appears only when the script carries a stress mark, and a failed run says where it stopped.
+
+### Fixed
+
+- *Server-side:* `find_trends` reads an Instagram reel's views from the same counter as its creator's median, so its
+  `x_median` is no longer understated (#1199).
+- *Server-side:* the first click of a checklist plays on its word; a pause after a sentence where a clip meets the
+  presenter is trimmed; a picture's zoom next to a full-frame card is kept (#1196, #1198).
+
+## [0.41.0] - 2026-11-07
+
+### Changed
+
+- Higher limits on creative input (#1192), so a video can follow a long reference and rework it. Prices are unchanged.
+  `make_ugc`: up to 16 live shots with `action` and `setup` up to 2,000 characters, 16 presenter appearances between
+  inserts, 99 inserts, 40 templates, 40 moves (anchor quote up to 2,000 characters), 12 scenes (`brief` up to 2,000,
+  `text` up to 200), 30 overlays with 3 on screen at once, 15 layout windows, 60 framing changes, 20 segments with 10
+  actor segments, 60 caption emphases of up to 120 characters, a call of up to 30 lines, 5,000 characters and about
+  120 s, an interview of up to 30 turns and 16 takes, 20 gaze changes, 20 motion style spans, `person` up to 2,000
+  characters and a music `mood` up to 400. One video renders at most 16 presenter takes, and a live shot in the middle
+  of speech can make up to three; a video whose pictures, videos and takes do not fit is refused before any charge,
+  with the number that fits. `plan_reference_remake`: 50 review notes, 60 assets and 60 line edits with
+  quotes up to 2,000 characters, a `site` up to 64, and a reference profile of up to 120 beats; a scene's brief is no
+  longer cut. `make_faceless`: `character_details` up to 2,000 characters, 60 scene images, 100 transition points, a
+  `brief` up to 10,000 characters, and up to 10 action shots with an `action` up to 1,500 characters; a run asks only
+  as many shots as fit its length, and more are refused before any charge with the number that fits.
+  `generate_image` and `generate_video`: `prompt` up to 5,000 characters. `create_actor`: `description` and `setting`
+  up to 2,000 characters, a held object up to 1,000.
+- `create_actor` combines more of its fields (#1192). With `from_actor_id`, `description` now changes the view's look,
+  clothing and pose (gender and age stay the source actor's), and `style_reference` puts the source actor's face into
+  the photo's scene, pose, clothing and shot size; a view that looks like a person in the photo is refused at no
+  charge. A new actor from words or a style reference takes `holding` and `setting` too.
+
+## [0.40.0] - 2026-11-06
+
+### Added
+
+- *Server-side:* `find_trends` searches TikTok and Instagram together by default (#1154): `platform` takes `mix`
+  (the default), `tiktok` or `instagram`, and a mix ranks up to 10 reels per platform in one list, each with its
+  `platform`. Each reel also carries `views_per_hour`, `x_preliminary` (under 48 hours old), `new_creator` (a creator
+  median under 1,000: no medal, ranked by views per hour), `late_takeoff` and `comment_rate`. `language` filters the
+  TikTok reels only. The price stays 20 credits; a mix that reaches only one platform answers its reels with a warning
+  and is charged.
+
+- *Server-side:* `find_trends` finds reels that took off on a topic (#921): keywords on TikTok or Instagram, reels
+  posted within `posted_within_days` (90 by default), up to 10 reels, one per creator, ranked by `x_median`, the
+  reel's views over its creator's median views, with views, date, length, link, creator and caption. `quote_trends`
+  prices it first; an unfinished answer is read by repeating the call, free, or over REST with
+  `GET /v1/trend-searches/{id}`. The answer carries a ready table in `display_markdown`. 20 credits
+  once it succeeds; a search that finds no reel costs nothing, and the same query within an hour answers free.
+
+- *Server-side:* `plan_reference_remake` revises a plan (#921): with `plan_id`, `base_version` and the user's
+  `review_notes` it compiles the revised script as the next revision of the same plan. The revision starts as a draft
+  and needs its own `approve_workflow_plan`; only an approved revision quotes and runs. The notes stay on the plan in
+  `brief.review_notes`.
+
+- *Server-side:* `make_ugc` takes `scenes`: up to three graphics made for your video from your words, for what no
+  template draws, each over the presenter or on the full frame while its words are spoken. A scene costs 25 credits,
+  on its own quote line, and is charged only when it is drawn in the delivered video; one that does not pass our check
+  is left out, named in `warnings[]` and not charged. A finished video lists each drawn template and scene in
+  `final_output.elements` with its `origin`, `library` or `generated`. Available once the server switches it on.
+
+- *Server-side:* `make_ugc` live shots take `transition`: `flash` (white), `light_leak` (warm) or `whoosh` (a cut with a
+  whoosh sound) on the cuts into and out of the shot; `cut`, the default, keeps a plain cut. A flash plays the `flash`
+  sound and a light leak or a whoosh the `whoosh` sound, as `template_sounds` names them. A reference remake now cuts
+  from a live hook shot to the presenter on a flash, unless `add_moves` is `false` (#1129).
+
+- *Server-side:* three new `templates` kinds, full frame: `chart` (a bar or line chart of 2–6 points, each landing on its
+  quote with its value counting up), `race` (a ranked bar race: bars move to each round's values and swap places by rank
+  on its quote) and `hand_title` (a title written out by hand, then a marker stroke on chosen words on its quote; also
+  over the presenter in the caption spot).
+
+- *Server-side:* five `templates` kinds move more: `chat_window` takes `answer`, streamed in word by word, and a `table`
+  that opens row by row; `notification` takes a `stack` of up to two more cards, each dropping in on top on its quote;
+  `terminal` takes a `diff` whose removed lines collapse in red as its added lines open in green; `lower_third` takes
+  `style` (`clean_bar`, `side_rule`, `soft_pill`, `mask_reveal`); `compare` takes `reveal: "wipe"`, a wipe to a divider
+  in the middle. Every kind draws its corners at your `design`'s corner style. Earlier requests draw as before.
+
+- *Server-side:* `design` on `make_ugc` and `quote_ugc`: your brand's colours by role (background, cards, text, accent,
+  text on accent), fonts, a logo asset, corner style and motion character. Templates, the end card and the caption
+  highlight draw in it; text that would read under 4.5:1 on its fill is refused with the nearest readable shade, and a
+  quote shows the design it will use. `POST /v1/brand/extract` (`extract_brand`) reads a public site into a proposed
+  design for you to confirm; `GET`/`POST /v1/brand-kit` (`brand_kit`) saves one design on the account, used by every
+  video that names none, so a series keeps one look. All free.
+
+- *Server-side:* six new `templates` kinds for any `make_ugc` script run: `chat_window` (a prompt typing in, then reply
+  cards, with optional zoom cuts), `video_grid` (2x2 or 3x1 tiles of your video assets popping in turn), `word_title`
+  (a title shown word by word as it is spoken), `phone_screen` (a phone whose screen goes locked, playing, liked, with
+  a counter, a timer and tags), `terminal` (a command typing in, then a checked status line) and `pointer_chips` (chips
+  joined by lines to points of the frame). `caption_emphasis` takes the new look `box`: the quote on a soft box of the
+  caption's accent colour. Prices are unchanged.
+
+- *Server-side:* `DELETE /v1/runs/{id}/media`, the MCP tool `delete_run_media` and `deleteRunMedia()` in the SDK
+  delete the files of a finished run: its video, image or clip and its preview stop opening at once and are erased
+  from storage after 7 days. The run, its history and its charge stay. A run still going answers `run_not_finished`;
+  files another unfinished run uses answer `run_media_in_use`. *Dashboard:* Delete on a video in Runs and Assets and
+  on an image or clip in Assets; the row stays, marked deleted.
+- *Server-side:* deleting the files of an `analyze_reference` run deletes the analysis too, at once: its profile,
+  transcript, post metrics and frames are gone, `get_reference_analysis` answers it as deleted, and analyzing the same
+  video again starts a new paid analysis.
+- *Server-side:* `DELETE /v1/uploads/{id}`, the MCP tool `delete_upload` and `deleteUpload()` in the SDK delete an
+  upload: no call takes it from then on, and its file is erased from storage after 7 days. An upload an unfinished run
+  uses answers `upload_in_use`.
+- *Server-side:* `DELETE /v1/creator-profiles/{id}`, the MCP tool `delete_creator_profile` and `deleteCreatorProfile()`
+  in the SDK delete a finished creator profile at once; the run that made it and its charge stay.
+- A delete that must wait while we are required to keep the data answers `deletion_held` and deletes nothing.
+- *Server-side:* `create_actor` and `quote_actor` take `portrait: { asset_id }`: your own image asset, within 2% of 9:16
+  and with confirmed rights, becomes a personal actor next to `gender` and `approximate_age`. The portrait itself costs
+  nothing; each other format edited from it is charged as usual. An image without exactly one face, or with the face cut
+  off, too small or too large, is refused at no charge. The actor works as `actor_id` in `make_ugc`, `quote_ugc` and
+  `plan_reference_remake`.
+- `make_ugc` picture inserts take `motion`: `{ kind: "scroll", direction: "down" | "up" }` scrolls a tall picture end
+  to end at the full width of its box or the frame, and `{ kind: "pan", direction: "left" | "right" }` pans a wide one
+  at its full height. A picture that is not taller or wider than its place fills it still, and `warnings[]` says so.
+- `fit: auto` places a picture by its own shape: in its `box` or the whole frame, whichever cuts less of it (a move
+  out of the box is named in `warnings[]`). A picture that loses more than 8% when filling scrolls or pans end to end
+  instead, so all of it shows, in place of its `image_motion` zoom; it shows whole over a blurred copy of itself only
+  when less than a quarter of it would be on screen at once. A reference remake's screenshots now fill the frame and
+  scroll or pan instead of sitting small over a blurred copy.
+- *Server-side:* a `make_faceless` video's closing picture zooms out to the whole picture, unless it is one of your
+  `scene_images`, which keeps its pan.
+- `make_faceless` plays sounds from the `make_ugc` library: a flash cut plays the `flash` sound and a light leak the
+  `whoosh` sound, each peaking on its cut. `edit_sounds: true` adds a low sound on every scene change, and
+  `template_sounds` picks the `flash`, `whoosh` and `edit` names (`list_template_sounds`) or mutes them all with `false`.
+  The price does not change (#1067).
+- `create_actor` and `quote_actor` take `style_reference: { asset_id }`, a PNG or JPEG image asset of your account
+  (rights confirmed). The new chest-up portrait follows the photo's set, light, camera angle and clothing, while the
+  face is new and comes from `description`. A portrait that looks like a person in the photo fails with
+  `actor_resembles_reference` and costs nothing; a photo without a person is fine. The price is the same. The CLI
+  takes `--style-reference <asset_id>` (#975).
+
+### Changed
+
+- **Breaking:** *Server-side:* `resolution` of `make_ugc`, `quote_ugc` and a workflow plan's format takes `720p` or
+  `1080p`; 4k is no longer offered (#1189). A request for `4k` is refused with a 400, "4k is not offered; use 1080p",
+  before any charge. The CLI's `--resolution` takes the same two values.
+
+- *Server-side:* `create_actor` at `quality: high` now draws a more natural portrait: real skin texture, a relaxed face
+  and the look of a phone video frame; with `style_reference` it keeps that photo's shot, from close-up to a wider
+  frame with hands. The high portrait costs 45 credits; other formats and views of an existing actor keep their
+  prices (#1101).
+- *Server-side:* every `create_actor` image, at both qualities, gets a light finish before it is published: slightly
+  softer detail and fine grain, so the actor reads as filmed rather than rendered (#1101).
+- *MCP:* the server's instructions now ask your agent to start a video from a bare product, link or script with a
+  reel that already works in your niche: it breaks the reel down with `analyze_reference` and shows you a script on
+  its hook, structure and pacing before any paid video. A set of several videos varies angle, hook, actor, voice,
+  setting and format, never repeats an opening line, and is shown to you before the first paid run. Captions are
+  recommended in a style that reads on a phone (#921, #1109).
+- *Server-side:* finished videos and uploads are now kept for 365 days instead of 30, and a video can be edited for a
+  year after it finishes, until the day before its file is removed. An upload's `usable_until` moves out accordingly.
+  `UPLOAD_OBJECT_RETENTION_DAYS` is now 365 (#1092).
+- *Dashboard:* Assets → Videos lists every finished video of the account; a video past its storage period stays on
+  the list, marked deleted, under the "Deleted" filter (#1092).
+
+- *Server-side:* full-frame `terminal`, `chat_window`, `quote`, `phone_screen`, `video_grid` and `compare` templates now
+  fill most of a vertical frame's width, with text a phone can read. `size: large` draws larger text and `small` a
+  narrower card; `compare`, `phone_screen` and `video_grid` already fill the frame at medium, so at `large` they stay
+  that size and `warnings[]` says so. A `quote` sits on a card. Every full-frame template draws its card from its first frame, and a `word_title`
+  shows its first entry from its first frame, so a full frame is never an empty screen (#1128, #1129).
+
+- *Server-side:* a `make_faceless` brief without `transitions` now gets a flash on every scene change, with its sound;
+  `transitions: false` keeps plain cuts. A request that names its transitions, and every script, draws what it asks
+  for as before (#1067).
+
+- The MCP tool list is 10 KB smaller, so a client that shows no tools for a list near 100 KB lists them all. `quote_ugc`
+  describes its fields in fewer words, and `caption_style` links https://clipwright.io/captions for the look of each
+  style. Every tool keeps its fields and the values they take (#1045).
+
+- *Server-side:* `generate_video` with `kling-3.0` at 720p costs 12 credits a second instead of 11. A clip admitted
+  before the change keeps the price it was quoted.
+
+- *Server-side:* an account runs up to three reference analyses at once, so a batch of reels no longer waits for
+  each one in turn. Two starts of the same reel by its full link, or of the same asset, in the same mode still give
+  one analysis and one charge (#1042).
+- *Server-side:* `warnings[]` no longer lists timing adjustments too small to see, such as a boundary moved to the
+  nearest frame. An explicit `broll_policy` gets no warning when the video shows your media, and one short line when
+  it shows none (#1047).
+- *Server-side:* an analysis of a public Instagram or TikTok video by its full link that we already made answers in
+  seconds, at the same price, with the video's views, likes and comments read fresh. Its `warnings[]` says how old the
+  analysis is (#1043).
+- *Server-side:* the `edit` sound library adds three short whooshes, `air_whoosh`, `swing` and `swipe`, which play
+  well under the others. `air_whoosh` is the new default for `edit_sounds`; `swell_hit` and the rest stay selectable
+  with `template_sounds.edit`. A reference remake no longer turns `edit_sounds` on by itself: the plan names the
+  reference's whooshes and clicks, and `plan_reference_remake` with `edit_sounds: true` adds a sound on every cut
+  (#1076).
+
+- *Server-side:* a failed run's `warnings[]` now lists only what explains the failure and its charge, not notes about
+  a video it never delivered. The recovered-voice note is one short line, and a take delivered without captions and
+  graphics says so plainly and that it is charged as usual (#1066).
+- *Server-side:* a reference remake no longer keeps the presenter on screen where the reference cuts away from them.
+  A split or picture there fills the frame; a beat with no media of its own takes a picture the other beats leave
+  over, or a full-frame title card of its words. A demo beat with no picture left says in `warnings[]` to pass one
+  more (#1060).
+
+### Fixed
+
+- *Server-side:* captions in the `minimalist` (`minimal`), `youtube`, `plottwist`, `promo`, `lecture`, `highlighter`,
+  `studio`, `broadcast`, `lyrics` and `bubblegum` styles draw larger, so a vertical video's captions read on a phone;
+  `youtube`, `minimalist`, `lecture`, `studio`, `broadcast` and `lyrics` show four words at a time (`youtube` keeps five in 16:9) (#1111).
+- *Server-side:* a `make_faceless` video made from a `brief` now lands near the `duration_seconds` you picked; a
+  30 s brief could come back at 36 s with a length warning. A video from your own `script` still runs as long as
+  its narration takes (#1048).
+- *Server-side:* a 30 s `make_faceless` video from a `brief` that lists several points could fail with
+  `story_not_planned` before any media was made. Such briefs now plan within their length (#1083).
+- *Server-side:* `pause_trim` now shortens the pause after every sentence to the length you ask for; a remake
+  could keep 0.4–0.6 s of silence after each sentence. A pause that cannot be cut cleanly is named in
+  `warnings[]` (#1052).
+- *Dashboard:* long presenter videos and remakes show a preview (#1050).
+- *Server-side:* a split layout window centres the presenter's face in the presenter's part of the frame, so a large
+  `media_share` no longer cuts the face off. When that part is too small for the face, the media gets the largest share
+  that keeps the face whole, and `warnings[]` says so (#1053).
+
 ## [0.39.0] - 2026-11-03
 
 ### Added
+
+- `make_ugc` picture inserts take `fit`: `cover` (the default, as before) fills the frame and cuts the picture's edges,
+  `contain` shows the whole picture over a blurred copy of itself, and `auto` shows it whole when filling would cut off
+  more than 30% of it, which `warnings[]` names. An insert also takes `box`, its own place inside the frame in shares
+  of the frame. Split layout windows take `media_side` (`top` or `bottom`, the default) and `media_share`, the share of
+  the height the media takes (0.3 to 0.7, 0.5 by default).
+- A reference remake draws a split screen and a full-frame picture where the reference showed them: the split's media on
+  the reference's side at its share of the height, a picture in its measured box when that is smaller than the frame. Its
+  pictures use `fit: auto`, so a landscape screenshot stays whole. What the remake still draws differently is named in
+  the plan.
 
 - *Server-side:* `get_account` and `GET /v1/account` carry `support_replies`: up to 10 of our replies to this
   account's support requests and `send_feedback`, newest first. A reply to feedback carries the `feedback_id` that

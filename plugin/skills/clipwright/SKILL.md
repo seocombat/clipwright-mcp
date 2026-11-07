@@ -31,6 +31,7 @@ from `list_prices`, never from memory: they change.
 | A custom presenter | `quote_actor` | `create_actor` |
 | A reading of a reference ad | `quote_analysis` | `analyze_reference` |
 | A creator's latest 12 videos with x to their median | `quote_creator_profile` | `analyze_creator` |
+| Reels that took off on a topic | `quote_trends` | `find_trends` |
 | A revision of a faceless video | `quote_revision` | `revise_run` |
 | A new picture or clip for one shot | `quote_candidate` | `create_candidate` |
 | A plan from a workflow method | `quote_workflow_plan` | `run_workflow_plan` |

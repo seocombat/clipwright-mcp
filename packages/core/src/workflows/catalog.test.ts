@@ -115,8 +115,13 @@ describe('workflow script and semantic readiness', () => {
         expect(validateWorkflowPlan({ ...plan, method: { ...plan.method, capability_digest: 'b'.repeat(64) } }, capabilities).issues.map(issue => issue.kind)).toContain('capability_pin_changed');
     });
     it('refuses unsupported native output settings even without requested_format', () => {
-        const brief = { ...document().brief, native: { skill: 'make_ugc', input: { script: document().brief.script, resolution: '4k' } } };
+        const brief = { ...document().brief, native: { skill: 'make_ugc', input: { script: document().brief.script, resolution: '720p' } } };
         expect(checkWorkflowBrief('ugc-faq-answer', brief, capabilities).issues.map(issue => issue.kind)).toContain('unsupported_format');
+    });
+    it('names a 4k native resolution with its refusal (#1189)', () => {
+        const brief = { ...document().brief, native: { skill: 'make_ugc', input: { script: document().brief.script, resolution: '4k' } } };
+        expect(checkWorkflowBrief('ugc-faq-answer', brief, capabilities).issues).toContainEqual(
+            { kind: 'invalid_brief', path: 'native.input.resolution', message: '4k is not offered; use 1080p' });
     });
     it('refuses native fields rejected by the authoritative disposition registry', () => {
         const brief = { ...document().brief, native: { skill: 'make_ugc', input: { script: document().brief.script, character: 'char_abc' } } };

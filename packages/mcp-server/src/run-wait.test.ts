@@ -217,12 +217,30 @@ describe("display_markdown on quotes and finished runs (#1000)", () => {
     expect(terminalRunMarkdown(run("failed"))).toContain("What failed: no reason given");
   });
 
+  /** Mutant: a finished generation stops naming create_asset, so an agent guesses how to put it in a template (#1157). */
+  it("names create_asset with the run id under a delivered generation, and only there", () => {
+    const generation = { kind: "image", model: "m", url: "https://x.test/a.png", mime: "image/png", width: 8, height: 8, duration_s: null,
+      reusable_until: "2026-11-07T00:00:00.000Z" } as const;
+    const shown = terminalRunMarkdown({ ...SUCCEEDED, generation });
+    expect(shown).toContain(`create_asset with source {"run_id": "${SUCCEEDED.run_id}"} until 2026-11-07T00:00:00.000Z`);
+    expect(shown).toContain(", then pass the asset_id.");
+    expect(terminalRunMarkdown(SUCCEEDED)).not.toContain("create_asset");
+  });
+
   /** Mutant: a warning's second line dropped or joined, and the table no longer quotes it word for word. */
   it("keeps every line of a multi-line warning word for word", () => {
     const warning = "the opening clip was made again\nits first frame differs from the quote's preview";
     const shown = terminalRunMarkdown({ ...SUCCEEDED, warnings: [warning] });
     expect(shown).toContain("- the opening clip was made again\n  its first frame differs from the quote's preview");
     expect(ugcQuoteMarkdown({ ...UGC_QUOTE, warnings: [warning] })).toContain(`- ${warning.replace("\n", "\n  ")}`);
+  });
+
+  /** Mutant: the picture dropped, and a chat client shows the quote without the presenter it prices (#1125). */
+  it("shows a library presenter's picture under the quote's headline, and none without one", () => {
+    const url = "https://api.clipwright.io/v1/public/actor-previews/actor_anna/1/9x16.png";
+    const lines = ugcQuoteMarkdown({ ...UGC_QUOTE, actor: { gender: "female", actor_id: "actor_anna", version: 1, preview_url: url } }).split("\n");
+    expect(lines.slice(1, 3)).toEqual(["", `![Presenter actor_anna](${url})`]);
+    expect(ugcQuoteMarkdown({ ...UGC_QUOTE, actor: { gender: "male" } })).not.toContain("![");
   });
 
   /** Mutant: the cap removed, and a long reason floods the table. */

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import {
   ASPECT_MATCH_THRESHOLD,
@@ -9,15 +10,19 @@ import {
   aspectDistance,
   makeUgcInput,
   negotiateCapabilities,
+  RESOLUTIONS,
+  storedUgcInput,
   resolveAspectRatio,
   snapAspect,
   type AspectSource,
   type BackendCapabilities,
+  deliveredResolutionWarning,
   deliveryWarnings,
   expectedVendorFrame,
   upscaleWarning,
   vendorAspectFor,
 } from "@clipwright/core";
+import { workflowFormat, workflowFormatRead } from "@clipwright/core/workflows";
 
 /** A probed source with the given dimensions. */
 const probed = (width: number, height: number): AspectSource => ({
@@ -169,7 +174,7 @@ describe("1:1 without image", () => {
 // is proven unreachable by walking the whole enum, so two generators never overlap.
 describe("the aspect branch of negotiateCapabilities is provably dead", () => {
   const HEYGEN_CAPS: BackendCapabilities = {
-    resolutions: ["720p", "1080p", "4k"],
+    resolutions: ["720p", "1080p"],
     // A hand copy of the adapter list (`packages/core` cannot import `apps/web`);
     // the test below keeps the copy from drifting.
     aspectRatios: ["9:16", "1:1", "16:9"],
@@ -204,6 +209,30 @@ describe("schema: aspect_ratio has no default", () => {
     expect(makeUgcInput.parse({ script: "x", aspect_ratio: "1:1" }).aspect_ratio).toBe(
       "1:1",
     );
+  });
+});
+
+/** Mutant: keep 4k in the request enum, or drop the stored read path, and one of these turns red (#1189). */
+describe("resolution: 4k is refused on request and still read from a stored run", () => {
+  it("a 4k request is refused with its own text; 720p and 1080p pass", () => {
+    const refused = makeUgcInput.safeParse({ script: "x", resolution: "4k" });
+    expect(refused.success).toBe(false);
+    expect(refused.error?.issues.map((issue) => [issue.path.join("."), issue.message])).toEqual([["resolution", "4k is not offered; use 1080p"]]);
+    expect(RESOLUTIONS).toEqual(["720p", "1080p"]);
+    for (const resolution of RESOLUTIONS) expect(makeUgcInput.parse({ script: "x", resolution }).resolution).toBe(resolution);
+  });
+
+  it("another unknown value keeps the generic enum refusal", () => {
+    for (const value of ["8k", "4K", 1080]) {
+      const refused = makeUgcInput.safeParse({ script: "x", resolution: value });
+      expect(refused.error?.issues.map((issue) => issue.message)).toEqual(z.enum(RESOLUTIONS).safeParse(value).error?.issues.map((issue) => issue.message));
+    }
+  });
+
+  it("a stored input and a stored plan format with 4k still parse", () => {
+    expect(storedUgcInput.parse({ script: "x", resolution: "4k" }).resolution).toBe("4k");
+    expect(workflowFormatRead.parse({ aspect_ratio: "9:16", resolution: "4k" }).resolution).toBe("4k");
+    expect(workflowFormat.safeParse({ aspect_ratio: "9:16", resolution: "4k" }).error?.issues[0]?.message).toBe("4k is not offered; use 1080p");
   });
 });
 
@@ -449,6 +478,20 @@ describe("16:9 is honest on a native landscape source", () => {
 
   it("the vendor format for a landscape source is 16:9, not square", () => {
     expect(vendorAspectFor(wide, ASPECT_RATIOS)).toBe("16:9");
+  });
+});
+
+describe("deliveredResolutionWarning — the delivered size is named when it is not the one asked (#1173)", () => {
+  it.each([
+    ["720p", 1080, 1920, "resolution 720p was requested, but the video is delivered at 1080×1920; resolution does not change the price"],
+    ["4k", 1080, 1920, "resolution 4k was requested, but the video is delivered at 1080×1920; resolution does not change the price"],
+    ["1080p", 720, 1280, "resolution 1080p was requested, but the video is delivered at 720×1280; resolution does not change the price"],
+    ["720p", 1280, 720, null],
+    ["1080p", 1920, 1080, null],
+    ["1080p", 1080, 1080, null],
+    ["4k", 2160, 3840, null],
+  ] as const)("%s delivered at %i×%i", (requested, width, height, expected) => {
+    expect(deliveredResolutionWarning(requested, { width, height })).toBe(expected);
   });
 });
 

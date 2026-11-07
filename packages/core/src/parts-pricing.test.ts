@@ -27,4 +27,25 @@ describe("parts tariff, as the public pricing states it", () => {
     expect(charge.credits).toBe(40 * core.PARTS_FACE_TARIFF.presenterCreditsPerSecond.heygen
       + 180 * core.PARTS_FACE_TARIFF.productionCreditsPerSecond);
   });
+
+  /** Mutants (#1103): price a shot at the HeyGen rate, or drop a shot engine from the walk, and the line or its rate goes wrong. */
+  it("a live shot is a line of its own at its engine's rate, beside the presenter's", () => {
+    const charge = core.calculatePartsCharge({ presenter: { heygen: [{ startFrame: 0, endFrame: 150 }],
+      shot_talking_action: [{ startFrame: 150, endFrame: 351 }], shot_action: [{ startFrame: 351, endFrame: 500 }] },
+    outputFrames: 500, fps: 25, liveAvatarStills: 1 }, core.PARTS_FACE_TARIFF, true);
+    expect(charge.lines.map((line) => [line.label, line.quantity, line.unit_credits])).toEqual([
+      ["presenter, HeyGen Avatar IV", 6, 9], ["live shot, speaking while acting", 9, 30], ["live shot, acting under voice-over", 6, 30],
+      ["production (voice and render)", 20, 1], ["live avatar on a call", 1, 400]]);
+    expect(charge.credits).toBe(6 * 9 + 9 * 30 + 6 * 30 + 20 + 400);
+    expect(charge.billableFaceSeconds).toBe(21);
+  });
+
+  /** Mutant: price a shot on a snapshot without shot rates by a fallback, and an old run is charged a rate it was never quoted. */
+  it("a tariff snapshot from before live shots prices no shot", () => {
+    const { shotCreditsPerSecond: _rates, ...old } = core.PARTS_FACE_TARIFF;
+    expect(() => core.calculatePartsCharge({ presenter: { shot_action: [{ startFrame: 0, endFrame: 50 }] }, outputFrames: 50, fps: 25,
+      liveAvatarStills: 0 }, old, true)).toThrow(RangeError);
+    expect(core.calculatePartsCharge({ presenter: { heygen: [{ startFrame: 0, endFrame: 50 }] }, outputFrames: 50, fps: 25,
+      liveAvatarStills: 0 }, old, true).credits).toBe(core.PARTS_FACE_TARIFF.minimumCredits);
+  });
 });

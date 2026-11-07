@@ -159,7 +159,7 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
 - `list_workflows` — read workflow methods and current availability. Free.
 - `get_workflow` — read one method's required inputs, script rules, evidence and limitations. Free.
 - `prepare_workflow_plan` — create with a complete document, or save with both `plan_id` and `base_version`. Free; starts no run.
-- `plan_reference_remake` — the server compiles a reference ad's profile and your exact script into a new plan; its warnings name what the plan does not reproduce. Free; starts no run and generates nothing.
+- `plan_reference_remake` — the server compiles a reference ad's analysis (`analysis_id`, or the profile itself) and your exact script into a new plan; its warnings name what the plan does not reproduce. Free; starts no run and generates nothing.
 - `get_workflow_plan` — read the current owned plan, revision and readiness. Free.
 - `approve_workflow_plan` — explicitly approve a chosen revision and content digest. Free; starts no run.
 - `quote_workflow_plan` — quote the approved revision without spending credits.
@@ -172,6 +172,9 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   credits.
 - `list_template_sounds` — the sounds `make_ugc` templates play, by beat: where
   each beat plays, its default and every name `template_sounds` takes. Free.
+- `list_moves` — the catalogue of moves, motion and graphics to put on lines of
+  a script as `moves` of `make_ugc`, `make_faceless` and `plan_reference_remake`:
+  what each does for the viewer, the lines it suits and its credits. Free.
 - `list_actors` — ready-made faces with stable ids and verified formats. Free.
 - `quote_ugc` — estimated duration and price, plus a warning when `make_ugc`
   with the same input would be refused for money or access. Free.
@@ -181,12 +184,17 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   Free.
 - `send_feedback` — tell Clipwright what is missing, confusing, wrong or slow,
   optionally about a run; we read every one. Free.
+- `describe_tool` — the full guidance of a tool, or of one of its fields, which
+  the tool list gives in short. Free.
 - `make_ugc` — **renders a clip; this is the call that costs money.** Returns a
   `run_id` immediately instead of blocking, because a render takes minutes.
 - `get_run` — status of a run. Free; poll it every few seconds.
 - `get_run_shots` — the shots of a finished video: the span, kind, description
   and preview link of each, with the narration words and their timing. Free and
   read-only. A run with no shots to show answers with the reason instead.
+- `delete_run_media` — delete the files of a finished run: they stop opening at
+  once and are erased from storage after 7 days; the run and its charge stay.
+  Refused while another unfinished run uses them. Free.
 - `quote_revision` — price of a revision of a faceless video: what it would
   change and what it costs. Free.
 - `revise_run` — **starts a revision: a new run that renders the video again
@@ -218,6 +226,9 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   remote: PUT the file with curl, then use the `upload_id`. Free.
 - `get_upload` — one upload with a fresh url, its size and `usable_until`;
   after `create_upload` it confirms the PUT. Free.
+- `delete_upload` — delete an upload: no tool takes it from then on, and its
+  file is erased from storage after 7 days. Refused while an unfinished run uses
+  it. Free.
 - `create_asset` — save a picture or an MP4 clip as an account asset, kept
   until you delete it: from a `run_id`, an `upload_id`, a public `url` (a clip
   with `kind: "video"`), `base64`, a presigned `put`, and a local `path` on
@@ -237,8 +248,10 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   pacing and what we cannot draw. Returns at once; poll
   `get_reference_analysis`. 70 credits held and charged once it succeeds; a
   failed analysis costs nothing. 10 new analyses per hour.
-- `get_reference_analysis` — the state of an analysis, with the profile and its
-  warnings once it succeeded. Free.
+- `get_reference_analysis` — the state of an analysis, with its breakdown and
+  warnings once it succeeded, and `next`: `plan_reference_remake` with its
+  `analysis_id`, for a video like the reference. The profile and the frame
+  links come with `include: ["profile", "frames"]`. Free.
 - `quote_creator_profile` — price of a creator profile for a link: 20 credits,
   or 0 when a profile of the same creator from the last hour would answer. Free.
 - `analyze_creator` — profile the creator behind an Instagram or TikTok profile
@@ -249,9 +262,23 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   nothing. 30 new profiles per hour.
 - `get_creator_profile` — the state of a creator profile, with its videos and
   warnings once it succeeded. Free.
+- `delete_creator_profile` — delete a finished creator profile at once; the run
+  that made it and its charge stay. Free.
+- `quote_trends` — price of a trend search: 20 credits, or 0 when a search of
+  the same query from the last hour would answer. Free.
+- `find_trends` — reels that took off on a topic: keywords on TikTok and
+  Instagram in one ranking by default (`platform: mix`), or on one of them, up
+  to 10 reels per platform posted within `posted_within_days`, one per creator,
+  ranked by the reel's views over its creator's median views. `language`
+  filters the TikTok reels only. Waits for the result; an unfinished one is read
+  by repeating the call, free. 20 credits held and charged once it succeeds,
+  also when a mix reaches only one platform (`warnings[]` names the other); a
+  search that finds no reel costs nothing. 10 new searches per hour.
 - `quote_actor` — price of a personal actor before creating one. Free.
 - `create_actor` — **creates a personal actor from a description; this costs
-  money.** Each requested format is a separate charged image. Returns a `run_id`
+  money.** Each requested format is a separate charged image. With `portrait`
+  (your own 9:16 image asset) that image becomes the actor's portrait at no
+  charge, and only the other formats are charged. Returns a `run_id`
   immediately; poll `get_run` until `succeeded`, then pass `created_actor.actor_id`
   to `make_ugc` as `actor_id`.
 - `quote_faceless` — price of a faceless video before making one. Free.
@@ -266,6 +293,11 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   with it stay as they are. Free.
 - `get_actor_defaults`, `set_actor_defaults` — read and save an actor's B-roll
   default. It is stored only: today's talking-actor videos do not use it. Free.
+- `extract_brand` — reads a public site's colours, fonts, logo and corners into
+  a proposed `design` with readable text, for you to confirm. Free.
+- `brand_kit` — without `design`, reads the account's saved design and the looks
+  and faces to pick from; with `design`, saves it so a series keeps one look.
+  A video that names no `design` or `template_theme` draws in the kit. Free.
 
 Call `quote_ugc` before `make_ugc`: the quote is where the contract tells you
 what it will and will not honor. Anything the API cannot deliver comes back in

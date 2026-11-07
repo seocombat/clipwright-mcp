@@ -50,8 +50,11 @@ describe("the candidate contracts", () => {
   it("the list is strict and every candidate carries its run's state and money", () => {
     const listed = { ...member, run_id: "run_cand", state: "succeeded", credits_reserved: 10, credits_charged: 10,
       created_at: "2026-10-15T00:00:00.000Z", finished_at: "2026-10-15T00:01:00.000Z" };
-    const body = { run_id: "run_src", root_run_id: "run_root", candidates: [listed], contract_version: "v" };
+    const body = { run_id: "run_src", root_run_id: "run_root", candidates: [listed], warnings: [], contract_version: "v" };
     expect(runCandidates.parse(body)).toEqual(body);
+    const { warnings: _none, ...withoutWarnings } = body;
+    expect(runCandidates.safeParse(withoutWarnings).success).toBe(false);
+    expect(runCandidatesRead.parse(withoutWarnings)).toMatchObject({ run_id: "run_src" });
     expect(runCandidates.safeParse({ ...body, extra: 1 }).success).toBe(false);
     const { credits_charged: _dropped, ...withoutCharge } = listed;
     expect(runCandidates.safeParse({ ...body, candidates: [withoutCharge] }).success).toBe(false);

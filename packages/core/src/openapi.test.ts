@@ -18,7 +18,8 @@ describe("the OpenAPI marking of the route registry", () => {
 
   it("gives every excluded route a reason and keeps it out of the document", () => {
     const excluded = API_ENDPOINTS.filter((endpoint) => OPENAPI_ROUTES[endpointLabel(endpoint)]?.exposure === "excluded");
-    expect(excluded.map(endpointLabel).sort()).toEqual(["GET /", "GET /internal/portfolio-metrics", "GET /robots.txt"]);
+    expect(excluded.map(endpointLabel).sort()).toEqual(["GET /", "GET /internal/portfolio-metrics", "GET /robots.txt",
+      "GET /v1/public/actor-previews/{actor_id}/{version}/{file}"]);
     for (const endpoint of excluded) {
       const route = OPENAPI_ROUTES[endpointLabel(endpoint)];
       expect(route?.exposure === "excluded" && route.reason.length > 20).toBe(true);

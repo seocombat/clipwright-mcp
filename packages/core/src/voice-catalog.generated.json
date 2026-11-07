@@ -1081,6 +1081,72 @@
       "refreshed_at": "2026-09-26T08:41:46.550Z"
     },
     {
+      "slug": "en_female_charlotte",
+      "language": "en",
+      "locale": "en-GB",
+      "accent": "british",
+      "gender_raw": "female",
+      "age_raw": "young",
+      "use_case_raw": "conversational",
+      "descriptive_raw": "cute",
+      "name": "Charlotte - Warm, Clear, Modern, Distinctive",
+      "description": "Sweet, modern British English female voice with a bright Gen Z warmth and crisp clarity. Natural, friendly, and genuinely human sounding, with clean articulation and an easy, confident pace. Ideal for TikTok and Instagram Reels, YouTube narration, UGC-style ads, explainer videos, e-learning, app voice, and cosy audiobook storytelling. Upbeat when needed, calm when required, always clear and engaging. Professional studio recording.",
+      "category": "high_quality",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 17,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
+      "slug": "en_female_diane",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "female",
+      "age_raw": "middle_aged",
+      "use_case_raw": "advertisement",
+      "descriptive_raw": "excited",
+      "name": "Diane - Chatty and Motherly",
+      "description": "Middle-aged Midwest female voice, energetic and emphatic, with the polished delivery of a professional radio and TV speaker.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 22,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
+      "slug": "en_female_eve",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "female",
+      "age_raw": "young",
+      "use_case_raw": "conversational",
+      "descriptive_raw": "upbeat",
+      "name": "Eve - Authentic, Energetic and Happy",
+      "description": "Great for V3, conversation, energetic, happy",
+      "category": "high_quality",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 13,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
       "slug": "en_female_hope",
       "language": "en",
       "locale": "en-US",
@@ -1143,6 +1209,28 @@
       "refreshed_at": "2026-09-13T15:54:37.473Z"
     },
     {
+      "slug": "en_female_lucy",
+      "language": "en",
+      "locale": "en-GB",
+      "accent": "british",
+      "gender_raw": "female",
+      "age_raw": "young",
+      "use_case_raw": "conversational",
+      "descriptive_raw": "casual",
+      "name": "Lucy - Fresh & Casual",
+      "description": "Energetic and youthful British voice, perfect for narrations and storytelling. Engaging, natural, and effortlessly conversational.",
+      "category": "high_quality",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 16,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
       "slug": "en_male_adam",
       "language": "en",
       "locale": "en-US",
@@ -1164,6 +1252,72 @@
       "refreshed_at": "2026-09-13T15:54:37.473Z"
     },
     {
+      "slug": "en_male_dexter",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "male",
+      "age_raw": "middle_aged",
+      "use_case_raw": "conversational",
+      "descriptive_raw": "professional",
+      "name": "Dexter – Customer Support Pro",
+      "description": "Dexter is the calm, confident voice trusted by thousands of customers across help desks, knowledge bases, and smart assistant and support videos. Whether it’s explainer content, onboarding walkthroughs, or simulated customer support scenarios, Dexter delivers a professional, polished tone that builds trust fast. His articulate pacing and clear delivery make him perfect for corporate training, chatbot voiceovers, automated tech support, and white-labeled assistant personalities.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 21,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
+      "slug": "en_male_igor_radio",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "male",
+      "age_raw": "young",
+      "use_case_raw": "entertainment_tv",
+      "descriptive_raw": "upbeat",
+      "name": "Igor Radio - Seasoned Broadcaster",
+      "description": "A seasoned broadcaster with a young and modern sound. Not overly \"announcer-ish\". Works well for Entertainment & TV.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 20,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
+      "slug": "en_male_jack_john",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "male",
+      "age_raw": "middle_aged",
+      "use_case_raw": "conversational",
+      "descriptive_raw": "professional",
+      "name": "Jack John - Conversational and Upbeat",
+      "description": "A natural, conversational customer support agent voice. Early to Mid 30s American Male. Great at providing a confident and professional, yet conversational, natural, and friendly voice for AI agents. Trained on data reading out strings of numbers, letters, email addresses, and confirmation codes. Includes disfluencies and natural filler words in recording data for the most realistic, human like recording possible. ",
+      "category": "high_quality",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 15,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
       "slug": "en_male_james",
       "language": "en",
       "locale": "en-US",
@@ -1183,6 +1337,94 @@
       "featured": false,
       "rank": 4,
       "refreshed_at": "2026-09-13T15:54:37.473Z"
+    },
+    {
+      "slug": "en_male_liam",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "male",
+      "age_raw": "young",
+      "use_case_raw": "social_media",
+      "descriptive_raw": "hyped",
+      "name": "Liam - Viral Short-Form Storyteller",
+      "description": "Liam’s voice is a master in social media content creation—perfect for Youtube, Tiktok, Snapchat, etc. With a perfectly balanced tone with both authoritative insight and playful enthusiasm, Liam is ideal for capturing the fast pace of social media. With a refined delivery that emphasizes every catchy phrase and clever quip, this voice is built to drive online engagement. It’s the ultimate sound for transforming ideas into viral phenomena, leaving a lasting impression on every viewer.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 12,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
+      "slug": "en_male_lucan_rook",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "male",
+      "age_raw": "middle_aged",
+      "use_case_raw": "social_media",
+      "descriptive_raw": "crisp",
+      "name": "Lucan Rook  - Energetic Male",
+      "description": "Middle-aged male with an energetic voice for social media posts or e-learning. ",
+      "category": "high_quality",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 11,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
+      "slug": "en_male_luke",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "male",
+      "age_raw": "middle_aged",
+      "use_case_raw": "conversational",
+      "descriptive_raw": "upbeat",
+      "name": "Luke - Calm, Warm and Conversational",
+      "description": "A Middle-Aged American Male voice characterized by its enthusiastic yet calm tone. This voice excels in narration, instruction, storytelling, and conversational explanation, providing clarity and engagement to listeners.",
+      "category": "high_quality",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 23,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
+      "slug": "en_male_marcus",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "male",
+      "age_raw": "young",
+      "use_case_raw": "social_media",
+      "descriptive_raw": "upbeat",
+      "name": "Marcus - Bright, Upbeat and Clear",
+      "description": "Energetic American male voice for social media content. Bright, clear delivery that hooks viewers instantly. Perfect for explainers, quick tips, tech content, and viral-ready storytelling.",
+      "category": "high_quality",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 19,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
     },
     {
       "slug": "en_male_mark",
@@ -1227,6 +1469,28 @@
       "refreshed_at": "2026-09-13T15:54:37.473Z"
     },
     {
+      "slug": "en_male_russell",
+      "language": "en",
+      "locale": "en-GB",
+      "accent": "british",
+      "gender_raw": "male",
+      "age_raw": "middle_aged",
+      "use_case_raw": "entertainment_tv",
+      "descriptive_raw": "serious",
+      "name": "Russell - Dramatic British TV",
+      "description": "Fast paced, deep & serious British Documentary Narrator for dramatic subjects. For TV, News, Radio, YouTube & Social Media.",
+      "category": "high_quality",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 14,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
+    },
+    {
       "slug": "en_male_spuds_oxley",
       "language": "en",
       "locale": "en-US",
@@ -1245,6 +1509,28 @@
       "featured": false,
       "rank": 2,
       "refreshed_at": "2026-09-13T15:54:37.473Z"
+    },
+    {
+      "slug": "en_male_todd",
+      "language": "en",
+      "locale": "en-US",
+      "accent": "american",
+      "gender_raw": "male",
+      "age_raw": "young",
+      "use_case_raw": "informative_educational",
+      "descriptive_raw": "upbeat",
+      "name": "Todd - Clear, Engaging and Educational",
+      "description": "A clear, engaging voice perfect for YouTube tutorials, explainer videos, and educational content. Professional yet approachable, with natural pacing and articulate delivery that keeps viewers focused and informed. Ideal for tech tutorials, how-to guides, eLearning courses, and documentary narration.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 18,
+      "pinned": true,
+      "refreshed_at": "2026-11-04T08:31:10.992Z"
     },
     {
       "slug": "es_female_jhenny",

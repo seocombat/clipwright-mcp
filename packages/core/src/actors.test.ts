@@ -61,14 +61,51 @@ describe("presenter_framing", () => {
       .toEqual(["close", "close", "wide"]);
   });
 
+  /** #1196: Hvmlab v2 asked face height 0.26 of a personal full-height portrait and was told only after delivery. Mutants: no forecast, a */
+  /** forecast on a view whose face may be large, or one that ignores the output's width, and the quote is silent, cries wolf or misjudges 720p. */
+  it("forecasts on the quote a presenter_place crop past what a full or personal wide portrait holds sharp", () => {
+    const own = `actor_u_${"a".repeat(26)}`, view = (framing: string | undefined, actor = own) => ({ actor_id: actor,
+      asset: { aspect_ratio: "9:16", width: 1024, ...(framing ? { framing } : {}) } });
+    expect(presenterViewWarnings({ presenter_place: { face_height: 0.2632 } }, view("full"))).toEqual([
+      "presenter_place face height 0.26: the actor's full portrait shows the face under 0.12 of its height, so a crop that tight would be soft; " +
+      "the presenter is framed wider, at face height 0.18 or less"]);
+    expect(presenterViewWarnings({ presenter_place: { face_height: 0.17 } }, view("full"))).toEqual([]);
+    expect(presenterViewWarnings({ presenter_place: { face_height: 0.25 } }, view("full"))).toHaveLength(1);
+    expect(presenterViewWarnings({ presenter_place: { face_height: 0.25 }, resolution: "720p" }, view("full"))).toEqual([]);
+    expect(presenterViewWarnings({ presenter_place: { face_height: 0.4 } }, view("wide"))).toHaveLength(1);
+    // A personal wide view's face may be up to 0.24 of its height: 0.25 asks a 1.04× crop, sharp (Codex r3: not the full view's 0.12).
+    expect(presenterViewWarnings({ presenter_place: { face_height: 0.25 } }, view("wide"))).toEqual([]);
+    expect(presenterViewWarnings({ presenter_place: { face_height: 0.4 } }, view("wide", "actor_alex"))).toEqual([]);
+    expect(presenterViewWarnings({ presenter_place: { face_height: 0.4 } }, view(undefined))).toEqual([]);
+    expect(presenterViewWarnings({ presenter_place: { face_height: 0.4 } }, { actor_id: own, asset: { aspect_ratio: "9:16", framing: "full" } })).toEqual([]);
+  });
+
   // #898 C5: an actor derived with framing wide has only a wide view; a wide request is met, an explicit close one is named.
   it("a wide-only personal actor renders wide without a wide warning, and names an explicit close request", () => {
     const wideOnly = { actor_id: `actor_u_${"a".repeat(26)}`, asset: { aspect_ratio: "9:16", framing: "wide" } };
     expect(presenterViewWarnings({ presenter_framing: "wide" }, wideOnly)).toEqual([]);
     expect(presenterViewWarnings({}, wideOnly)).toEqual([]);
     expect(presenterViewWarnings({ presenter_framing: "close" }, wideOnly)).toEqual([
-      `presenter_framing close: personal actor ${wideOnly.actor_id} has only a wide view (made with framing wide); the wide view was used`]);
+      `presenter_framing close: personal actor ${wideOnly.actor_id} has only a wide view (a wide portrait or one made with framing wide); the wide view was used`]);
     expect(presenterViewWarnings({ presenter_framing: "close" }, { actor_id: "actor_alex", asset: { aspect_ratio: "9:16" } })).toEqual([]);
+  });
+
+  /** #1175 S7 C2, C7. Mutants: full read as close (a full-height take framed chest-up), a full request met by a narrower view without a word, */
+  /** or a full framing[] size on a narrower take left silent (the customer asked full height and got a crop of the chest-up take). */
+  it("renders a full view as full, and names every full request a narrower take did not meet", () => {
+    const id = `actor_u_${"a".repeat(26)}`;
+    const full = { actor_id: id, asset: { aspect_ratio: "9:16", framing: "full" } };
+    expect(renderedPresenterFraming(full)).toBe("full");
+    expect(presenterViewWarnings({ presenter_framing: "full", framing: [{ id: "f", size: "full" }] }, full)).toEqual([]);
+    expect(presenterViewWarnings({ presenter_framing: "full" }, { actor_id: id, asset: { aspect_ratio: "9:16", framing: "wide" } })).toEqual([
+      `presenter_framing full: personal actor ${id} has no full view yet; the wide view was used`]);
+    expect(presenterViewWarnings({ presenter_framing: "full" }, { actor_id: id, asset: { aspect_ratio: "9:16" } })).toEqual([
+      `presenter_framing full: personal actor ${id} has no full view yet; the close portrait was used`]);
+    expect(presenterViewWarnings({ presenter_framing: "close" }, full)).toEqual([
+      `presenter_framing close: personal actor ${id} has only a full view (a full portrait or one made with framing full); the full view was used`]);
+    expect(presenterViewWarnings({ framing: [{ id: "f", size: "full" }, { id: "g", size: "close" }] }, { actor_id: id, asset: { aspect_ratio: "9:16" } }))
+      .toEqual(["framing \"f\" full: the presenter's take is close, not full height; it shows the take as rendered, neither widened nor cropped " +
+        "(presenter_framing full with an actor's full view draws it)"]);
   });
 });
 

@@ -114,13 +114,18 @@ For a source build, the command is `node` with the absolute path to
 | `CLIPWRIGHT_API_URL` | no | Defaults to `https://api.clipwright.io`; set it only for another environment. |
 
 After a restart, confirm that `tools/list`
-returns 48 tools: `make_ugc`, `get_run`, `get_run_shots`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
+returns 57 tools: `make_ugc`, `get_run`, `get_run_shots`, `delete_run_media`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
 `list_generation_models`, `quote_image`, `generate_image`, `quote_video`, `generate_video`, `quote_ugc`, `list_actors`,
-`list_voices`, `list_template_sounds`, `upload_image`, `create_upload`, `get_upload`, `create_asset`, `list_assets`, `get_asset`, `update_asset`,
+`list_voices`, `list_template_sounds`, `list_moves`, `upload_image`, `create_upload`, `get_upload`, `delete_upload`, `create_asset`, `list_assets`, `get_asset`, `update_asset`,
 `delete_asset`, `quote_analysis`, `analyze_reference`, `get_reference_analysis`, `quote_creator_profile`, `analyze_creator`,
-`get_creator_profile`, `get_account`, `list_prices`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
-`set_actor_defaults`, `quote_faceless`, `make_faceless`, `list_workflows`, `get_workflow`, `prepare_workflow_plan`,
-`plan_reference_remake`, `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`, `send_feedback`.
+`get_creator_profile`, `delete_creator_profile`, `quote_trends`, `find_trends`, `get_account`, `list_prices`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
+`set_actor_defaults`, `extract_brand`, `brand_kit`, `quote_faceless`, `make_faceless`, `list_workflows`, `get_workflow`, `prepare_workflow_plan`,
+`plan_reference_remake`, `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`, `send_feedback`,
+`describe_tool`.
+
+The tool list gives each tool and field in short. Before the first use of a
+tool or field, read its full guidance with `describe_tool` (free), for example
+`describe_tool({tool: "quote_ugc", field: "templates"})`.
 
 When no tool does the job, or an answer is confusing or wrong, file it with
 `send_feedback` (free) instead of rephrasing the request and giving up.
@@ -225,6 +230,7 @@ quote or `list_prices`, never from memory or this page: they change.
 | A personal actor | `quote_actor` | `create_actor` | `get_run` | `created_actor.actor_id` |
 | A reading of a reference reel | `quote_analysis` | `analyze_reference` | `get_reference_analysis` | `reference_profile` or `data` |
 | A creator's latest 12 videos with x to their median | `quote_creator_profile` | `analyze_creator` | `get_creator_profile` | `profile` |
+| Reels that took off on a topic | `quote_trends` | `find_trends` | `find_trends` again | `result.reels` |
 | A revision of a faceless video | `quote_revision` | `revise_run` | `get_run` | `video_url` |
 | A new picture or clip for one shot | `quote_candidate` | `create_candidate` | `get_run` | `candidate.preview_url` |
 | A plan from a workflow method | `quote_workflow_plan` | `run_workflow_plan` | `get_run` | `workflow` |

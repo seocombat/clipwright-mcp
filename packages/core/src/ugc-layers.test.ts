@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { compositionLayersNotDrawnWarnings, GOOGLE_TTS_MODEL, isNarratedUgcInput, makeUgcInput, resolveDispositions, speechModelRefusals,
   storedUgcInput } from "@clipwright/core";
-import { frameCanvasOf, layerRefusals, layerWordRange, offsetOverlayFrames, OVERLAY_POSITIONS, overlayRect, rectsOverlap, resolveLayerFrames,
-  type OverlayPosition } from "./ugc-layers.js";
+import { admissionFramings, faceZone, frameCanvasOf, layerRefusals, layerWordRange, offsetOverlayFrames, OVERLAY_POSITIONS, overlayRect, rectsOverlap,
+  resolveLayerFrames, type OverlayPosition } from "./ugc-layers.js";
+
+/** #1175 S7 (Codex r2). Mutants: the full branch dropped (graphics laid out for the close face over a full-height head), or a full request */
+/** checked in its own framing only (a placement that fits full but not the narrower view admission may fall back to). */
+describe("a full-height presenter's face", () => {
+  it("sits at the top of a 9:16 frame and is checked in every framing a full request may render", () => {
+    expect(faceZone("9:16", "full")).toEqual({ left: 0.3, top: 0.03, width: 0.4, height: 0.2 });
+    expect(faceZone("9:16", "full").top).toBeLessThan(faceZone("9:16", "close").top);
+    expect(faceZone("16:9", "full")).toEqual(faceZone("16:9", "close"));
+    expect(rectsOverlap(overlayRect("top", frameCanvasOf("9:16")), faceZone("9:16", "full"))).toBe(true);
+    expect(admissionFramings({ actor_id: "actor_anna", presenter_framing: "full" })).toEqual(["close", "wide", "full"]);
+    expect(admissionFramings({ actor_id: "actor_anna", presenter_framing: "full", aspect_ratio: "1:1" })).toEqual(["close"]);
+    expect(admissionFramings({ presenter_framing: "full" })).toEqual(["close"]);
+  });
+});
 import { lexicalTokens } from "./semantic-inserts.js";
 import { freezeResolvedTimeline, readResolvedTimeline } from "./resolved-timeline.js";
 import { LONG_FORM_RUN_ID, scriptInsertsTimelineFixture, segmentsTimelineFixture } from "./__fixtures__/long-form-timeline.fixture.js";
@@ -42,10 +56,14 @@ describe("overlays and layout windows in the make_ugc contract (#778 S2b, C3)", 
     expect(refusals({ inserts: [insert("i", 3, 5)], layout_windows: [window("w", 5, 6), window("v", 0, 3)] })).toEqual([]);
   });
 
-  it("refuses a third overlay on screen at once, and two overlays sharing a position", () => {
-    expect(refusals({ overlays: [overlay("a", 0, 4, "top_left"), overlay("b", 1, 5, "bottom_right"), overlay("c", 3, 6, "bottom_left")] }))
-      .toEqual(['overlays.2: overlay "c" would be on screen together with "a" and "b": at most 2 overlays show at once']);
-    expect(refusals({ overlays: [overlay("a", 0, 2, "top_left"), overlay("b", 2, 4, "bottom_right"), overlay("c", 1, 3, "bottom_left")] })).toEqual([]);
+  /** #1192. Mutant (the crowd counted by pairs, or the bound back at two): three at once refused, or a fourth let through. */
+  it("refuses a fourth overlay on screen at once, and two overlays sharing a position", () => {
+    expect(refusals({ overlays: [overlay("a", 0, 4, "top_left"), overlay("b", 1, 5, "bottom_right"), overlay("c", 3, 6, "bottom_left")] })).toEqual([]);
+    expect(refusals({ overlays: [overlay("a", 0, 4, "top_left"), overlay("b", 1, 5, "bottom_right"), overlay("c", 3, 6, "bottom_left"),
+      overlay("d", 3, 4, "top_right")] }))
+      .toEqual(['overlays.3: overlay "d" would be on screen together with "a", "b", "c": at most 3 overlays show at once']);
+    expect(refusals({ overlays: [overlay("a", 0, 2, "top_left"), overlay("b", 2, 4, "bottom_right"), overlay("c", 1, 3, "bottom_left"),
+      overlay("d", 3, 6, "top_right")] })).toEqual([]);
     expect(refusals({ overlays: [overlay("a", 0, 4, "top"), overlay("b", 3, 5, "top_left")] }))
       .toEqual(['overlays.1.position: overlay "b" (top_left) shares the screen with overlay "a" (top) at the same time: overlays on screen together need different positions']);
     expect(refusals({ overlays: [overlay("a", 0, 4, "top"), overlay("b", 3, 5, "bottom")] })).toEqual([]);
@@ -58,6 +76,50 @@ describe("overlays and layout windows in the make_ugc contract (#778 S2b, C3)", 
     expect(refusals({ layout_windows: [window("s", 0, 2, "split")] })).toEqual([]);
     expect(refusals({ layout_windows: [{ ...window("s", 0, 2, "split"), blur_presenter: true }] }))
       .toEqual(["layout_windows.0.blur_presenter: blur_presenter works on a card window only"]);
+  });
+
+  /** #1030, #1031: optional, so every body accepted before stays accepted and draws as before. */
+  it("takes a split's media side and share and a picture insert's fit and box, and refuses them where nothing draws them", () => {
+    const box = { left: 0.06, top: 0.2, width: 0.88, height: 0.55 };
+    expect(refusals({ layout_windows: [{ ...window("s", 0, 2, "split"), media_side: "top", media_share: 0.4625 }],
+      inserts: [{ ...insert("i", 3, 5), fit: "auto", box }] })).toEqual([]);
+    expect(refusals({ layout_windows: [{ ...window("c", 0, 2), media_side: "top" }] }))
+      .toEqual(["layout_windows.0.media_side: media_side and media_share work on a split window only"]);
+    expect(refusals({ layout_windows: [{ ...window("s", 0, 2, "split"), media_share: 0.8 }] })).toHaveLength(1);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), media_type: "video", media_url: "https://example.com/v.mp4", fit: "contain" }] }))
+      .toEqual(["inserts.0.fit: fit and box require media_type=image"]);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), media_type: "video", media_url: "https://example.com/v.mp4", box }] }))
+      .toEqual(["inserts.0.fit: fit and box require media_type=image"]);
+    for (const thin of [{ ...box, width: 0.05 }, { ...box, height: 0.05 }]) expect(refusals({ inserts: [{ ...insert("i", 3, 5), box: thin }] })).toHaveLength(1);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), box: { ...box, left: 0.2 } }] })).toEqual(["inserts.0.box: box must lie within the frame"]);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), fit: "stretch" }] })).toHaveLength(1);
+  });
+
+  /** #1051 S2. Mutants: drop a clause of the motion check, and a video, a zoom, a whole picture or a sideways scroll reaches the run. */
+  it("takes a picture's scroll or pan, and refuses it on a video, beside a zoom or contain, or along the wrong axis", () => {
+    const refused = ["inserts.0.motion: motion needs media_type=image, no image_motion and no fit contain; scroll goes down or up, pan left or right"];
+    for (const motion of [{ kind: "scroll", direction: "down" }, { kind: "scroll", direction: "up" }, { kind: "pan", direction: "left" }, { kind: "pan", direction: "right" }]) {
+      expect(refusals({ inserts: [{ ...insert("i", 3, 5), motion, fit: "auto" }] })).toEqual([]);
+    }
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), motion: { kind: "scroll", direction: "left" } }] })).toEqual(refused);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), motion: { kind: "pan", direction: "down" } }] })).toEqual(refused);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), motion: { kind: "pan", direction: "left" }, fit: "contain" }] })).toEqual(refused);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), motion: { kind: "pan", direction: "left" }, image_motion: { direction: "in", amount: 0.2 } }] }))
+      .toEqual(refused);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), media_type: "video", media_url: "https://example.com/v.mp4", motion: { kind: "pan", direction: "left" } }] }))
+      .toEqual(refused);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), motion: { kind: "zoom", direction: "in" } }] })).not.toEqual([]);
+  });
+
+  /** #1175 S5 C6. Mutant: drop the video check, and a picture takes a retime nothing draws. */
+  it("takes a video's retime, and refuses it on a picture or with a mode we do not draw", () => {
+    const video = { ...insert("i", 3, 5), media_type: "video", media_url: "https://example.com/v.mp4" };
+    expect(refusals({ inserts: [{ ...video, retime: { mode: "ramp", at_s: 0.5 } }, { ...insert("j", 6, 7), media_type: "video",
+      media_url: "https://example.com/w.mp4", retime: { mode: "stutter" } }] })).toEqual([]);
+    expect(refusals({ inserts: [{ ...insert("i", 3, 5), retime: { mode: "ramp" } }] })).toEqual(["inserts.0.retime: retime requires media_type=video"]);
+    expect(refusals({ inserts: [{ ...video, retime: { mode: "reverse" } }] })).toHaveLength(1);
+    expect(compositionLayersNotDrawnWarnings(makeUgcInput.parse({ script, inserts: [{ ...video, retime: { mode: "stutter" } }] }), "x"))
+      .toEqual(["retime was not drawn: x"]);
   });
 
   it("refuses both or neither source, and a duplicate id across inserts, overlays and windows", () => {

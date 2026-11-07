@@ -99,7 +99,7 @@ describe("an insert window ends at the first uncovered word", () => {
   });
 
   it("does not raise the rounding flag with the chosen frames", () => {
-    expect(resolve([at(0, 1, 6)]).warnings).toEqual([]);
+    expect(resolve([at(0, 1, 6)]).notes).toEqual([]);
   });
 });
 

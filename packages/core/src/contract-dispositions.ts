@@ -1,12 +1,17 @@
 import { z } from "zod";
-import { makeUgcInputShape, mcpCaptionPlace, mcpPresenterGaze, mcpPresenterPlace, mcpUgcCall, mcpUgcInterview, mcpUgcOverlay, mcpUgcTemplate,
-  OVERLAYS_DESCRIPTION, TEMPLATES_DESCRIPTION } from "./skills.js";
+import { makeUgcInputShape, mcpCaptionPlace, mcpLiveShots, mcpPresenterGaze, mcpPresenterPlace, mcpUgcCall, mcpUgcInterview, mcpUgcOverlay, mcpUgcTemplate } from "./skills.js";
+import { MCP_UGC_DESCRIPTIONS } from "./mcp-ugc-descriptions.js";
 import { interviewWarnings } from "./ugc-interview.js";
-import { MAX_TEMPLATES, mcpTemplateSounds, templateFaceWarnings, templateSceneItems, type TemplateItem } from "./templates/index.js";
+import { MAX_TEMPLATES, mcpTemplateSounds, templateFaceWarnings, templateMediaOf, templateSceneItems, templateSizeWarnings, type TemplateItem } from "./templates/index.js";
 import { framingWarnings } from "./ugc-framing.js";
 import { MAX_OVERLAYS, placeWarnings } from "./ugc-layers.js";
 import { callWarnings } from "./ugc-call.js";
 import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
+import { mcpDesign } from "./design.js";
+import { isMusicEnabled, MUSIC_DISABLED_MESSAGE } from "./music.js";
+import { SCENES_DISABLED_MESSAGE } from "./ugc-scenes.js";
+import { MOTION_STYLE_UNUSED_WARNING, motionStyleAsked, motionStyleHasCanvas } from "./motion-styles.js";
+import { AD_PAUSE_TRIM_WARNING } from "./ad-pause-trim.js";
 
 /** Disposition registry for `make_ugc` input fields: every field must have a recorded */
 /** decision. The type guards completeness; tests at each effect boundary prove truth. */
@@ -16,11 +21,24 @@ import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
 export const CONTRACT_VERSION = "2026-10-18";
 export const CONTRACT_VERSION_HEADER = "X-Clipwright-Contract";
 
+/** An explicit `broll_policy` on a run that shows none of the customer's media. */
+export const BROLL_UNUSED_WARNING = "broll_policy has no effect on this video: it shows none of your media";
+
+export const DESIGN_UNUSED_WARNING = "design has no effect on this video: it has no templates and no captions to draw in it";
+
+/** The customer's media `broll_policy` lets in: segments, inserts, overlays, windows and template pictures. */
+function carriesCustomerMedia(input: Readonly<Record<string, unknown>>): boolean {
+  const listed = (field: string) => Array.isArray(input[field]) && (input[field] as unknown[]).length > 0;
+  return listed("inserts") || listed("overlays") || listed("layout_windows") ||
+    (Array.isArray(input.segments) && input.segments.some(segment => (segment as { kind?: unknown }).kind === "media")) ||
+    (Array.isArray(input.templates) && templateMediaOf(input.templates as TemplateItem[]).length > 0);
+}
+
 /** `implemented`: reaches the vendor, composition tree, or final output processing; `rejected`: 400 before any run or reserve; */
 /** `warned`: accepted with a `warnings[]` entry. `triggersWhen` keeps defaulted fields quiet on the happy path. */
 export type Disposition =
-  | { kind: "stored"; message: string } // Persistence only, without media enforcement.
-  | { kind: "implemented"; provenBy: "egress" | "composition" | "finalization" }
+  | { kind: "stored"; message: string; warning: string } // Gates the customer's media; `warning` only on a run without it (#1047).
+  | { kind: "implemented"; provenBy: "egress" | "composition" | "finalization" | "admission" }
   | { kind: "rejected"; message: string }
   | {
       kind: "warned";
@@ -68,8 +86,8 @@ export const FIELD_DISPOSITIONS = {
   // Frames the actor's portrait before the vendor; a face it cannot reach is named in warnings[] (#973 S2b).
   presenter_place: { kind: "implemented", provenBy: "egress" },
 
-  // Both reach the vendor from the request; egress tests require three resolutions
-  // to produce three different request bodies.
+  // Both reach the vendor from the request; egress tests require each offered resolution
+  // to produce its own request body.
   resolution: { kind: "implemented", provenBy: "egress" },
   aspect_ratio: { kind: "implemented", provenBy: "egress" },
 
@@ -81,7 +99,7 @@ export const FIELD_DISPOSITIONS = {
   // Picks the actor's view with a handheld mic the same way.
   presenter_mic: { kind: "implemented", provenBy: "egress" },
   actor_gender: { kind: "implemented", provenBy: "egress" },
-  broll_policy: { kind: "stored", message: BROLL_POLICY_DESCRIPTION },
+  broll_policy: { kind: "stored", message: BROLL_POLICY_DESCRIPTION, warning: BROLL_UNUSED_WARNING },
 
   // Offered to clients; long-form qualification gates admission below.
   segments: { kind: "implemented", provenBy: "composition" },
@@ -91,8 +109,18 @@ export const FIELD_DISPOSITIONS = {
   framing: { kind: "implemented", provenBy: "composition" },
   templates: { kind: "implemented", provenBy: "composition" },
   template_theme: { kind: "implemented", provenBy: "composition" },
+  // The run's DNA (#1122): the templates' look, the end card and the caption accent.
+  design: { kind: "implemented", provenBy: "composition" },
   template_sounds: { kind: "implemented", provenBy: "composition" },
+  // Authored for the run, checked and drawn beside templates; one that fails is left out and named (#1107), gated by its switch.
+  scenes: { kind: "implemented", provenBy: "composition" },
+  // Captions, templates and scenes drawn in the style, words switched with the style's cut (#1123), gated by its switch.
+  motion_style: { kind: "implemented", provenBy: "composition" },
+  // Catalogue moves (#1175): admission turns each into the layer above that draws it, or names it in warnings[]; the render sees only those layers.
+  moves: { kind: "implemented", provenBy: "admission" },
   edit_sounds: { kind: "implemented", provenBy: "composition" },
+  // Mixed under the voice before marking, gated by its switch; a delivered video without it names why (#1063).
+  music: { kind: "implemented", provenBy: "finalization" },
   // Mixed into the narration and rung by the phone over the hold (#857 S5).
   call: { kind: "implemented", provenBy: "composition" },
   // One conversation voiced, the presenter frozen over the off-screen lines and captioned by speaker (#972).
@@ -101,6 +129,9 @@ export const FIELD_DISPOSITIONS = {
   presenter_gaze: { kind: "implemented", provenBy: "egress" },
   // The last frame held after the last word, the presenter frozen under the layers then on screen (#991).
   end_hold_s: { kind: "implemented", provenBy: "composition" },
+  // Each shot drawn by its kind's engine and cut into the timeline as an actor take (#1103), gated by its switch.
+  shots: { kind: "implemented", provenBy: "composition" },
+  product_asset_id: { kind: "implemented", provenBy: "composition" },
   character: {
     kind: "rejected",
     message:
@@ -157,7 +188,32 @@ export interface ContractFlags {
   actorGeneration?: boolean;
   longForm?: boolean;
   outputMarking?: boolean;
+  /** Music under the voice; absent means off. */
+  music?: boolean;
+  /** Live shots (#1103); absent means off. */
+  liveShots?: boolean;
+  /** Scenes made for the run (#1107); absent means off. */
+  scenes?: boolean;
+  /** Motion styles (#1123); absent means off. */
+  motionStyles?: boolean;
 }
+
+/** Motion styles have their own switch and draw only where composition does (#1123). */
+export function isMotionStylesEnabled(env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env): boolean {
+  return env.CLIPWRIGHT_MOTION_STYLES === "1" && env.CLIPWRIGHT_COMPOSE === "1";
+}
+export const MOTION_STYLES_DISABLED_MESSAGE = "motion_style is not available right now; omit motion_style";
+
+/** Scenes ride on long-form and have their own switch (#1107). */
+export function isScenesEnabled(env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env): boolean {
+  return env.CLIPWRIGHT_SCENES === "1" && isLongFormQualificationEnabled(env);
+}
+
+/** Live shots ride on long-form and have their own switch (#1103). */
+export function isLiveShotsEnabled(env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env): boolean {
+  return env.CLIPWRIGHT_LIVE_SHOTS === "1" && isLongFormQualificationEnabled(env);
+}
+export const LIVE_SHOTS_DISABLED_MESSAGE = "shots are not available right now; omit shots and product_asset_id";
 
 /** `create_actor` is open only with the fetch surface: a personal actor cannot render without it. */
 export function isActorGenerationEnabled(env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env): boolean {
@@ -187,6 +243,10 @@ export function contractFlagsFromEnv(
     compose: env.CLIPWRIGHT_COMPOSE === "1",
     longForm: isLongFormQualificationEnabled(env),
     ...(env.CLIPWRIGHT_OUTPUT_MARKING === "1" ? { outputMarking: true } : {}),
+    ...(isMusicEnabled(env) ? { music: true } : {}),
+    ...(isLiveShotsEnabled(env) ? { liveShots: true } : {}),
+    ...(isScenesEnabled(env) ? { scenes: true } : {}),
+    ...(isMotionStylesEnabled(env) ? { motionStyles: true } : {}),
   };
 }
 
@@ -225,7 +285,8 @@ export const CAPTIONS_COMPOSE_DISABLED_WARNING = "captions were not drawn: compo
 
 /** The composition-only parts a run asked for (#778 S2b): a render without composition names them instead of dropping them. */
 export function compositionLayerFields(input: {
-  overlays?: unknown; layout_windows?: unknown; framing?: unknown; templates?: unknown; inserts?: readonly { transition?: string | undefined }[] | undefined;
+  overlays?: unknown; layout_windows?: unknown; framing?: unknown; templates?: unknown; scenes?: unknown; motion_style?: unknown;
+  inserts?: readonly { transition?: string | undefined; retime?: unknown }[] | undefined;
   caption_emphasis?: readonly (string | { punch_in?: boolean | undefined })[] | undefined; edit_sounds?: boolean | undefined;
 }): string[] {
   return [
@@ -233,7 +294,10 @@ export function compositionLayerFields(input: {
     ...(input.layout_windows !== undefined ? ["layout_windows"] : []),
     ...(input.framing !== undefined ? ["framing"] : []),
     ...(input.templates !== undefined ? ["templates"] : []),
+    ...(input.scenes !== undefined ? ["scenes"] : []),
+    ...(input.motion_style !== undefined ? ["motion_style"] : []),
     ...(input.inserts?.some(insert => insert.transition !== undefined && insert.transition !== "cut") ? ["transition"] : []),
+    ...(input.inserts?.some(insert => insert.retime !== undefined) ? ["retime"] : []),
     ...(input.caption_emphasis?.some(item => typeof item !== "string" && item.punch_in === true) ? ["punch_in"] : []),
     ...(input.edit_sounds === true ? ["edit_sounds"] : []),
   ];
@@ -272,11 +336,17 @@ export function resolveDispositions(
     templates: longForm ? FIELD_DISPOSITIONS.templates : TEMPLATES_DISABLED,
     template_theme: longForm ? FIELD_DISPOSITIONS.template_theme : TEMPLATES_DISABLED,
     template_sounds: longForm ? FIELD_DISPOSITIONS.template_sounds : TEMPLATES_DISABLED,
+    scenes: longForm && flags.scenes === true ? FIELD_DISPOSITIONS.scenes : { kind: "rejected", message: SCENES_DISABLED_MESSAGE },
+    motion_style: flags.compose && flags.motionStyles === true ? FIELD_DISPOSITIONS.motion_style
+      : { kind: "rejected", message: MOTION_STYLES_DISABLED_MESSAGE },
     edit_sounds: longForm ? FIELD_DISPOSITIONS.edit_sounds : LONG_FORM_DISABLED,
     call: longForm ? FIELD_DISPOSITIONS.call : LONG_FORM_DISABLED,
     interview: longForm ? FIELD_DISPOSITIONS.interview : LONG_FORM_DISABLED,
     presenter_gaze: longForm ? FIELD_DISPOSITIONS.presenter_gaze : LONG_FORM_DISABLED,
     end_hold_s: longForm ? FIELD_DISPOSITIONS.end_hold_s : LONG_FORM_DISABLED,
+    shots: longForm && flags.liveShots === true ? FIELD_DISPOSITIONS.shots : { kind: "rejected", message: LIVE_SHOTS_DISABLED_MESSAGE },
+    product_asset_id: longForm && flags.liveShots === true ? FIELD_DISPOSITIONS.product_asset_id
+      : { kind: "rejected", message: LIVE_SHOTS_DISABLED_MESSAGE },
     person: flags.actorGeneration === true ? PERSON_WITH_ACTOR_GENERATION : FIELD_DISPOSITIONS.person,
     image: flags.remoteFetch ? FIELD_DISPOSITIONS.image : REMOTE_FETCH_DISABLED,
     actor_id: flags.remoteFetch ? FIELD_DISPOSITIONS.actor_id : {
@@ -291,6 +361,7 @@ export function resolveDispositions(
     visible_ai_label: flags.outputMarking === true ? FIELD_DISPOSITIONS.visible_ai_label : {
       kind: "rejected", message: "visible_ai_label is not available right now; omit it",
     },
+    music: flags.music === true ? FIELD_DISPOSITIONS.music : { kind: "rejected", message: MUSIC_DISABLED_MESSAGE },
   };
 }
 
@@ -326,7 +397,7 @@ export function dispositionNote(field: ContractField): string | null {
 }
 
 function noteFor(disposition: Disposition): string | null {
-  if (disposition.kind === "stored") return `STORED ONLY: ${disposition.message}`;
+  if (disposition.kind === "stored") return disposition.message;
   if (disposition.kind === "rejected") {
     return `REJECTED: ${disposition.message}`;
   }
@@ -364,13 +435,27 @@ export const offeredUgcInputShape = Object.fromEntries(
 export const offeredUgcInput = z.object(offeredUgcInputShape);
 export type MakeUgcInputArgs = z.input<typeof offeredUgcInput>;
 
-/** The MCP offer: the same fields with the slim template and overlay items, which keep tools/list small (#778 S3, D3; #973 S1). */
-export const mcpUgcInputShape = { ...offeredUgcInputShape,
-  overlays: z.array(mcpUgcOverlay).min(1).max(MAX_OVERLAYS).optional().describe(OVERLAYS_DESCRIPTION),
-  templates: z.array(mcpUgcTemplate).min(1).max(MAX_TEMPLATES).optional().describe(TEMPLATES_DESCRIPTION),
+type CompactField = keyof typeof MCP_UGC_DESCRIPTIONS;
+const compactFields = Object.keys(MCP_UGC_DESCRIPTIONS) as CompactField[];
+const compactlyDescribed = Object.fromEntries(compactFields
+  .map((field) => [field, offeredUgcInputShape[field].describe(MCP_UGC_DESCRIPTIONS[field])])) as Pick<typeof offeredUgcInputShape, CompactField>;
+/** A field's text, also when it sits on the schema an optional or a default wraps. */
+export const fieldText = (schema: z.ZodType): string | undefined => {
+  const inner = (schema._zod.def as unknown as { innerType?: z.ZodType }).innerType;
+  return schema.description ?? (inner === undefined ? undefined : fieldText(inner));
+};
+/** The full texts quote_ugc says in shorter words; another tool's field with the same text needs none of its own. */
+export const MCP_UGC_SHORTENED_TEXTS: readonly string[] = compactFields.map((field) => fieldText(offeredUgcInputShape[field]) ?? "");
+
+/** The MCP offer: the same fields with the slim template and overlay items and shorter texts, which keep tools/list small (#778 S3, D3; #973 S1; #1045). */
+export const mcpUgcInputShape = { ...offeredUgcInputShape, ...compactlyDescribed,
+  overlays: z.array(mcpUgcOverlay).min(1).max(MAX_OVERLAYS).optional().describe(MCP_UGC_DESCRIPTIONS.overlays),
+  templates: z.array(mcpUgcTemplate).min(1).max(MAX_TEMPLATES).optional().describe(MCP_UGC_DESCRIPTIONS.templates),
   template_sounds: mcpTemplateSounds.optional(), call: mcpUgcCall.optional(),
   caption_place: mcpCaptionPlace.optional(), presenter_place: mcpPresenterPlace.optional(),
-  interview: mcpUgcInterview.optional(), presenter_gaze: mcpPresenterGaze.optional() };
+  interview: mcpUgcInterview.optional(), presenter_gaze: mcpPresenterGaze.optional(), shots: mcpLiveShots.optional(),
+  design: mcpDesign.optional().describe("Look of templates, end card, caption highlight; absent: brand kit; not with template_theme. " +
+    "look, fonts: from brand_kit; palette #RRGGBB.") };
 
 /** One rejected field found in the input: its name and the refusal reason. */
 export interface RejectedFieldHit {
@@ -427,8 +512,8 @@ export function dispositionWarnings(
   const warnings: string[] = [];
   for (const field of CONTRACT_FIELDS) {
     const disposition = EFFECTIVE_DISPOSITIONS[field];
-    if (disposition.kind === "stored" && input[field] !== undefined) {
-      warnings.push(disposition.message);
+    if (disposition.kind === "stored" && input[field] !== undefined && !carriesCustomerMedia(input)) {
+      warnings.push(disposition.warning);
     }
     if (disposition.kind !== "warned") continue;
 
@@ -445,7 +530,17 @@ export function dispositionWarnings(
   // A template asked onto the face is drawn there and named, on the quote, the run and its record alike (#778 S3).
   const scene = { templates: Array.isArray(input.templates) ? input.templates as TemplateItem[] : undefined,
     aspect_ratio: typeof input.aspect_ratio === "string" ? input.aspect_ratio : undefined };
-  warnings.push(...templateFaceWarnings(input), ...framingWarnings(input), ...callWarnings(input),
+  // A kit the account saved is not this video's request: only a design the call named is said to go unused.
+  if (input.design !== undefined && input.design_source !== "brand_kit" && !(Array.isArray(input.templates) && input.templates.length > 0) && input.captions !== true) {
+    warnings.push(DESIGN_UNUSED_WARNING);
+  }
+  // A style the call named (a kit's style is the account's, not this video's request) dresses only what is drawn (#1123).
+  const styled = { motion_style: input.motion_style as Parameters<typeof motionStyleAsked>[0]["motion_style"],
+    design: input.design_source === "brand_kit" ? undefined : input.design as { style?: undefined } | undefined };
+  if (motionStyleAsked(styled) && !motionStyleHasCanvas({ captions: input.captions === true, templates: scene.templates,
+    scenes: Array.isArray(input.scenes) ? input.scenes : undefined })) warnings.push(MOTION_STYLE_UNUSED_WARNING);
+  if (input.pause_trim_source === "ad_default") warnings.push(AD_PAUSE_TRIM_WARNING);
+  warnings.push(...templateFaceWarnings(input), ...templateSizeWarnings(input), ...framingWarnings(input), ...callWarnings(input),
     ...placeWarnings(input, framing => templateSceneItems(scene, framing)), ...interviewWarnings(input));
   return warnings;
 }
@@ -469,6 +564,12 @@ export const COMPOSITION_PROVEN_FIELDS: ContractField[] = CONTRACT_FIELDS.filter
     return disposition.kind === "implemented" && disposition.provenBy === "composition";
   },
 );
+
+/** A field the request resolves into other fields before any run exists, so no later stage sees it. */
+export const ADMISSION_PROVEN_FIELDS: ContractField[] = CONTRACT_FIELDS.filter((field) => {
+  const disposition = FIELD_DISPOSITIONS[field];
+  return disposition.kind === "implemented" && disposition.provenBy === "admission";
+});
 
 export const FINALIZATION_PROVEN_FIELDS: ContractField[] = CONTRACT_FIELDS.filter(
   (field) => {

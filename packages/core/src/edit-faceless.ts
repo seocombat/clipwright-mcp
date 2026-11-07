@@ -42,7 +42,8 @@ export function facelessRunShots(plan: FacelessPublicPlan, context: FacelessShot
         preview_url: exposure.source_media ? asset?.previewUrl ?? null : null,
         source,
         media_frames: shot.mediaType === "video" ? asset?.mediaFrames ?? null : null, media_offset_frames: null,
-        operations: editable ? facelessShotActions({ index, source }) : [],
+        // An action shot's clip (#1113) is kept as delivered: a revision refuses any change to it, so none is offered.
+        operations: editable && !(index > 0 && shot.mediaType === "video") ? facelessShotActions({ index, source }) : [],
       };
     }) }],
     rules: FACELESS_EDIT_RULES,

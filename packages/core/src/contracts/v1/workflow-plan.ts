@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { workflowBrief, workflowBriefRead } from './workflow-brief.js';
 import { workflowBeat, workflowBeatRead, workflowMethodResponseRead } from './workflow-catalog.js';
 import { assetBinding, assetBindingRead, claimEvidence, claimEvidenceRead } from './workflow-evidence.js';
-import { isWorkflowTextStorable, workflowDigest, workflowId, workflowIssueRead, workflowMethodPin, workflowMethodPinRead, workflowRevision, workflowText } from './workflow-primitives.js';
+import { isWorkflowTextStorable, workflowDigest, workflowId, workflowIssueRead, workflowMethodPin, workflowMethodPinRead, workflowNextRead, workflowRevision, workflowText } from './workflow-primitives.js';
 
 const storableJson = (value: unknown): boolean => typeof value === 'string' ? isWorkflowTextStorable(value)
     : Array.isArray(value) ? value.every(storableJson)
@@ -26,6 +26,7 @@ export const workflowPlanRead = z.looseObject({
     v: z.number(), plan_id: workflowId, account_id: workflowText(200), revision: workflowRevision, content_digest: workflowDigest, document: workflowPlanDocumentRead,
     status: z.string(), issues: z.array(workflowIssueRead), warnings: z.array(z.string()), approved_at: z.string().datetime().nullable(), created_at: z.string().datetime(),
     capability_snapshot: workflowMethodResponseRead.shape.capabilities.optional(),
+    next: workflowNextRead.nullable().optional(),
 });
 export type CreateWorkflowPlanArgs = z.input<typeof createWorkflowPlan>;
 export type SaveWorkflowPlanArgs = z.input<typeof saveWorkflowPlan>;

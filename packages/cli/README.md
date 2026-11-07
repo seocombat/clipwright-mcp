@@ -117,7 +117,7 @@ are refused. See the [workflow API contract](https://clipwright.io/docs).
 
 `quote` and `make` take the actor's photo as `--image <url>` or `--image-file <path>`
 (uploaded first, then passed on), plus `--aspect-ratio 9:16|1:1|16:9` and
-`--resolution 720p|1080p|4k`. Pass `--aspect-ratio` explicitly with a picture:
+`--resolution 720p|1080p`. Pass `--aspect-ratio` explicitly with a picture:
 without it a landscape photo renders vertical, with a warning.
 
 Pick a voice with `--voice <name>` from that catalog, or `--voice-id <id>` for a

@@ -36,7 +36,6 @@ import {
   type AspectRatio,
   type CatalogGender,
   type CatalogLanguage,
-  type Resolution,
   type TtsModelId,
   type VoiceSkill,
 } from "@clipwright/core";
@@ -109,7 +108,7 @@ interface SourceOptions {
   image?: string;
   imageFile?: string;
   aspectRatio?: AspectRatio;
-  resolution?: Resolution;
+  resolution?: (typeof RESOLUTIONS)[number];
 }
 
 async function resolveImage(opts: SourceOptions): Promise<string | undefined> {
@@ -580,6 +579,7 @@ interface ActorOptions {
   age: string;
   quality?: string;
   aspects?: string;
+  styleReference?: string;
 }
 
 /** Actor options shared by quote and create, so the quote prices what gets created. */
@@ -592,7 +592,8 @@ const withActorOptions = (command: Command): Command =>
     )
     .requiredOption("--age <years>", "approximate age in years")
     .addOption(new Option("--quality <quality>", "image quality").choices([...ACTOR_QUALITIES_ACCEPTED]))
-    .option("--aspects <list>", `comma-separated formats to create (${ASPECT_RATIOS.join(",")})`);
+    .option("--aspects <list>", `comma-separated formats to create (${ASPECT_RATIOS.join(",")})`)
+    .option("--style-reference <asset_id>", "image asset whose set, light, camera angle, shot size (chest-up, waist-up or full height) and clothing the portrait follows, with a new face");
 
 function actorInput(opts: ActorOptions): CreateActorInputArgs {
   const aspects = opts.aspects?.split(",").map((one) => one.trim()).filter((one) => one !== "");
@@ -605,6 +606,7 @@ function actorInput(opts: ActorOptions): CreateActorInputArgs {
     ...(aspects === undefined || aspects.length === 0
       ? {}
       : { aspect_ratios: aspects as CreateActorInputArgs["aspect_ratios"] }),
+    ...(opts.styleReference === undefined ? {} : { style_reference: { asset_id: opts.styleReference } }),
   };
 }
 

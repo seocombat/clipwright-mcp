@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { actorIdScope } from "./account-actors.js";
-import { actorId, ASPECT_RATIOS } from "./skills.js";
+import { ACTOR_FULL_PORTRAIT_FACE_HEIGHT, ACTOR_WIDE_PORTRAIT_FACE_HEIGHT, actorIdScope } from "./account-actors.js";
+import { expectedVendorFrame } from "./aspect.js";
+import { sharpCropOf } from "./scene-place.js";
+import { actorId, ASPECT_RATIOS, DEFAULT_RESOLUTION, RESOLUTIONS, type AspectRatio } from "./skills.js";
 import { defaultVoiceOf, DEFAULT_VOICE_PRESET, speaksOwnVoices, VOICE_PRESETS } from "./voices.js";
 
 export const ACTORS_PATH = "/v1/actors";
@@ -9,6 +11,25 @@ export const ACTORS_PATH = "/v1/actors";
 /** these paths as literals, and a test keeps them equal. */
 export const CREATE_ACTOR_QUOTE_PATH = "/v1/skills/create_actor/quote";
 export const CREATE_ACTOR_RUN_PATH = "/v1/skills/create_actor/run";
+
+/** A catalog actor's picture on the API's own host (#1125): short, stable and unsigned, so chat clients show it inline. */
+export const ACTOR_PREVIEW_PATH = "/v1/public/actor-previews/:actor_id/:version/:file";
+
+export interface ActorPreviewView {
+  aspect_ratio: AspectRatio;
+  framing?: "wide" | "full" | undefined;
+  gaze?: "left" | "right" | undefined;
+  prop?: "mic" | undefined;
+}
+
+/** One file name per view of a version: `9x16`, `9x16-wide-mic`, `16x9-left`. */
+export function actorPreviewFile(view: ActorPreviewView): string {
+  return `${[view.aspect_ratio.replace(":", "x"), view.framing, view.gaze, view.prop].filter(Boolean).join("-")}.png`;
+}
+
+export function actorPreviewUrl(origin: string, actor: { actor_id: string; version: number }, view: ActorPreviewView): string {
+  return `${origin}/v1/public/actor-previews/${encodeURIComponent(actor.actor_id)}/${actor.version}/${actorPreviewFile(view)}`;
+}
 
 /** The path of one actor. The id is encoded, since it comes from the caller. */
 export function actorItemPath(id: string): string {
@@ -116,27 +137,57 @@ export function buildActorGenderWarnings(input: VoiceGenderInput): string[] {
 }
 
 /** The presenter's framing as rendered: the view admission pinned, close without one (#884 S5d). */
-export function renderedPresenterFraming(pin?: { asset?: { framing?: string | undefined } | undefined } | undefined): "close" | "wide" {
-  return pin?.asset?.framing === "wide" ? "wide" : "close";
+export function renderedPresenterFraming(pin?: { asset?: { framing?: string | undefined } | undefined } | undefined): "close" | "wide" | "full" {
+  const framing = pin?.asset?.framing;
+  return framing === "wide" || framing === "full" ? framing : "close";
 }
 
-/** What a wide or mic request did not get, one line each, read from the pin admission made: a view is pinned only when drawn (#884 S5d, rule 3). */
+/** presenter_place's face on a view whose face is known small (a full view, a personal actor's wide view): when even the least crop it needs is
+ *  past what the portrait holds sharp, the quote says the presenter is framed wider (#1196), before the run measures the exact face. */
+function presenterPlaceSoftness(input: { presenter_place?: { face_height: number } | undefined; resolution?: string | undefined },
+  pin?: { actor_id?: string | undefined; asset?: { aspect_ratio?: string | undefined; framing?: string | undefined; width?: number | undefined } | undefined }):
+  string | undefined {
+  const place = input.presenter_place, asset = pin?.asset, view = renderedPresenterFraming(pin);
+  const largest = view === "full" ? ACTOR_FULL_PORTRAIT_FACE_HEIGHT
+    : view === "wide" && pin?.actor_id !== undefined && actorIdScope(pin.actor_id) === "account" ? ACTOR_WIDE_PORTRAIT_FACE_HEIGHT : undefined;
+  const aspect = ASPECT_RATIOS.find(ratio => ratio === asset?.aspect_ratio), resolution = RESOLUTIONS.find(entry => entry === input.resolution) ?? DEFAULT_RESOLUTION;
+  if (!place || largest === undefined || !asset?.width || !aspect) return undefined;
+  const sharp = sharpCropOf(asset.width, expectedVendorFrame(resolution, aspect).width);
+  if (place.face_height / largest <= sharp) return undefined;
+  return `presenter_place face height ${place.face_height.toFixed(2)}: the actor's ${view} portrait shows the face under ${largest} of its height, so a ` +
+    `crop that tight would be soft; the presenter is framed wider, at face height ${(largest * Math.max(1, sharp)).toFixed(2)} or less`;
+}
+
+/** What a wide, full or mic request did not get, one line each, read from the pin admission made: a view is pinned only when drawn (#884 S5d, */
+/** rule 3). A take is never widened or cropped to match: a full framing[] size on a narrower take names it (#1175 S7). */
 export function presenterViewWarnings(
-  input: { presenter_framing?: string | undefined; presenter_mic?: boolean | undefined; aspect_ratio?: string | undefined },
-  pin?: { actor_id?: string | undefined; asset?: { aspect_ratio?: string | undefined; framing?: string | undefined; prop?: string | undefined } | undefined }
-    | undefined,
+  input: { presenter_framing?: string | undefined; presenter_mic?: boolean | undefined; aspect_ratio?: string | undefined;
+    framing?: readonly { id?: unknown; size?: unknown }[] | undefined; presenter_place?: { face_height: number } | undefined; resolution?: string | undefined },
+  pin?: { actor_id?: string | undefined; asset?: { aspect_ratio?: string | undefined; framing?: string | undefined; prop?: string | undefined;
+    width?: number | undefined } | undefined } | undefined,
 ): string[] {
   const warnings: string[] = [];
   const whose = pin?.actor_id === undefined ? undefined : `${actorIdScope(pin.actor_id) === "account" ? "personal actor" : "actor"} ${pin.actor_id}`;
-  if (input.presenter_framing === "wide" && renderedPresenterFraming(pin) !== "wide") {
+  const asked = input.presenter_framing, rendered = renderedPresenterFraming(pin);
+  if ((asked === "wide" || asked === "full") && rendered !== asked) {
     const aspect = pin?.asset?.aspect_ratio ?? input.aspect_ratio ?? "9:16";
-    warnings.push(whose === undefined ? "presenter_framing wide needs an actor_id with a wide view (see list_actors): the presenter was rendered close"
-      : aspect !== "9:16" ? `presenter_framing wide is drawn in 9:16 only: the ${aspect} close portrait was used`
-      : `presenter_framing wide: ${whose} has no wide view yet; the close portrait was used`);
+    const used = rendered === "close" ? "the close portrait" : `the ${rendered} view`;
+    warnings.push(whose === undefined ? `presenter_framing ${asked} needs an actor_id with a ${asked} view (see list_actors): the presenter was rendered close`
+      : aspect !== "9:16" ? `presenter_framing ${asked} is drawn in 9:16 only: the ${aspect} close portrait was used`
+      : `presenter_framing ${asked}: ${whose} has no ${asked} view yet; ${used} was used`);
   }
-  if (input.presenter_framing === "close" && renderedPresenterFraming(pin) === "wide") {
-    warnings.push(`presenter_framing close: ${whose ?? "the actor"} has only a wide view (made with framing wide); the wide view was used`);
+  if (asked === "close" && rendered !== "close") {
+    warnings.push(`presenter_framing close: ${whose ?? "the actor"} has only a ${rendered} view (a ${rendered} portrait or one made with framing ${rendered}); ` +
+      `the ${rendered} view was used`);
   }
+  for (const item of rendered === "full" ? [] : input.framing ?? []) {
+    if (item.size === "full") {
+      warnings.push(`framing "${String(item.id)}" full: the presenter's take is ${rendered}, not full height; it shows the take as rendered, ` +
+        "neither widened nor cropped (presenter_framing full with an actor's full view draws it)");
+    }
+  }
+  const soft = presenterPlaceSoftness(input, pin);
+  if (soft) warnings.push(soft);
   if (input.presenter_mic === true && pin?.asset?.prop !== "mic") {
     warnings.push(whose === undefined ? "presenter_mic needs an actor_id with a mic view (see list_actors): rendered without the mic"
       : `presenter_mic: ${whose} has no ${renderedPresenterFraming(pin)} mic view (library mic views are wide); rendered without the mic`);
@@ -165,7 +216,8 @@ export const actorCatalogEntry = z.object({
     height: z.number().int().positive(),
     preview_url: z.url(),
     preview_expires_at: z.iso.datetime(),
-    framing: z.enum(["wide"]).optional().describe("wide: the presenter lower with room above, used by presenter_framing wide; absent is close."),
+    framing: z.enum(["wide", "full"]).optional().describe("wide: the presenter lower with room above; full: head to feet. Used by presenter_framing " +
+      "of the same name; absent is close."),
     gaze: z.enum(["left", "right"]).optional().describe("The side of the frame the presenter looks to, used by interview.gaze and presenter_gaze; " +
       "absent is the camera."),
     prop: z.enum(["mic"]).optional().describe("mic: the presenter holds a tiny handheld microphone, used by presenter_mic; absent is none."),

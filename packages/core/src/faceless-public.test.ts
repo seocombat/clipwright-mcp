@@ -19,7 +19,9 @@ it("validates accepted and stored generation input without rewriting its raw scr
   const raw = { ...script, script: ` \n${script.script}\n ` };
   expect(facelessContracts.parseFacelessInputPreservingScript(raw)).toEqual({ ...raw, captions: true });
   expect(facelessContracts.parseFacelessStoredInputPreservingScript(raw)).toEqual({ ...raw, captions: true });
-  expect(facelessContracts.parseFacelessInputPreservingScript(brief)).toEqual(makeFacelessInput.parse(brief));
+  // Admission freezes a brief's default flash (#1067).
+  expect(facelessContracts.parseFacelessInputPreservingScript(brief)).toEqual({ ...makeFacelessInput.parse(brief),
+    transitions: { look: "flash", at: "scene_changes" } });
   for (const parse of [facelessContracts.parseFacelessInputPreservingScript, facelessContracts.parseFacelessStoredInputPreservingScript]) {
     expect(() => parse({ ...raw, script: "   " })).toThrow();
     expect(() => parse({ ...raw, unexpected: true })).toThrow();
@@ -50,7 +52,7 @@ describe("makeFacelessInput", () => {
     { ...script, duration_seconds: 29.96 }, { ...script, duration_seconds: 90.04 },
     { ...script, duration_seconds: 30.001 },
     { ...script, style_reference: "http://example.com/style.png" },
-    { ...script, character_details: "x".repeat(401) },
+    { ...script, character_details: "x".repeat(2001) },
     { ...script, scene_images: [{ image_url: "https://localhost/photo.png", anchor: { quote: "clear" } }] },
     { ...script, scene_images: [{ image_url: "https://example.com/scene.png" }] },
     { ...script, unknown_field: true },

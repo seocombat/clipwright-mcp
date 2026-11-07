@@ -152,7 +152,8 @@ describe("a call whose arguments fail the tool's schema", () => {
     expect([...new Set(unnamed)]).toEqual([]);
     expect(refusals).toBeGreaterThan(100);
     expect(handlerRefusals).toBeGreaterThanOrEqual(Object.values(CROSS_FIELD).flat().length);
-  });
+  // Hundreds of calls, and describe_tool's first one builds the server's whole list: about 2 s alone, more beside other files.
+  }, 20_000);
 
   // Mutant: a handler's own schema refusal left to the SDK; the agent would get a raw issue array with no code.
   it.each(Object.entries(CROSS_FIELD).flatMap(([name, list]) => list.map(args => [name, args] as const)))(

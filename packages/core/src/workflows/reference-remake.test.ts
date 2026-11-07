@@ -1,16 +1,20 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { AD_PAUSE_TRIM } from '../ad-pause-trim.js';
+import { dispositionWarnings } from '../contract-dispositions.js';
 import { requestHash } from '../idempotency.js';
 import { type CallStage, isNarratedUgcInput, makeUgcInput } from '../skills.js';
-import { estimateDurationSec } from '../pacing.js';
+import { CANVAS_FPS } from '../media-timebase.js';
+import { estimateDurationSec, WORDS_PER_SECOND_MAX } from '../pacing.js';
+import { sharedArea } from '../scene-place.js';
 import { countActorShots, lexicalTokens, planSemanticInserts, quoteOccurrences } from '../semantic-inserts.js';
-import { templateFaceWarnings } from '../templates/index.js';
+import { TEMPLATE_KINDS, templateFaceWarnings, templateMoments } from '../templates/index.js';
 import { FRAMING_SCALE } from '../ugc-framing.js';
-import { admissionScene, faceZone, frameCanvasOf, overlayFootprints, overlayRect, rectsOverlap } from '../ugc-layers.js';
+import { admissionScene, faceZone, frameCanvasOf, layerWordRange, overlayFootprints, overlayRect, rectsOverlap } from '../ugc-layers.js';
 import { listVoices } from '../voice-listing.js';
 import { compileReferenceRemake, queryWorkflowMethod, referenceProfileWarnings, validateWorkflowPlan, workflowPlanDocument, workflowPlanDocumentRead,
-    type CapabilityProfile, type WorkflowPlanDocument } from './index.js';
+    type CapabilityProfile, type ReferenceAssetFacts, type WorkflowPlanDocument } from './index.js';
 
 /** The reference reel's fused profile with every word of its speech and labels replaced (C6). */
 const PROFILE = JSON.parse(readFileSync(new URL('../fixtures/reference-profile-reel.json', import.meta.url), 'utf8'));
@@ -24,6 +28,16 @@ const ugc = (features: string[] = []) => ({ skill: 'make_ugc', configured: true,
     field_dispositions: { captions: 'implemented' as const, caption_style: 'implemented' as const, templates: 'implemented' as const } });
 const capabilities = (features: string[] = []): CapabilityProfile => ({ v: 1, content_digest: 'c'.repeat(64), executors: [ugc(features)] });
 const request = (extra: Record<string, unknown> = {}) => ({ reference_profile: structuredClone(PROFILE), script: SCRIPT, actor_id: 'actor_marcus', voice: 'sarah', ...extra });
+/** The reel (no staging) without a camera move, a transition or an edit sound (#1051): what the motion layer routes. */
+const deviceFree = () => {
+    const copy = structuredClone(PROFILE);
+    for (const beat of copy.beats) {
+        beat.camera = 'static';
+        if (!['none', 'cut'].includes(beat.transition_in)) beat.transition_in = 'cut';
+        beat.sounds = beat.sounds.filter((sound: { kind: string }) => !['whoosh', 'click'].includes(sound.kind));
+    }
+    return copy;
+};
 function compiled(extra: Record<string, unknown> = {}, features: string[] = []): WorkflowPlanDocument {
     const result = compileReferenceRemake(request(extra), capabilities(features));
     if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
@@ -111,10 +125,14 @@ describe('reference-remake compiles a plan from the profile (S2a)', () => {
     it('places captions at the reference\'s height where the deployment draws caption_position, and leaves them alone where it does not', () => {
         const executor = ugc(['long_form']);
         const placed: CapabilityProfile = { ...capabilities(['long_form']), executors: [{ ...executor, field_dispositions: { ...executor.field_dispositions, caption_position: 'implemented' } }] };
-        for (const position of ['top', 'middle', 'lower', 'bottom'] as const) {
+        // #1049: top captions would cover the usual close face (0.18–0.42 H), so they go to the nearest clear height and the plan says so.
+        for (const [position, drawn] of [['top', 'middle'], ['middle', 'middle'], ['lower', 'lower'], ['bottom', 'bottom']] as const) {
             const result = compileReferenceRemake(request({ reference_profile: { ...structuredClone(PROFILE), captions: { ...PROFILE.captions, position } } }), placed);
             if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
-            expect(native(result.document).caption_position).toBe(position);
+            expect(native(result.document).caption_position).toBe(drawn);
+            expect(result.document.brief.reference_profile!.unmapped.filter(entry => entry.what.startsWith('captions at the reference')), position)
+                .toEqual(position === drawn ? [] : [{ beat_index: 0, what: 'captions at the reference\'s top height (there they would cover the presenter\'s face)',
+                    suggested_substitute: 'middle captions, clear of the face' }]);
             expect(validateWorkflowPlan(result.document, placed).issues).toEqual([]);
         }
         expect(native(compiled()).caption_position).toBeUndefined();
@@ -145,6 +163,20 @@ describe('reference-remake compiles a plan from the profile (S2a)', () => {
             .toEqual([undefined, undefined, undefined, undefined]);
         for (const disposition of ['warned', 'stored', 'rejected'] as const) expect(remake(true, disposition), disposition).toBeUndefined();
     });
+    /** #1175 S7 acceptance r1 (rule 3). Mutant: drop the note, and a full-height or close remake loses the reference's mic silently. */
+    it('names the reference mic in warnings when the plan frames the presenter full or close, and not when it asks for the mic view', () => {
+        const executor = ugc(['long_form']);
+        const declared: CapabilityProfile = { ...capabilities(['long_form']), executors: [{ ...executor,
+            field_dispositions: { ...executor.field_dispositions, presenter_framing: 'implemented', presenter_mic: 'implemented' } }] };
+        const micNotes = (framing: 'close' | 'wide' | 'full', presenter_mic = true) => {
+            const result = compileReferenceRemake(request({ reference_profile: { ...structuredClone(PROFILE), presenter_framing: framing, presenter_mic } }), declared);
+            if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+            return result.document.brief.reference_profile!.unmapped.filter(entry => entry.what.includes('handheld mic'));
+        };
+        expect(micNotes('full')).toEqual([expect.objectContaining({ beat_index: 0, suggested_substitute: expect.stringContaining('frames the presenter full') })]);
+        expect(micNotes('close')).toHaveLength(1);
+        expect([micNotes('wide'), micNotes('full', false)]).toEqual([[], []]);
+    });
     it('anchors beats and graphics on verbatim script words, in the reference beat order', () => {
         const document = compiled();
         expect(document.beats.map(beat => beat.role)).toEqual(PROFILE.beats.map((beat: { role: string }) => beat.role));
@@ -172,7 +204,9 @@ describe('reference-remake compiles a plan from the profile (S2a)', () => {
         const clicks = (checklist!.data as { clicks: { item: number; quote: string }[] }).clicks;
         expect(clicks.map(click => click.item)).toEqual([0, 1, 2, 3]);
         const own = wordsOf((checklist!.anchor as { quote: string }).quote)!.startWord;
-        for (const click of clicks) expect(wordsOf(click.quote)!.startWord).toBeGreaterThanOrEqual(own);
+        const at = (quote: string) => quoteOccurrences(lexicalTokens(SCRIPT), quote).find(range => range.startWord >= own)!.startWord;
+        // #1049: the first click waits until the checklist is drawn, so no click is moved and named in warnings[].
+        expect(clicks.map(click => at(click.quote) - own)).toEqual([3, 4, 16, 20]);
         // The call shares the demo span with the checklist, and the run schema refuses the overlap: the drop loop names it.
         expect(templates.map(item => item.kind)).not.toContain('phone_call');
         expect(compiled().brief.reference_profile!.unmapped).toContainEqual(expect.objectContaining({ beat_index: 6,
@@ -349,7 +383,9 @@ describe('every gap the compiler leaves is named in the plan (rule 3)', () => {
         ['172 title card as a band', [beat({ graphics: [graphic('title_card', 'bottom')] })], {}, [], 'a band over the presenter, not a full frame', 'a tag with the same words'],
         ['174 call card text', [beat({ graphics: [graphic('phone_call')] })], { script: RUSSIAN }, [], 'card text stays English ("Incoming call")', 'edit the plan'],
         ['174 notification card text', [beat({ graphics: [graphic('notification')] })], { script: RUSSIAN }, [], 'card text stays English ("Messages")', 'edit the plan'],
-        ['179 presenter leaves', [beat({ presenter_behaviour: 'absent' })], {}, [], 'the presenter leaving the frame', 'stays on screen'],
+        ['179 presenter leaves a demo', [beat({ role: 'demo', presenter_behaviour: 'absent' })], {}, ['long_form'], 'the presenter leaving the frame', 'pass one more ready'],
+        ['179 presenter leaves, no long form', [beat({ role: 'demo', presenter_behaviour: 'absent' })], {}, [], 'the presenter leaving the frame', 'needs long-form qualification'],
+        ['179 presenter leaves, a card over them', [beat({ presenter_behaviour: 'absent', graphics: [graphic('stat')] })], { script: NUMBERS }, [], 'the presenter leaving the frame', 'behind the stat'],
         ['264 transition', [beat({ transition_in: 'wipe' }), beat({ transition_in: 'wipe' })], { script: 'Every missed call is a lost deal. It answers all day.' }, [], 'wipe transitions into beats 1, 2', 'cuts'],
         ['264 camera', [beat({ camera: 'shake' })], {}, [], 'shake camera on beats 1', 'a static frame'],
         ['270 music', [beat({ sounds: [{ at_frac: 0, kind: 'music' }] })], {}, [], 'the music bed', 'no music'],
@@ -393,9 +429,9 @@ describe('narration pace from the reference voice (reference-elements S7)', () =
         const document = pacedWith(3.7, { voice: undefined });
         expect(native(document)).not.toHaveProperty('voice');
         expect(paceNotes(document)).toEqual([expect.objectContaining({ what: 'narration pace 3.7 words/s of the reference presenter',
-            suggested_substitute: 'eleven_v4 has no speed; English voices speak 3.09–3.58 words/s. '
-                + 'Nearer voices: female en_female_cassidy 3.48, sarah 3.33; male en_male_mark 3.58, eric 3.52' })]);
-        expect(validateWorkflowPlan(document, capabilities()).warnings.some(text => text.includes('en_male_mark 3.58'))).toBe(true);
+            suggested_substitute: 'eleven_v4 has no speed; English voices: 3.09–3.79 words/s. '
+                + 'Nearer voices: female en_female_lucy 3.52, en_female_cassidy 3.48; male en_male_marcus 3.69, en_male_dexter 3.79' })]);
+        expect(validateWorkflowPlan(document, capabilities()).warnings.some(text => text.includes('en_male_marcus 3.69'))).toBe(true);
     });
 
     /** Mutant: widen or narrow the 5% band (PACE_MATCH_SHARE): sarah, 3.33 words/s, sits 4.6% under 3.49 and 5.4% under 3.52. */
@@ -403,14 +439,16 @@ describe('narration pace from the reference voice (reference-elements S7)', () =
         expect(paceNotes(pacedWith(3.49, { voice: 'sarah' }))).toEqual([]);
         expect(paceNotes(pacedWith(3.52, { voice: 'sarah' }))).toHaveLength(1);
         expect(paceNotes(pacedWith(3.7, { voice: 'george' }))).toEqual([expect.objectContaining({
-            suggested_substitute: 'eleven_v4 has no speed; george speaks 3.27. Nearer voices: female en_female_cassidy 3.48, sarah 3.33; '
-                + 'male en_male_mark 3.58, eric 3.52' })]);
+            suggested_substitute: 'eleven_v4 has no speed; george speaks 3.27. Nearer voices: female en_female_lucy 3.52, en_female_cassidy 3.48; '
+                + 'male en_male_marcus 3.69, en_male_dexter 3.79' })]);
     });
 
     /** Mutant: drop the "nearer than the named voice" filter, and the fastest voice is told to swap for slower ones. */
     it('names only voices nearer than the named one, and says when none is', () => {
         expect(paceNotes(pacedWith(4.2, { voice: 'en_male_mark' }))).toEqual([expect.objectContaining({
-            suggested_substitute: 'eleven_v4 has no speed; en_male_mark speaks 3.58. No measured voice is nearer' })]);
+            suggested_substitute: 'eleven_v4 has no speed; en_male_mark speaks 3.58. Nearer voices: male en_male_dexter 3.79, en_male_marcus 3.69' })]);
+        expect(paceNotes(pacedWith(4.2, { voice: 'en_male_dexter' }))).toEqual([expect.objectContaining({
+            suggested_substitute: 'eleven_v4 has no speed; en_male_dexter speaks 3.79. No measured voice is nearer' })]);
     });
 
     /** Mutant: suggest the named voice back, or let a long name or model push the note past the 200-character cap where it is cut. */
@@ -461,12 +499,13 @@ describe('narration pace from the reference voice (reference-elements S7)', () =
             .toEqual([expect.objectContaining({ what: expect.stringContaining('sentence_end_s 2.4 s'), suggested_substitute: expect.stringContaining('pause_trim sentence_end_s 2') })]);
     });
 
-    it('leaves pauses as spoken without a measured reference voice, and says so', () => {
+    /** Mutant: keep the voice's own pauses here, and a remake without a measured voice reads slow, as the 05.11 ads did (#1136). */
+    it('takes the ad-style pauses without a measured reference voice, and says so', () => {
         const document = compiled();
-        expect(native(document)).not.toHaveProperty('pause_trim');
+        expect(native(document).pause_trim).toEqual(AD_PAUSE_TRIM);
         expect(document.brief.reference_profile!.unmapped.filter(entry => entry.what.startsWith('narration pauses')))
-            .toEqual([expect.objectContaining({ suggested_substitute: expect.stringContaining('as the voice speaks them') })]);
-        expect(native(compiled({ reference_profile: { ...structuredClone(PROFILE), voice: voice(2.6, [null, null, null]) } }))).not.toHaveProperty('pause_trim');
+            .toEqual([expect.objectContaining({ suggested_substitute: expect.stringContaining('the default for an ad') })]);
+        expect(native(compiled({ reference_profile: { ...structuredClone(PROFILE), voice: voice(2.6, [null, null, null]) } })).pause_trim).toEqual(AD_PAUSE_TRIM);
     });
 });
 
@@ -474,13 +513,13 @@ describe('a compiled plan always gets a quote on the long-form path (reference-u
     const images = (count: number) => Array.from({ length: count }, (_, at) => ({ asset_id: `ast_${String(at + 1).padStart(32, '0')}`, media_type: 'image' }));
     const disclosed = (document: WorkflowPlanDocument) => document.brief.reference_profile!.unmapped.filter(entry => entry.suggested_substitute.includes('broll_policy=anyone'));
     const media = { kind: 'insert_media', source_kind: 'insert_media', position: 'full_screen', state_changes: [], label_hint: '' };
-    function compileBeats(beats: Record<string, unknown>[], script: string, assets: unknown[]) {
+    function compileBeats(beats: Record<string, unknown>[], script: string, assets: unknown[], facts?: ReferenceAssetFacts) {
         const profile = structuredClone(PROFILE);
         profile.beats = beats.map((entry, at) => ({ ...PROFILE.beats[0], sounds: [], camera: 'static', transition_in: 'none', presenter_behaviour: 'speaking', ...entry,
             start_frac: at / beats.length, end_frac: (at + 1) / beats.length, start_s: (at * 60) / beats.length, end_s: ((at + 1) * 60) / beats.length }));
         profile.captions.present = false;
         profile.unmapped = [];
-        return compileReferenceRemake({ ...request({ script, assets }), reference_profile: profile }, capabilities(['long_form']));
+        return compileReferenceRemake({ ...request({ script, assets }), reference_profile: profile }, capabilities(['long_form']), undefined, undefined, facts);
     }
     const sentences = (count: number) => Array.from({ length: count }, (_, at) => `Sentence w${at}a w${at}b w${at}c w${at}d.`).join(' ');
     const shots = (input: ReturnType<typeof native>) => countActorShots(planSemanticInserts(input.script!, (input.inserts ?? []).map(item => ({ insertId: item.id,
@@ -496,6 +535,8 @@ describe('a compiled plan always gets a quote on the long-form path (reference-u
         expect((native(templated).templates ?? []).map(item => item.kind)).toContain('compare');
         expect(native(templated).broll_policy).toBe('anyone');
         expect(disclosed(templated)).toHaveLength(1);
+        // The run's warnings[] carry no B-roll line: the policy is what lets the pictures in (#1047).
+        for (const document of [layered, templated]) expect(dispositionWarnings(native(document)).filter(line => /broll|b-roll/i.test(line))).toEqual([]);
         for (const bare of [compiled({}, ['long_form']), compiled({ assets: images(1) })]) {
             expect(native(bare)).not.toHaveProperty('broll_policy');
             expect(disclosed(bare)).toEqual([]);
@@ -503,16 +544,31 @@ describe('a compiled plan always gets a quote on the long-form path (reference-u
     });
 
     /** Mutant: skip the shot cap, and eight insert beats compile to a plan the quote refuses for too many actor appearances. */
-    it('drops the inserts that cover the fewest words until the presenter appears at most six times, naming each', () => {
-        const beats = Array.from({ length: 16 }, (_, at) => at % 2 ? { graphics: [media] } : { graphics: [] });
-        const result = compileBeats(beats, sentences(16), images(8));
+    it('drops the inserts that cover the fewest words until the presenter appears at most sixteen times (#1192), naming each', () => {
+        const beats = Array.from({ length: 40 }, (_, at) => at % 2 ? { graphics: [media] } : { graphics: [] });
+        const result = compileBeats(beats, sentences(40), images(20));
         if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
         const input = native(result.document), kept = input.inserts ?? [];
-        expect(shots(input)).toBeLessThanOrEqual(6);
+        expect(shots(input)).toBeLessThanOrEqual(16);
         expect(kept.length).toBeGreaterThan(0);
         const dropped = result.document.brief.reference_profile!.unmapped.filter(entry => entry.what.includes('actor appearances'));
-        expect(dropped).toHaveLength(8 - kept.length);
+        expect(dropped.length).toBeGreaterThan(0);
+        expect(dropped).toHaveLength(20 - kept.length);
         expect(makeUgcInput.safeParse(input).success).toBe(true);
+    });
+
+    /** #1198: fitting twenty clips to their length would leave the presenter 21 appearances. Mutant: drop the undo, and clips are thrown out */
+    /** for a fit the plan made; undo every fit, and none is kept. */
+    it('undoes the latest clip fits, never drops a clip, when the fits would leave more presenter appearances than a run renders', () => {
+        const clips = Array.from({ length: 20 }, (_, at) => ({ asset_id: `ast_${String(at + 1).padStart(32, '0')}`, media_type: 'video' }));
+        const facts: ReferenceAssetFacts = new Map(clips.map(clip => [clip.asset_id, { name: 'clip', seconds: 2 }]));
+        const result = compileBeats([{ graphics: [] }, ...clips.map(() => ({ graphics: [media] }))], sentences(21), clips, facts);
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        const input = native(result.document);
+        expect(input.inserts).toHaveLength(20);
+        expect(shots(input)).toBe(16);
+        expect(result.document.brief.reference_profile!.unmapped.filter(entry => entry.what.includes('actor appearances'))).toEqual([]);
+        expect((result.document.brief.added ?? []).filter(line => line.startsWith('the clip on'))).toHaveLength(15);
     });
 
     /** Mutant: let inserts cover every word, and the quote refuses a plan that leaves no speech for the presenter. */
@@ -704,13 +760,164 @@ describe('punch-in cameras and flash transitions become framing (reference-eleme
 
     it('keeps the notes where the presenter is not on screen or long form is off', () => {
         const images = [{ asset_id: `ast_${'1'.repeat(32)}`, media_type: 'image' }];
-        const covered = compile([beat({ camera: 'punch_in', graphics: [insertMedia] }), beat({ transition_in: 'flash', presenter_behaviour: 'absent' }), beat()],
-            ['long_form'], { assets: images });
+        // A demo beat the presenter leaves takes no card of its words (#1060), so nothing of ours fills it; the director's own cuts stay out.
+        const covered = compile([beat({ camera: 'punch_in', graphics: [insertMedia] }), beat({ role: 'demo', transition_in: 'flash', presenter_behaviour: 'absent' }), beat()],
+            ['long_form'], { assets: images, add_moves: false });
         expect(covered.input.framing).toBeUndefined();
-        expect(covered.notes).toEqual(expect.arrayContaining(['punch_in camera on beats 1', 'flash transitions into beats 2']));
+        expect(covered.notes).toEqual(expect.arrayContaining(['flash transitions into beats 2']));
+        const carded = compile([beat({ camera: 'punch_in', graphics: [insertMedia] }), beat({ transition_in: 'flash', presenter_behaviour: 'absent' }), beat()],
+            ['long_form'], { assets: images });
+        expect(carded.input.templates).toEqual([expect.objectContaining({ id: 'ref-2-title-card', placement: 'full', transition: 'flash' })]);
+        expect(carded.notes.filter(what => what.includes('flash'))).toEqual([]);
+        // A punch_in over a full-frame picture moves the picture instead (#1051).
+        expect(covered.notes.filter(what => what.includes('punch_in'))).toEqual([]);
+        expect(covered.input.inserts?.[0]?.image_motion).toEqual({ direction: 'in', amount: 0.25 });
         const off = compile([beat({ camera: 'punch_in' }), beat({ transition_in: 'flash' }), beat()], []);
         expect(off.input.framing).toBeUndefined();
         expect(off.notes).toEqual(expect.arrayContaining(['punch_in camera on beats 1', 'flash transitions into beats 2']));
+    });
+});
+
+describe('a beat the presenter leaves fills the frame (#1060)', () => {
+    const FOUR = 'Every missed call is a lost deal. It answers calls all day. Set it up in ten minutes. Try it free today.';
+    const beat = (extra: Record<string, unknown> = {}) => ({ ...PROFILE.beats[0], role: 'problem', graphics: [], sounds: [], camera: 'static', transition_in: 'none',
+        presenter_behaviour: 'speaking', ...extra });
+    const graphic = (kind: string, position = 'full_screen') => ({ kind, source_kind: kind, position, state_changes: [], label_hint: '' });
+    const pictures = (count: number) => Array.from({ length: count }, (_, at) => ({ asset_id: `ast_${String(at + 1).repeat(32)}`, media_type: 'image' }));
+    const leaving = 'the presenter leaving the frame';
+    function compile(beats: unknown[], extra: Record<string, unknown> = {}, features = ['long_form'], templates = 'implemented', format = PROFILE.format) {
+        const profile = structuredClone(PROFILE);
+        profile.format = format;
+        profile.beats = beats.map((entry, at) => ({ ...(entry as object), start_frac: at / beats.length, end_frac: (at + 1) / beats.length,
+            start_s: (at * 40) / beats.length, end_s: ((at + 1) * 40) / beats.length }));
+        profile.captions.present = false;
+        profile.unmapped = [];
+        const declared = capabilities(features);
+        declared.executors[0]!.field_dispositions.templates = templates as 'implemented';
+        const result = compileReferenceRemake({ ...request({ script: FOUR, ...extra }), reference_profile: profile }, declared);
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        const notes = result.document.brief.reference_profile!.unmapped;
+        return { input: native(result.document), notes, left: notes.filter(entry => entry.what === leaving), document: result.document };
+    }
+    type Item = Parameters<typeof layerWordRange>[1] & { id: string };
+    const span = (item: Item): [number, number] => {
+        const range = layerWordRange(lexicalTokens(FOUR), item);
+        if (typeof range === 'string') throw new Error(range);
+        return [range.startWord, range.coverWord];
+    };
+    const ids = (items?: { id: string }[]) => (items ?? []).map(item => item.id);
+
+    /** Mutant: keep a split or an overlay where the reference's presenter is gone, and the presenter stays beside the picture and the note returns. */
+    it('draws the split or overlay of an absent beat as a full-frame insert, and keeps a split where the presenter speaks', () => {
+        const { input, left, document } = compile([beat({ graphics: [graphic('layout_split', 'split_top')] }),
+            beat({ presenter_behaviour: 'absent', graphics: [graphic('layout_split')] }), beat({ presenter_behaviour: 'absent', graphics: [graphic('overlay_media', 'top_right')] }),
+            beat({ role: 'cta' })], { assets: pictures(3) });
+        expect(ids(input.layout_windows)).toEqual(['ref-1-layout-split']);
+        expect(ids(input.overlays)).toEqual([]);
+        expect(input.inserts!.map(item => [item.id, item.media_type, item.fit])).toEqual([['ref-2-insert-media', 'image', 'auto'], ['ref-3-insert-media', 'image', 'auto']]);
+        // Each picture covers its beat's words from the beat's first word: no word of a window or a framing (C4).
+        expect(input.inserts!.map(span)).toEqual([[7, 12], [12, 18]]);
+        for (const other of [...input.layout_windows ?? [], ...input.framing ?? []] as Item[]) {
+            for (const insert of input.inserts as Item[]) { const [a, b] = span(insert), [c, d] = span(other); expect(a < d && c < b, other.id).toBe(false); }
+        }
+        expect(left).toEqual([]);
+        expect(makeUgcInput.safeParse(input).success).toBe(true);
+        expect(validateWorkflowPlan(document, capabilities(['long_form'])).issues).toEqual([]);
+    });
+
+    /** Mutants: let a beat without media of its own take a picture a later graphic needs, or never take one left over, and the wrong beat loses it. */
+    it('gives a beat without media a picture only when later graphics leave one over, and a title card of its words otherwise', () => {
+        const beats = [beat({ presenter_behaviour: 'absent' }), beat(), beat({ presenter_behaviour: 'absent', graphics: [graphic('insert_media')] }), beat({ role: 'cta' })];
+        const short = compile(beats, { assets: pictures(1) });
+        expect(ids(short.input.inserts)).toEqual(['ref-3-insert-media']);
+        expect((short.input.inserts as { asset_id: string }[])[0]!.asset_id).toBe(pictures(1)[0]!.asset_id);
+        expect(short.input.templates).toEqual([expect.objectContaining({ id: 'ref-1-title-card', placement: 'full', data: { title: 'Every missed call is a lost deal' },
+            anchor: { quote: 'Every missed call is' }, cover_words: 7 })]);
+        expect(short.left).toEqual([]);
+        const spare = compile(beats, { assets: pictures(2) });
+        expect(ids(spare.input.inserts)).toEqual(['ref-1-insert-media', 'ref-3-insert-media']);
+        expect(spare.input.templates ?? []).toEqual([]);
+        expect(spare.left).toEqual([]);
+    });
+
+    /** Codex r1. Mutants: count no images for a later compare, or take an image before a video, and the compare loses one of its two pictures. */
+    it('leaves a later compare its two images, taking a video for the beat without media', () => {
+        const beats = [beat({ presenter_behaviour: 'absent' }), beat(), beat({ role: 'proof', graphics: [graphic('compare')] }), beat({ role: 'cta' })];
+        const video = { asset_id: `ast_${'9'.repeat(32)}`, media_type: 'video' };
+        const mixed = compile(beats, { assets: [...pictures(2), video] });
+        expect((mixed.input.inserts as { id: string; asset_id: string }[]).map(item => [item.id, item.asset_id])).toEqual([['ref-1-insert-media', video.asset_id]]);
+        expect(mixed.input.templates).toEqual([expect.objectContaining({ id: 'ref-3-compare' })]);
+        const two = compile(beats, { assets: pictures(2) });
+        expect(ids(two.input.inserts)).toEqual([]);
+        expect(ids(two.input.templates)).toEqual(['ref-1-title-card', 'ref-3-compare']);
+        expect(two.notes.filter(entry => entry.what.includes('needs two images'))).toEqual([]);
+    });
+
+    /** A b-roll reel with its presenter on one beat in four, as Manideep's was. Mutants: drop the note, or raise it on a reel mostly with its presenter. */
+    it('says a reference mostly without its presenter is closer to a faceless video, and that a covered presenter is billed', () => {
+        const faceless = 'a video with no presenter on screen for most of its length';
+        const mostlyAway = [beat({ role: 'hook' }), ...Array.from({ length: 4 }, () => beat({ presenter_behaviour: 'absent' }))];
+        const five = 'Every missed call is a lost deal. It answers calls all day. Set it up in ten minutes. Try it free today. It works while you sleep.';
+        const away = compile(mostlyAway, { script: five });
+        expect(away.notes.filter(entry => entry.what === faceless)).toEqual([{ what: faceless, beat_index: 0,
+            suggested_substitute: 'a presenter video that covers its presenter there, and a covered presenter is still billed; make_faceless makes narrated videos with no presenter' }]);
+        // Codex 1060-b r1: four fifths in any order sum to a hair under 0.8 in floating point, and still count.
+        const first = compile([...Array.from({ length: 4 }, () => beat({ presenter_behaviour: 'absent' })), beat({ role: 'cta' })], { script: five });
+        expect(first.notes.map(entry => entry.what)).toContain(faceless);
+        // Codex 1060-b r2: a share just under four fifths is not "most", however it rounds.
+        const under = structuredClone(PROFILE);
+        under.beats = [0, 0.79996, 0.9, 0.95, 1].slice(0, -1).map((start, at, starts) => ({ ...beat({ presenter_behaviour: at === 0 ? 'absent' : 'speaking' }),
+            start_frac: start, end_frac: starts[at + 1] ?? 1, start_s: start * 40, end_s: (starts[at + 1] ?? 1) * 40 }));
+        under.captions.present = false;
+        under.unmapped = [];
+        const result = compileReferenceRemake({ ...request({ script: FOUR }), reference_profile: under }, capabilities(['long_form']));
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        expect(result.document.brief.reference_profile!.unmapped.map(entry => entry.what)).not.toContain(faceless);
+        // The analysis's own word for a b-roll reel counts as well, whatever the beats say.
+        for (const format of ['broll', 'faceless']) {
+            expect(compile([beat(), beat(), beat(), beat({ role: 'cta' })], {}, ['long_form'], 'implemented', format).notes.map(entry => entry.what), format).toContain(faceless);
+        }
+        const half = compile([beat(), beat({ presenter_behaviour: 'absent' }), beat(), beat({ presenter_behaviour: 'absent' })]);
+        expect(half.notes.map(entry => entry.what)).not.toContain(faceless);
+    });
+
+    /** Codex 1060-b r2. Mutant: count the note with the compiler's gaps rather than its terms, and the 40-entry cap cuts it from a crowded plan. */
+    it('keeps the faceless note when the plan names more gaps than it can list', () => {
+        const seven = 'Every missed call is a lost deal. It answers calls all day. Set it up in ten minutes. Try it free today. It works while you sleep. ' +
+            'It never takes a break. Start your trial now.';
+        const crowded = [...Array.from({ length: 6 }, () => beat({ graphics: Array.from({ length: 8 }, () => graphic('callout')) })),
+            beat({ role: 'cta', graphics: [graphic('compare')] })];
+        const { notes } = compile(crowded, { script: seven, assets: pictures(2) }, ['long_form'], 'implemented', 'broll');
+        expect(notes).toHaveLength(40);
+        expect(notes.map(entry => entry.what)).toContain('a video with no presenter on screen for most of its length');
+    });
+
+    /** Codex r2. Mutants: let the beat without media take before the graphics of later beats, and a later picture, compare or logo goes without. */
+    it('takes only what every later graphic leaves over, whatever the order they take in', () => {
+        const videos = ['8', '9'].map(digit => ({ asset_id: `ast_${digit.repeat(32)}`, media_type: 'video' }));
+        const ordered = compile([beat({ presenter_behaviour: 'absent' }), beat({ graphics: [graphic('insert_media')] }), beat({ role: 'proof', graphics: [graphic('compare')] }),
+            beat({ role: 'cta' })], { assets: [videos[0]!, ...pictures(2), videos[1]!], add_moves: false });
+        expect((ordered.input.inserts as { id: string; asset_id: string }[]).map(item => [item.id, item.asset_id]))
+            .toEqual([['ref-1-insert-media', videos[1]!.asset_id], ['ref-2-insert-media', videos[0]!.asset_id]]);
+        expect(ids(ordered.input.templates)).toEqual(['ref-3-compare']);
+        const logo = { ...graphic('title_card', 'top_right'), source_kind: 'logo_card' };
+        const branded = compile([beat({ presenter_behaviour: 'absent' }), beat(), beat({ graphics: [logo] }), beat({ role: 'cta' })], { assets: pictures(1), add_moves: false });
+        expect((branded.input.overlays as { id: string; asset_id: string }[]).map(item => [item.id, item.asset_id])).toEqual([['ref-3-logo-card', pictures(1)[0]!.asset_id]]);
+        expect(ids(branded.input.templates)).toEqual(['ref-1-title-card']);
+        expect(branded.notes.filter(entry => entry.what.includes('no image left'))).toEqual([]);
+    });
+
+    /** Mutants: give a demo a card of its words, or name no way to fill the frame, and the client reads a stand-in for the product or a dead end. */
+    it('names how to fill the frame where neither a picture nor a card stands in', () => {
+        const demo = compile([beat({ role: 'demo', presenter_behaviour: 'absent', graphics: [graphic('insert_media')] }), beat(), beat(), beat({ role: 'cta' })]);
+        expect(demo.input.templates ?? []).toEqual([]);
+        expect(demo.left).toEqual([{ what: leaving, beat_index: 0,
+            suggested_substitute: 'the presenter stays on screen: pass one more ready ast_* image or video and compile again to show it full-frame here' }]);
+        const off = compile([beat({ presenter_behaviour: 'absent' }), beat(), beat(), beat({ role: 'cta' })], {}, ['long_form'], 'rejected');
+        expect(off.left.map(entry => entry.suggested_substitute)).toEqual(['the presenter stays on screen: pass one more ready ast_* image or video and compile again to show it full-frame here']);
+        const short = compile([beat({ presenter_behaviour: 'absent' }), beat(), beat(), beat({ role: 'cta' })], {}, []);
+        expect(short.input.templates).toEqual([expect.objectContaining({ id: 'ref-1-title-card', placement: 'full' })]);
+        expect(short.left).toEqual([]);
     });
 });
 
@@ -822,10 +1029,12 @@ describe('the live remake of a nine-beat reel (#884)', () => {
     });
 
     /** Mutant: drop the library-actor condition, and a personal actor's close face sits under an overlay placed for a wide one. */
-    it('plans a personal actor close, since personal actors have no wide view, and keeps graphics off that face', () => {
+    /** #1175 S7. Mutant (the library-only block back): a personal actor with a wide view is planned close under a wide reference. Mutant (graphics */
+    /** placed for the wide face alone): a personal actor without that view renders close with a graphic over its face. */
+    it('plans a personal actor wide under a wide reference, and keeps graphics off both the wide and the close face', () => {
         const { input } = live(beats => { (beats[0]!.graphics as { position: string }[])[0]!.position = 'top'; }, LIVE_SCRIPT, ['long_form'], 'implemented',
             `actor_u_${'a'.repeat(26)}`);
-        expect({ framing: input.presenter_framing, overlay: input.overlays![0]!.position }).toEqual({ framing: undefined, overlay: 'bottom_right' });
+        expect({ framing: input.presenter_framing, overlay: input.overlays![0]!.position }).toEqual({ framing: 'wide', overlay: 'bottom_right' });
     });
 
     /** Mutant: cut a clause before merging the closing beats, and the demo insert starts one sentence early. */
@@ -976,18 +1185,53 @@ describe('the remake places the call phone by the reference\'s measured staging 
     it('gives today\'s plan byte for byte from a profile without staging', () => {
         const assets = ['a', 'b', 'c'].map((digit, at) => ({ asset_id: `ast_${digit.repeat(32)}`, media_type: at < 2 ? 'image' : 'video' }));
         const today: [Record<string, unknown>, string[], string][] = [
-            [{}, [], 'e285c31bc2c82a52e7c01f429b90331ff665ed705be9602b1f845e77f829d6a1'],
-            [{}, ['long_form'], '99fd1a81571469dcfb84f01f3fbc5ef808a4497fac9abd1f7b1b11cd633d14eb'],
+            [{}, [], '72eada7a536cad84e37b5aaaf73e2b9446a1f4ca0b14d5a1d8f96fb0ade0b138'],
+            [{}, ['long_form'], 'afff74807fe61011e9e7b9753cabe4bd292e575bb4e22cd5c77d529c109033ec'],
             [{ call: { lines: [...lines, { speaker: 'agent', text: 'Of course, Dan. I\'ve booked you for two o\'clock today, and I\'m texting you the details now.' }] } },
-                ['long_form'], '4545924926582baed00ddec3767a059de9ffcc045fb6200a102e8c445578c308'],
+                ['long_form'], 'f6f0d9fd842496336a36aaa9db4fd52cb783d351fc4b965fb6c685570f1d71bf'],
             [{ call: { lines: [...lines, { speaker: 'agent', text: 'Of course, Dan. I\'ve booked you for two o\'clock today, and I\'m texting you the details now.' }] },
-                assets, site: 'clipwright.io' }, ['long_form'], '8f59ad11d228a082b472675efb40d08536f5ea5727c0cbf4f9bfe0f537ffc418'],
-            [{ assets }, ['long_form'], 'aa10dfdaae1721734eada355251f0833a59bf1cbbfc65f1a722969d916fa05c7'],
+                // #1161: the site's end card takes the closing beat's text card.
+                assets, site: 'clipwright.io' }, ['long_form'], '430c19238df77f96ba25483274a604aa3ec19f691be3f761f66c53b23d1004c6'],
+            [{ assets }, ['long_form'], 'eb854c79371401a07800d6489689246b4562c59af3d93430477551e01b578ad2'],
         ];
-        for (const [extra, features, digest] of today) {
-            const result = compileReferenceRemake(request(extra), capabilities(features));
-            expect(createHash('sha256').update(JSON.stringify(result)).digest('hex'), JSON.stringify(extra).slice(0, 40)).toBe(digest);
-        }
+        // A picture insert's fit (#1031) and its one note, and #1049's first click and hook emphasis with its note, are the only changes since:
+        // without them, the digests hold.
+        const beforeFit = (result: ReturnType<typeof compileReferenceRemake>) => {
+            if (result.kind !== 'compiled') return result;
+            const copy = structuredClone(result), input = native(copy.document) as { inserts?: { fit?: string }[]; templates?: { kind: string; data: unknown }[];
+                caption_emphasis?: unknown[] };
+            for (const insert of input.inserts ?? []) { expect(insert.fit).toBe('auto'); delete insert.fit; }
+            const click = (input.templates!.find(item => item.kind === 'checklist')!.data as { clicks: { quote: string }[] }).clicks[0]!;
+            expect(click.quote).toBe('one');
+            click.quote = 'Here\'s a';
+            expect(input.caption_emphasis).toEqual([{ quote: 'while you sleep', look: 'color' }]);
+            input.caption_emphasis = [{ quote: 'a lost deal', look: 'color' }, ...input.caption_emphasis!];
+            const profile = copy.document.brief.reference_profile!;
+            // #1136: a voice not measured takes the ad-style pauses, and its note names them instead of the pauses kept.
+            const paused = input as { pause_trim?: unknown };
+            expect(paused.pause_trim).toEqual(AD_PAUSE_TRIM);
+            delete paused.pause_trim;
+            for (const entry of profile.unmapped.filter(entry => entry.what.startsWith('narration pauses ('))) {
+                entry.suggested_substitute = 'pauses stay as the voice speaks them';
+            }
+            // #1170: the assets placed by their order are named.
+            profile.unmapped = profile.unmapped.filter(entry => !/^the pictures on beats .* filling their box$/.test(entry.what) &&
+                !entry.what.startsWith('caption emphasis on this beat') && !entry.what.startsWith('a line for your assets '));
+            // #1060: with no picture left, beat 3, which the presenter leaves, takes a full-frame title card in place of the note that they stay.
+            const card = input.templates!.findIndex(item => (item as { id?: string }).id === 'ref-3-title-card');
+            if (card >= 0) {
+                expect(input.templates![card]).toMatchObject({ placement: 'full', data: { title: 'This one doesn\'t' } });
+                input.templates!.splice(card, 1);
+                const after = profile.unmapped.findIndex(entry => entry.beat_index === 2 && entry.what.startsWith('insert_media (no image'));
+                profile.unmapped.splice(after + 1, 0, { what: 'the presenter leaving the frame', beat_index: 2,
+                    suggested_substitute: 'the presenter stays on screen; a full-frame insert or template would hide them' });
+            }
+            return copy;
+        };
+        // The reel's moves and sounds route since #1051: its device-free twin keeps the base compiler's plans (checked against 67acbbb4 on each case).
+        const digests = today.map(([extra, features]) => createHash('sha256').update(JSON.stringify(beforeFit(compileReferenceRemake(
+            { ...request(extra), reference_profile: deviceFree(), add_moves: false }, capabilities(features))))).digest('hex'));
+        expect(digests).toEqual(today.map(([, , digest]) => digest));
     });
 
     /** Mutant: drop a part the composition cannot draw without a note, and the plan silently draws the call scene's default (rule 3). */
@@ -1003,7 +1247,10 @@ describe('the remake places the call phone by the reference\'s measured staging 
         expect(notes(missing)).toContain('6: the call phone\'s place (reference staging did not measure it) → the reference call scene\'s place: default used');
         const checklist = plan(ganesh(staging => { staging.elements.push({ ...structuredClone(STAGING.elements[0]), id: 'list', beat_index: 4, graphic_index: 0, kind: 'toggle_checklist' }); }));
         // A checklist over the presenter is drawn at its measured box since #973 S5; only its entry stays the kind's own.
-        expect(native(checklist).templates!.find(item => item.kind === 'checklist')!.place).toEqual({ relative_to: 'face', rect: STAGING.elements[0].rect_hold_face });
+        // Its box touches the face's edge as the reference's does: kept on purpose and said once here, not on each render (#1049).
+        expect(native(checklist).templates!.find(item => item.kind === 'checklist')!.place)
+            .toEqual({ relative_to: 'face', rect: STAGING.elements[0].rect_hold_face, allow_face: true });
+        expect(notes(checklist)).toContain('4: the graphics on beats 5 touching the presenter\'s face at its edge, as the reference\'s do → kept where the reference has them');
         expect(notes(checklist)).toContain('4: the measured entry of the templates on beats 5 → each template\'s own entry');
         expect(notes(checklist).filter(entry => entry.startsWith('6: phone_call'))).toEqual([]);
         // Mutant (#930 S2): call every staged box measured, and an element only the vision pass saw is claimed as measured.
@@ -1044,9 +1291,10 @@ describe('the remake draws measured staging without snapping it to presets (#973
     it('places every icon of the stored job-01 analysis under the captions at the reference width, and frames the face as the reference did', () => {
         const { document, input, notes } = remake(structuredClone(JOB01));
         const overlays = input.overlays!;
-        // A run shows ten overlays; the rest of the icons become text cards, and the plan says so.
-        expect(overlays).toHaveLength(10);
-        expect(notes.filter(entry => entry.what === 'logo_card (a run shows at most 10 overlays)').map(entry => entry.beat_index)).toEqual([10, 11, 12, 13, 14, 15]);
+        // #1192: thirty overlays a run, so every one of the twelve icons is drawn; the beats past them have no image left and say so.
+        expect(overlays).toHaveLength(icons.length);
+        expect(notes.filter(entry => entry.what === 'logo_card (no image left in assets)').map(entry => entry.beat_index)).toEqual([12, 13, 14, 15]);
+        expect(notes.filter(entry => entry.what.includes('a run shows at most'))).toEqual([]);
         for (const overlay of overlays) {
             expect(overlay.position, overlay.id).toBeUndefined();
             expect(overlay.place, overlay.id).toMatchObject({ relative_to: 'captions', side: 'below' });
@@ -1114,5 +1362,247 @@ describe('the remake draws measured staging without snapping it to presets (#973
         expect(validateWorkflowPlan(document, declared()).issues).toEqual([]);
         expect(notes.map(entry => entry.what)).toContain('the measured entry of the templates on beats 2');
         expect(notes.some(entry => entry.what.includes('caption box'))).toBe(false);
+    });
+});
+
+describe('the remake draws a split and full-frame pictures by the reference\'s measured staging (#1030, #1031)', () => {
+    const images = ['a', 'b', 'c'].map(digit => ({ asset_id: `ast_${digit.repeat(32)}`, media_type: 'image' }));
+    const plan = (profile: unknown, script = SCRIPT, assets: unknown[] = images) => {
+        const result = compileReferenceRemake({ reference_profile: profile, script, actor_id: 'actor_marcus', voice: 'sarah', assets }, capabilities(['long_form']));
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        return { document: result.document, input: native(result.document), notes: result.document.brief.reference_profile!.unmapped
+            .map(entry => `${entry.beat_index}: ${entry.what} → ${entry.suggested_substitute}`) };
+    };
+    const element = (id: string, beat_index: number, kind: string, rect_hold: Record<string, number>, extra: Record<string, unknown> = {}) =>
+        ({ id, beat_index, graphic_index: 0, kind, rect_hold, rect_method: 'frames-box/v1', ...extra });
+    const staging = (elements: unknown[]) => ({ version: 'reference-staging-v1', analysis_width: 720, anchors: [], freezes: [], elements });
+    /** Reel DfFtkhuiPAd as #1030 reports it: the graphic in the top 46% (e1 rect_hold top 0, height 0.4625), the presenter below, then a
+     *  screenshot inserted inside the frame with real margins (the element pass notes e3's margins; the box here is ours, not the reel's). */
+    const dfft = () => {
+        const base = { ...PROFILE.beats[0], sounds: [], camera: 'static', transition_in: 'none' };
+        const graphic = (kind: string, source_kind: string, position: string) => ({ kind, source_kind, position, state_changes: [], label_hint: '' });
+        return { ...structuredClone(PROFILE), unmapped: [], source: { ...PROFILE.source, duration_s: 18, width: 720, height: 1280 },
+            beats: [{ ...base, role: 'hook', start_frac: 0, end_frac: 1 / 3, start_s: 0, end_s: 6, presenter_behaviour: 'speaking',
+                graphics: [graphic('layout_split', 'split_screen', 'top')] },
+            { ...base, role: 'demo', start_frac: 1 / 3, end_frac: 2 / 3, start_s: 6, end_s: 12, presenter_behaviour: 'absent',
+                graphics: [graphic('insert_media', 'screenshot', 'full_screen')] },
+            { ...base, role: 'cta', start_frac: 2 / 3, end_frac: 1, start_s: 12, end_s: 18, presenter_behaviour: 'speaking', graphics: [] }],
+            staging: staging([element('e1', 0, 'split_screen', { left: 0, top: 0, width: 1, height: 0.4625 }),
+                element('e3', 1, 'screenshot', { left: 0.05, top: 0.17, width: 0.9, height: 0.62 }, { entry: { first_visible_s: 6.2, style: 'scale_up' } })]) };
+    };
+    const DFFT_SCRIPT = 'Every missed call is a lost deal. Here is the page that books it for you, the time, the price, the text. Set it up in ten minutes.';
+
+    /** Mutants: keep the split's bottom default, read the share from the wrong edge, drop the box, or lose a fit, and the remake reverses the reel. */
+    it('puts DfFtkhuiPAd\'s graphic in the top 46% over the presenter, and its screenshot in its measured box, fitted', () => {
+        const { document, input, notes } = plan(dfft(), DFFT_SCRIPT);
+        expect(input.layout_windows).toEqual([expect.objectContaining({ layout: 'split', media_side: 'top', media_share: 0.4625, asset_id: images[0]!.asset_id })]);
+        expect(input.layout_windows![0]).not.toHaveProperty('enter');
+        expect(input.inserts).toEqual([expect.objectContaining({ asset_id: images[1]!.asset_id, fit: 'auto', box: { left: 0.05, top: 0.17, width: 0.9, height: 0.62 } })]);
+        expect(makeUgcInput.safeParse(input).success).toBe(true);
+        expect(validateWorkflowPlan(document, capabilities(['long_form'])).issues).toEqual([]);
+        expect(notes.filter(entry => entry.includes('measured staging is drawn'))).toEqual([]);
+        expect(notes).toContain('1: insert_media: its scale_up entry (reference staging) → a cut');
+        expect(notes).toContain('1: the pictures on beats 2 filling their box → each in the box or the frame, whichever cuts it less, scrolled or ' +
+            'panned to show all of it; whole over a blurred copy only if too little would show, and warnings[] names it');
+        expect(notes.some(entry => entry.startsWith('0: layout_split'))).toBe(false);
+    });
+
+    /** A second reel, not the first replayed: the fixture reel's split with its media below at 85% of the height on a narrower box, and a picture
+     *  insert that fills the frame. Mutants: no clamp, a silent clamp, a box for a full frame, or a slide entry dropped. */
+    it('takes the fixture reel\'s bottom split, clamped to what the split draws and named, and fits its full-frame picture without a box', () => {
+        const profile = { ...structuredClone(PROFILE), staging: staging([
+            element('split', 1, 'split_screen', { left: 0.075, top: 0.15, width: 0.85, height: 0.85 }, { entry: { first_visible_s: 4.5, style: 'slide', from: 'bottom' } }),
+            element('ui', 2, 'product_ui', { left: 0, top: 0, width: 1, height: 1 })]) };
+        const { document, input, notes } = plan(profile);
+        expect(input.layout_windows).toEqual([expect.objectContaining({ layout: 'split', media_side: 'bottom', media_share: 0.7, enter: 'slide' })]);
+        const insert = input.inserts!.find(item => item.id === 'ref-3-insert-media')!;
+        expect(insert).toMatchObject({ fit: 'auto' });
+        expect(insert).not.toHaveProperty('box');
+        expect(notes).toContain('1: layout_split: its measured box, 0.85 of the frame\'s width, 0.85 of the frame\'s height → a full-width band on the bottom, 0.7 of the height');
+        expect(notes.filter(entry => /^[12]: .*measured staging is drawn/.test(entry))).toEqual([]);
+        expect(makeUgcInput.safeParse(input).success).toBe(true);
+        expect(validateWorkflowPlan(document, capabilities(['long_form'])).issues).toEqual([]);
+        // Without staging the same reel's split keeps the bottom half it always drew.
+        expect(plan(structuredClone(PROFILE)).input.layout_windows![0]).not.toHaveProperty('media_side');
+    });
+
+    /** Mutant: give a video insert the box, and make_ugc refuses the plan; drop the note, and its smaller box goes unsaid (rule 3). */
+    it('names a video insert\'s measured box it cannot take, and fills the frame with it', () => {
+        const { input, notes } = plan(dfft(), DFFT_SCRIPT, [images[0], { asset_id: `ast_${'d'.repeat(32)}`, media_type: 'video' }]);
+        expect(input.inserts![0]).not.toHaveProperty('fit');
+        expect(input.inserts![0]).not.toHaveProperty('box');
+        expect(notes).toContain('1: insert_media: its measured box, smaller than the frame → the whole frame: a video insert fills it');
+        expect(makeUgcInput.safeParse(input).success).toBe(true);
+    });
+
+    /** Mutant: test only some edges for a margin, and a screenshot inset on one side alone loses its box with no word of it. */
+    it('keeps the box of a picture inset on its left edge alone', () => {
+        const profile = dfft();
+        (profile.staging.elements as Array<Record<string, unknown>>)[1]!.rect_hold = { left: 0.05, top: 0, width: 0.95, height: 1 };
+        expect(plan(profile, DFFT_SCRIPT).input.inserts![0]).toMatchObject({ fit: 'auto', box: { left: 0.05, top: 0, width: 0.95, height: 1 } });
+    });
+
+    /** Mutant: drop the floating check, and a split that sat mid-frame is pinned to an edge with no word of it (rule 3). */
+    it('names a split box that floats off both edges and draws it as a band on the side its centre is on', () => {
+        const profile = dfft();
+        (profile.staging.elements as Array<Record<string, unknown>>)[0]!.rect_hold = { left: 0, top: 0.2, width: 1, height: 0.4 };
+        const { input, notes } = plan(profile, DFFT_SCRIPT);
+        expect(input.layout_windows![0]).toMatchObject({ media_side: 'top', media_share: 0.4 });
+        expect(notes).toContain('0: layout_split: its measured box, off the frame\'s top and bottom edges → a full-width band on the top, 0.4 of the height');
+    });
+
+    /** Mutant: drop the exit from cutsOf, and a split's or a picture's measured fade out turns into a cut with no word of it (rule 3). */
+    it('names a split\'s and a picture\'s measured exit that the remake draws as a cut', () => {
+        const profile = dfft();
+        const [split, shot] = profile.staging.elements as Array<Record<string, unknown>>;
+        split!.exit = { last_visible_s: 5.8, style: 'fade' };
+        shot!.exit = { last_visible_s: 11.8, style: 'slide' };
+        const { notes } = plan(profile, DFFT_SCRIPT);
+        expect(notes).toContain('0: layout_split: its fade exit (reference staging) → a cut');
+        expect(notes).toContain('1: insert_media: its scale_up entry and slide exit (reference staging) → a cut');
+    });
+});
+
+describe('the plan settles at compile time what delivered remakes used to warn about (#1049)', () => {
+    const notes = (document: WorkflowPlanDocument) => document.brief.reference_profile!.unmapped.map(entry => `${entry.beat_index}: ${entry.what} → ${entry.suggested_substitute}`);
+
+    /** Mutant: click the first row on the template's first word, and the run moves it to frame 12 and says so in warnings[]. */
+    it('clicks no checklist row before the checklist is drawn, even at the fastest pace a voice reads', () => {
+        const tokens = lexicalTokens(SCRIPT), words = tokens.map((word, at) => ({ word, startSec: at / WORDS_PER_SECOND_MAX }));
+        const listed = (native(compiled()).templates ?? []).filter(item => item.kind === 'checklist' || item.kind === 'progress');
+        expect(listed.length).toBeGreaterThan(0);
+        for (const item of listed) {
+            const range = layerWordRange(tokens, item);
+            if (typeof range === 'string') throw new Error(range);
+            const startFrame = Math.round((range.startWord / WORDS_PER_SECOND_MAX) * CANVAS_FPS);
+            const { warnings } = templateMoments(TEMPLATE_KINDS.find(kind => kind.kind === item.kind)!, item.data, tokens, range, words, CANVAS_FPS,
+                { startFrame, endFrame: startFrame + 25 * CANVAS_FPS }, item.id);
+            expect(warnings, item.id).toEqual([]);
+        }
+    });
+
+    /** A one-beat reference showing `kind`, remade with `script`: the template's data and its timing warnings at 4 words/s. */
+    const listed = (kind: 'checklist' | 'progress', script: string) => {
+        const profile = structuredClone(PROFILE);
+        profile.beats = [{ ...PROFILE.beats[0], start_frac: 0, end_frac: 1, start_s: 0, end_s: 60, sounds: [], camera: 'static', transition_in: 'none',
+            presenter_behaviour: 'speaking', graphics: [{ kind, source_kind: kind, position: 'center', state_changes: [], label_hint: '' }] }];
+        profile.captions.present = false;
+        profile.unmapped = [];
+        const result = compileReferenceRemake({ ...request({ script }), reference_profile: profile }, capabilities());
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        const item = native(result.document).templates?.find(entry => entry.kind === kind);
+        if (!item) return undefined;
+        const tokens = lexicalTokens(script), words = tokens.map((word, at) => ({ word, startSec: at / WORDS_PER_SECOND_MAX })), range = layerWordRange(tokens, item);
+        if (typeof range === 'string') throw new Error(range);
+        const startFrame = Math.round((range.startWord / WORDS_PER_SECOND_MAX) * CANVAS_FPS);
+        return { data: item.data, warnings: templateMoments(TEMPLATE_KINDS.find(entry => entry.kind === kind)!, item.data, tokens, range, words, CANVAS_FPS,
+            { startFrame, endFrame: startFrame + 25 * CANVAS_FPS }, item.id).warnings };
+    };
+
+    /** Mutant (Codex r1): drop the fallback, and a list whose opening phrase is its only early row is no longer drawn at all. */
+    /** Mutant (Codex r2): drop the last fallback, and a list whose second row no quote can resolve to is no longer drawn at all. */
+    it('keeps a list that has only two phrases, clicked as before, rather than drop it', () => {
+        for (const kind of ['checklist', 'progress'] as const) {
+            for (const script of ['Open the app, tap start.', 'Go go go, go go go.']) {
+                const shown = listed(kind, script);
+                expect(shown, `${kind}: ${script}`).toBeDefined();
+                expect(kind === 'checklist' ? (shown!.data as { items: unknown[] }).items : (shown!.data as { steps: unknown[] }).steps, `${kind}: ${script}`).toHaveLength(2);
+            }
+        }
+    });
+
+    /** Mutant (Codex r1): keep a row's word whatever the run resolves its quote to, and "now" lands on the first "now", before the list is drawn. */
+    it('quotes each row so the run finds the word chosen, not an earlier one with the same text', () => {
+        for (const kind of ['checklist', 'progress'] as const) {
+            const shown = listed(kind, 'Go now, go now, run home, run far.');
+            expect(shown, kind).toBeDefined();
+            expect(shown!.warnings, kind).toEqual([]);
+        }
+    });
+
+    /** Mutant (Codex r3): count only an explicit full placement, and a hook under a quote card, full-frame by its kind, keeps its hidden emphasis. */
+    it('puts no caption emphasis under a template that is full-frame by its kind', () => {
+        const profile = structuredClone(PROFILE), base = { ...PROFILE.beats[0], sounds: [], camera: 'static', transition_in: 'none', presenter_behaviour: 'speaking' };
+        profile.beats = [{ ...base, role: 'hook', start_frac: 0, end_frac: 0.5, start_s: 0, end_s: 10,
+            graphics: [{ kind: 'quote', source_kind: 'quote', position: 'center', state_changes: [], label_hint: '' }] },
+            { ...base, role: 'cta', start_frac: 0.5, end_frac: 1, start_s: 10, end_s: 20, graphics: [] }];
+        profile.unmapped = [];
+        const result = compileReferenceRemake({ ...request({ script: 'Every missed call is a lost deal. Set it up today and stop losing deals.' }), reference_profile: profile },
+            capabilities());
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        const input = native(result.document);
+        expect(input.templates!.map(item => [item.kind, item.placement])).toEqual([['quote', undefined]]);
+        expect((input.caption_emphasis ?? []).map(item => typeof item === 'string' ? item : item.quote)).toEqual(['stop losing deals']);
+        expect(notes(result.document)).toContain('0: caption emphasis on this beat (a full-frame insert or template covers its words, and captions are hidden there) → none here');
+    });
+
+    /** Mutant (Codex r3): give allow_face to face-relative places only, and a frame box touching the face's edge is warned on every render. */
+    it('keeps a frame box that touches the face\'s edge, on purpose, as it does a face box', () => {
+        const staging = JSON.parse(readFileSync(new URL('../__fixtures__/ganesh-staging.json', import.meta.url), 'utf8'));
+        const rect = { left: 0.45, top: 0.41, width: 0.1, height: 0.07 }, { rect_hold_face: _face, ...element } = staging.elements[0];
+        staging.elements = [{ ...element, id: 'logo', beat_index: 0, graphic_index: 0, kind: 'overlay_media', rect_hold: rect }];
+        staging.freezes = [];
+        const profile = structuredClone(PROFILE), base = { ...PROFILE.beats[0], sounds: [], camera: 'static', transition_in: 'none', presenter_behaviour: 'speaking' };
+        profile.beats = [{ ...base, start_frac: 0, end_frac: 1, start_s: 0, end_s: 20,
+            graphics: [{ kind: 'overlay_media', source_kind: 'overlay_media', position: 'center', state_changes: [], label_hint: '' }] }];
+        profile.unmapped = [];
+        const result = compileReferenceRemake({ ...request({ assets: [{ asset_id: `ast_${'a'.repeat(32)}`, media_type: 'image' }] }),
+            reference_profile: { ...profile, staging } }, capabilities(['long_form']));
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        const input = native(result.document), face = admissionScene(input, '9:16', 'close').face;
+        expect(input.overlays![0]!.place).toEqual({ relative_to: 'frame', rect, allow_face: true });
+        expect(sharedArea(rect, face)).toBeGreaterThan(0);
+        expect(notes(result.document)).toContain('0: the graphics on beats 1 touching the presenter\'s face at its edge, as the reference\'s do → kept where the reference has them');
+    });
+
+    /** Mutant: emphasise the hook under its full-frame title card, and the run says the emphasis is hidden there. */
+    it('puts no caption emphasis under a full-frame layer, and names the beat it leaves without one', () => {
+        const document = compiled(), input = native(document), hook = input.templates!.find(item => item.id === 'ref-1-title-card');
+        expect(hook).toMatchObject({ placement: 'full' });
+        expect((input.caption_emphasis ?? []).map(item => typeof item === 'string' ? item : item.quote)).toEqual(['while you sleep']);
+        expect(notes(document)).toContain('0: caption emphasis on this beat (a full-frame insert or template covers its words, and captions are hidden there) → none here');
+    });
+
+    /** run_822a3ca3…: the reference's middle captions over our presenter's mouth and chin. Mutant: copy the reference's height whatever the face. */
+    it('moves captions off the presenter\'s planned face, the same box the overlap check uses, and says so', () => {
+        const staging = JSON.parse(readFileSync(new URL('../__fixtures__/ganesh-staging.json', import.meta.url), 'utf8'));
+        staging.elements = [];
+        staging.freezes[0].face_box_start = { left: 0.4344, top: 0.3776, width: 0.2, height: 0.2112 };
+        const profile = { ...structuredClone(PROFILE), staging, captions: { ...PROFILE.captions, position: 'middle' } };
+        const declared = capabilities(['long_form']);
+        Object.assign(declared.executors[0]!.field_dispositions, { caption_position: 'implemented', presenter_place: 'implemented' });
+        const result = compileReferenceRemake(request({ reference_profile: profile }), declared);
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        const input = native(result.document), scene = admissionScene(input, '9:16', 'close');
+        expect(input.presenter_place).toEqual({ face_height: 0.2112, face_centre: [0.5344, 0.4832] });
+        expect(sharedArea(admissionScene({ ...input, caption_position: 'middle' }, '9:16', 'close').captions!, scene.face)).toBeGreaterThan(0);
+        expect(input.caption_position).toBe('bottom');
+        expect(sharedArea(scene.captions!, scene.face)).toBe(0);
+        expect(notes(result.document)).toContain('0: captions at the reference\'s middle height (there they would cover the presenter\'s face) → bottom captions, clear of the face');
+        expect(validateWorkflowPlan(result.document, declared).issues).toEqual([]);
+        // Mutant (Codex r2): break a tie upwards. Here top and bottom both clear the face, 30 points off middle each; the lower one is taken.
+        staging.freezes[0].face_box_start = { left: 0.4, top: 0.48, width: 0.2, height: 0.23 };
+        const tied = compileReferenceRemake(request({ reference_profile: { ...profile, captions: { ...profile.captions, words_per_caption_max: 1 } } }), declared);
+        if (tied.kind !== 'compiled') throw new Error(JSON.stringify(tied.issues));
+        const tiedInput = native(tied.document), tiedScene = admissionScene(tiedInput, '9:16', 'close');
+        for (const position of ['top', 'bottom'] as const) {
+            expect(sharedArea(admissionScene({ ...tiedInput, caption_position: position }, '9:16', 'close').captions!, tiedScene.face), position).toBe(0);
+        }
+        expect(tiedInput.caption_position).toBe('bottom');
+    });
+
+    /** Mutant: move the captions though graphics stand by them, and the job-01 icons follow the band away from where the reference had them. */
+    it('keeps the reference\'s caption height when graphics stand by the captions, and names the face it covers', () => {
+        const job01 = JSON.parse(readFileSync(new URL('../__fixtures__/reference-job01-profile.json', import.meta.url), 'utf8')).reference_profile;
+        job01.captions = { ...job01.captions, position: 'top', box: { left: 0.3, top: 0.52, width: 0.4, height: 0.075 } };
+        const declared = capabilities(['long_form']);
+        Object.assign(declared.executors[0]!.field_dispositions, { caption_position: 'implemented', presenter_place: 'implemented' });
+        const assets = Array.from({ length: 12 }, (_, at) => ({ asset_id: `ast_${at.toString(16).repeat(32)}`, media_type: 'image' }));
+        const result = compileReferenceRemake({ reference_profile: job01, script: SCRIPT, actor_id: 'actor_alex', voice: 'eric', assets }, declared);
+        if (result.kind !== 'compiled') throw new Error(JSON.stringify(result.issues));
+        const input = native(result.document);
+        expect(input.overlays!.some(overlay => (overlay.place as { relative_to?: unknown } | undefined)?.relative_to === 'captions')).toBe(true);
+        expect(input.caption_position).toBe('top');
+        expect(notes(result.document)).toContain('0: captions at the reference\'s top height (there they would cover the presenter\'s face) → kept there: graphics stand by the captions');
     });
 });

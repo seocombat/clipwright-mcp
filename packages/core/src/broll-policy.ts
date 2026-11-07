@@ -3,9 +3,8 @@ import { z } from "zod";
 export const BROLL_POLICIES = ["anyone", "no_actor", "no_people"] as const;
 export const DEFAULT_BROLL_POLICY = "no_people" as const;
 export const BROLL_POLICY_DESCRIPTION =
-  "Saved policy for B-roll: anyone allows people including the actor; no_actor excludes the actor; " +
-  "no_people excludes all people, including hands. Segmented media generation is closed. " +
-  "This setting is stored only and has no effect on actor-only videos. " +
+  "Policy for B-roll: anyone allows people including the actor; no_actor excludes the actor; " +
+  "no_people excludes all people, including hands. Templates with your own picture or video need \"anyone\"; otherwise stored only. " +
   "Run override wins over the account actor default; otherwise no_people.";
 export const brollPolicy = z.enum(BROLL_POLICIES).describe(BROLL_POLICY_DESCRIPTION);
 export type BrollPolicy = z.infer<typeof brollPolicy>;

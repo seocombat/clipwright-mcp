@@ -1,5 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { priceLine } from "@clipwright/core";
+
+import { LISTED_DESCRIPTIONS, LISTED_FIELDS } from "./listed-texts.js";
 
 // tools/list as clients receive it: the same tools and fields in less JSON, while calls still parse with the full zod schemas (#1003).
 // Every change only widens what the advertised schema accepts, so a client that checks it never refuses a call the server takes.
@@ -19,13 +22,17 @@ export const COPIED_FIELDS: Record<string, Record<string, string>> = {
   plan_reference_remake: {
     "/properties/reference_profile":
       "The reference_profile field of a succeeded get_reference_analysis answer, passed unchanged.",
+    "/properties/moves": "The moves array of quote_ugc input.",
+    "/properties/motion_style": "The motion_style object of quote_ugc input.",
+    "/properties/cast": "As quote_ugc shot cast.",
   },
+  brand_kit: { "/properties/design": "The design object of quote_ugc input." },
+  // The style list and when to use each are describe_tool's: listed whole they cost the bytes tools/list lacks (#1123).
+  quote_ugc: { "/properties/motion_style": "Free drawing style of captions, templates and scenes; describe_tool quote_ugc motion_style " +
+    "lists the styles and spans." },
 };
-/** Field descriptions keep their first sentences up to this many characters; deeper ones keep fewer. */
-export const FIELD_DESCRIPTION_CHARS = 160;
-export const NESTED_DESCRIPTION_CHARS = 60;
-/** Tools whose field descriptions stay whole: quote_ugc's carry the templates catalog, the snap rule and the script limits. */
-export const WHOLE_FIELD_DESCRIPTIONS = new Set(["quote_ugc"]);
+/** A field text that starts by marking the field unusable stays listed whole: the renderer ignores it, or the server refuses it. */
+const MARKED_FIELD = /^(NOT HONORED YET|REJECTED for now):/;
 
 const MAP_KEYWORDS = ["properties", "patternProperties", "$defs", "definitions", "dependentSchemas"];
 const ONE_KEYWORDS = ["items", "additionalProperties", "not", "if", "then", "else", "contains", "propertyNames", "unevaluatedProperties", "unevaluatedItems"];
@@ -62,6 +69,7 @@ const withoutDescriptions = (schema: unknown): string =>
 export const PAID_TWINS: Record<string, string> = {
   make_ugc: "quote_ugc", revise_run: "quote_revision", generate_video: "quote_video", generate_image: "quote_image",
   create_actor: "quote_actor", make_faceless: "quote_faceless", create_candidate: "quote_candidate", analyze_reference: "quote_analysis",
+  find_trends: "quote_trends",
 };
 
 /** The paid tool's fields its quote lacks, or undefined when the quote's fields differ from the paid tool's. */
@@ -85,14 +93,6 @@ export function findTwins(tools: readonly Tool[]): Map<string, { of: string; plu
     if (plus !== undefined) twins.set(paid, { of: quote, plus });
   }
   return twins;
-}
-
-/** A description cut after its last whole sentence that fits, or after a whole word. */
-export function shorten(text: string, limit: number): string {
-  if (text.length <= limit) return text;
-  const head = text.slice(0, limit);
-  const end = Math.max(head.lastIndexOf(". "), head.lastIndexOf(".\n"), head.lastIndexOf("; "));
-  return end >= limit / 3 ? head.slice(0, end + 1) : `${head.replace(/\s+\S*$/, "")}…`;
 }
 
 /** Repeated subschemas move to `$defs` once, largest saving first; each copy becomes a `$ref`. Nodes in `keep` stay in place. */
@@ -162,22 +162,24 @@ function pointer(root: Schema, path: string): [Schema | unknown[], string] {
 
 function advertise(tools: readonly Tool[]): Tool[] {
   const twins = findTwins(tools);
-  const described = new Set<string>();
-  // A text a whole-described tool gives a field is said there and nowhere else, whatever the order of the list.
-  const kept = new Set<string>();
-  for (const tool of tools.filter(entry => WHOLE_FIELD_DESCRIPTIONS.has(entry.name))) {
-    walk(tool.inputSchema as Schema, 0, (node, depth) => { if (depth === 1 && typeof node.description === "string") kept.add(node.description); });
-  }
   return tools.map(tool => {
     const twin = twins.get(tool.name);
     const schema = structuredClone(tool.inputSchema) as Schema;
-    // A pointer is the field's only description, so no dedup, cut or $defs move touches it.
+    // A pointer or a listed text is the field's only description, so no cut or $defs move touches it.
     const pointers = new Set<Schema>();
     for (const [path, description] of Object.entries(COPIED_FIELDS[tool.name] ?? {})) {
       const [container, key] = pointer(schema, path);
-      const node = { type: "object", description };
+      // The field's types stay, so a client still sends an array as an array.
+      const node = { ...(typeShape(child(container, key)) as Schema), description };
       pointers.add(node);
       put(container, key, node);
+    }
+    const listed = new Set<Schema>();
+    for (const [key, description] of Object.entries(LISTED_FIELDS[tool.name] ?? {})) {
+      const [container, at] = pointer(schema, `/properties/${key}`);
+      const node = child(container, at) as Schema;
+      node.description = description;
+      listed.add(node);
     }
     if (twin !== undefined && isSchema(schema.properties)) {
       schema.properties = Object.fromEntries(Object.entries(schema.properties).map(([key, field]) => [key, typeShape(field)]));
@@ -185,25 +187,60 @@ function advertise(tools: readonly Tool[]): Tool[] {
       delete schema.additionalProperties;
     }
     delete schema.$schema;
-    const own = new Set<string>();
-    const keepFields = WHOLE_FIELD_DESCRIPTIONS.has(tool.name);
     walk(schema, 0, (node, depth) => {
       if (node.maximum === Number.MAX_SAFE_INTEGER) delete node.maximum;
       if (node.minimum === -Number.MAX_SAFE_INTEGER) delete node.minimum;
+      // Constraints any JSON object meets, a format no JSON Schema defines (its pattern stays), and a pattern a date-time format states (#1045).
+      if (node.format === "starts_with" && typeof node.pattern === "string") delete node.format;
+      if (isSchema(node.propertyNames) && Object.keys(node.propertyNames).join() === "type" && node.propertyNames.type === "string") delete node.propertyNames;
+      if (isSchema(node.additionalProperties) && Object.keys(node.additionalProperties).length === 0) delete node.additionalProperties;
+      if (node.format === "date-time" && typeof node.pattern === "string") delete node.pattern;
       // The root still refuses unknown fields; a nested one is refused by the server, which names it.
       if (depth > 0 && node.additionalProperties === false) delete node.additionalProperties;
-      if (depth === 0 || typeof node.description !== "string") return;
-      if ((keepFields && depth === 1) || pointers.has(node)) return;
-      if (described.has(node.description) || kept.has(node.description)) { delete node.description; return; }
-      own.add(node.description);
-      node.description = shorten(node.description, depth === 1 ? FIELD_DESCRIPTION_CHARS : NESTED_DESCRIPTION_CHARS);
+      // Any other field text is describe_tool's (#1142): names, types and values are listed, guidance is read on demand.
+      if (depth === 0 || typeof node.description !== "string" || pointers.has(node) || listed.has(node)) return;
+      if (depth > 1 || !MARKED_FIELD.test(node.description)) delete node.description;
     });
-    for (const text of own) described.add(text);
     const { execution, ...rest } = tool;
-    const description = twin === undefined ? tool.description : withTwinNote(tool.description ?? "", twin);
+    const body = listedDescription(tool);
+    const description = twin === undefined ? body : withTwinNote(body ?? "", twin);
     return { ...rest, ...(execution === undefined || execution.taskSupport === "forbidden" ? {} : { execution }),
       ...(description === undefined ? {} : { description }), inputSchema: hoistRepeats(schema, pointers) as Tool["inputSchema"] };
   });
+}
+
+/** A tool's listed text: its short text and the price line its full text ends with, or the full text when it has none. */
+export function listedDescription(tool: Pick<Tool, "name" | "description">): string | undefined {
+  const short = LISTED_DESCRIPTIONS[tool.name];
+  if (short === undefined) return tool.description;
+  const price = priceLine(tool.name);
+  return price !== null && tool.description?.endsWith(price) ? `${short} ${price}` : short;
+}
+
+/** Every description a tool's schema holds, by field path (`a.b`, `a[]` for items), for describe_tool. */
+export function fieldTexts(node: Schema, path = "", into: Record<string, string> = {}): Record<string, string> {
+  if (path !== "" && typeof node.description === "string" && !(into[path]?.split("\n").includes(node.description) ?? false)) {
+    into[path] = into[path] === undefined ? node.description : `${into[path]}\n${node.description}`;
+  }
+  for (const [keyword, value] of Object.entries(node)) {
+    if (MAP_KEYWORDS.includes(keyword) && isSchema(value)) {
+      for (const [key, sub] of Object.entries(value)) {
+        if (isSchema(sub)) fieldTexts(sub, keyword === "properties" ? (path === "" ? key : `${path}.${key}`) : `${keyword}.${key}`, into);
+      }
+    } else if (ONE_KEYWORDS.includes(keyword) && isSchema(value)) fieldTexts(value, keyword === "items" ? `${path}[]` : path, into);
+    else if (LIST_KEYWORDS.includes(keyword) && Array.isArray(value)) for (const branch of value) if (isSchema(branch)) fieldTexts(branch, path, into);
+  }
+  return into;
+}
+
+/** describe_tool's answer: a tool's full description and field guidance as the server registered them, or one field's (with its subfields). */
+export function describeTool(tools: readonly Tool[], name: string, field?: string):
+  { tool: string; description: string; fields: Record<string, string> } | undefined {
+  const tool = tools.find(entry => entry.name === name);
+  if (tool === undefined) return undefined;
+  const fields = Object.entries(fieldTexts(tool.inputSchema as Schema))
+    .filter(([path]) => field === undefined || path === field || path.startsWith(`${field}.`) || path.startsWith(`${field}[]`));
+  return { tool: name, description: tool.description ?? "", fields: Object.fromEntries(fields) };
 }
 
 let cached: { key: string; tools: Tool[] } | undefined;
@@ -215,8 +252,8 @@ export function advertisedTools(tools: readonly Tool[]): Tool[] {
 }
 
 type ListHandler = (request: unknown, extra: unknown) => Promise<{ tools: Tool[] }>;
-/** Wraps the SDK's tools/list answer; call after every tool is registered. */
-export function advertiseSlimTools(server: McpServer): void {
+/** Wraps the SDK's tools/list answer; call after every tool is registered. Answers the SDK's own list, which describe_tool reads. */
+export function advertiseSlimTools(server: McpServer): () => Promise<Tool[]> {
   // The SDK offers no hook into its tools/list answer, so the registered handler is wrapped in its private map.
   const handlers = (server.server as unknown as { _requestHandlers?: Map<string, ListHandler> })._requestHandlers;
   const list = handlers?.get("tools/list");
@@ -225,4 +262,7 @@ export function advertiseSlimTools(server: McpServer): void {
     const answer = await list(request, extra);
     return { ...answer, tools: advertisedTools(answer.tools) };
   });
+  // Every tool is registered by now, so one server's list never changes: built once, on the first read.
+  let full: Promise<Tool[]> | undefined;
+  return () => (full ??= list({ method: "tools/list", params: {} }, {}).then(answer => answer.tools));
 }

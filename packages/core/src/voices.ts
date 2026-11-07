@@ -158,8 +158,9 @@ export function speechTextFor(text: string, modelId: TtsModelId): string {
 const BREAK_TAG_CUT_MODELS = listed([...NO_BREAK_TAG_MODELS]);
 
 export const MAX_SCRIPT_CHARS = Math.max(...Object.values(TTS_MODEL_CHAR_CAP));
-export const SCRIPT_LENGTH_DESCRIPTION =
-  `Script limits by speech model: ${TTS_MODELS.map((model) => `${model}: ${TTS_MODEL_CHAR_CAP[model]} characters`).join("; ")}. ` +
+export const SCRIPT_LIMITS_BY_MODEL =
+  `Script limits by speech model: ${TTS_MODELS.map((model) => `${model}: ${TTS_MODEL_CHAR_CAP[model]} characters`).join("; ")}.`;
+export const SCRIPT_LENGTH_DESCRIPTION = `${SCRIPT_LIMITS_BY_MODEL} ` +
   "Count includes spaces, audio tags and stress marks; emoji may count as two characters. " +
   `Break tags are cut from the text sent to ${BREAK_TAG_CUT_MODELS} and are not counted there. ` +
   "There is no word-count limit. Duration and price are estimates until measured.";

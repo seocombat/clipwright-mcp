@@ -17,12 +17,39 @@ export type LayerExit = (typeof LAYER_EXITS)[number];
 export const MAX_ENTER_OFFSET_S = 0.5;
 export const LAYOUT_WINDOW_KINDS = ["split", "card"] as const;
 export type LayoutWindowKind = (typeof LAYOUT_WINDOW_KINDS)[number];
-export const INSERT_TRANSITIONS = ["cut", "wipe", "flash", "zoom"] as const;
+export const FULL_FRAME_TRANSITIONS = ["cut", "wipe", "flash", "zoom"] as const;
+/** `glitch` breaks the cut with a colour split and an inverted frame (#1175 S5 C8); `power` closes the screen to a line and a dot and opens it the
+ *  same way (C9). */
+export const INSERT_TRANSITIONS = [...FULL_FRAME_TRANSITIONS, "light_leak", "glitch", "power"] as const;
 export type InsertTransition = (typeof INSERT_TRANSITIONS)[number];
+/** A video insert's key moment slowed down and back (`ramp`) or caught in a short repeating loop (`stutter`) (#1175 S5 C6). */
+export const INSERT_RETIMES = ["ramp", "stutter"] as const;
+export type InsertRetimeMode = (typeof INSERT_RETIMES)[number];
+export const INSERT_FITS = ["cover", "contain", "auto"] as const;
+export type InsertFit = (typeof INSERT_FITS)[number];
+/** `auto` holds a picture still while filling cuts at most this share of it, and past it scrolls or pans it end to end (#1051 S2). */
+export const INSERT_STILL_CUT = 0.08;
+/** `auto` moves a picture only while this share of it shows at once: a 16:10 screenshot (35% in 9:16) pans; past it, it shows whole over blur. */
+export const INSERT_MIN_SHOWN = 0.25;
+/** A picture's scroll runs down or up a tall picture, its pan left or right across a wide one (#1051 S2). */
+export const INSERT_MOTIONS = { scroll: ["down", "up"], pan: ["left", "right"] } as const;
+export type InsertMotion = { kind: "scroll"; direction: "down" | "up" } | { kind: "pan"; direction: "left" | "right" };
+export const SPLIT_MEDIA_SIDES = ["top", "bottom"] as const;
+export const SPLIT_MEDIA_SHARE = { min: 0.3, max: 0.7, default: 0.5 } as const;
 
-export const MAX_OVERLAYS = 10;
-export const MAX_LAYOUT_WINDOWS = 5;
-export const MAX_OVERLAYS_AT_ONCE = 2;
+export const MAX_OVERLAYS = 30;
+export const MAX_LAYOUT_WINDOWS = 15;
+export const MAX_OVERLAYS_AT_ONCE = 3;
+
+/** The first MAX_OVERLAYS_AT_ONCE of `others` on screen together at a word of `range`, or undefined when fewer ever are. */
+export function overlayCrowd<T extends { range: WordRange }>(others: readonly T[], range: WordRange): T[] | undefined {
+  for (const word of [range.startWord, ...others.map(other => other.range.startWord)]) {
+    if (word < range.startWord || word >= range.coverWord) continue;
+    const on = others.filter(other => other.range.startWord <= word && word < other.range.coverWord);
+    if (on.length >= MAX_OVERLAYS_AT_ONCE) return on.slice(0, MAX_OVERLAYS_AT_ONCE);
+  }
+  return undefined;
+}
 
 /** A footprint on the frame, in shares of its width and height (#778 S3 D5). */
 export interface LayerRect { left: number; top: number; width: number; height: number }
@@ -49,14 +76,17 @@ export function rectsOverlap(a: LayerRect, b: LayerRect): boolean {
   return a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
 }
 
-/** How the presenter is framed: close as every portrait was, or wide, lower with room above, a 9:16 view only (#884 S5d). */
-export const PRESENTER_FRAMINGS = ["close", "wide"] as const;
+/** How the presenter is framed: close as every portrait was, wide, lower with room above (#884 S5d), or full, head to feet (#1175 S7). */
+/** wide and full are 9:16 views only. */
+export const PRESENTER_FRAMINGS = ["close", "wide", "full"] as const;
 export type PresenterFraming = (typeof PRESENTER_FRAMINGS)[number];
 
 /** Where the presenter's face sits: 12–48% of the height and the middle 60% of a 9:16 clip, which other formats fit whole and centre (#778 S3). */
 /** A wide 9:16 view puts it at 33–58% and the middle half, as measured on a HeyGen render (#884 S5d). */
 export function faceZone(aspectRatio: string, framing: PresenterFraming = "close"): LayerRect {
   if (framing === "wide" && aspectRatio === "9:16") return { left: 0.25, top: 0.33, width: 0.5, height: 0.25 };
+  // A full-height face is 0.087–0.092 of the height (#1171 live takes), the head at the top: the zone holds the head and the shoulders.
+  if (framing === "full" && aspectRatio === "9:16") return { left: 0.3, top: 0.03, width: 0.4, height: 0.2 };
   const { width, height } = frameCanvasOf(aspectRatio);
   const share = 0.6 * Math.min(1, (9 / 16) / (width / height));
   return { left: (1 - share) / 2, top: 0.12, width: share, height: 0.36 };
@@ -128,9 +158,11 @@ export function admissionScene(input: Pick<LayerCheckInput, "captions" | "captio
 /** The sides a place may take next to the captions: a page grows sideways with its words. */
 export const CAPTION_SIDES: readonly string[] = ["below", "above"];
 
-/** The framings an admitted run may render: a wide request may render close when the actor has no wide view; wide needs an actor and 9:16. */
+/** The framings an admitted run may render: a wider request renders narrower when the actor has no such view (full falls to wide, then close); */
+/** wide and full need an actor and 9:16. */
 export function admissionFramings(input: { aspect_ratio?: string | undefined; presenter_framing?: unknown; actor_id?: unknown }): PresenterFraming[] {
-  return input.presenter_framing === "wide" && input.actor_id !== undefined && (input.aspect_ratio ?? "9:16") === "9:16" ? ["close", "wide"] : ["close"];
+  if (input.actor_id === undefined || (input.aspect_ratio ?? "9:16") !== "9:16") return ["close"];
+  return input.presenter_framing === "full" ? ["close", "wide", "full"] : input.presenter_framing === "wide" ? ["close", "wide"] : ["close"];
 }
 
 /** How many layers a place leans on through `{ layer }`, Infinity in a loop or past a missing or preset anchor; a template is an anchor as drawn. */
@@ -315,11 +347,10 @@ export function layerRefusals(input: LayerCheckInput, extras?: SceneExtras): Lay
         message: `overlay "${overlay.item.id}" and overlay "${clash.item.id}" share the screen on overlapping boxes at the same time` });
       continue;
     }
-    const crowd = together.flatMap((a, i) => together.slice(i + 1).filter(b =>
-      Math.max(a.range.startWord, b.range.startWord, overlay.range.startWord) <
-      Math.min(a.range.coverWord, b.range.coverWord, overlay.range.coverWord)).map(b => [a, b] as const))[0];
+    const crowd = overlayCrowd(together, overlay.range);
     if (crowd) {
-      refusals.push({ path: ["overlays", overlay.index], message: `overlay "${overlay.item.id}" would be on screen together with "${crowd[0].item.id}" and "${crowd[1].item.id}": at most ${MAX_OVERLAYS_AT_ONCE} overlays show at once` });
+      refusals.push({ path: ["overlays", overlay.index], message: `overlay "${overlay.item.id}" would be on screen together with ` +
+        `${crowd.map(other => `"${other.item.id}"`).join(", ")}: at most ${MAX_OVERLAYS_AT_ONCE} overlays show at once` });
     }
   }
   return refusals;

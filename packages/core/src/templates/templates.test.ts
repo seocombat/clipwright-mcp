@@ -6,7 +6,7 @@ import { faceBillingUnitsOf, freezeResolvedTimeline } from "../resolved-timeline
 import { scriptInsertsTimelineFixture } from "../__fixtures__/long-form-timeline.fixture.js";
 import { ASPECT_RATIOS } from "../skills.js";
 import { calloutParts, contrastRatio, TEMPLATE_KIND_IDS, TEMPLATE_KINDS, TEMPLATE_PRESETS, TEMPLATE_SIZES, templateCatalogText, templateFaceWarnings, templateFootprint,
-  templateFieldValues, templateKindAt, templateMediaOf, templateMoments, templateRefusals, templateTheme, textUnits, withTemplateField,
+  templateFieldValues, templateKindAt, templateMediaOf, templateMoments, templateRefusals, templateSizeWarnings, templateTheme, textUnits, withTemplateField,
   type TemplateKind } from "./index.js";
 import { callout } from "./callout.js";
 import { faceZone, rectsOverlap, type LayerRect } from "../ugc-layers.js";
@@ -192,7 +192,7 @@ describe("one registry, two schemas (D3)", () => {
     const text = templateCatalogText();
     for (const kind of TEMPLATE_KINDS) expect(text).toContain(`${kind.kind} (${kind.placements.join("|")}): ${kind.description}`);
     expect(text).toContain("data text ≤ 32, position? top|center|bottom, size? small|medium|large");
-    expect(text).toContain("data name ≤ 28, role? ≤ 36, side left|right, size? small|medium|large");
+    expect(text).toContain("data name ≤ 28, role? ≤ 36, side left|right, style? clean_bar|side_rule|soft_pill|mask_reveal, size? small|medium|large");
     expect(text).toContain("data title ≤ 48, chip? ≤ 32, logo? {asset_id} image, size? small|medium|large");
     expect(text).toContain("data text ≤ 120, author? ≤ 32, photo? {asset_id} image (cut to fill), size? small|medium|large");
     expect(text).toContain("stat (full|over): ");
@@ -219,10 +219,25 @@ describe("sizes and the reference tag (owner 2026-10-22)", () => {
     // The footprint holds a 92 px pill font on a 1080 short side: about 3.5% cap height of a 9:16 frame, as reference frame 17.
     expect([Math.round(pill.height * 1920), Math.round((pill.top + pill.height / 2) * 1920), Math.round(pill.width * 1080)]).toEqual([147, 1268, 972]);
     expect([tag.hidesCaptions({ text: "x" }), tag.hidesCaptions({ text: "x", position: "top" })]).toEqual([true, false]);
+    // A full-frame picture kind fills a tall frame at medium (#1128): large is the same frame-high size, small a quarter less, and it says so.
+    const filling = ["compare", "phone_screen", "video_grid"];
+    expect(TEMPLATE_KINDS.filter(kind => kind.fillsFrame).map(kind => kind.kind).sort()).toEqual(filling);
+    expect(templateSizeWarnings({ templates: [{ id: "g", kind: "video_grid", data: { size: "large" } }, { id: "t", kind: "terminal", data: { size: "large" } },
+      { id: "c", kind: "compare", data: { size: "medium" } }] })).toEqual(["template \"g\" is drawn at medium: a video_grid already fills the frame there, " +
+      "so size large draws no larger"]);
+    // The quote and the run say it too: the warnings every admission returns carry it (Codex r2).
+    const grid = { id: "g", kind: "video_grid", anchor: { startWord: 0, endWord: 2 }, placement: "full",
+      data: { ...(TEMPLATE_KINDS.find(kind => kind.kind === "video_grid")!.sample as Record<string, unknown>), size: "large" } };
+    expect(dispositionWarnings({ script: "one two three four", templates: [grid] }))
+      .toEqual(expect.arrayContaining([expect.stringContaining("template \"g\" is drawn at medium")]));
+    expect(dispositionWarnings({ script: "one two three four", templates: [{ ...grid, data: { ...grid.data, size: "medium" } }] })
+      .filter(warning => warning.includes("drawn at medium"))).toEqual([]);
     for (const kind of TEMPLATE_KINDS) {
-      const heights = (["small", undefined, "medium", "large"] as const).map(size => rect(kind, { ...kind.sample, size }).height);
+      // A kind whose footprint reaches fixed targets (pointer_chips, #1104) is sized by its own part, the one the face rule guards.
+      const heights = (["small", undefined, "medium", "large"] as const).map(size => (kind.kind === "pointer_chips"
+        ? kind.faceRect!({ ...kind.sample, size }, "9:16")! : rect(kind, { ...kind.sample, size })).height);
       expect({ kind: kind.kind, small: heights[0]! / heights[1]!, medium: heights[2] === heights[1], large: heights[3]! / heights[1]! })
-        .toEqual({ kind: kind.kind, small: expect.closeTo(0.75, 2), medium: true, large: expect.closeTo(1.3, 2) });
+        .toEqual({ kind: kind.kind, small: expect.closeTo(0.75, 2), medium: true, large: expect.closeTo(filling.includes(kind.kind) ? 1 : 1.3, 2) });
     }
   });
   it("refuses by the footprint of the size drawn: two tags clear at medium overlap at large", () => {
@@ -283,8 +298,12 @@ describe("footprints and frames (D5, D6, A6)", () => {
     expect(refusals({ ...longForm, overlays: [overlay("band", 0, 4, "bottom")], templates: [tagAt("t", 2, 3, "top")] })).toEqual([]);
     expect(refusals({ ...longForm, templates: [{ id: "lt", kind: "lower_third", anchor: { startWord: 0, endWord: 3 }, data: { name: "Maya", side: "left" } },
       card("c", 2, 4)] })).toEqual([expect.stringContaining("templates.1: template \"c\" shares the screen with \"lt\"")]);
+    // #1192: three show at once; a fourth on the same words is refused.
     expect(refusals({ ...longForm, overlays: [overlay("a", 0, 4, "top_left"), overlay("b", 0, 4, "top_right")], templates: [tagAt("t", 1, 2, "center")] }))
-      .toEqual([expect.stringContaining("at most 2 overlays and templates show at once")]);
+      .toEqual([]);
+    expect(refusals({ ...longForm, overlays: [overlay("a", 0, 4, "top_left"), overlay("b", 0, 4, "top_right"), overlay("c", 0, 4, "bottom_left")],
+      templates: [tagAt("t", 1, 2, "center")] }))
+      .toEqual([expect.stringContaining("would be on screen together with \"a\", \"b\", \"c\": at most 3 overlays and templates show at once")]);
   });
   it("draws a tag on insert frames, refuses another kind wholly under an insert, and any template on a layout window", () => {
     expect(refusals({ ...longForm, templates: [tagAt("t", 10, 11)] })).toEqual([]);
@@ -378,6 +397,14 @@ describe("the first full-frame kinds and media slots (#778 S3a(ii))", () => {
     expect(templateMediaOf([{ id: "t", kind: "tag", data: { text: "x" } }, { id: "h", kind: "title_card", data: { title: "x" } }, hook("h2", 0, 1), quote]))
       .toEqual([{ index: 2, id: "h2", slot: "logo", asset_id: logo.asset_id, media_type: "image", cover: undefined },
         { index: 3, id: "q", slot: "photo", asset_id: `ast_${"2".repeat(32)}`, media_type: "image", cover: 1 }]);
+  });
+
+  it("word_fill takes one word without spaces, and its clip slot takes a video (#1175 S5 C2)", () => {
+    const fill = (word: string) => [{ id: "w", kind: "word_fill", anchor: { startWord: 0, endWord: 2 }, data: { word, clip: logo } }];
+    expect(refusals({ ...longForm, templates: fill("FOCUS") })).toEqual([]);
+    expect(refusals({ ...longForm, templates: fill("TWO WORDS") })).toContain("templates.0.data.word: word is one word, without spaces");
+    expect(templateMediaOf([{ id: "w", kind: "word_fill", data: { word: "FOCUS", clip: logo } }]))
+      .toEqual([expect.objectContaining({ slot: "clip", media_type: "video" })]);
   });
 
   it("bills the presenter under a real full-frame kind as face time, and the slot's bytes enter the hash", () => {
@@ -499,7 +526,7 @@ describe("checklist, phone call and compare, with inner quotes (#778 S3b(i), D6,
       "quote? inner quote}, style? switch|check, size? small|medium|large");
     expect(text).toContain("data caller ≤ 24, subtitle? ≤ 32, avatar? {asset_id} image (cut to fill), answer_at inner quote, side? left|right, size?");
     expect(text).toContain("data before {asset_id} image (cut to fill), after {asset_id} image (cut to fill), labels? {before? ≤ 20, after? ≤ 20}, " +
-      "reveal_at inner quote, size?");
+      "reveal_at inner quote, reveal? sweep|wipe, size?");
   });
 
   /** Mutant: skip the order check, or search the whole script, and a beat lands before the one ahead of it or outside its own item. */
@@ -582,7 +609,8 @@ describe("notification, progress and rating, and the neon, paper and mono looks 
 
   it("describes each kind's fields from the registry", () => {
     const text = templateCatalogText();
-    expect(text).toContain("data app ≤ 20, title ≤ 32, body ≤ 80, icon? phone|briefcase|user|clock|chat|star, size? small|medium|large");
+    expect(text).toContain("data app ≤ 20, title ≤ 32, body ≤ 80, icon? phone|briefcase|user|clock|chat|star, stack? 1–2 of {app? ≤ 20, title ≤ 32, " +
+      "body ≤ 80, icon? phone|briefcase|user|clock|chat|star, at? inner quote}, size? small|medium|large");
     expect(text).toContain("data steps 2–5 of ≤ 20, advance_at? 2–5 of inner quote, size? small|medium|large");
     expect(text).toContain("data stars number, label? ≤ 32, size? small|medium|large");
   });

@@ -8,10 +8,10 @@ import { type AnchoredItem, type LayerRefusal, layerWordRange, type WordRange } 
 export const INTERVIEW_GAZES = ["camera", "left", "right"] as const;
 export type InterviewGaze = (typeof INTERVIEW_GAZES)[number];
 export const INTERVIEW_LISTENING = ["freeze", "live"] as const;
-export const MAX_INTERVIEW_TURNS = 12;
+export const MAX_INTERVIEW_TURNS = 30;
 /** The presenter's takes in one interview: one per answer, and one more at each change of gaze. */
-export const MAX_INTERVIEW_TAKES = 10;
-export const MAX_PRESENTER_GAZE = 6;
+export const MAX_INTERVIEW_TAKES = 16;
+export const MAX_PRESENTER_GAZE = 20;
 /** Past this the presenter holds still long enough to name it. */
 export const INTERVIEW_FREEZE_WARN_SEC = 6;
 /** An off-screen line's length before synthesis, at a conversation's 19 characters a second. */

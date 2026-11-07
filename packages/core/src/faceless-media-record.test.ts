@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as coreBarrel from "./index.js";
 import { facelessMediaRecord, storedObject, type FacelessMediaRecord, type StoredObject } from "./faceless-media-record.js";
+import { TEMPLATE_SOUNDS } from "./templates/sounds.js";
 
 const sha = (seed: string) => seed.repeat(64).slice(0, 64);
 const stored = (kind: StoredObject["kind"], seed: string, bytes: number): StoredObject => ({
@@ -32,7 +33,8 @@ function referencedRecord(): FacelessMediaRecord {
   return { ...generatedRecord(),
     references: [{ ...stored("image", "1", 3101), role: "character", from: "customer" }, { ...stored("image", "2", 3202), role: "style", from: "customer" }],
     settings: { captions: false, character_reference: true, character_details: "Mira: a black bob haircut and a red scarf.",
-      image_model: "gpt-image-2", voice: "warm_narrator", lambda_site_sha256: sha("9"), transitions: { look: "flash", at: ["beat-2"] } } };
+      image_model: "gpt-image-2", voice: "warm_narrator", lambda_site_sha256: sha("9"), transitions: { look: "flash", at: ["beat-2"] },
+      sounds: { flash: "glitch", whoosh: "sweep", edit: "boom_low" } } };
 }
 
 it("retains two product-photo reference roles and their customer provenance", () => {
@@ -90,7 +92,7 @@ describe("the media record of a faceless run", () => {
 
   it.each([
     ["a shot source outside the two", (record: Loose) => { record.shots[0]!.source = "upload"; }],
-    ["a motion outside the two", (record: Loose) => { record.shots[1]!.motion = "ZOOM_IN"; }],
+    ["a motion outside the four", (record: Loose) => { record.shots[1]!.motion = "PAN_LEFT"; }],
     ["a shot without `motion`", (record: Loose) => { delete record.shots[0]!.motion; }],
     ["a shot id the edit document cannot name", (record: Loose) => { record.shots[2]!.id = "beat 1"; }],
     ["an unsupported reference role", (record: Loose) => { record.references[0]!.role = "pose"; }],
@@ -160,16 +162,18 @@ const OBJECT = { kind: oneOf("image", "video", "audio"), key: text, sha256: text
 /** The record's shape written out by hand, a second witness beside the schema: every leaf by its place, and what it holds. */
 const SHAPE = new Map<string, Leaf>([
   ["v", oneOf(1)],
-  ["shots.[].id", text], ["shots.[].source", oneOf("generated", "customer")], ["shots.[].motion", orNull(oneOf("PAN_UP", "PAN_DOWN"))],
+  ["shots.[].id", text], ["shots.[].source", oneOf("generated", "customer")], ["shots.[].motion", orNull(oneOf("PAN_UP", "PAN_DOWN", "ZOOM_IN", "ZOOM_OUT"))],
   ...under("shots.[].media", OBJECT), ...under("opener_still", OBJECT),
   ...under("references.[]", { ...OBJECT, role: oneOf("style", "character", "product"), from: oneOf("customer", "lead_picture") }),
   ...under("narration", OBJECT),
   ...under("settings", { captions: flag, character_reference: flag, character_details: orNull(text), image_model: text, voice: orNull(text),
     lambda_site_sha256: text }),
   ["settings.transitions.look", oneOf("flash", "light_leak")], ["settings.transitions.at.[]", text],
+  // Each beat is optional: a muted run records `{}`, one without edit_sounds no edit.
+  ...(["flash", "whoosh", "edit"] as const).map(beat => [`settings.sounds.${beat}`, { ...oneOf(...TEMPLATE_SOUNDS[beat].names), optional: true as const }] as const),
 ]);
-/** Objects a record may leave out whole: a run drawn without transitions has none. */
-const OPTIONAL_OBJECTS = new Set(["settings.transitions"]);
+/** Objects a record may leave out whole: a run drawn without transitions has none, one that chose no sounds none either. */
+const OPTIONAL_OBJECTS = new Set(["settings.transitions", "settings.sounds"]);
 const placeOf = (path: Path) => path.map(step => typeof step === "number" ? "[]" : step).join(".");
 
 /** Every object, list and leaf of a value, each by its path. */
@@ -211,20 +215,20 @@ describe("the shape of the media record, walked from one fully populated record"
 
   it("the walk reaches every leaf the schema names, and the schema names the leaves written out here and no other", () => {
     const named = [...SHAPE.keys()].sort();
-    expect(named).toHaveLength(46);
+    expect(named).toHaveLength(49);
     expect(schemaLeaves(facelessMediaRecord).sort()).toEqual(named);
     expect([...new Set(leaves.map(placeOf))].sort()).toEqual(named);
-    // Three shots, two references, the still, the narration, the settings and their transitions: a smaller walk would be a thinner record.
-    expect([leaves.length, objects.length, lists.length, stored.length]).toEqual([78, 13, 3, 7]);
+    // Three shots, two references, the still, the narration, the settings, their transitions and sounds: a smaller walk would be a thinner record.
+    expect([leaves.length, objects.length, lists.length, stored.length]).toEqual([81, 14, 3, 7]);
     expect(refused(referencedRecord())).toBe(false);
   });
 
   it("requires every original key and permits omission only of the new raw identity", () => {
     const keys = objects.flatMap(path => Object.keys(valueAt(path) as object).map(key => [...path, key]));
-    expect(keys).toHaveLength(87);
+    expect(keys).toHaveLength(91);
     const isOptional = (path: Path) => SHAPE.get(placeOf(path))?.optional || OPTIONAL_OBJECTS.has(placeOf(path));
     const optional = keys.filter(isOptional);
-    expect(optional).toHaveLength(8);
+    expect(optional).toHaveLength(12);
     const required = keys.filter(path => !isOptional(path));
     expect(required.filter(path => !refused(changedAt(path, (holder, key) => { delete holder[key]; }))).map(path => shown(path))).toEqual([]);
     // `undefined` is no value either: a key that is there and holds nothing is as absent as a key that is not.
@@ -286,8 +290,8 @@ describe("the shape of the media record, walked from one fully populated record"
     ["a shot id", [0, 1, 2].map(shot => ["shots", shot, "id"]), [["a", true], ["A_b-9", true], ["a".repeat(64), true], ["a".repeat(65), false],
       ["", false], ["_a", false], ["-a", false], ["beat 1", false], ["a\n", false]]],
     ["a shot source", [0, 1, 2].map(shot => ["shots", shot, "source"]), [["generated", true], ["customer", true], ["upload", false], ["", false]]],
-    ["a shot motion", [0, 1, 2].map(shot => ["shots", shot, "motion"]), [["PAN_UP", true], ["PAN_DOWN", true], [null, true], ["ZOOM_IN", false],
-      ["pan_up", false]]],
+    ["a shot motion", [0, 1, 2].map(shot => ["shots", shot, "motion"]), [["PAN_UP", true], ["PAN_DOWN", true], [null, true], ["ZOOM_IN", true],
+      ["ZOOM_OUT", true], ["ZOOM_SIDEWAYS", false], ["pan_up", false]]],
     ["a reference role", [0, 1].map(reference => ["references", reference, "role"]), [["style", true], ["character", true], ["product", true], ["pose", false]]],
     ["a reference origin", [0, 1].map(reference => ["references", reference, "from"]), [["customer", true], ["lead_picture", true], ["library", false]]],
     // §3.10 writes these four as plain strings and the two lists without a least length: no bound is stated, so none is held.

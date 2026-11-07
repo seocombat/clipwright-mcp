@@ -513,6 +513,18 @@ describe("presenter framing in a run's warnings", () => {
       .toEqual(["presenter_framing wide is drawn in 9:16 only: the 1:1 close portrait was used"]);
   });
 
+  /** #1196 (Codex r1, A4). Mutant: drop `width` from the run's pin schema, and the run loses the quote's line about a framing too tight to be sharp. */
+  it("forecasts a presenter_place crop past what a full portrait holds sharp, as the quote did, from the pinned width", () => {
+    const place = { presenter_place: { face_height: 0.2632, face_centre: [0.3161, 0.6427] },
+      framing: [{ id: "punch", size: "close", anchor: { quote: "привет" } }] };
+    const full = { gender: "male", actor_id: "actor_alex", asset: { aspect_ratio: "9:16", framing: "full", width: 1024 } };
+    const lines = (snapshot: unknown) => derivedRunWarnings({ ...stored({ actor_id: "actor_alex", ...place }), actor_snapshot: snapshot }, NO_FACTS, "make_ugc")
+      .filter(line => line.startsWith("presenter_place"));
+    expect(lines(full)).toEqual(["presenter_place face height 0.26: the actor's full portrait shows the face under 0.12 of its height, so a crop that tight " +
+      "would be soft; the presenter is framed wider, at face height 0.18 or less"]);
+    expect(lines({ ...full, asset: { aspect_ratio: "9:16", framing: "full" } })).toEqual([]);
+  });
+
   /** Mutant: widen `storedUgcInput.actor_snapshot` to the view, and a long-form run reopened across the deploy fails its timeline digest after paid work. */
   it("reads the pinned view beside the stored input, whose snapshot parse stays gender-only", () => {
     expect(storedUgcInput.parse({ ...stored({ actor_id: "actor_alex" }), actor_snapshot: pin("wide") }).actor_snapshot).toEqual({ gender: "male" });

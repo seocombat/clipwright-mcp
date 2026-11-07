@@ -4,9 +4,49 @@
   "measured_at": "2026-10-27T23:05:02.990Z",
   "voices": [
     {
+      "voice": "en_male_dexter",
+      "gender": "male",
+      "words_per_second": 3.79
+    },
+    {
+      "voice": "en_male_marcus",
+      "gender": "male",
+      "words_per_second": 3.69
+    },
+    {
+      "voice": "en_male_liam",
+      "gender": "male",
+      "words_per_second": 3.61
+    },
+    {
+      "voice": "en_male_todd",
+      "gender": "male",
+      "words_per_second": 3.61
+    },
+    {
       "voice": "en_male_mark",
       "gender": "male",
       "words_per_second": 3.58
+    },
+    {
+      "voice": "en_male_lucan_rook",
+      "gender": "male",
+      "words_per_second": 3.55
+    },
+    {
+      "voice": "en_male_russell",
+      "gender": "male",
+      "words_per_second": 3.54
+    },
+    {
+      "voice": "en_female_lucy",
+      "gender": "female",
+      "words_per_second": 3.52
+    },
+    {
+      "voice": "en_male_luke",
+      "gender": "male",
+      "words_per_second": 3.52
     },
     {
       "voice": "eric",
@@ -19,9 +59,34 @@
       "words_per_second": 3.51
     },
     {
+      "voice": "en_male_igor_radio",
+      "gender": "male",
+      "words_per_second": 3.5
+    },
+    {
       "voice": "en_female_cassidy",
       "gender": "female",
       "words_per_second": 3.48
+    },
+    {
+      "voice": "en_male_jack_john",
+      "gender": "male",
+      "words_per_second": 3.48
+    },
+    {
+      "voice": "en_female_charlotte",
+      "gender": "female",
+      "words_per_second": 3.46
+    },
+    {
+      "voice": "en_female_diane",
+      "gender": "female",
+      "words_per_second": 3.46
+    },
+    {
+      "voice": "en_female_eve",
+      "gender": "female",
+      "words_per_second": 3.42
     },
     {
       "voice": "en_male_james",

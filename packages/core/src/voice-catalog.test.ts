@@ -108,7 +108,9 @@ describe("generated voice catalog — languages and quota", () => {
     const expected: Record<string, Partial<Record<string, number>>> = {};
     for (const language of CATALOG_LANGUAGES) {
       for (const gender of CATALOG_GENDERS) {
-        const count = live.filter((entry) => entry.language === language && entry.gender_raw === gender).length;
+        const count = live.filter(
+          (entry) => entry.language === language && entry.gender_raw === gender && entry.pinned !== true,
+        ).length;
         expect(count, `${language} ${gender}`).toBeLessThanOrEqual(CATALOG_VOICES_PER_GENDER);
         if (count < CATALOG_VOICES_PER_GENDER) {
           expected[language] = { ...expected[language], [gender]: CATALOG_VOICES_PER_GENDER - count };

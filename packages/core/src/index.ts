@@ -1,15 +1,22 @@
 export * from "./skills.js";
+export * from "./design.js";
 export * from "./ugc-layers.js";
+export * from "./ugc-scenes.js";
+export * from "./motion-styles.js";
+export * from "./moves.js";
 export * from "./scene-place.js";
 export { CAPTION_EDGES, CAPTION_GEOMETRY, CAPTION_GEOMETRY_ALIASES, captionBandBox, captionEdgeAt, captionGeometryOf, type CaptionEdge } from "./caption-geometry.js";
 export * from "./ugc-framing.js";
 export * from "./ugc-call.js";
 export * from "./ugc-interview.js";
+export * from "./presenter-takes.js";
 export * from "./caption-language.js";
 export * from "./templates/index.js";
 export * from "./ugc-video-media.js";
+export * from "./ad-pause-trim.js";
 export * from "./faceless-public.js";
 export * from "./faceless-customer-anchors.js";
+export * from "./faceless-action-shots.js";
 export * from "./faceless-image-placement.js";
 export * from "./faceless-voices.js";
 export * from "./faceless-price.js";
@@ -41,6 +48,8 @@ export * from "./account.js";
 export * from "./uploads.js";
 // Account assets (clipwright#724 F2): kept until deleted, under a cap per account.
 export * from "./assets.js";
+// A customer's delete of a finished run's files (#1093).
+export * from "./run-media.js";
 export * from "./pacing.js";
 // Vendor-neutral contracts: everything vendor-specific lives in adapters, not here.
 export * from "./render-backend.js";
@@ -72,6 +81,7 @@ export * from "./speech-rhythm-contract.js";
 export * from "./face-billing.js";
 export * from "./long-form-pricing.js";
 export * from "./parts-pricing.js";
+export * from "./music.js";
 export * from "./media-timebase.js";
 export * from "./billing-terms.js";
 
@@ -87,8 +97,10 @@ export * from "./generations.js";
 export * from "./generations-output.js";
 export * from "./reference-profile.js";
 export * from "./reference-staging.js";
+export * from "./reference-text-spans.js";
 export * from "./reference-voice.js";
 export * from "./reference-analysis.js";
 export * from "./reference-display.js";
 export * from "./creator-profile.js";
+export * from "./trend-search.js";
 export * from "./presenter-beats.js";

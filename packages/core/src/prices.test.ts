@@ -90,6 +90,15 @@ describe("each price is the constant billing charges by", () => {
       for (const flag of Object.keys(scenesOn).filter(name => name !== "CLIPWRIGHT_LIVE_SHOTS")) {
         expect(priceListFor({ ...scenesOn, [flag]: "0" }), flag).toEqual(PRICE_LIST);
       }
+      // #1215. Mutant: music sold without its switch, or never on the list a client reads before the quote.
+      const withMusic = priceListFor({ ...scenesOn, CLIPWRIGHT_MUSIC: "1" }).find((item) => item.tool === "make_ugc" && item.variant === variant)!;
+      expect(withMusic.lines.at(-1)).toEqual({ label: "music under the voice", unit: "track", credits: 60 });
+      expect(withMusic.notes).toContain("only when you ask for it");
+      expect(priceListFor({ ...scenesOn, CLIPWRIGHT_MUSIC: "0" })).toEqual(priceListFor(scenesOn));
+      // Music needs no other switch: it is sold with the music flag alone, on every presenter variant.
+      expect(priceListFor({ CLIPWRIGHT_MUSIC: "1" }).find((item) => item.tool === "make_ugc" && item.variant === variant)!.lines.at(-1))
+        .toEqual({ label: "music under the voice", unit: "track", credits: 60 });
+      expect(priceListFor(scenesOn).find((item) => item.tool === "make_ugc" && item.variant === variant)!.lines.some((l) => l.unit === "track")).toBe(false);
       // #1113. Mutant: make_faceless sells its action shots or scenes while a request for them is refused, or never names their price.
       const faceless = (env: Record<string, string>) => priceListFor(env).find((item) => item.tool === "make_faceless")!.lines.slice(3);
       const facelessOn = { ...scenesOn, CLIPWRIGHT_FACELESS_SHOTS: "1", CLIPWRIGHT_FACELESS_SCENES: "1" };

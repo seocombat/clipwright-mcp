@@ -13,11 +13,12 @@ import { PARTS_FACE_TARIFF, PRESENTER_ENGINE_LABELS, SCENE_CREDITS, SHOT_CREDITS
 import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS } from "./reference-analysis.js";
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
 import { TREND_SEARCH_CREDITS, TREND_SEARCH_REELS } from "./trend-search.js";
+import { isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
 export const PRICES_PATH = "/v1/public/prices";
 
-export const PRICE_UNITS = ["call", "second", "face_second", "image", "clip", "clip_second", "still", "scene"] as const;
+export const PRICE_UNITS = ["call", "second", "face_second", "image", "clip", "clip_second", "still", "scene", "track"] as const;
 export type PriceUnit = (typeof PRICE_UNITS)[number];
 
 /** One part of a price: credits per unit. A price of several parts adds them, then applies the entry's minimum. */
@@ -142,7 +143,7 @@ function generationEntries(): PriceEntry[] {
   });
 }
 
-function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false): PriceEntry[] {
+function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false, music = false): PriceEntry[] {
   const unit = EDIT_UNIT_PRICES;
   const parts = PARTS_FACE_TARIFF;
   const shotRates = parts.shotCreditsPerSecond ?? SHOT_CREDITS_PER_SECOND;
@@ -156,13 +157,16 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         { label: "production (voice and render)", unit: "second", credits: parts.productionCreditsPerSecond },
         { label: "live avatar on a call", unit: "still", credits: parts.liveAvatarStillCredits },
         // Scenes are sold only while they can be ordered (#1107).
-        ...(scenes ? [{ label: "scene made for the video", unit: "scene", credits: SCENE_CREDITS } satisfies PriceEntryLine] : [])],
+        ...(scenes ? [{ label: "scene made for the video", unit: "scene", credits: SCENE_CREDITS } satisfies PriceEntryLine] : []),
+        // Music is sold only while it can be ordered (#1063, #1215).
+        ...(music ? [{ label: "music under the voice", unit: "track", credits: MUSIC_BED_CREDITS } satisfies PriceEntryLine] : [])],
       notes: "Short and long videos alike. Presenter seconds are the seconds a presenter take fills, covered by an insert, overlay, " +
         "window or template or not, counted once over the video and rounded up; the engine that renders each take sets its rate " +
         (engine === "heygen" ? "(today every take renders on HeyGen). " : "(no take renders on OmniHuman today). ") +
         "Production seconds are every second of the finished video. A live avatar is charged per call still in the video." +
         (liveShots ? " A live shot's seconds take its own line in place of the presenter's; talking shots stay on the presenter line." : "") +
-        (scenes ? " A scene made for the video is charged only when it is drawn in the delivered video." : "") })),
+        (scenes ? " A scene made for the video is charged only when it is drawn in the delivered video." : "") +
+        (music ? " Music is added only when you ask for it and charged only when the delivered video carries it." : "") })),
     paid({ tool: "analyze_reference", route: "POST /v1/reference-analyses", unit: "call", credits: REFERENCE_ANALYSIS_CREDITS,
       quote_tool: "quote_analysis", notes: "Held at the start and charged once the analysis succeeds; a failed one costs nothing. " +
         "Starting it again on the same asset answers the same analysis for free." }),
@@ -220,14 +224,14 @@ export function priceListFor(env: Record<string, string | undefined>): readonly 
   const longForm = env.CLIPWRIGHT_LONG_FORM_QUALIFICATION === "1" && env.CLIPWRIGHT_COMPOSE === "1" && env.CLIPWRIGHT_REMOTE_FETCH === "1";
   const liveShots = env.CLIPWRIGHT_LIVE_SHOTS === "1" && longForm, scenes = env.CLIPWRIGHT_SCENES === "1" && longForm;
   return Object.freeze(pricesResponse.parse({ prices: buildPriceList(liveShots, scenes, env.CLIPWRIGHT_FACELESS_SHOTS === "1",
-    scenes && facelessScenesEnabled(env)) }).prices);
+    scenes && facelessScenesEnabled(env), isMusicEnabled(env)) }).prices);
 }
 
 export const PRICE_LIST: readonly PriceEntry[] = priceListFor(typeof process === "undefined" ? {} : process.env);
 
 const UNIT_TEXT: Readonly<Record<PriceUnit, string>> = {
   call: "call", second: "second of video", face_second: "second the presenter is in the video, covered or not", image: "image", clip: "clip",
-  clip_second: "second of clip", still: "call still in the video", scene: "scene drawn in the video",
+  clip_second: "second of clip", still: "call still in the video", scene: "scene drawn in the video", track: "music track in the video",
 };
 /** Past this many one-line prices of one unit, the sentence names their range and list_prices names each. */
 const LISTED_PRICES = 4;

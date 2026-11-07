@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FACELESS_SHOTS_BRIEF_REFUSAL, facelessStoredInput, makeFacelessInput, offeredFacelessInput, offeredFacelessInputShape } from "./faceless-public.js";
-import { FACELESS_SHOT_CREDITS_PER_SECOND, quoteFaceless } from "./faceless-price.js";
+import { FACELESS_MAX_SHOTS, FACELESS_SHOT_CREDITS_PER_SECOND, quoteFaceless } from "./faceless-price.js";
 import { facelessShotTransitionLook, resolveFacelessActionShots } from "./faceless-action-shots.js";
 import { readFileSync } from "node:fs";
 import { parseCutStyle } from "./faceless-cut-style.js";
@@ -92,7 +92,8 @@ describe("make_faceless shots", () => {
 
   /** Mutant: give the field a shape, and tools/list grows past its budget; the text is the contract the brief fixed. */
   it("offers the field shape-free in tools/list", () => {
-    expect(offeredFacelessInputShape.shots.description).toBe("Script only: 1-3 {id, anchor, action}, 5 s max each.");
+    expect(offeredFacelessInputShape.shots.description).toBe("Script only: 1-10 {id, anchor, action}, 5 s max each.");
+    expect(offeredFacelessInputShape.shots.description).toContain(`1-${FACELESS_MAX_SHOTS} `);
     expect(offeredFacelessInputShape.shots.safeParse({ any: "thing" }).success).toBe(true);
   });
 });

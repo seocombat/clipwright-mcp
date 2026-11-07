@@ -227,7 +227,7 @@ export const offeredFacelessInputShape = {
   music: common.music.describe(`REJECTED for now: ${FACELESS_MUSIC_REFUSAL}. Before any charge.`),
   // No shape here keeps tools/list small: the items are make_ugc's, which the client and the server check strictly.
   templates: z.unknown().optional().describe("Script only: as make_ugc, no asset_id. Free."),
-  shots: z.unknown().optional().describe("Script only: 1-3 {id, anchor, action}, 5 s max each."),
+  shots: z.unknown().optional().describe(`Script only: 1-${FACELESS_MAX_SHOTS} {id, anchor, action}, 5 s max each.`),
   scenes: z.unknown().optional().describe("Script only: as make_ugc scenes."),
   motion_style: z.unknown().optional().describe("As make_ugc motion_style; spans script only. Free."),
   moves: z.unknown().optional().describe(`Script only: ${MOVES_DESCRIPTION}`),

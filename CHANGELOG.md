@@ -18,6 +18,14 @@ listed under.
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-11-07
+
+### Fixed
+
+- `make_faceless` and `quote_faceless` describe `shots` as 1 to 10, the number the API takes (#1214).
+- *Server-side:* `list_prices` lists music under the voice on `make_ugc`: 60 credits per track, only when you ask for it
+  (#1215). *Dashboard:* /pricing shows the same line.
+
 ## [0.43.0] - 2026-11-07
 
 ### Added

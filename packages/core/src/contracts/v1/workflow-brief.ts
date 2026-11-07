@@ -8,6 +8,8 @@ import { workflowFormat, workflowFormatRead, workflowText } from './workflow-pri
 
 /** The lines a plan adds beyond its reference (#1192): one a raised device count can reach, framing's sixty among them. */
 export const WORKFLOW_ADDED_MAX = 200;
+/** The voice lines a plan keeps (#1203): as many as its move lines, so tools/list states the bound once. */
+export const WORKFLOW_VOICE_WARNINGS_MAX = MAX_MOVES;
 const nativeUgcSegments = makeUgcInput.shape.segments.unwrap();
 const { minItems, maxItems } = z.toJSONSchema(nativeUgcSegments, { io: 'input' });
 const strictUgcSegments = z.array(ugcSegment.strict().safeExtend({
@@ -49,6 +51,8 @@ const briefShape = {
     added: z.array(workflowText(200)).max(WORKFLOW_ADDED_MAX).optional(),
     // The client's catalogue moves the plan could not draw on their words (#1175), said in the plan's warnings.
     move_warnings: z.array(workflowText(400)).max(MAX_MOVES).optional(),
+    // What the account's saved script voice changed in the script (#1203), said in the plan's warnings.
+    voice_warnings: z.array(workflowText(400)).max(WORKFLOW_VOICE_WARNINGS_MAX).optional(),
     // The user's notes each script revision answered, oldest first (#921).
     review_notes: z.array(workflowText(2000)).max(50).optional(),
 };

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzeCreatorRequest, buildCreatorProfile, classifyCreatorUrl, CREATOR_CAPTION_MAX_CHARS, CREATOR_PROFILE_CREDITS, CREATOR_UNTRUSTED,
-  CREATOR_URL_YOUTUBE_REFUSAL, creatorProfileAnswer, creatorProfileMarkdown, medianOf, xToMedian, type CreatorProfileAnswer, type CreatorSourceVideo,
+  CREATOR_URL_YOUTUBE_REFUSAL, creatorProfileAnswer, creatorProfileMarkdown, creatorVoiceProposal, medianOf, xToMedian, type CreatorProfileAnswer, type CreatorSourceVideo,
 } from "./creator-profile.js";
 import { HOSTILE_TEXTS, renderedTags } from "./__fixtures__/hostile-markdown.js";
 import { PRICE_LIST } from "./prices.js";
@@ -139,6 +139,18 @@ describe("buildCreatorProfile", () => {
   });
 });
 
+/** Mutants (#1203): propose a tag seen once, or a close said under fewer than three captions, and the user confirms a voice the author never kept. */
+describe("creatorVoiceProposal", () => {
+  const captioned = (captions: string[]) => buildCreatorProfile({ platform: "instagram", handle: "volt.co", name: "Volt", followers: 10,
+    videos: captions.map((caption, index) => video(index, 100, { caption })) }, NOW).profile;
+  it("proposes the author's repeated topics and closing line, and nothing from captions that repeat neither", () => {
+    const profile = captioned(["Fuse box fix #electrician #diy. Follow for more!", "Wiring tip #electrician. Follow for more!",
+      "Lights out? #diy #once\nFollow for more!", "New tool #electrician"]);
+    expect(creatorVoiceProposal(profile)).toEqual({ about: "@volt.co (Volt) on Instagram, posting about #electrician, #diy", caption_cta: "Follow for more!" });
+    expect(creatorVoiceProposal(captioned(["one #a", "two #b", "three"]))).toBeUndefined();
+  });
+});
+
 describe("the answer and its table", () => {
   const answer = (): CreatorProfileAnswer => {
     const { profile, warnings } = buildCreatorProfile({ platform: "tiktok", handle: "khaby.lame", name: "Khaby | `Lame`", followers: 162_960_917,
@@ -188,7 +200,8 @@ describe("the answer and its table", () => {
   });
 
   it("names every third-party field, and the price list carries the profile at its constant", () => {
-    expect(CREATOR_UNTRUSTED.fields).toEqual(["profile.author.name", "profile.author.handle", "profile.videos[].caption.text", "display_markdown"]);
+    expect(CREATOR_UNTRUSTED.fields).toEqual(["profile.author.name", "profile.author.handle", "profile.videos[].caption.text", "profile.voice_proposal",
+      "display_markdown"]);
     expect(PRICE_LIST.find(entry => entry.tool === "analyze_creator")).toMatchObject({ route: "POST /v1/creator-profiles",
       quote_tool: "quote_creator_profile", lines: [{ label: null, unit: "call", credits: CREATOR_PROFILE_CREDITS }] });
     expect(CREATOR_PROFILE_CREDITS).toBe(20);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   findCapabilityRow,
+  GENERATION_CAMERAS,
   GENERATION_CAPABILITIES,
   GENERATION_IMAGE_MODELS,
   GENERATION_VIDEO_MODELS,
@@ -122,6 +123,15 @@ describe("findCapabilityRow and priceGeneration", () => {
     expect(priceGeneration({ prompt: "x", model: "seedream-5.0-flash", aspect_ratio: "9:16" })).toEqual({ unit_credits: 3, units: 1, credits: 3 });
   });
 
+  // Mutant (#1186 r2): price one camera differently, and the quote no longer says what the clip costs.
+  it("prices every camera as the clip without one", () => {
+    for (const camera of GENERATION_CAMERAS) {
+      expect(priceGeneration(video({ camera })), camera).toEqual(priceGeneration(video()));
+      expect(priceGeneration(video({ model: "seedance-2.0", resolution: "1080p", duration_s: 15, camera })), camera)
+        .toEqual({ unit_credits: 59, units: 15, credits: 885 });
+    }
+  });
+
   it.each([
     ["unmeasured 16:9 video", video({ model: "seedance-2.5", mode: "first_frame", first_frame: { run_id: "run_abc" }, aspect_ratio: "16:9",
       resolution: "1080p" })],
@@ -208,8 +218,8 @@ describe("request schemas", () => {
     expect(generateVideoRequest.safeParse(omni(5)).error?.issues[0]?.message).toBe("gemini-omni-flash-1.1 takes 4, 6, 8, 10 seconds");
   });
 
-  it("takes an optional camera of four values, and nothing else", () => {
-    for (const camera of ["static", "push_in", "pull_back", "pan"] as const) {
+  it("takes an optional camera of five values, and nothing else", () => {
+    for (const camera of ["static", "push_in", "pull_back", "pan", "turntable"] as const) {
       expect(generateVideoRequest.parse(video({ camera })).camera).toBe(camera);
     }
     expect(generateVideoRequest.parse(video()).camera).toBeUndefined();

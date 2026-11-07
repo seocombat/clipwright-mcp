@@ -1092,6 +1092,10 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
     else if (listening >= 0 && !longForm) note(listening, 'the reference\'s call (a call needs long-form qualification, not available right now)', 'the presenter keeps talking');
     else if (listening >= 0 && !before) note(listening, 'the reference\'s call (no sentence end with words after it to open it on)', 'the presenter keeps talking');
     else if (listening >= 0 && before && request.call) {
+        // The call's phone replaces the reference's, never a card the request named on the same beat (#1205).
+        const asked = edits.find(edit => edit.template?.kind === 'phone_call' && editsOn(spans[listening]!).includes(edit));
+        if (asked) return { kind: 'invalid', issues: [{ kind: 'invalid_request', path: `line_edits.${asked.at}`,
+            message: 'The call brings its own phone on these words: drop this phone_call card or the call.' }] };
         const stage = callStageOf(profile, listening, note);
         call = { after: before.anchor, lines: request.call.lines, ...(request.call.voices ? { voices: request.call.voices } : {}),
             phone: { ...CALL_PHONE_DEFAULTS, ...request.call.phone }, ...(stage ? { stage } : {}) };

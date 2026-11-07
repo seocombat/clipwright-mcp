@@ -7,6 +7,7 @@ import { revisionRequest } from "./edit-revision.js";
 import { makeFacelessInput } from "./faceless-public.js";
 import { generateImageRequest, generateVideoRequest } from "./generations.js";
 import { runId } from "./runs.js";
+import { measuredVideoSize, type RunVideo } from "./video-size.js";
 import { makeUgcInput } from "./skills.js";
 import { uploadImportRequest, uploadIntentRequest } from "./uploads.js";
 
@@ -40,6 +41,11 @@ export function requestHash(input: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(canonicalize(input)))
     .digest("hex");
+}
+
+/** A stored output's measured video size, its delivery proof counted only when its seal matches (#1188). */
+export function measuredRunVideo(finalOutput: unknown): RunVideo | null {
+  return measuredVideoSize(finalOutput, (proof) => requestHash(proof.record) === proof.record_hash);
 }
 
 /** Idempotency key from input AND client identity. Parses inside so defaults are filled */

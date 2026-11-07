@@ -13,6 +13,7 @@ import {
   BRAND_KIT_PATH,
   brandKit,
   type BrandKit,
+  type BrandKitInput,
   type DesignInput,
   extractBrandResponse,
   type ExtractBrandResponse,
@@ -691,9 +692,14 @@ export class ClipwrightClient {
     return parseResponse(brandKit, await this.#request(BRAND_KIT_PATH, false), BRAND_KIT_PATH, false);
   }
 
-  /** Saves the account's design DNA, or clears it with `null`; spends no credits. */
+  /** Saves the account's design DNA, or clears it with `null`; spends no credits. The saved script voice stays as it is. */
   async setBrandKit(design: DesignInput | null): Promise<BrandKit> {
-    const body = await this.#request(BRAND_KIT_PATH, false, { method: "POST", body: JSON.stringify({ design }) });
+    return this.saveBrandKit({ design });
+  }
+
+  /** Saves each part of the brand kit given: design DNA, script voice or both; `null` clears a part, an omitted one stays. Free. */
+  async saveBrandKit(input: BrandKitInput): Promise<BrandKit> {
+    const body = await this.#request(BRAND_KIT_PATH, false, { method: "POST", body: JSON.stringify(input) });
     return parseResponse(brandKit, body, BRAND_KIT_PATH, false);
   }
 

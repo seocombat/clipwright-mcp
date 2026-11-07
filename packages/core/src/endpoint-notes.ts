@@ -114,7 +114,8 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
     "platform included (warnings[] names the other); no reel found, or any failure, costs nothing. " +
     `${TREND_SEARCH_PER_HOUR} new searches per hour.`,
   "GET /v1/trend-searches/{id}":
-    "One topic search: queued, searching, succeeded with the reels and warnings, or failed with its error. Free.",
+    "One topic search: queued, searching, succeeded with the reels and warnings, or failed with its error. sort reads the same reels " +
+    "in another order. Free.",
   "POST /v1/skills/make_ugc/quote": "Prices a make_ugc call with this input. Charges nothing.",
   "POST /v1/skills/make_ugc/run":
     "Starts a video run and answers at once with a run_id. Poll the run for the result.",

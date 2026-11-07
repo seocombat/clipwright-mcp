@@ -10,6 +10,7 @@ import { facelessRunBilling } from "./faceless-price.js";
 import { revisionBilling } from "./edit-billing.js";
 import { SHOT_OPERATION_MODES, shotId } from "./edit-operations.js";
 import { runGeneration } from "./generations-output.js";
+import { runVideo } from "./video-size.js";
 
 /** Shared run stages; each skill uses the stages it needs. */
 export const RUN_STATES = [
@@ -168,6 +169,8 @@ export const run = z.object({
       elements: z.array(runElement).max(64).optional(),
     })
     .nullable(),
+  /** A succeeded video's measured frame in pixels; absent when its file was not measured, never taken from the request. */
+  video: runVideo.optional(),
   steps: z.array(runStep).default([]),
   created_at: z.string().datetime(),
   finished_at: z.string().datetime().nullable(),

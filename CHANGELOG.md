@@ -18,6 +18,38 @@ listed under.
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-11-07
+
+### Added
+
+- `find_trends` cards say why a reel made the list (#1200). Each card has `reasons[]` with 1 to 3 signals, strongest
+  first. It also compares the reel's comments with the creator's usual rate (`creator_comment_rate`,
+  `comment_rate_x`) and its views with creators of a similar size (`size_norm_views`, `x_size_norm`). A null field is
+  named in `warnings[]`. Reading a search takes `sort` (`best`, `x`, `x_size_norm`, `views`, `views_per_hour`,
+  `comment_rate`, `comment_rate_x`) at no charge. The price is unchanged.
+- The brand kit keeps a script `voice` (#1203): who speaks to whom, tone, sign-off, caption call to action, banned
+  phrases, preferred format and a second language. `plan_reference_remake`, `make_ugc` and `make_faceless` apply it,
+  and each change is named in `warnings[]` on the quote. A call's own `audience` wins for that call. `extract_brand`
+  and `analyze_creator` propose a voice; nothing is saved until you save it with `brand_kit`. *Dashboard:* a Brand
+  page shows the design and edits the voice.
+- `generate_video` takes `camera: "turntable"` (#1186): a product turns on the spot. Pass the same picture as the first
+  and the last frame for a clip that loops. The server instructions describe a product turntable and a recurring
+  mascot. Prices are unchanged.
+- `get_run` returns `video` with the width and height measured from the delivered file (#1188). *Dashboard:* Runs and
+  Assets show it as 720p, 1080p or 4K.
+
+### Changed
+
+- *Server-side:* `make_faceless` fits up to ten action shots on any selected length (#1197).
+- *Server-side:* faceless captions hide while a scene or a template covers their band (#1206).
+- *Server-side:* videos in the `film` and `glass` motion styles render faster; frames look the same (#1187).
+- *Server-side:* `plan_reference_remake` keeps the phone card you asked for. A line edit that puts a phone card on the
+  call's own words is refused, and the refusal names that edit (#1205).
+
+### Fixed
+
+- *Server-side:* a run that stopped before its video was ordered no longer names the video vendor as the cause (#1206).
+
 ## [0.42.0] - 2026-11-07
 
 ### Added

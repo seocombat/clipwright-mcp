@@ -93,6 +93,8 @@ export function formatGetRun(run: WorkflowRunRead, receipt?: WorkflowLaunchRead[
               video_url_check: VIDEO_URL_CHECK,
               duration_seconds: run.final_output?.duration_seconds ?? null,
             } : { url_check: VIDEO_URL_CHECK }),
+            // The delivered file's measured frame, so the agent can name 720p or 1080p; absent when it was not measured.
+            ...(run.video === undefined ? {} : { video: run.video }),
             ...(run.final_output?.ai_disclosure === undefined ? {} : { ai_disclosure: run.final_output.ai_disclosure }),
             ...(run.final_output?.long_form_billing === undefined ? {} : { long_form_billing: run.final_output.long_form_billing }),
             ...(run.final_output?.parts_billing === undefined ? {} : { parts_billing: run.final_output.parts_billing }),

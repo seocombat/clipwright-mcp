@@ -616,4 +616,5 @@ export const CREATE_ACTOR_DESCRIPTION =
   "costs nothing). With style_reference a portrait that looks like a person in the photo is refused at no charge, and " +
   "the price is the same. portrait (with gender and approximate_age) becomes the 9:16 portrait at no charge, only the " +
   "other formats are charged; an image without exactly one face, or with the face cut off, too small or too large, is " +
-  "refused at no charge.";
+  "refused at no charge. A brand mascot drawn with generate_image can be that portrait when its face reads as a human " +
+  "face (a cartoon person); an animal or object mascot is refused, so show it in inserts instead.";

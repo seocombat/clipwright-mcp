@@ -68,6 +68,8 @@ export const FACELESS_MIN_BASE_CREDITS = DELIVERED_VIDEO_MINIMUM_CREDITS;
 export const FACELESS_SHOT_CREDITS_PER_SECOND = 30;
 export const FACELESS_MAX_SHOTS = 10;
 export const FACELESS_SHOT_MAX_SEC = 5;
+/** The largest dollar cap a faceless run may be configured with; a larger env value turns faceless off. Ten 5 s shots on a 90 s run need $8.47. */
+export const FACELESS_MAX_CAP_USD_MICROS = 10_000_000;
 /** The seconds a run with `shots` action shots may be charged for, every shot at its longest. */
 /** Faceless scenes have their own switch beside make_ugc's (#1113): their model calls join the faceless cost journal first. */
 export const facelessScenesEnabled = (env: Record<string, string | undefined>): boolean => env.CLIPWRIGHT_FACELESS_SCENES === "1";

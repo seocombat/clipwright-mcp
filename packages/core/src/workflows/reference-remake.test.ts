@@ -1113,6 +1113,26 @@ describe('the reference\'s call in the remake (#857 S5, D9)', () => {
             .toEqual({ caller: '+44 (20) 7946 0958', banner: 'Hold?', banner_note: 'You\'ll be notified to pick up.', mask_number: false });
     });
 
+    /** #1205: the call dropped every phone_call card on the listening beat, a requested one too. Mutants: drop the refusal, or match the card by
+     *  the beat it starts on, and the card the line edit named shows beside the call's phone or goes unsaid. */
+    it('refuses a call over a phone_call card a line edit asked for on the listening beat\'s words, and keeps one off them', () => {
+        const card = (quote: string) => [{ quote, template: { kind: 'phone_call', data: { caller: 'Dan Walker', answer_at: quote } } }];
+        const phones = (document: WorkflowPlanDocument) => ((native(document).templates ?? []) as { id: string; kind: string }[])
+            .filter(item => item.kind === 'phone_call').map(item => item.id);
+        for (const quote of ['Here\'s a real one:', 'the confirmation text']) {
+            const result = compileReferenceRemake(request({ call: { lines }, line_edits: card(quote) }), capabilities(['long_form']));
+            expect(result.kind === 'invalid' && result.issues.map(issue => issue.path)).toEqual(['line_edits.0']);
+            expect(phones(compiled({ line_edits: card(quote) }, ['long_form']))).toEqual(['edit-1-phone-call']);
+        }
+        // Codex r1: the refusal names the conflicting edit, not the first one.
+        const second = [{ quote: 'Small businesses miss', template: { kind: 'tag', data: { text: 'A third' } } }, ...card('Here\'s a real one:')];
+        const named = compileReferenceRemake(request({ call: { lines }, line_edits: second }), capabilities(['long_form']));
+        expect(named.kind === 'invalid' && named.issues.map(issue => issue.path)).toEqual(['line_edits.1']);
+        const off = compiled({ call: { lines }, line_edits: card('Small businesses miss') }, ['long_form']);
+        expect(native(off).call).toBeDefined();
+        expect(phones(off)).toEqual(['edit-1-phone-call']);
+    });
+
     /** Mutant: drop the note, and the presenter talks through the reference's call unnamed. */
     it('without lines keeps the presenter talking and says the call needs the client\'s lines', () => {
         const document = compiled({}, ['long_form']);

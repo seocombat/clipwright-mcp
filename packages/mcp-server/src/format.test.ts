@@ -31,6 +31,17 @@ it("preserves explicit unavailable speech timing gaps in successful MCP output",
   expect(result.speech_timing_gaps).toEqual(metric);
 });
 
+/** Mutant: drop `video` from the success answer, or invent one; the agent then cannot name 720p, or names a guess (#1188). */
+it("a succeeded video carries its measured frame and names it in the report; an unmeasured one carries neither", () => {
+  const final_output = { video_url: "https://cdn.example/v.mp4", duration_seconds: 7.36, ai_generated: true as const, ai_disclosure: AI_DISCLOSURE_TEXT };
+  const measured = payload(formatGetRun(run("succeeded", { final_output, video: { width: 720, height: 1280 } })));
+  expect(measured.video).toEqual({ width: 720, height: 1280 });
+  expect(measured.display_markdown).toContain("| 7.4 s · 720p |");
+  const unmeasured = payload(formatGetRun(run("succeeded", { final_output })));
+  expect(unmeasured).not.toHaveProperty("video");
+  expect(unmeasured.display_markdown).toContain("| 7.4 s |");
+});
+
 /** Mutant: the block dropped from the success branch, and an agent never sees the generated file. */
 it("a succeeded generation carries its generation block; a run without one adds no key", () => {
   const generation = { kind: "image", model: "seedream-5.0-flash", url: "https://cdn.example/i.png", mime: "image/png",

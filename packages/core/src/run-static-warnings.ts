@@ -169,6 +169,8 @@ function ugcRunWarnings(
     ...voiceFactWarnings(preflight.voice),
     // The moves admission could not draw (#1175), pinned beside the input as the quote said them.
     ...storedStrings((storedInput as { move_warnings?: unknown }).move_warnings),
+    // What the saved script voice changed in a direct run's script (#1203), pinned as the quote said it.
+    ...storedStrings((storedInput as { voice_warnings?: unknown }).voice_warnings),
   ];
 }
 

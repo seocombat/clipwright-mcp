@@ -255,6 +255,12 @@ export const MCP_SERVER_INSTRUCTIONS =
   "moves to plan_reference_remake, make_ugc or make_faceless, and quote. A move's credits are on the quote, and one that cannot be " +
   "drawn on its words is named in warnings[]. The user's own note about a line stays a line_edits item; a line edit's graphic wins " +
   "over a move on the same words.\n\n" +
+  "To show the product turning, make a 9:16 picture of it with generate_image (the product photo as a reference), then a " +
+  "seedance-2.0-mini generate_video clip from that picture with camera turntable and the same picture as its last frame, so the clip loops; " +
+  "save it with create_asset and place it as an insert on the words that name the product. For a brand mascot across a " +
+  "series, draw it once with generate_image and pass that run as a reference to every later picture of it. A mascot with " +
+  "a human face can present: make it an actor with create_actor from that picture. An animal or object mascot appears " +
+  "in inserts under the narration.\n\n" +
   `Before a paid presenter video the user makes ${MUSIC_STOP ? "four" : "three"} choices. Presenter: show two or three actors from list_actors with ` +
   "their previews, or the user's own actors. Voice: play the preview_url of two or three voices from list_voices, or " +
   "give the links if the client cannot play them. Hook: write five to ten opening lines and let the user pick one to " +
@@ -265,6 +271,10 @@ export const MCP_SERVER_INSTRUCTIONS =
   "logo, or offer extract_brand with their site, and show the proposal for the user to confirm. If the user leaves the look " +
   "to you, pick one of brand_kit's looks that fits the topic. Never copy a reference video's colours unless the " +
   "user asks. Offer to save the confirmed design with brand_kit so a series keeps one look.\n\n" +
+  "Write every script in the saved script voice: brand_kit's voice holds who speaks to whom, the tone, the sign-off, the caption " +
+  "call to action, banned phrases, the preferred format and a second language. With none saved, offer the voice extract_brand or " +
+  "the user's own analyze_creator proposes, and save it only once the user confirms. When it names a second language, write that " +
+  "version of the approved script beside it.\n\n" +
   "For several videos (\"10 ads\"), vary them across angle and hook, actor, voice, setting and format, and never repeat " +
   "an opening line. Before any paid run, show the planned set with each video's angle, so the user can see they differ.\n\n" +
   "Runs are asynchronous. A paid call returns a run_id at once: poll get_run until the state is succeeded or failed. " +

@@ -1,5 +1,6 @@
 export * from "./skills.js";
 export * from "./design.js";
+export * from "./script-voice.js";
 export * from "./ugc-layers.js";
 export * from "./ugc-scenes.js";
 export * from "./motion-styles.js";
@@ -33,6 +34,8 @@ export * from "./default-actor.js";
 export * from "./voices.js";
 export * from "./voice-catalog.js";
 export * from "./runs.js";
+// The delivered video's measured size and its short name (720p, 1080p, 4K).
+export * from "./video-size.js";
 // Refusal bodies: the error shape is contract too, and once a 402 carries numbers it no
 // longer follows from the status code.
 export * from "./errors.js";

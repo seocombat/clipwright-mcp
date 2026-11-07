@@ -14,6 +14,8 @@ import {
   type DesignInput,
   extractBrandInput,
   mcpDesign,
+  mcpScriptVoice,
+  type ScriptVoice,
   CANDIDATE_CHARGE_TEXT,
   candidateRequest,
   type CandidateRequest,
@@ -72,6 +74,7 @@ import {
   FIND_TRENDS_DESCRIPTION,
   QUOTE_TRENDS_DESCRIPTION,
   findTrendsRequest,
+  trendSort,
   analyzeCreatorRequest,
   creatorProfileId,
   creatorProfileQuery,
@@ -795,15 +798,16 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Find trending reels on a topic",
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       description: withPriceLine("find_trends", FIND_TRENDS_DESCRIPTION),
-      inputSchema: findTrendsRequest.shape,
+      inputSchema: { ...findTrendsRequest.shape, sort: trendSort.optional() },
     },
-    // A repeat of the same request replays the search in flight for free and waits again, so no read tool is listed (tools/list budget).
-    async (request) => withFailureReport(async () => {
+    // A repeat of the same request replays the search for free and waits again, in any sort, so no read tool is listed (tools/list budget).
+    async ({ sort, ...request }) => withFailureReport(async () => {
       const started = await client.findTrends(request);
+      const order = sort === undefined ? {} : { sort };
       const done = started.state === "queued" || started.state === "searching"
-        ? await client.getTrendSearch(started.search_id, { wait_seconds: CREATOR_START_WAIT_SECONDS, display: "markdown" })
-        : await client.getTrendSearch(started.search_id, { display: "markdown" });
-      return { content: [{ type: "text", text: JSON.stringify(withTrendPoll(done, request)) }] };
+        ? await client.getTrendSearch(started.search_id, { wait_seconds: CREATOR_START_WAIT_SECONDS, display: "markdown", ...order })
+        : await client.getTrendSearch(started.search_id, { display: "markdown", ...order });
+      return { content: [{ type: "text", text: JSON.stringify(withTrendPoll(done, { ...request, ...order })) }] };
     }),
   );
   server.registerTool(
@@ -916,7 +920,8 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   server.registerTool("extract_brand", {
     title: "Read a brand from a site",
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
-    description: "Free. A public site's colours, fonts, logo and corners as a proposed design; the user confirms it. " +
+    description: "Free. A public site's colours, fonts, logo and corners as a proposed design, and its own name and description as a " +
+      "proposed script voice (voice.about); the user confirms them before brand_kit saves either. " +
       "logo_url: import with create_asset for design.logo_asset_id.",
     inputSchema: extractBrandInput.shape,
   }, async ({ url }) => withFailureReport(async () => ({
@@ -927,11 +932,16 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   server.registerTool("brand_kit", {
     title: "Read or save the brand kit",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-    description: "Free. No design: the saved one (used when a video names none), our looks and faces. design: save the user's confirmed one.",
-    inputSchema: { design: mcpDesign.optional() },
-  }, async ({ design }) => withFailureReport(async () => ({
-    content: [{ type: "text", text: JSON.stringify(design === undefined ? await client.getBrandKit() : await client.setBrandKit(design as DesignInput)) }],
-  })));
+    description: "Free. With neither field: the saved design (used when a video names none), the saved script voice, our looks and faces. " +
+      "design, voice: save the user's confirmed one; the other stays as saved, and voice {} clears the voice. Read voice before you write " +
+      "a script: when a call passes none, the server takes its banned phrases out, adds its sign-off and names both in warnings[].",
+    inputSchema: { design: mcpDesign.optional(), voice: mcpScriptVoice.optional() },
+  }, async ({ design, voice }) => withFailureReport(async () => {
+    const cleared = voice !== undefined && Object.values(voice).every(value => value === undefined);
+    return { content: [{ type: "text", text: JSON.stringify(design === undefined && voice === undefined ? await client.getBrandKit()
+      : await client.saveBrandKit({ ...(design === undefined ? {} : { design: design as DesignInput }),
+        ...(voice === undefined ? {} : { voice: cleared ? null : voice as ScriptVoice }) })) }] };
+  }));
 
   // Personal actor: the same schema the server checks, so offered and accepted
   // input cannot drift.

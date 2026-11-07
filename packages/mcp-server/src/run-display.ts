@@ -1,4 +1,4 @@
-import { FAILED_STATE, type FacelessQuoteResponse, type PartsLine, type QuoteResponse } from "@clipwright/core";
+import { FAILED_STATE, videoResolutionLabel, type FacelessQuoteResponse, type PartsLine, type QuoteResponse } from "@clipwright/core";
 import type { WorkflowRunRead } from "@clipwright/core/workflows";
 
 /** How an agent shows `display_markdown`: as is, every number backed by a structured field. */
@@ -84,8 +84,9 @@ function delivered(run: WorkflowRunRead): { title: string; link: string | null; 
   }
   if (run.candidate) return { title: "Shot candidate ready", link: run.candidate.preview_url, length: "—" };
   if (run.created_actor) return { title: `Actor ready: \`${run.created_actor.actor_id}\``, link: null, length: "—" };
+  const resolution = run.video === undefined ? "" : ` · ${videoResolutionLabel(run.video)}`;
   return { title: "Video ready", link: run.final_output?.video_url ?? null,
-    length: run.final_output ? seconds(run.final_output.duration_seconds) : "—" };
+    length: run.final_output ? `${seconds(run.final_output.duration_seconds)}${resolution}` : "—" };
 }
 
 /** A terminal run as a short report: what came out, its length, the charge against the reserve, and every warning. */

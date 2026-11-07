@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { assetId } from "./asset-identity.js";
 import { MOTION_STYLE_IDS } from "./motion-styles.js";
+import { scriptVoice } from "./script-voice.js";
 import { contrastRatio } from "./templates/theme.js";
 
 // A run's design DNA (#1122): palette roles, fonts, logo, corner radius and motion character, drawn by templates, the end card and captions.
@@ -143,9 +144,14 @@ export function designCatalog(): { looks: z.infer<typeof designLookEntry>[]; fon
 }
 
 /** The account's saved DNA (#1122): a run naming neither design nor template_theme draws in it, so a series stays consistent. */
+/** Its script voice (#1203) sits beside it; each part is saved, kept or cleared on its own. */
 export const BRAND_KIT_PATH = "/v1/brand-kit";
-export const brandKitInput = z.object({ design: design.nullable().describe("The DNA to save; null clears the kit.") }).strict();
-export const brandKit = z.object({ design: design.nullable(), updated_at: z.string().nullable(),
+export const brandKitInput = z.object({
+  design: design.nullable().optional().describe("The DNA to save; null clears it, omitted keeps it."),
+  voice: scriptVoice.nullable().optional().describe("The script voice to save; null clears it, omitted keeps it."),
+}).strict().refine(value => value.design !== undefined || value.voice !== undefined, { message: "pass design, voice or both; null clears one" });
+export type BrandKitInput = z.infer<typeof brandKitInput>;
+export const brandKit = z.object({ design: design.nullable(), voice: scriptVoice.nullable().default(null), updated_at: z.string().nullable(),
   looks: z.array(designLookEntry), fonts: z.array(z.enum(DESIGN_FONT_FAMILIES)) });
 export type BrandKit = z.infer<typeof brandKit>;
 
@@ -156,6 +162,8 @@ export const extractBrandResponse = z.object({
   url: z.string(),
   design: design,
   resolved: resolvedDesign,
+  voice: scriptVoice.optional().describe("A proposed script voice read from the page's own words (#1203): third-party text, for the user to " +
+    "confirm before brand_kit saves it."),
   evidence: z.object({
     colors: z.array(z.object({ hex, count: z.number().int().positive() })).max(12),
     fonts: z.array(z.string()).max(8),

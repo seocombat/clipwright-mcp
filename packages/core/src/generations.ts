@@ -23,7 +23,11 @@ export const GENERATION_VIDEO_ASPECTS = ["9:16", "16:9"] as const;
 export const GENERATION_RESOLUTIONS = ["360p", "480p", "720p", "1080p"] as const;
 export const GENERATION_VIDEO_MODES = ["text", "first_frame", "reference"] as const;
 /** No model takes a camera parameter, so the run writes it as the prompt's first line (#761). */
-export const GENERATION_CAMERAS = ["static", "push_in", "pull_back", "pan"] as const;
+export const GENERATION_CAMERAS = ["static", "push_in", "pull_back", "pan", "turntable"] as const;
+const GENERATION_CAMERA_DESCRIPTION ="The camera, written as the prompt's first line: static, push_in, pull_back, pan, or turntable " +
+  "(the camera stays still while the subject turns in place, for a product shot). For a product turntable pass the product's " +
+  "picture as first_frame and again as last_frame, so the clip ends where it began and loops; seedance-2.0-mini makes the " +
+  "full turn, while kling-3.0 given the same last frame barely turns. The price does not depend on it.";
 export type GenerationCamera = (typeof GENERATION_CAMERAS)[number];
 export type GenerationImageAspect = (typeof GENERATION_IMAGE_ASPECTS)[number];
 export type GenerationVideoAspect = (typeof GENERATION_VIDEO_ASPECTS)[number];
@@ -214,7 +218,7 @@ export const generateVideoRequest = z.strictObject({
   last_frame: generationReference.optional(),
   references: z.array(generationReference).min(1).max(GENERATION_MAX_REFERENCES).optional(),
   /** Compiled into the prompt's first line; the price does not depend on it. */
-  camera: z.enum(GENERATION_CAMERAS).optional(),
+  camera: z.enum(GENERATION_CAMERAS).optional().describe(GENERATION_CAMERA_DESCRIPTION),
 }).superRefine((request, context) => {
   const issue = (path: string, message: string) => context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
   const capability = GENERATION_CAPABILITIES[request.model];

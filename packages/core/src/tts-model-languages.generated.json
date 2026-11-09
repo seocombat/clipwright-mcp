@@ -157,6 +157,7 @@
       "id": "eleven_v4",
       "languages": [
         "af",
+        "am",
         "ar",
         "as",
         "ast",
@@ -167,6 +168,7 @@
         "bs",
         "ca",
         "ceb",
+        "ckb",
         "cs",
         "cy",
         "da",
@@ -176,6 +178,7 @@
         "es",
         "et",
         "fa",
+        "ff",
         "fi",
         "fil",
         "fr",
@@ -194,12 +197,15 @@
         "ja",
         "jv",
         "ka",
+        "kam",
         "kk",
         "kn",
         "ko",
         "ky",
         "lb",
+        "lg",
         "ln",
+        "lo",
         "lt",
         "lv",
         "mi",
@@ -225,6 +231,7 @@
         "sd",
         "sk",
         "sl",
+        "sn",
         "so",
         "sr",
         "sv",
@@ -238,9 +245,11 @@
         "ur",
         "uz",
         "vi",
+        "wo",
         "yo",
         "yue",
-        "zh"
+        "zh",
+        "zu"
       ]
     }
   ]

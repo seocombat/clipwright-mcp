@@ -7,7 +7,7 @@ export type TemplateSoundBeat = (typeof TEMPLATE_SOUND_BEATS)[number];
 
 /** Each beat's names, its default and where it plays; the composition bundles `<beat>__<name>.mp3` for each, and a test keeps the two equal. */
 export const TEMPLATE_SOUNDS = {
-  click: { default: "click_mouse", names: ["click_mouse", "click_soft", "click_crisp", "click_light"],
+  click: { default: "click_mouse", names: ["click_mouse", "click_soft", "click_crisp", "click_light", "tick_soft", "click_sharp", "key"],
     plays: "a checklist's cursor clicks a row, on each click" },
   toggle: { default: "switch_flip", names: ["switch_flip", "toggle_snap", "switch_heavy", "switch_light"],
     plays: "a checklist row's switch or check box lands, just after each click" },
@@ -15,17 +15,18 @@ export const TEMPLATE_SOUNDS = {
     plays: "a phone_call rings from its pop, repeating, until it is answered; over a call it rings ring_double once, before the first line" },
   answer: { default: "answer_confirm", names: ["answer_confirm", "answer_open", "answer_pop", "answer_select", "pickup"],
     plays: "a phone_call is answered, on answer_at" },
-  notify: { default: "chime", names: ["chime", "glass_ping", "glass_soft", "bong", "question_ping"], plays: "a notification drops in" },
-  step: { default: "drop", names: ["drop", "drop_high", "tick", "pluck", "pluck_bright"], plays: "a progress step fills, and each rating star" },
-  whoosh: { default: "whoosh", names: ["whoosh", "whip", "paper_swipe", "sweep", "slide_quick"],
+  notify: { default: "chime", names: ["chime", "glass_ping", "glass_soft", "bong", "question_ping", "thud", "ding"], plays: "a notification drops in" },
+  step: { default: "thud", names: ["drop", "drop_high", "tick", "pluck", "pluck_bright", "thud", "blip", "marker"],
+    plays: "a progress step fills, and each rating star" },
+  whoosh: { default: "whoosh", names: ["whoosh", "whip", "paper_swipe", "sweep", "slide_quick", "swish_short", "whoosh_soft", "rise"],
     plays: "a full-frame template's wipe or zoom, in and out, and a compare's reveal; on make_faceless, each light leak cut, its peak on the cut" },
   flash: { default: "shutter", names: ["shutter", "glitch", "swish"],
     plays: "a full-frame template's flash, on each of its cuts; on make_faceless, each flash cut, its peak on the cut" },
-  pop: { default: "plop", names: ["plop"], plays: "a tag or a callout pops in" },
+  pop: { default: "plop", names: ["plop", "thud", "blip", "stamp", "popper"], plays: "a tag or a callout pops in" },
   hangup: { default: "phone", names: ["phone"], plays: "an answered phone_call hangs up, just before it leaves" },
-  money: { default: "cash_register", names: ["cash_register", "coins"], plays: "a stat with a currency sign in its prefix or suffix counts up" },
+  money: { default: "cash_register", names: ["cash_register", "coins", "confetti", "popper"], plays: "a stat with a currency sign in its prefix or suffix counts up" },
   edit: { default: "air_whoosh", names: ["air_whoosh", "swing", "swipe", "swell_hit", "whoosh_deep", "whoosh_low", "boom_low", "sub_drop", "riser_boom",
-    "riser_hit"],
+    "riser_hit", "thud", "stamp", "swish_short", "whoosh_soft", "rise"],
     plays: "with edit_sounds, each cut: to or from an insert, a full-frame template's cut without its own whoosh or flash, a layout window's in and out; " +
       "on make_faceless, every scene change; its peak lands on the cut" },
 } as const satisfies Record<TemplateSoundBeat, { default: string; names: readonly string[]; plays: string }>;

@@ -20,8 +20,9 @@ vi.mock("./advertised-schema.js", async (importActual) => {
     (sdkList.raw ? async () => [] : actual.advertiseSlimTools(server)) };
 });
 
-/** ChatGPT shows no tools for a list near 100 KB (#1003); #1142 moved field guidance to describe_tool and set 70 KB. */
-const TOOLS_LIST_MAX_BYTES = 70_000;
+/** ChatGPT shows no tools for a list near 100 KB (#1003); #1142 moved field guidance to describe_tool and set 70 KB, our own budget. */
+/** 80 KB (owner 2026-11-08): ChatGPT listed every tool at 99,323 B live on 2026-11-02 (#1003), so this keeps about 19 KB under a measured pass. */
+const TOOLS_LIST_MAX_BYTES = 80_000;
 
 async function rawTools(options: CreateServerOptions): Promise<Tool[]> {
   sdkList.raw = true;
@@ -271,7 +272,7 @@ const ANSWER_NUMBERS: Record<string, string[]> = {
   get_reference_analysis: ["60", "4", "3", "0"], // 60 frames a page, 4×3 sheets, credits_charged 0 once failed
   analyze_creator: ["300", "2", "0", "50"], // captions cut at 300, 2× flagged top, null never 0, poll's wait_seconds
   get_creator_profile: ["0"], // credits_charged 0 once failed
-  list_voices: ["17", "30", "3.8", "31", "4"], // catalog counts and model names
+  list_voices: ["20", "30", "3.8", "31", "4"], // catalog counts and model names
 };
 /** snake_case words of a refusal sentence that name an answer's field, not a refusal code; describe_tool still says them. */
 const ANSWER_FIELDS: Record<string, string[]> = {
@@ -289,11 +290,11 @@ const WRITTEN_FROM: Record<string, string> = {
   generate_video: "a186d4a3edb2902b", get_account: "69e49b07e4b1be32", get_asset: "508a09c765a61f1f", get_creator_profile: "ccb8cc20d52ad7c9",
   get_reference_analysis: "cf4027c19e9a3dd3", get_run: "0ad53c727736d024", get_run_shots: "2b13db5cf3bca267", get_upload: "4bd3baac899982b4",
   list_actors: "89ca3249262caa88", list_assets: "ffa330bb764bedab", list_generation_models: "5737b2f41d69b048", list_moves: "067d552b22260a07", list_prices: "73634ccff928eacc",
-  list_template_sounds: "22aba7b06ba63bfd", list_voices: "edd37da7991c06d4", make_faceless: "993ab6aa6f21c163", make_ugc: "7526c26c0963d629",
+  list_template_sounds: "22aba7b06ba63bfd", list_voices: "726e995f8c322a19", make_faceless: "01ad3322c484672d", make_ugc: "7526c26c0963d629",
   plan_reference_remake: "113268b78befd274", "plan_reference_remake.music": "2f4412656b080b28", quote_actor: "e12a380eb9ee5f43",
   "quote_actor.aspect_ratios": "696dce090682b9ab", "quote_actor.description": "683e0cde898f0b05", "quote_actor.quality": "30a1a4112b5cec33",
   quote_analysis: "f8cafa866c28e5b6", "quote_analysis.mode": "87cd0678550af1e9", quote_candidate: "9cf2107d7d2e6101",
-  quote_creator_profile: "551da40d61728402", "quote_faceless.duration_seconds": "b07373eacdcf86fe", "quote_faceless.voice": "4bb82130e245fe72",
+  quote_creator_profile: "551da40d61728402", "quote_faceless.duration_seconds": "db3a0647f58855cb", "quote_faceless.voice": "b912650f28f50ae9",
   quote_image: "a21d80c84bd1fdd1", quote_revision: "2b7dc951c0ec0b8b", "quote_trends.language": "6123ffc4aa981c9f",
   "quote_ugc.actor_id": "ec9da39dc8413ce5", "quote_ugc.aspect_ratio": "b49a2e8f98e0ba34", "quote_ugc.broll_policy": "d8b247cc27906eaa",
   "quote_ugc.image": "8beaedf565c18d60", "quote_ugc.inserts": "2b0530cdf229962a", "quote_ugc.layout_windows": "48fd405d98d1c275",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agentFailureReport,
+  UNAUTHORIZED_NEXT_ACTION,
   UPLOAD_NOT_FINISHED_NEXT_ACTION,
   isRetryableFailure,
   parseApiFailure,
@@ -773,6 +774,19 @@ describe("upload_not_finished", () => {
   // The same 409 says "is finishing, retry in a few seconds" while another read holds the lease (#766): the file is there.
   it("the finishing variant is named, so the agent waits instead of uploading again", async () => {
     expect(UPLOAD_NOT_FINISHED_NEXT_ACTION).toMatch(/says the upload is finishing, the file is already there: wait a few seconds and repeat/);
+  });
+});
+
+/** Mutant: drop the branch, and an agent told to "fix the call" edits arguments get_account does not have. */
+describe("unauthorized", () => {
+  it("401 unauthorized sends the human to a new key or a new sign-in, then get_account", () => {
+    const failure = parseApiFailure({ status: 401,
+      bodyText: JSON.stringify(apiErrorBody({ code: "unauthorized", message: "the api key is missing, malformed, or no longer valid" })),
+      now: NOW });
+    const report = agentFailureReport(failure);
+    expect(report).toMatchObject({ status: "FAILED", code: "unauthorized", retryable: false, next_action: UNAUTHORIZED_NEXT_ACTION });
+    expect(UNAUTHORIZED_NEXT_ACTION).toMatch(/https:\/\/app\.clipwright\.io\/api-keys.*CLIPWRIGHT_API_KEY, never in the chat.*reconnects.*get_account/);
+    expect(UNAUTHORIZED_NEXT_ACTION).not.toMatch(/fix the call/);
   });
 });
 

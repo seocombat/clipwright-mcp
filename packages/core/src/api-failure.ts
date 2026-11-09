@@ -12,6 +12,7 @@ import {
   runNotEditableError,
   type BareApiErrorCode,
 } from "./errors.js";
+import { PUBLIC_APP_BASE_URL } from "./public-endpoints.js";
 import { rateLimitedError } from "./rate-limit.js";
 import { workflowCommandErrorRead } from "./contracts/v1/workflow-execution.js";
 
@@ -545,6 +546,14 @@ export const UPLOAD_NOT_FINISHED_NEXT_ACTION =
   "with get_upload, then repeat this call. If the message says the upload is finishing, the file is already there: " +
   "wait a few seconds and repeat. Nothing was charged and no run was created.";
 
+/** A refused key is fixed by the human, not by changing the call: `get_account` takes no arguments to fix. */
+export const UNAUTHORIZED_NEXT_ACTION =
+  "STOP. Clipwright did not accept this connection's key or sign-in: it is missing, mistyped or revoked. Nothing was " +
+  `charged. With a key, the human creates a new one at ${PUBLIC_APP_BASE_URL}/api-keys (a new account at ` +
+  `${PUBLIC_APP_BASE_URL}/auth/sign-up comes with trial credits), puts it in the MCP server's environment as ` +
+  "CLIPWRIGHT_API_KEY, never in the chat, and restarts the host. With the hosted connector, the human reconnects it and " +
+  "signs in again. Then call get_account, which is free, to confirm.";
+
 export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
   const base = { message: failure.message,
     ...('issues' in failure && failure.issues !== undefined && { issues: failure.issues }),
@@ -731,6 +740,7 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
         retryable: false,
         // An unfinished presigned upload is fixed by the upload itself, not by changing this call (clipwright#758).
         next_action: failure.code === "upload_not_finished" ? UPLOAD_NOT_FINISHED_NEXT_ACTION :
+          failure.code === "unauthorized" ? UNAUTHORIZED_NEXT_ACTION :
           "STOP. Do NOT retry: the request itself was rejected, so repeating it unchanged gives " +
           "the same answer. Read the message, fix the call, or tell the user what is wrong.",
       };

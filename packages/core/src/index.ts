@@ -20,7 +20,9 @@ export * from "./faceless-customer-anchors.js";
 export * from "./faceless-action-shots.js";
 export * from "./faceless-image-placement.js";
 export * from "./faceless-voices.js";
+export * from "./mascots.js";
 export * from "./faceless-price.js";
+export * from "./explainer-fit.js";
 export * from "./actors.js";
 // Personal actors of an account: input and result of the `create_actor` skill.
 export * from "./account-actors.js";

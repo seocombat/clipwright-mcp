@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ACTOR_UNIT_CREDITS, ACTOR_VIEW_PORTRAIT_CREDITS } from "./account-actors.js";
 import { EDIT_RENDER_PRICE, EDIT_UNIT_PRICES, EDIT_ZERO_UNIT_PRICE } from "./edit-billing.js";
@@ -78,6 +78,43 @@ describe("the music line of the price list", () => {
     const on = lineOf(priceListFor({ CLIPWRIGHT_MUSIC: "1" }));
     expect(on.length).toBeGreaterThan(0);
     for (const line of on) expect(line.credits).toBe(MUSIC_BED_CREDITS);
+  });
+});
+
+// #1216 (owner 2026-11-07). Mutant: the explainer sold with its switch off, or listed with an opening clip it never makes.
+describe("the explainer line of the price list", () => {
+  it("sells a pose picture at a generated picture's price and the seconds, minimum 50, only while the switch is on", () => {
+    const explainer = (list: readonly { tool: string | null; variant: string | null }[]) => list.filter(item => item.tool === "make_faceless" && item.variant === "explainer");
+    expect(explainer(PRICE_LIST)).toEqual([]);
+    const [entry] = explainer(priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" })) as [ReturnType<typeof priceListFor>[number]];
+    expect(entry.lines.map(line => [line.unit, line.credits])).toEqual([["image", 7], ["image", 7], ["second", 1], ["scene", 65]]);
+    // #1277. Mutant: the object pictures charged but missing from the list, or listed without their ceiling.
+    expect(entry.lines[1]!.label).toBe("picture of a thing the script names");
+    expect(entry.notes).toContain("at most one for each thing a list script names and 12 per video.");
+    expect(entry.minimum_credits).toBe(FACELESS_MIN_BASE_CREDITS);
+  });
+  // 2026-11-08. Mutants: the explainer's scenes, its biggest part, left off the list, or sold with the explainer switch off.
+  it("lists a scene drawn for the explainer at 65, at most 8 per video, only while the explainer switch is on", () => {
+    const scene = (list: readonly (typeof PRICE_LIST)[number][]) => list.filter(item => item.tool === "make_faceless")
+      .flatMap(item => item.lines.filter(line => line.label === "scene drawn for the explainer").map(line => ({ variant: item.variant, notes: item.notes, line })));
+    expect(scene(priceListFor({}))).toEqual([]);
+    const [on] = scene(priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" }));
+    expect(on).toMatchObject({ variant: "explainer", line: { unit: "scene", credits: 65 } });
+    expect(on!.notes).toContain("A scene drawn for the explainer is charged only when the delivered video shows it, at most 8 per video.");
+    expect(priceLine("make_faceless", priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" }))).toContain("scene drawn for the explainer 65 credits");
+  });
+  // Codex r1. Mutant: the scene's price or ceiling retyped as a literal, so a changed constant leaves the list behind what billing charges.
+  it("reads the scene's price and ceiling from the constants billing charges by", async () => {
+    vi.resetModules();
+    vi.doMock("./faceless-price.js", async (actual) => ({ ...await actual<object>(), EXPLAINER_BEAT_CREDITS: 66, EXPLAINER_MAX_AUTHORED_BEATS: 7 }));
+    try {
+      const entry = (await import("./prices.js")).priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" }).find(item => item.variant === "explainer")!;
+      expect(entry.lines.find(line => line.unit === "scene")?.credits).toBe(66);
+      expect(entry.notes).toContain("at most 7 per video");
+    } finally {
+      vi.doUnmock("./faceless-price.js");
+      vi.resetModules();
+    }
   });
 });
 

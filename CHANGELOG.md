@@ -18,6 +18,45 @@ listed under.
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-09
+
+### Added
+
+- *Server-side:* a new `make_faceless` narration voice, `narrator_en_brisk_man`, the fastest English one; `list_voices` with
+  `skill=make_faceless` lists it.
+
+### Changed
+
+- *Server-side:* a `make_faceless` explainer that names no `voice` speaks the fastest voice in its script's language;
+  a script in a language without one keeps `narrator_en_wise_lady`. Other formats keep `narrator_en_wise_lady`.
+- *Server-side:* a `make_faceless` explainer runs as long as its narration, without padding to 25 seconds. The price does
+  not change: a delivered video still costs at least 50 credits.
+- The bundled agent skill now opens with a connection check, suggests trends before any video, and tells a ChatGPT
+  user to use the Refresh option in its tools menu when the tool list is stale.
+
+### Fixed
+
+- Tool input schemas no longer use a pattern that ChatGPT's schema check rejects; the accepted values are unchanged.
+- The `unauthorized` error text now says what to check when a key is missing or refused.
+
+## [0.46.0] - 2026-11-07
+
+### Added
+
+- *Server-side:* more template sounds to pick in `template_sounds`: `thud` (a deep hit) for `pop`, `notify`, `step` and
+  `edit`; `stamp` and `popper` for `pop`, with `stamp` also for `edit` and `popper` for `money`; `blip` for `pop` and
+  `step`; `marker` for `step`; `ding` for `notify`; `confetti` for `money`; `tick_soft`, `click_sharp` and `key` for
+  `click`; `swish_short`, `whoosh_soft` and `rise` for `whoosh` and `edit`. `list_template_sounds` names them all.
+- Progress steps and rating stars now play a deep hit by default.
+- `make_faceless` takes `pause_trim` on a script, as `make_ugc` does. A video with templates, scenes or shots cuts its narration's
+  pauses to 0.15 s after a sentence and 0.08 s after a comma unless the call names `pause_trim` (`false` keeps every pause), and
+  `warnings[]` says so; a shorter narration makes a shorter video, charged on its delivered seconds (#1228).
+
+### Fixed
+
+- *Server-side:* a `make_faceless` shot that starts from your own picture moves that picture instead of drawing a new
+  scene around it, and a shot that falls back to a still says why in `warnings[]`.
+
 ## [0.45.0] - 2026-11-07
 
 ### Added

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   makeUgcInput,
@@ -8,6 +8,7 @@ import {
   MAX_SCRIPT_CHARS,
   MAX_SEGMENTS,
 } from "@clipwright/core";
+import { facelessQuoteResponse, offeredFacelessInputShape } from "./faceless-public.js";
 import { RESOLVED_TIMELINE_MAX_SLOTS } from "./long-form-profile.js";
 import * as contract from "./index.js";
 
@@ -453,5 +454,33 @@ describe("agent protocol: `failed` is no longer promised to be final", () => {
   it("names the transition back to queued and promises a warnings entry", () => {
     expect(contract.MAKE_UGC_AGENT_PROTOCOL).toContain("back to 'queued'");
     expect(contract.MAKE_UGC_AGENT_PROTOCOL).toContain("warnings[]");
+  });
+});
+
+// Mutants (#1216): the offer said where the format is refused, moved out of the brief, or naming a field the tools do not have.
+describe("server instructions offer the explainer only where it is sold", () => {
+  const instructions = async (flag: string | undefined): Promise<string> => {
+    vi.resetModules();
+    vi.stubEnv("CLIPWRIGHT_FACELESS_EXPLAINER", flag);
+    try {
+      return (await import("./skills.js")).MCP_SERVER_INSTRUCTIONS;
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  };
+
+  it("is absent with the format off", async () => {
+    expect(await instructions(undefined)).not.toContain("offer the explainer");
+  });
+
+  it("follows the declined brief, names real fields and picks the hero by meaning", async () => {
+    const text = await instructions("1");
+    const brief = text.indexOf("If the user declines the brief, go on as asked. For a how-to"), visuals = text.indexOf("\n\nCompose the visuals");
+    expect(brief).toBeGreaterThan(0);
+    expect(text.slice(brief, visuals)).toMatch(/offer the explainer \(make_faceless, format explainer\) beside the remake, with explainer_fit and the price from quote_faceless/);
+    expect(text.slice(brief, visuals)).toMatch(/propose two or three characters[^.]*passed as character_details; reuse one only when the user asks or the brand has its own\. A delivered explainer keeps its hero as a mascot[^.]*mascot_id[^.]*\.$/);
+    expect(Object.keys(facelessQuoteResponse.shape)).toContain("explainer_fit");
+    expect(Object.keys(offeredFacelessInputShape)).toEqual(expect.arrayContaining(["character_details", "format"]));
   });
 });

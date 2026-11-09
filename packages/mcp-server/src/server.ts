@@ -645,6 +645,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       inputSchema: {
         role: z.enum(ASSET_ROLES).optional(),
         kind: z.enum(ASSET_KINDS).optional(),
+        mascot: z.literal("true").optional().describe("true: only saved mascots"),
         limit: z.number().int().min(1).max(ASSET_LIST_MAX_LIMIT).optional(),
         cursor: z.string().min(1).optional().describe("next_cursor of the previous page"),
       },
@@ -833,7 +834,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "Without `skill` the list holds the make_ugc voices only. Each voice names in `skill` the one skill that speaks it; " +
         "the other refuses it before any charge. skill=make_faceless lists " +
         `the ${FACELESS_VOICE_NAMES.length} narration voices of make_faceless (kind faceless_voice, with a ` +
-        `language and a gender; default ${DEFAULT_FACELESS_VOICE}; no voice_id). ` +
+        `language and a gender; default ${DEFAULT_FACELESS_VOICE}, for an English explainer the fastest voice; no voice_id). ` +
         "make_ugc voices: the presets, then the " +
         `${MODEL_VOICE_NAMES.length} voices of ${MODEL_VOICE_MODEL} (kind model_voice), then catalog voices in ` +
         `${CATALOG_LANGUAGES.length} languages. Filter by \`language\` (native; any voice speaks any supported ` +

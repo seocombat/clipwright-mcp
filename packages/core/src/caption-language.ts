@@ -1,3 +1,14 @@
+/** The language of a script for choosing a narrator: Turkish by its letters (ğ ı İ, or ş with no Polish or Romanian letter), else the font table's.
+ *  Captions keep `captionLanguageOf`; ASCII-only Turkish stays English. */
+export function scriptLanguageOf(script: string): string {
+  const language = captionLanguageOf(script);
+  // Turkish circumflex vowels (kâr, hâlâ) make the font table read Vietnamese, so that answer is checked for Turkish letters too.
+  if (language !== "pl" && language !== "vi") return language;
+  if (/[ăĂđĐơƠưƯạ-ỹẠ-Ỹ]/u.test(script)) return language;
+  if (/[ğĞıİ]/u.test(script)) return "tr";
+  return /[şŞ]/u.test(script) && !/[ąćęłńśźżĄĆĘŁŃŚŹŻșțȘȚĂ]/u.test(script) ? "tr" : language;
+}
+
 /** The caption language as the font table reads it, from the letters the script is written in (in core for template text, #778 S3). */
 export function captionLanguageOf(script: string): string {
   const count = (pattern: RegExp) => script.match(pattern)?.length ?? 0;

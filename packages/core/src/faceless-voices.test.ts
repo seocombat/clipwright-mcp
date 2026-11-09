@@ -7,6 +7,10 @@ import { makeFacelessInput } from "./faceless-public.js";
 import {
   buildFacelessVoiceWarnings,
   DEFAULT_FACELESS_VOICE,
+  facelessDefaultVoiceName,
+  facelessEstimatedSeconds,
+  facelessSpeechWordsPerSecond,
+  FACELESS_MEASURED_WORDS_PER_SECOND,
   FACELESS_SPEECH_MODEL,
   FACELESS_VOICE_NAMES,
   FACELESS_VOICES,
@@ -59,17 +63,18 @@ describe("FACELESS_VOICES — the listed set", () => {
   it("lists each voice under the language and gender measured for it", () => {
     expect(Object.fromEntries(FACELESS_VOICE_NAMES.map((name) => [name, `${FACELESS_VOICES[name].language} ${FACELESS_VOICES[name].gender}`]))).toEqual({
       narrator_en_wise_lady: "en female", narrator_en_kind_girl: "en female", narrator_en_firm_lady: "en female",
-      narrator_en_gentle_man: "en male", narrator_en_deep_gentleman: "en male", narrator_en_storyteller: "en male",
+      narrator_en_gentle_man: "en male", narrator_en_deep_gentleman: "en male", narrator_en_storyteller: "en male", narrator_en_brisk_man: "en male",
       narrator_ru_ambitious_woman: "ru female", narrator_ru_bright_queen: "ru female",
       narrator_ru_reliable_man: "ru male", narrator_ru_deep_man: "ru male",
       narrator_es_serene_woman: "es female", narrator_es_storyteller: "es male",
       narrator_pt_wise_lady: "pt female", narrator_pt_storyteller: "pt male",
       narrator_fr_classic_man: "fr male", narrator_it_calm_woman: "it female", narrator_it_classic_man: "it male",
+      narrator_tr_confident_woman: "tr female", narrator_tr_mature_man: "tr male",
     });
   });
 
-  it("English and Russian are offered in both genders", () => {
-    for (const language of ["en", "ru"]) {
+  it("English, Russian and Turkish are offered in both genders", () => {
+    for (const language of ["en", "ru", "tr"]) {
       const genders = FACELESS_VOICE_NAMES.filter((name) => FACELESS_VOICES[name].language === language)
         .map((name) => FACELESS_VOICES[name].gender);
       expect(new Set(genders), language).toEqual(new Set(["female", "male"]));
@@ -185,6 +190,15 @@ describe("buildFacelessVoiceWarnings", () => {
     ]);
   });
 
+  // Mutant: judge Turkish letters as another alphabet, and a Turkish voice warns on a script written in its own language.
+  it("accepts a Turkish script, with ç ğ ı ö ş ü, for a Turkish voice and warns a Russian voice about it", () => {
+    const turkish = "Çocuğun yağmurda şemsiyesiz öğleden sonra üşüdüğünü fark ettim.";
+    expect(buildFacelessVoiceWarnings({ voice: "narrator_tr_mature_man", script: turkish })).toEqual([]);
+    expect(buildFacelessVoiceWarnings({ voice: russian, script: turkish })).toEqual([
+      `voice "${russian}" is a Russian voice, but the script is written in Latin letters: ${consequence}`,
+    ]);
+  });
+
   const conditional = (voice: string, named: string, letters: string) =>
     `voice "${voice}" is ${named}, but the brief is written in ${letters}: if the narration is written in the same language as ` +
     `the brief, ${named} may mispronounce it, and the video may come out longer than its length limit and fail; ` +
@@ -235,9 +249,10 @@ describe("buildFacelessVoiceWarnings", () => {
       pt: "Todas as manhãs o porto acorda antes da cidade.",
       fr: "Chaque matin, le port se réveille avant la ville.",
       it: "Ogni mattina il porto si sveglia prima della città.",
+      tr: "Her sabah liman, şehirden önce uyanır.",
     } as const;
     const named = { en: "an English voice", ru: "a Russian voice", es: "a Spanish voice", pt: "a Portuguese voice",
-      fr: "a French voice", it: "an Italian voice" } as const;
+      fr: "a French voice", it: "an Italian voice", tr: "a Turkish voice" } as const;
     expect(new Set(FACELESS_VOICE_NAMES.map((name) => FACELESS_VOICES[name].language))).toEqual(new Set(Object.keys(sample)));
     for (const voice of FACELESS_VOICE_NAMES) {
       const language = FACELESS_VOICES[voice].language;
@@ -270,5 +285,40 @@ describe("buildFacelessVoiceWarnings", () => {
     expect(buildFacelessVoiceWarnings({ brief: latin })).toEqual([]);
     expect(buildFacelessVoiceWarnings({ voice: "george", script: cyrillic })).toEqual([]);
     expect(buildFacelessVoiceWarnings({ voice: "george", brief: cyrillic })).toEqual([]);
+  });
+});
+
+describe("the pace a faceless script's length is estimated at (#1275)", () => {
+  const words = (count: number, word: string) => Array.from({ length: count }, () => word).join(" ");
+  const english = (count: number) => words(count, "word");
+  const turkish = (count: number) => words(count, "hızlı");
+  const es = "narrator_es_serene_woman" as const;
+
+  // Mutants: a flat rate again, the measured table changed, or the default read from the wrong language.
+  it("is the measured pace of the voice that will speak: the named one, else the default of the format and the script's language", () => {
+    expect(facelessSpeechWordsPerSecond({ script: english(10), format: "explainer" })).toBe(3.606);
+    expect(facelessSpeechWordsPerSecond({ script: english(10), format: "explainer", voice: "narrator_en_storyteller" })).toBe(2.848);
+    expect(facelessSpeechWordsPerSecond({ script: english(10) })).toBe(3.095);
+    expect(facelessSpeechWordsPerSecond({ script: turkish(10), format: "explainer" })).toBe(2.418);
+    expect(facelessSpeechWordsPerSecond({ script: turkish(10), format: "explainer", voice: "narrator_tr_mature_man" })).toBe(2.277);
+    // An unmeasured voice, and a script in another alphabet than the voice's, keep the flat estimate.
+    expect(facelessSpeechWordsPerSecond({ script: english(10), voice: es })).toBe(2.6);
+    expect(facelessSpeechWordsPerSecond({ script: "Каждое утро гавань просыпается раньше города", format: "explainer" })).toBe(2.3);
+    expect(facelessSpeechWordsPerSecond({ script: english(10), voice: "not-a-voice" })).toBe(3.095);
+  });
+
+  // #1275 checks: 192 English words with the explainer default are admitted at about 53 s; with a 2.6 w/s voice they stay past the 65 s bound.
+  it("estimates 192 English explainer words at 53 s, 74 s with a 2.6 words/s voice, and 150 Turkish words at 62 s", () => {
+    expect(facelessEstimatedSeconds({ script: english(192), format: "explainer" })).toBe(53);
+    expect(facelessEstimatedSeconds({ script: english(192), format: "explainer", voice: es })).toBe(74);
+    expect(facelessEstimatedSeconds({ script: turkish(150), format: "explainer" })).toBe(62);
+    expect(Math.round(150 / 2.6)).toBe(58);
+  });
+
+  it("picks the faster Turkish voice for a Turkish explainer and keeps core's table the one the default reads", () => {
+    expect(facelessDefaultVoiceName({ format: "explainer", script: turkish(10) })).toBe("narrator_tr_confident_woman");
+    expect(facelessDefaultVoiceName({ format: "explainer", script: english(10) })).toBe("narrator_en_brisk_man");
+    expect(facelessDefaultVoiceName({ script: turkish(10) })).toBe(DEFAULT_FACELESS_VOICE);
+    expect(Object.keys(FACELESS_MEASURED_WORDS_PER_SECOND).every(name => isFacelessVoiceName(name))).toBe(true);
   });
 });

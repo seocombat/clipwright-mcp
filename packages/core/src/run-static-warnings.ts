@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { buildFacelessVoiceWarnings } from "./faceless-voices.js";
 import { facelessMotionStyleWarnings } from "./faceless-public.js";
+import { facelessPauseTrimWarnings } from "./ad-pause-trim.js";
 import { motionStyle } from "./skills.js";
 import { compositionVersionOf, parseSkill, resolvedScript, storedUgcInput, type MakeUgcInput } from "./skills.js";
 import { storedCreateActorInput } from "./account-actors.js";
@@ -113,13 +114,18 @@ const storedFacelessVoice = z.object({
   captions: z.boolean().optional(),
   templates: z.array(z.unknown()).optional(),
   scenes: z.array(z.unknown()).optional(),
+  shots: z.array(z.unknown()).optional(),
   motion_style: motionStyle.optional(),
+  pause_trim: z.unknown().optional(),
+  format: z.string().optional(),
 });
 
-/** The derived lines of a faceless run: its chosen voice against its script or brief, and a style with nothing to dress, as `quote` names them. */
+/** The derived lines of a faceless run: its chosen voice against its script or brief, a style with nothing to dress and the default pause */
+/** trim (#1228), as `quote` names them. */
 function facelessRunWarnings(storedInput: unknown): string[] {
   const parsed = storedFacelessVoice.safeParse(storedInput);
-  return parsed.success ? [...buildFacelessVoiceWarnings(parsed.data), ...facelessMotionStyleWarnings(parsed.data)] : [];
+  return parsed.success ? [...buildFacelessVoiceWarnings(parsed.data), ...facelessMotionStyleWarnings(parsed.data),
+    ...facelessPauseTrimWarnings(parsed.data)] : [];
 }
 
 /** The pinned view, read beside `storedUgcInput`: widening that schema would change the timeline digest of runs admitted earlier. */

@@ -1,11 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { FIELD_DISPOSITIONS, resolveDispositions } from "./contract-dispositions.js";
 import { quoteFaceless } from "./faceless-price.js";
-import { isMusicEnabled, MUSIC_BED_CREDITS, musicLine, musicRequest } from "./music.js";
+import { isMusicEnabled, MUSIC_BED_CREDITS, musicLine, musicRequest, ONE_LINE_TEXT } from "./music.js";
 import { partsLineSchema } from "./parts-pricing.js";
 import { makeUgcInput } from "./skills.js";
 
 /** #1063 S1: music is a field the client must ask for, with its own line on the quote and a switch that refuses it when off. */
+
+describe("one-line text pattern", () => {
+  /** Mutant: narrow or widen the range by one code point, and the portable pattern stops refusing exactly the Unicode Cc set. */
+  it("refuses exactly the characters \\p{Cc} refuses, across the whole BMP", () => {
+    const cc = /\p{Cc}/u;
+    const differs: number[] = [];
+    for (let code = 0; code <= 0xffff; code++) {
+      if (code >= 0xd800 && code <= 0xdfff) continue;
+      const c = String.fromCharCode(code);
+      if (ONE_LINE_TEXT.test(`a${c}b`) === cc.test(c)) differs.push(code);
+    }
+    expect(differs).toEqual([]);
+  });
+});
 
 describe("the music field", () => {
   it('takes "auto" or { mood } and nothing looser', () => {

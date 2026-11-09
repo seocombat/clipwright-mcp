@@ -1,13 +1,7 @@
 {
   "shortfall": {
-    "el": {
-      "female": 1
-    },
     "fi": {
-      "female": 3
-    },
-    "sk": {
-      "female": 3
+      "female": 2
     }
   },
   "voices": [
@@ -25,12 +19,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "bg_female_milena",
@@ -46,12 +41,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "bg_female_mimi",
@@ -67,12 +63,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "bg_female_moonglow",
@@ -88,12 +85,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "bg_female_yoana",
@@ -109,12 +107,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "bg_male_boris",
@@ -130,12 +129,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "bg_male_georgi",
@@ -151,12 +151,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "bg_male_kosta",
@@ -172,12 +173,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "bg_male_nikolay",
@@ -193,12 +195,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "bg_male_peter_k",
@@ -213,12 +216,13 @@
       "description": "Bulgarian, middle-aged man with a slight hoarseness in his thick voice. Good for Bulgarian, English, Spanish, and German voiceovers.",
       "category": "professional",
       "verified_models": [
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_female_hanka",
@@ -234,12 +238,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_female_iveta",
@@ -255,12 +260,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_female_jana",
@@ -276,12 +282,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "rank": 4,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_female_kami",
@@ -297,12 +304,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_female_marketa",
@@ -318,12 +326,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_male_adam",
@@ -339,12 +348,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_male_daniel",
@@ -360,12 +370,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_male_jan",
@@ -381,12 +392,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 365,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_male_lukas",
@@ -402,12 +414,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "cs_male_oliver",
@@ -423,12 +436,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_female_alh",
@@ -444,12 +458,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_female_amalie",
@@ -465,12 +480,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_female_astrid",
@@ -486,12 +502,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_female_freja",
@@ -507,12 +524,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_female_mia",
@@ -528,12 +546,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_male_mads",
@@ -549,12 +568,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_male_mathias",
@@ -570,12 +590,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_male_peter",
@@ -591,12 +612,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_male_soren",
@@ -612,12 +634,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "da_male_teddy_andersen",
@@ -633,12 +656,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_female_ava",
@@ -654,12 +678,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_female_carla_blum",
@@ -675,12 +700,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_female_lea",
@@ -696,12 +722,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_female_leonie",
@@ -716,12 +743,13 @@
       "description": "A captivating female German studio-quality voice. Perfect for productions in native German or English with a pleasant German accent. Leonie's clear and engaging narration excels in fiction and nonfiction audiobooks, voiceovers, dubbing, video translations, podcasts, advertising, and training. It's also a top pick for influencer content and social media in 'Deutsch.' From books and literature to TikTok or YouTube, Leonie's versatile voice brings your project a calm and confident feminine tone.",
       "category": "high_quality",
       "verified_models": [
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_female_susi",
@@ -737,12 +765,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_male_alexander",
@@ -758,12 +787,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_male_christian",
@@ -779,12 +809,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_male_helmut_stieglbauer",
@@ -800,12 +831,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_male_leon_stern",
@@ -821,12 +853,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "de_male_otto",
@@ -842,12 +875,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "el_female_aria",
@@ -863,12 +897,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
-      "notice_period_days": 365,
+      "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "el_female_katerina",
@@ -884,12 +919,35 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
+    },
+    {
+      "slug": "el_female_lena",
+      "language": "el",
+      "locale": "el-GR",
+      "accent": "athenian",
+      "gender_raw": "female",
+      "age_raw": "middle_aged",
+      "use_case_raw": "narrative_story",
+      "descriptive_raw": "deep",
+      "name": "Lena - Deep, Dark & Haunting Storyteller",
+      "description": "A deep, dark, atmospheric female voice with a haunting and mysterious tone. Ideal for horror stories, psychological thrillers, gothic fiction, supernatural tales, and suspenseful cinematic narration. Perfect for immersive storytelling that builds tension and intrigue.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5",
+        "eleven_v4"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 10,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "el_female_martha",
@@ -905,12 +963,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "el_female_sophia",
@@ -926,12 +985,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "el_male_atlas",
@@ -947,12 +1007,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "el_male_eugene",
@@ -968,12 +1029,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 365,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "el_male_georgios",
@@ -989,12 +1051,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "el_male_iordanis",
@@ -1010,12 +1073,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "el_male_theos",
@@ -1031,12 +1095,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_female_amelia",
@@ -1052,12 +1117,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_female_cassidy",
@@ -1073,12 +1139,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_female_charlotte",
@@ -1094,13 +1161,14 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 17,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_female_diane",
@@ -1116,13 +1184,14 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 22,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_female_eve",
@@ -1138,13 +1207,14 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 13,
+      "rank": 14,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_female_hope",
@@ -1160,12 +1230,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_female_jane",
@@ -1181,12 +1252,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": true,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_female_jessica_anne_bogart",
@@ -1201,12 +1273,13 @@
       "description": "A credited VoiceOver actor, now cloned. Confident, Conversational.",
       "category": "high_quality",
       "verified_models": [
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_female_lucy",
@@ -1222,13 +1295,14 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 16,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_adam",
@@ -1244,12 +1318,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_dexter",
@@ -1265,13 +1340,14 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 21,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_igor_radio",
@@ -1287,13 +1363,14 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 20,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_jack_john",
@@ -1309,13 +1386,14 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 15,
+      "rank": 12,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_james",
@@ -1331,12 +1409,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_liam",
@@ -1352,13 +1431,14 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 12,
+      "rank": 13,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_lucan_rook",
@@ -1374,13 +1454,14 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 11,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_luke",
@@ -1396,13 +1477,14 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 23,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_marcus",
@@ -1418,13 +1500,14 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 19,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_mark",
@@ -1440,12 +1523,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_michael_c_vincent",
@@ -1461,12 +1545,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_russell",
@@ -1482,13 +1567,14 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 14,
+      "rank": 15,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_spuds_oxley",
@@ -1503,12 +1589,14 @@
       "description": "A friendly Southern grandpa who knows how to enthrall his audience with tall tales and fun adventures! A warm, friendly, stylized baritone voice that is great for these categories: characters, educational, advertisement, social media, conversational, and entertainment.",
       "category": "high_quality",
       "verified_models": [
-        "eleven_turbo_v2_5"
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "en_male_todd",
@@ -1524,13 +1612,14 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 18,
       "pinned": true,
-      "refreshed_at": "2026-11-04T08:31:10.992Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_female_jhenny",
@@ -1546,12 +1635,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_female_mauro",
@@ -1567,12 +1657,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_female_sara_martin",
@@ -1588,12 +1679,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_female_sara_martin_2",
@@ -1609,12 +1701,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_female_tatiana_martin",
@@ -1630,12 +1723,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_male_alberto_rodriguez",
@@ -1651,12 +1745,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_male_benjamin",
@@ -1672,12 +1767,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_male_dan",
@@ -1693,12 +1789,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_male_david_martin",
@@ -1713,12 +1810,13 @@
       "description": "Young Spanish-Castillian male with a confident tone. Works well for Storytelling.",
       "category": "high_quality",
       "verified_models": [
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "es_male_fernando_martinez",
@@ -1734,12 +1832,35 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
+    },
+    {
+      "slug": "fi_female_aurora",
+      "language": "fi",
+      "locale": "fi-FI",
+      "accent": "standard",
+      "gender_raw": "female",
+      "age_raw": "young",
+      "use_case_raw": "narrative_story",
+      "descriptive_raw": "confident",
+      "name": "Aurora - Cheerful, Optimistic and Round",
+      "description": "Young Finnish friendly and professional voice. Perfect for conversations and narration.",
+      "category": "high_quality",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5",
+        "eleven_v4"
+      ],
+      "notice_period_days": 365,
+      "featured": false,
+      "rank": 1,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fi_female_kaisa",
@@ -1755,12 +1876,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
-      "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fi_female_sini",
@@ -1776,12 +1898,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fi_male_jaakko",
@@ -1797,12 +1920,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 2,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "rank": 3,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fi_male_jussi",
@@ -1818,12 +1942,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 2,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fi_male_kimmo",
@@ -1839,12 +1964,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 365,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fi_male_viisas_kertoja",
@@ -1856,16 +1982,17 @@
       "use_case_raw": "narrative_story",
       "descriptive_raw": "calm",
       "name": "Viisas Kertoja - Calm, Warm and Rich",
-      "description": "Mature, male Finnish-language voice with a clear, medium-low pitch and a warm, resonant tone. The delivery is calm, deliberate, and authoritative, sounding wise, trustworthy, and gentle. The pacing is perfect for storytelling, allowing the listener to easily follow the narrative. It carries a sense of wisdom and warmth, much like a grandfather, a seasoned narrator, or a historical storyteller. The pronunciation is clear, standard Finnish (yleiskieli).",
+      "description": "A warm, velvety low-baritone Finnish male voice with an intimate close-mic presence and quiet, grounded authority. His unhurried, deliberate pacing and meaningful pauses give every word weight, evoking the atmosphere of a seasoned documentary narrator or fireside storyteller. Recorded in crystal-clear standard Finnish (yleiskieli) with a soothing Nordic cadence, this voice is ideal for audiobooks, history and nature documentaries, podcasts, guided meditation, sleep stories, and cinematic voiceovers.",
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 4,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fi_male_ville",
@@ -1881,12 +2008,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fil_female_ate_nikie",
@@ -1902,12 +2030,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fil_female_manang_inday",
@@ -1923,12 +2052,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fil_female_maria",
@@ -1944,12 +2074,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fil_female_tiya_maria",
@@ -1965,12 +2096,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fil_female_zia",
@@ -1986,12 +2118,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fil_male_alexander",
@@ -2028,12 +2161,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fil_male_kuya_manny",
@@ -2049,12 +2183,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fil_male_kuya_pedro_penduko",
@@ -2070,12 +2205,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fil_male_kuya_voiceover",
@@ -2091,12 +2227,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_female_audrey",
@@ -2112,12 +2249,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_female_camille_martin",
@@ -2133,12 +2271,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_female_rachel",
@@ -2154,12 +2293,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_female_victoria",
@@ -2175,12 +2315,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_female_victoria_2",
@@ -2196,12 +2337,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_male_adam",
@@ -2217,12 +2359,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_male_adrien",
@@ -2238,12 +2381,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_male_guillaume",
@@ -2259,12 +2403,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
-      "notice_period_days": 365,
+      "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_male_martin_dupont",
@@ -2279,12 +2424,13 @@
       "description": "Middle aged male with a warm and intimate voice. Perfect for audiobooks and other formats.",
       "category": "high_quality",
       "verified_models": [
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "fr_male_nicolas",
@@ -2300,12 +2446,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_female_anika",
@@ -2321,12 +2468,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_female_devi",
@@ -2342,12 +2490,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_female_kanika",
@@ -2363,12 +2512,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_female_monika_sogam",
@@ -2383,12 +2533,13 @@
       "description": "Monika Sogam is already a pretty loved voice on ElevenLabs in the English Indian category. Now it is available in Hindi too. This is a perfect voice for social media, audiobooks, and any type of conversational audio you might be looking for.",
       "category": "high_quality",
       "verified_models": [
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_female_saanu",
@@ -2404,12 +2555,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_male_bunty",
@@ -2425,12 +2577,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_male_bunty_2",
@@ -2446,12 +2599,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_male_niraj_romantic_and_smooth",
@@ -2462,17 +2616,18 @@
       "age_raw": "middle_aged",
       "use_case_raw": "narrative_story",
       "descriptive_raw": "deep",
-      "name": "Niraj- Romantic and Smooth",
+      "name": "Niraj - Romantic and Smooth",
       "description": " Niraj is the pen name of a veteran Indian actor. The base and variations of this voice make it great for narrative work, documentaries, and social media.",
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_male_raju",
@@ -2488,12 +2643,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hi_male_viraj",
@@ -2509,12 +2665,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_female_ana",
@@ -2530,12 +2687,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_female_ana_srb",
@@ -2551,12 +2709,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_female_ivana",
@@ -2572,12 +2731,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
-      "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 9,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_female_mila",
@@ -2593,12 +2753,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_female_milena",
@@ -2619,7 +2780,30 @@
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "retired_at": "2026-11-09T10:23:38.935Z",
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
+    },
+    {
+      "slug": "hr_female_sara",
+      "language": "hr",
+      "locale": "hr-HR",
+      "accent": "standard",
+      "gender_raw": "female",
+      "age_raw": "middle_aged",
+      "use_case_raw": "conversational",
+      "descriptive_raw": "classy",
+      "name": "Sara - Sharp & Professional",
+      "description": "Professional Assistant for your Support Agent, Telephone, or Office.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5",
+        "eleven_v4"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 10,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_male_adnan",
@@ -2635,12 +2819,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 365,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_male_dylan",
@@ -2656,12 +2841,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_male_fran",
@@ -2677,12 +2863,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_male_luka",
@@ -2698,12 +2885,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hr_male_slobodan",
@@ -2739,12 +2927,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hu_female_reka",
@@ -2760,12 +2949,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hu_female_vera",
@@ -2781,12 +2971,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hu_female_vivianna",
@@ -2802,12 +2993,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hu_female_zsofia",
@@ -2823,12 +3015,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hu_male_david",
@@ -2844,12 +3037,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hu_male_david_2",
@@ -2865,12 +3059,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hu_male_freddy",
@@ -2886,12 +3081,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hu_male_nolen",
@@ -2907,12 +3103,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "hu_male_peter",
@@ -2928,12 +3125,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_female_cahaya",
@@ -2949,12 +3147,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_female_gavrila",
@@ -2970,12 +3169,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 365,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_female_honeypie",
@@ -2991,12 +3191,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_female_kira",
@@ -3012,12 +3213,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_female_putri_maharani",
@@ -3033,12 +3235,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_male_ahmad",
@@ -3054,12 +3257,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_male_bian",
@@ -3075,12 +3279,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_male_bram",
@@ -3096,12 +3301,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_male_dakocan",
@@ -3117,12 +3323,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "id_male_putra",
@@ -3138,12 +3345,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_female_aida",
@@ -3159,12 +3367,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_female_linda_fiore",
@@ -3180,12 +3389,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_female_samanta",
@@ -3201,12 +3411,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_female_tosca",
@@ -3222,12 +3433,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_female_violetta",
@@ -3243,12 +3455,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_male_antonio_farina",
@@ -3264,12 +3477,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_male_carmelo_la_rosa",
@@ -3285,12 +3499,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_male_chris_basetta",
@@ -3306,12 +3521,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_male_marco",
@@ -3327,12 +3543,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "it_male_marcotrox",
@@ -3348,12 +3565,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ja_female_hina",
@@ -3369,12 +3587,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ja_female_kuon",
@@ -3390,12 +3609,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": true,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ja_female_satomi",
@@ -3411,12 +3631,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ja_female_shizuka",
@@ -3453,12 +3674,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ja_male_hinata",
@@ -3474,12 +3696,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ja_male_ishibashi",
@@ -3495,12 +3718,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ja_male_kenzo",
@@ -3516,12 +3740,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ja_male_kozy",
@@ -3537,12 +3762,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ja_male_otani",
@@ -3558,12 +3784,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_female_anna_kim",
@@ -3579,12 +3806,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_female_han",
@@ -3600,12 +3828,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_female_jiyoung",
@@ -3621,12 +3850,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 365,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_female_selly_han",
@@ -3642,12 +3872,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 9,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_female_seulki",
@@ -3663,12 +3894,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_male_bin",
@@ -3684,12 +3916,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_male_chris",
@@ -3705,12 +3938,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_male_hyuk",
@@ -3726,12 +3960,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_male_hyunbin",
@@ -3747,12 +3982,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ko_male_taehyung",
@@ -3768,12 +4004,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_female_aisyah",
@@ -3789,12 +4026,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_female_aisyah_2",
@@ -3810,12 +4048,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_female_athira",
@@ -3831,12 +4070,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_female_nurin",
@@ -3852,12 +4092,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_female_shazrina",
@@ -3873,12 +4114,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_male_ashraf",
@@ -3894,12 +4136,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_male_rizal",
@@ -3915,12 +4158,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "rank": 10,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_male_rizq_khalid",
@@ -3936,12 +4180,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_male_zain",
@@ -3957,12 +4202,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 10,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "rank": 9,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ms_male_zain_2",
@@ -3978,12 +4224,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_female_emma",
@@ -3999,12 +4246,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_female_jennifer",
@@ -4020,12 +4268,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_female_jolanda",
@@ -4041,12 +4290,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_female_noa",
@@ -4062,12 +4312,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_female_ruth",
@@ -4083,12 +4334,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_male_hans_claesen",
@@ -4104,12 +4356,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_male_ido",
@@ -4125,12 +4378,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_male_serge_de_beer",
@@ -4146,12 +4400,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_male_thomas",
@@ -4167,12 +4422,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "nl_male_tijs",
@@ -4188,12 +4444,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_female_harper",
@@ -4209,12 +4466,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_female_ingrid",
@@ -4230,12 +4488,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_female_maja_e",
@@ -4251,12 +4510,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_female_nadia_k",
@@ -4272,12 +4532,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_female_vilde",
@@ -4293,12 +4554,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_male_dennis",
@@ -4314,12 +4576,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 365,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_male_erik",
@@ -4335,12 +4598,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_male_helge",
@@ -4356,12 +4620,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_male_johannes",
@@ -4377,12 +4642,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "no_male_martin",
@@ -4398,12 +4664,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_female_beata",
@@ -4419,12 +4686,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_female_hanna",
@@ -4440,12 +4708,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_female_magdalena",
@@ -4461,12 +4730,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_female_maria",
@@ -4482,12 +4752,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_female_natalia",
@@ -4503,12 +4774,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_male_adam",
@@ -4524,12 +4796,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_male_alex",
@@ -4545,12 +4818,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_male_pawel",
@@ -4566,12 +4840,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_male_piotr",
@@ -4587,12 +4862,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pl_male_tomasz_z",
@@ -4608,12 +4884,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_female_ana_alice",
@@ -4629,12 +4906,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 9,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_female_carla",
@@ -4650,12 +4928,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 10,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_female_keren",
@@ -4670,12 +4949,13 @@
       "description": "Young female with a sweet and pleasant voice, embodying the vibrant energy typical of someone in their twenties. With a perfectly rhythmic tone, the voice is ideal for narrating scripts and stories, providing a cadence that captivated listeners. This quality made the voice perfect for content creation, as it conveyed emotion and maintained the interest of the audience effortlessly.",
       "category": "professional",
       "verified_models": [
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_female_roberta",
@@ -4691,12 +4971,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 4,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_female_yasmin_alves",
@@ -4712,12 +4993,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_male_lax",
@@ -4733,12 +5015,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_male_matheus",
@@ -4754,12 +5037,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_male_paulo",
@@ -4775,12 +5059,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_male_victor_power",
@@ -4796,12 +5081,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "rank": 7,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "pt_male_will",
@@ -4817,12 +5103,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_female_ana_maria",
@@ -4838,12 +5125,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_female_anca",
@@ -4859,12 +5147,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 9,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_female_corina_capuccina",
@@ -4884,8 +5173,8 @@
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 10,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_female_corina_ioana",
@@ -4901,12 +5190,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_female_lara_croft",
@@ -4922,12 +5212,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_male_alex_max",
@@ -4943,12 +5234,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_male_jora_slobod",
@@ -4964,12 +5256,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_male_leon_ciobanu",
@@ -4985,12 +5278,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_male_liviu_mihai",
@@ -5006,12 +5300,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ro_male_mike_l",
@@ -5027,12 +5322,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_female_ekaterina",
@@ -5048,12 +5344,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 9,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_female_kari",
@@ -5069,12 +5366,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 10,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_female_larisa_actrisa",
@@ -5090,12 +5388,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_female_marina",
@@ -5111,12 +5410,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_female_nadia",
@@ -5131,12 +5431,13 @@
       "description": "A young Native Russian female voice. Great for Informative content.",
       "category": "high_quality",
       "verified_models": [
-        "eleven_flash_v2_5"
+        "eleven_flash_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_male_alex_bell",
@@ -5152,12 +5453,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_male_alexandr_vlasov",
@@ -5173,12 +5475,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_male_artem_lebedev",
@@ -5194,12 +5497,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_male_nikolay",
@@ -5215,12 +5519,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ru_male_prince_nur",
@@ -5236,12 +5541,35 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
+    },
+    {
+      "slug": "sk_female_ivana",
+      "language": "sk",
+      "locale": null,
+      "accent": "western",
+      "gender_raw": "female",
+      "age_raw": "middle_aged",
+      "use_case_raw": "informative_educational",
+      "descriptive_raw": "calm",
+      "name": "Ivana - Calm",
+      "description": "Reflexive and Positive.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5",
+        "eleven_v4"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 8,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sk_female_jolana",
@@ -5257,12 +5585,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sk_female_julia",
@@ -5278,12 +5607,56 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
+    },
+    {
+      "slug": "sk_female_karolina",
+      "language": "sk",
+      "locale": "sk-SK",
+      "accent": "central",
+      "gender_raw": "female",
+      "age_raw": "young",
+      "use_case_raw": "characters_animation",
+      "descriptive_raw": "pleasant",
+      "name": "Karolina - Warm, bright, & professional",
+      "description": "Professional Slovak female voice with a bright, sunny, and highly energetic tone. Perfect for commercials, e-learning, upbeat narrations, and friendly animations.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 10,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
+    },
+    {
+      "slug": "sk_female_suzie",
+      "language": "sk",
+      "locale": "sk-SK",
+      "accent": "standard",
+      "gender_raw": "female",
+      "age_raw": "young",
+      "use_case_raw": "conversational",
+      "descriptive_raw": "gentle",
+      "name": "Suzie - Warm & Natural",
+      "description": "Warm, natural, and conversational female voice with a friendly, approachable tone. Sounds relaxed and authentic, like someone speaking naturally during a work conversation. Clear, expressive delivery with a gentle warmth and subtle personality.",
+      "category": "professional",
+      "verified_models": [
+        "eleven_flash_v2_5",
+        "eleven_turbo_v2_5",
+        "eleven_v4"
+      ],
+      "notice_period_days": 730,
+      "featured": false,
+      "rank": 9,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sk_male_andrej",
@@ -5299,12 +5672,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sk_male_jaro",
@@ -5320,12 +5694,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sk_male_peter",
@@ -5341,12 +5716,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sk_male_peter_2",
@@ -5362,12 +5738,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sk_male_tibor",
@@ -5383,12 +5760,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_female_annie",
@@ -5404,12 +5782,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_female_karin",
@@ -5425,12 +5804,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 4015,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_female_sanna_hartfield",
@@ -5446,12 +5826,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_female_sanna_hartfield_2",
@@ -5466,12 +5847,13 @@
       "description": "Middle aged Professional, Swedish & sassy female voice. Perfect for Ads, TV, radio, social & audio books. Let's go Scandi...",
       "category": "high_quality",
       "verified_models": [
-        "eleven_flash_v2_5"
+        "eleven_flash_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_female_sanna_hartfield_3",
@@ -5487,12 +5869,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_male_adam_composer",
@@ -5508,12 +5891,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 365,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_male_ola_paulakoski",
@@ -5529,12 +5913,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_male_ola_paulakoski_2",
@@ -5550,12 +5935,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_male_ola_paulakoski_3",
@@ -5571,12 +5957,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "sv_male_peter",
@@ -5592,12 +5979,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_female_harini",
@@ -5613,12 +6001,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_female_meera",
@@ -5634,12 +6023,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_female_nila",
@@ -5655,12 +6045,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_female_nila_2",
@@ -5676,12 +6067,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_female_vanishree",
@@ -5697,12 +6089,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_male_maneesh",
@@ -5718,12 +6111,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_male_muthu",
@@ -5739,12 +6133,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_male_ramaa",
@@ -5760,12 +6155,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_male_ramaa_2",
@@ -5781,12 +6177,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 9,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "ta_male_ramaa_3",
@@ -5802,12 +6199,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_female_ayca",
@@ -5823,12 +6221,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_female_ayca_2",
@@ -5844,12 +6243,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_female_derya",
@@ -5865,12 +6265,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_female_hurrem",
@@ -5886,12 +6287,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_female_irem",
@@ -5907,12 +6309,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_male_adam",
@@ -5928,12 +6331,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_male_adam_2",
@@ -5949,12 +6353,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_male_cavit_pancar",
@@ -5970,12 +6375,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_male_kadir_kayisci",
@@ -5991,12 +6397,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "tr_male_seyfullah_kartal",
@@ -6012,12 +6419,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 4,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_female_anna_stepanenko",
@@ -6033,12 +6441,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_female_kira",
@@ -6054,12 +6463,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_female_mariya_maro",
@@ -6075,12 +6485,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_female_vira",
@@ -6096,12 +6507,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_female_yaroslava",
@@ -6117,12 +6529,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_male_alex_nekrasov",
@@ -6138,12 +6551,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_male_anton",
@@ -6159,12 +6573,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_male_artem_klopotenko",
@@ -6180,12 +6595,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_male_bogdan",
@@ -6201,12 +6617,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "uk_male_evgeniy_shevchenko",
@@ -6217,17 +6634,18 @@
       "age_raw": "middle_aged",
       "use_case_raw": "narrative_story",
       "descriptive_raw": "calm",
-      "name": "Evgeniy Shevchenko - Vibrant and Rich",
-      "description": "Warm Male Ukrainian baritone with crystal-clear diction and a gentle Slavic undertone. With years of broadcast and voiceover experience, Evgeniy Shevchenko brings dynamic range and emotive depth to every project. His precise international English accent and natural warmth inspire trust and engagement—ideal for commercials, documentaries, narration, and eLearning.",
+      "name": "Evgeniy Shevchenko - Vibrant & Rich",
+      "description": "Warm Ukrainian bass-baritone (around 100 Hz) with crystal-clear diction and an even, unhurried flow that holds attention across long chapters. The most-used Ukrainian male voice for narration in the library, verified by ElevenLabs in 12 languages. Ideal for audiobooks, documentaries, narration, commercials, eLearning, corporate video, and voiceover. \nKey qualities: warm, steady, trustworthy.",
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_female_hien",
@@ -6243,12 +6661,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 365,
       "featured": false,
       "rank": 7,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_female_mai",
@@ -6264,12 +6683,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_female_ngan_nguyen",
@@ -6285,12 +6705,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_female_nhu",
@@ -6306,12 +6727,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_female_tham",
@@ -6327,12 +6749,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_male_duc",
@@ -6348,12 +6771,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_male_hai_ly",
@@ -6369,12 +6793,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_male_nhat_phong",
@@ -6390,12 +6815,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 6,
-      "refreshed_at": "2026-09-26T08:41:46.550Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_male_ninh_don",
@@ -6411,12 +6837,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "vi_male_trieu_duong",
@@ -6432,12 +6859,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_female_amy",
@@ -6453,12 +6881,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
-      "notice_period_days": 730,
+      "notice_period_days": 4015,
       "featured": false,
-      "rank": 8,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 7,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_female_anna_su",
@@ -6474,12 +6903,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 6,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 4,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_female_anna_su_2",
@@ -6495,12 +6925,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 9,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_female_mingyao_ye",
@@ -6516,12 +6947,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 10,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_female_stacy",
@@ -6536,12 +6968,13 @@
       "description": "Young cute Taiwanese Mandarin female voice. Works well for Narrations & Storytelling.",
       "category": "professional",
       "verified_models": [
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 4,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 5,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_male_adam_li",
@@ -6557,12 +6990,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 1,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_male_haoran",
@@ -6578,12 +7012,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 5,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 6,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_male_jason_chen",
@@ -6599,12 +7034,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 2,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_male_martin_li",
@@ -6620,12 +7056,13 @@
       "category": "high_quality",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
-      "rank": 7,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "rank": 8,
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     },
     {
       "slug": "zh_male_yu",
@@ -6641,12 +7078,13 @@
       "category": "professional",
       "verified_models": [
         "eleven_flash_v2_5",
-        "eleven_turbo_v2_5"
+        "eleven_turbo_v2_5",
+        "eleven_v4"
       ],
       "notice_period_days": 730,
       "featured": false,
       "rank": 3,
-      "refreshed_at": "2026-09-13T15:54:37.473Z"
+      "refreshed_at": "2026-11-09T10:23:38.935Z"
     }
   ]
 }

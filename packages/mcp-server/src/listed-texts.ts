@@ -71,7 +71,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "(upload_not_finished before the PUT). Use the " +
     "upload_id within 24 hours. Free; 20 uploads per day.",
   make_faceless: "Start a faceless video from a script or brief: an opening clip and image scenes. You select 30–90 seconds; it " +
-    "ends with its narration, at least 25 seconds and at most a quarter past the selection, never beyond 90. Captions are on " +
+    "ends with its narration, at least 25 seconds (an explainer, as long as its narration) and at most a quarter past the selection, " +
+    "never beyond 90. Captions are on " +
     "unless turned off. Poll get_run. attempt=2,3,… starts a NEW run.",
   quote_image: "Price one generate_image call WITHOUT spending credits. A reference is {upload_id, rights_confirmed: true} " +
     "(you may use the people and works in it), {run_id} " +
@@ -110,7 +111,7 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "error.code; deleted: asset_not_found. Free.",
   delete_upload: "Delete an upload: unusable at once, erased after 7 days unless another upload of the same picture is kept. " +
     "Refused with upload_in_use while an unfinished run uses it. Free.",
-  list_assets: "List assets, newest first, by role and kind; next_cursor pages. pending lists assets in progress and today's " +
+  list_assets: "List assets, newest first, by role and kind; mascot true lists saved mascots, whose id is make_faceless mascot_id. next_cursor pages. pending lists assets in progress and today's " +
     "failures; usage counts against 2000 assets and 1 GB, or 20 GB once credits were bought. Free.",
   quote_actor: "Price create_actor WITHOUT spending credits. Each format is a charged image, except a portrait from your own " +
     "image, which costs nothing. A portrait not within 2% of 9:16 is refused here; one without exactly one well-framed face fails at no charge.",
@@ -182,8 +183,8 @@ export const LISTED_FIELDS: Record<string, Record<string, string>> = {
   quote_faceless: {
     duration_seconds: "30 to 90 seconds; the charge never exceeds the quote. A script must estimate 21 seconds to the selection " +
       "plus 5, at most 90.",
-    voice: "A list_voices name with skill=make_faceless; omitted, narrator_en_wise_lady. An unknown or make_ugc voice is refused " +
-      "before any charge.",
+    voice: "A list_voices name with skill=make_faceless; omitted, narrator_en_wise_lady, or the fastest voice for an English explainer. " +
+      "An unknown or make_ugc voice is refused before any charge.",
   },
   quote_actor: {
     description: "Words describing a fictional adult; with from_actor_id, the view's look, clothing and pose. A real person or a " +

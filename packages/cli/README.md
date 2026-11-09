@@ -150,7 +150,8 @@ are refused with it before any charge. Its voices have a sample in English, and
 `quote-faceless` and `make-faceless` take the narration as `--script <text>`,
 `--script-file <path>` or `--brief <text>` (a short description the narration is
 written from), plus a required `--duration <seconds>` from 30 to 90. The video
-ends with the narration, runs at least 25 seconds and may exceed the selection
+ends with the narration, runs at least 25 seconds (an explainer, as long as its
+narration) and may exceed the selection
 by up to a quarter, never beyond 90 seconds; a video more than 5 seconds longer
 says so in `warnings[]`. A script is accepted when its estimated length is 21
 seconds to the selection plus 5, at most 90. The charge follows the delivered duration and never exceeds the quote;
@@ -159,7 +160,8 @@ Captions are on; `--no-captions`
 turns them off. `--style-reference <url>` and `--character-reference <url>` take
 public https images. `--voice <name>` picks the narration voice: take a name
 from `voices --skill make_faceless`, where each line shows the voice's language
-and gender. Without it the narration is read by `narrator_en_wise_lady`. A
+and gender. Without it the narration is read by `narrator_en_wise_lady`, and an
+English explainer by the fastest voice. A
 `make` voice such as `george` and an unknown name are refused before any
 charge. Quote first: both commands take the same flags, so the
 quote prices exactly the request `make-faceless` would send.

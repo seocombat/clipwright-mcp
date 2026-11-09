@@ -642,7 +642,7 @@ const withFacelessOptions = (command: Command): Command =>
     .requiredOption("--duration <seconds>", "target length, 30 to 90 seconds")
     .option("--no-captions", "turn off burned-in captions (on by default)")
     .option("--voice <name>",
-      `narration voice from "clipwright voices --skill make_faceless"; omitted = ${DEFAULT_FACELESS_VOICE}`)
+      `narration voice from "clipwright voices --skill make_faceless"; omitted = ${DEFAULT_FACELESS_VOICE} (an English explainer: the fastest voice)`)
     .option("--style-reference <url>", "public https image whose visual style the scenes follow")
     .option("--character-reference <url>", "public https image of a person or figure to keep across scenes");
 

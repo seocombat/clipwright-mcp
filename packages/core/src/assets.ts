@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ASSET_KINDS, ASSET_MEDIA_TYPES, assetId } from "./asset-identity.js";
+import { mascotSummary } from "./mascots.js";
 import { runId } from "./runs.js";
 import { UPLOAD_MAX_BYTES, UPLOAD_MEDIA_TYPES, uploadId } from "./uploads.js";
 
@@ -128,6 +129,8 @@ export type UpdateAssetRequest = z.infer<typeof updateAssetRequest>;
 export const assetListQuery = z.strictObject({
   role: z.enum(ASSET_ROLES).optional(),
   kind: z.enum(ASSET_KINDS).optional(),
+  /** `true` lists only the mascots of this account (#1257): the cover of each, with the poses it holds. */
+  mascot: z.literal("true").optional(),
   limit: z.coerce.number().int().min(1).max(ASSET_LIST_MAX_LIMIT).optional(),
   cursor: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/).optional(),
 });
@@ -151,6 +154,8 @@ export const asset = z.strictObject({
   source_type: z.enum(ASSET_SOURCE_TYPES),
   /** Kept for analysis only (#884): no render or generation takes it. */
   analysis_only: z.boolean(),
+  /** Present when the asset is the cover of a saved mascot (#1257): pass its id as mascot_id to make_faceless. */
+  mascot: mascotSummary.optional(),
   url: z.string().url().startsWith("https://"),
   expires_at: z.string().datetime(),
   created_at: z.string().datetime(),

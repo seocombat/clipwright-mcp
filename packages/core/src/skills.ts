@@ -2,7 +2,8 @@ import { z } from "zod";
 import { ASSET_KINDS, ASSET_MEDIA_TYPES, assetId } from "./asset-identity.js";
 import { longFormQuoteSchema } from "./long-form-pricing.js";
 import { partsLineSchema } from "./parts-pricing.js";
-import { isMusicEnabled, MUSIC_DESCRIPTION, musicRequest } from "./music.js";
+import { isMusicEnabled, MUSIC_DESCRIPTION, musicRequest, ONE_LINE_TEXT } from "./music.js";
+import { facelessExplainerEnabled } from "./faceless-price.js";
 import { MAX_SCENES, SCENE_BRIEF_MAX_CHARS, SCENE_TEXT_MAX_CHARS, sceneRefusals, SCENES_DESCRIPTION } from "./ugc-scenes.js";
 import { MAX_MOVES, moveRefusals, MOVES_DESCRIPTION, ugcMove } from "./moves.js";
 import { RESOLVED_TIMELINE_MAX_SLOTS } from "./long-form-profile.js";
@@ -221,6 +222,13 @@ export const MAKE_UGC_AGENT_PROTOCOL =
 /** The music stop (#1063) is said only where the server offers music, so an agent never asks for a field it refuses. */
 const MUSIC_STOP = isMusicEnabled() ? " Music: ask whether the user wants music under the voice, and show its " +
   "price from the quote; it is off unless asked." : "";
+/** The explainer offer (#1216) likewise only where the server sells the format. */
+const EXPLAINER_OFFER = facelessExplainerEnabled(typeof process === "undefined" ? {} : process.env) ? " For a how-to, how " +
+  "something works, a tool walkthrough, or N mistakes or N ways, offer the explainer (make_faceless, format explainer) beside " +
+  "the remake, with explainer_fit and the price from quote_faceless. Pick its hero per video by meaning: propose two or three " +
+  "characters from the product, its audience or the reels that took off, passed as character_details; reuse one only when the " +
+  "user asks or the brand has its own. A delivered explainer keeps its hero as a mascot (list_assets with mascot true); " +
+  "its id as mascot_id gives the same hero again with no pose pictures made or charged." : "";
 export const MCP_SERVER_INSTRUCTIONS =
   "Clipwright makes short presenter (UGC) videos, faceless narrated videos, single images and silent clips. It renders " +
   "them on its servers and returns the MP4 or image file; it publishes nothing anywhere.\n\n" +
@@ -248,7 +256,7 @@ export const MCP_SERVER_INSTRUCTIONS =
   "with approve_workflow_plan, then quoted and run. For an ad made with make_ugc directly, pass pause_trim " +
   "{sentence_end_s: 0.15, comma_s: 0.08} and offer a live shot of the actor on its hook (shots: acting, framed wide or full) with its price " +
   "from quote_ugc. plan_reference_remake adds live shots where the reference presenter moves; show them on the quote, and drop them if the " +
-  "user declines. If the user declines the brief, go on as asked.\n\n" +
+  `user declines. If the user declines the brief, go on as asked.${EXPLAINER_OFFER}\n\n` +
   "Compose the visuals from our catalogue, in a remake and in a direct video alike. Before you compile or quote, read list_moves " +
   "and pick moves by meaning: one for the hook, one for each line of proof (a number, a list, a review) and one for the call to action. " +
   "Show the user each pick on the words it sits on, beside your choice of whom the viewer trusts and where; then pass the picks as " +
@@ -296,7 +304,7 @@ export const MCP_SERVER_INSTRUCTIONS =
 
 export const MAKE_FACELESS_DESCRIPTION =
   "Start a paid finished faceless video from a script or brief. You select 30–90 seconds; " +
-  "the video ends with its narration, runs at least 25 seconds and at most a quarter past the selection, never beyond 90. " +
+  "the video ends with its narration, runs at least 25 seconds (an explainer, as long as its narration) and at most a quarter past the selection, never beyond 90. " +
   "The video has an opening animated clip and image scenes. Captions are on by default and can be turned off.";
 
 /** How to call `make_faceless` over MCP, kept apart from the REST description. */
@@ -475,9 +483,9 @@ export const ugcScene = z.object({
   anchor: layerMedia.anchor,
   cover_words: layerMedia.cover_words,
   placement: z.enum(["over", "full"]).default("over").describe("over: drawn over the presenter; full: fills the frame."),
-  brief: z.string().trim().min(1).max(SCENE_BRIEF_MAX_CHARS).regex(/^[^\p{Cc}]+$/u, "brief must be plain text on one line")
+  brief: z.string().trim().min(1).max(SCENE_BRIEF_MAX_CHARS).regex(ONE_LINE_TEXT, "brief must be plain text on one line")
     .describe("What the graphic shows and how it moves, such as \"a hand-drawn arrow points down at the price\"."),
-  text: z.string().trim().min(1).max(SCENE_TEXT_MAX_CHARS).regex(/^[^\p{Cc}]+$/u, "text must be plain text on one line").optional()
+  text: z.string().trim().min(1).max(SCENE_TEXT_MAX_CHARS).regex(ONE_LINE_TEXT, "text must be plain text on one line").optional()
     .describe("The only words it shows, exactly; omitted, it shows no words."),
   colors: z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/, "a colour is #RRGGBB")).min(1).max(4).optional()
     .describe("Your colours for it; omitted, our palette."),

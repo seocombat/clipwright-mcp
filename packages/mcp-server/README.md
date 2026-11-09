@@ -30,8 +30,9 @@ client's own documentation and have not been tried with Clipwright yet.
   then run `/mcp` in a session and sign in.
 - **Claude.ai and Claude Desktop:** Customize → Connectors → Add custom
   connector, then paste the URL.
-- **ChatGPT:** add the URL as the remote MCP server of a plugin, as OpenAI's
-  guide "Connect and test your plugin" describes; ChatGPT signs in with OAuth.
+- **ChatGPT**, on the web: chatgpt.com/plugins → the plus button → Add custom
+  MCP server, paste the URL, choose OAuth, then Create as a plugin and install
+  it. In a chat, type `@` and pick it.
 - **Cursor:** in `~/.cursor/mcp.json`,
   `{"mcpServers": {"clipwright": {"url": "https://mcp.clipwright.io/mcp"}}}`.
 - **VS Code:** in `.mcp.json` at the workspace root,
@@ -284,7 +285,7 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
 - `quote_faceless` — price of a faceless video before making one. Free.
 - `make_faceless` — **makes a faceless video from your script or from a short
   brief; this costs money.** You pick 30 to 90 seconds; the video ends with its
-  narration, at least 25 seconds and usually at most a quarter past your pick
+  narration, at least 25 seconds (an explainer, as long as its narration) and usually at most a quarter past your pick
   and 90 (a longer narration runs to its end), and costs at most the quote. Narration plays over an opening
   animated clip and image scenes, with captions on by default. `voice` picks
   the narration voice by name. Returns a

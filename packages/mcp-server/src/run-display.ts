@@ -1,4 +1,4 @@
-import { FAILED_STATE, videoResolutionLabel, type FacelessQuoteResponse, type PartsLine, type QuoteResponse } from "@clipwright/core";
+import { FACELESS_MIN_BASE_CREDITS, FAILED_STATE, videoResolutionLabel, type FacelessQuoteResponse, type PartsLine, type QuoteResponse } from "@clipwright/core";
 import type { WorkflowRunRead } from "@clipwright/core/workflows";
 
 /** How an agent shows `display_markdown`: as is, every number backed by a structured field. */
@@ -60,10 +60,20 @@ function designLines(design: QuoteResponse["design"]): string[] {
 export function facelessQuoteMarkdown(quote: FacelessQuoteResponse): string {
   const length = quote.outputFrames / FACELESS_FPS;
   const pictures = quote.images !== undefined && quote.imageCredits !== undefined ? quote.images * quote.imageCredits : null;
+  // An explainer (it names its pose pictures) makes no opening clip and draws its own scenes; every row is inside the total, and they add up to it.
+  const explainer = quote.posePictures !== undefined;
   const rows = [
-    ...(pictures === null ? [] : [["Generated pictures, at most", `${quote.images} × ${quote.imageCredits}`, credits(pictures)] as const]),
-    [pictures === null ? "Video" : "Story, voice and render", seconds(length), credits(quote.baseCredits - (pictures ?? 0))] as const,
-    ["Opening animated clip", "1", credits(quote.openerCredits)] as const,
+    ...(pictures === null || (explainer && pictures === 0) ? [] :
+      [[explainer ? "Hero pose pictures, at most" : "Generated pictures, at most", `${quote.images} × ${quote.imageCredits}`, credits(pictures)] as const]),
+    [quote.filmCredits !== undefined ? "Explainer film (up to 60 s, then 8 a second)" : pictures === null ? "Video" : "Story, voice and render",
+      seconds(length), credits(quote.baseCredits - (pictures ?? 0))] as const,
+    ...(explainer ? [] : [["Opening animated clip", "1", credits(quote.openerCredits)] as const]),
+    ...(quote.baseCredits + quote.openerCredits >= FACELESS_MIN_BASE_CREDITS ? [] :
+      [["Up to the minimum for a delivered video", credits(FACELESS_MIN_BASE_CREDITS), credits(FACELESS_MIN_BASE_CREDITS - quote.baseCredits - quote.openerCredits)] as const]),
+    ...(quote.authoredSceneCredits === undefined ? [] :
+      [["Scenes drawn for this video, at most", String(quote.authoredScenes ?? 0), credits(quote.authoredSceneCredits)] as const]),
+    ...(quote.objectPictureCredits === undefined ? [] :
+      [["Pictures of the things the script names, up to", `${quote.objectPictures ?? 0} × ${quote.imageCredits ?? 0}`, credits(quote.objectPictureCredits)] as const]),
     ...(quote.musicCredits === undefined ? [] : [["Music", "1", credits(quote.musicCredits)] as const]),
     ...(quote.shotCredits === undefined ? [] : [["Action shots, seconds at most", seconds(quote.shotSeconds ?? 0), credits(quote.shotCredits)] as const]),
     ...(quote.sceneCredits === undefined ? [] : [["Scenes made for the video", String(quote.scenes ?? 0), credits(quote.sceneCredits)] as const]),

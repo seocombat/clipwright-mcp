@@ -6,6 +6,7 @@ import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
 import {
   FACELESS_CREDITS_PER_1500_FRAMES, FACELESS_IMAGE_CREDITS, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_BASE_CREDITS,
   FACELESS_MIN_SELECTED_SECONDS, FACELESS_OPENER_CREDITS, FACELESS_SHOT_CREDITS_PER_SECOND, facelessScenesEnabled, quoteFaceless,
+  EXPLAINER_BEAT_CREDITS, EXPLAINER_MAX_AUTHORED_BEATS, EXPLAINER_MAX_OBJECT_PICTURES, FACELESS_EXPLAINER_POSE_PICTURES, facelessExplainerEnabled,
 } from "./faceless-price.js";
 import { PRESENTER_ENGINES, SHOT_ENGINES } from "./face-billing.js";
 import { listGenerationModels } from "./generations.js";
@@ -143,7 +144,7 @@ function generationEntries(): PriceEntry[] {
   });
 }
 
-function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false, music = false): PriceEntry[] {
+function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false, music = false, explainer = false): PriceEntry[] {
   const unit = EDIT_UNIT_PRICES;
   const parts = PARTS_FACE_TARIFF;
   const shotRates = parts.shotCreditsPerSecond ?? SHOT_CREDITS_PER_SECOND;
@@ -197,6 +198,17 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         `${FACELESS_MIN_SELECTED_SECONDS} s, ${facelessAt(FACELESS_MAX_SELECTED_SECONDS)} for ${FACELESS_MAX_SELECTED_SECONDS} s. ` +
         "Captions do not change the price." +
         (music ? " Music is added only when you ask for it and charged only when the delivered video carries it." : "") }),
+    // The explainer format (#1216) is sold only while it can be ordered.
+    ...(explainer ? [paid({ tool: "make_faceless", route: "POST /v1/skills/make_faceless/run", quote_tool: "quote_faceless", variant: "explainer",
+      lines: [{ label: "hero pose picture", unit: "image", credits: FACELESS_IMAGE_CREDITS },
+        { label: "picture of a thing the script names", unit: "image", credits: FACELESS_IMAGE_CREDITS },
+        { label: "production (storyboard, voice and render)", unit: "second", credits: FACELESS_CREDITS_PER_1500_FRAMES / 60 },
+        { label: "scene drawn for the explainer", unit: "scene", credits: EXPLAINER_BEAT_CREDITS }],
+      minimum_credits: FACELESS_MIN_BASE_CREDITS,
+      notes: `A drawn explainer with no opening clip. The hero's ${FACELESS_EXPLAINER_POSE_PICTURES} pose pictures are made only when you ` +
+        "name a character, and each is charged once it is in the delivered video; our own hero is free. A scene drawn for the explainer " +
+        `is charged only when the delivered video shows it, at most ${EXPLAINER_MAX_AUTHORED_BEATS} per video. A picture of a thing the script ` +
+        `names is charged only when a scene of the delivered video shows it, at most one for each thing a list script names and ${EXPLAINER_MAX_OBJECT_PICTURES} per video.` })] : []),
     paid({ tool: "revise_run", route: "POST /v1/runs/{id}/revisions", quote_tool: "quote_revision",
       formula: `each shot generated anew: picture ${unit.picture}, clip ${unit.clip}, clip with a new picture ${unit.clip_with_new_picture}; ` +
         `plus ${EDIT_RENDER_PRICE} to render. A revision that generates nothing: ${EDIT_ZERO_UNIT_PRICE}. A kept candidate adds nothing`,
@@ -227,7 +239,7 @@ export function priceListFor(env: Record<string, string | undefined>): readonly 
   const longForm = env.CLIPWRIGHT_LONG_FORM_QUALIFICATION === "1" && env.CLIPWRIGHT_COMPOSE === "1" && env.CLIPWRIGHT_REMOTE_FETCH === "1";
   const liveShots = env.CLIPWRIGHT_LIVE_SHOTS === "1" && longForm, scenes = env.CLIPWRIGHT_SCENES === "1" && longForm;
   return Object.freeze(pricesResponse.parse({ prices: buildPriceList(liveShots, scenes, env.CLIPWRIGHT_FACELESS_SHOTS === "1",
-    scenes && facelessScenesEnabled(env), isMusicEnabled(env)) }).prices);
+    scenes && facelessScenesEnabled(env), isMusicEnabled(env), facelessExplainerEnabled(env)) }).prices);
 }
 
 export const PRICE_LIST: readonly PriceEntry[] = priceListFor(typeof process === "undefined" ? {} : process.env);

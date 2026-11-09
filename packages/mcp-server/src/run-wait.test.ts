@@ -183,6 +183,40 @@ describe("display_markdown on quotes and finished runs (#1000)", () => {
       expect(rowsSum(shown)).toBe(total);
       expect(headerTotal(shown)).toBe(total);
     });
+
+    /** Live 2026-11-08 (journey test): an explainer's table showed an opening clip and left its scenes out of the rows, so they missed the total.
+     * Mutants: show the opening clip on an explainer, leave the drawn scenes out, or show a pose row for our drawn hero. */
+    it.each([[true, 623], [false, 570]])("quote_faceless of a 40 s explainer (character %s) lists rows that sum to %i, without an opening clip",
+      (character, total) => {
+        const quote = { ...quoteFaceless({ outputFrames: 1000, captions: true, explainer: { character, beats: true } }), skill: "make_faceless" as const,
+          warnings: [], contract_version: "2026-11-02" };
+        const shown = facelessQuoteMarkdown(quote);
+        expect([quote.totalCredits, rowsSum(shown), headerTotal(shown)]).toEqual([total, total, total]);
+        expect(shown).not.toContain("Opening animated clip");
+        expect(shown).toContain("| Scenes drawn for this video, at most | 8 | 520 |");
+        expect(shown.includes("| Hero pose pictures, at most | 9 × 7 | 63 |")).toBe(character);
+        expect(shown.includes("| Up to the minimum for a delivered video | 50 | 10 |")).toBe(!character);
+        expect(shown).not.toContain("Generated pictures");
+      });
+
+    /** #1291 E5. Mutant: the film row labelled as seconds of story and render, or its price left out of the rows. */
+    it.each([[true, 63 + 620], [false, 620]])("quote_faceless of a 75 s skill explainer (character %s) names its film row and sums to %i", (character, total) => {
+      const quote = { ...quoteFaceless({ outputFrames: 1875, captions: true, explainer: { character, film: true } }), skill: "make_faceless" as const,
+        warnings: [], contract_version: "2026-11-02" };
+      const shown = facelessQuoteMarkdown(quote);
+      expect([quote.totalCredits, rowsSum(shown), headerTotal(shown)]).toEqual([total, total, total]);
+      expect(shown).toContain("| Explainer film (up to 60 s, then 8 a second) | 75 s | 620 |");
+      expect(shown).not.toContain("Story, voice and render");
+    });
+
+    /** #1277. Mutant: the pictures of the things the script names left out of the rows, so they miss the total. */
+    it("lists an explainer's object pictures as a row the total adds up", () => {
+      const quote = { ...quoteFaceless({ outputFrames: 1050, captions: true, explainer: { character: true, beats: true, objects: 10 } }), skill: "make_faceless" as const,
+        warnings: [], contract_version: "2026-11-02" };
+      const shown = facelessQuoteMarkdown(quote);
+      expect([quote.totalCredits, rowsSum(shown), headerTotal(shown)]).toEqual([63 + 42 + 520 + 70, 695, 695]);
+      expect(shown).toContain("| Pictures of the things the script names, up to | 10 × 7 | 70 |");
+    });
   });
 
   it("quote_faceless shows the ceiling and its parts", () => {

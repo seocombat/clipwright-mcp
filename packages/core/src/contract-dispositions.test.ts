@@ -569,6 +569,13 @@ describe("AI output marking", () => {
     expect(ownImages).toBe(FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT);
   });
 
+  /** #1277. Mutant: an explainer told it holds an opening clip it never makes. */
+  it("an explainer names its voice, animation and images, and no opening clip", () => {
+    const explainer = aiDisclosureText("make_faceless", { input_mode: "script", script: "x", format: "explainer" });
+    expect(explainer).toBe("This video was generated with AI: the voice, the animation and the images in it are synthetic.");
+    expect(explainer).not.toMatch(/opening clip|actor|lip sync/);
+  });
+
   it("only a run with images of its author excepts them, and it counts none", () => {
     expect(FACELESS_AI_DISCLOSURE_TEXT).not.toContain("supply");
     // An opening image is animated and every shot may be supplied: the sentence must hold for both.

@@ -9,11 +9,22 @@ export const AD_PAUSE_TRIM_WARNING = `pause_trim: narration pauses are shortened
   "or your own targets";
 
 interface AdStyleInput { templates?: readonly unknown[] | undefined; scenes?: readonly unknown[] | undefined; shots?: readonly unknown[] | undefined;
-  pause_trim?: PauseTrimTargets | false | undefined; interview?: unknown }
+  pause_trim?: PauseTrimTargets | false | undefined; interview?: unknown; format?: string | undefined }
 
 /** A video that cuts graphics or live shots on its words; an interview keeps its own pauses. */
 export const isAdStyleUgcInput = (input: AdStyleInput): boolean => input.interview === undefined &&
   [input.templates, input.scenes, input.shots].some(items => (items?.length ?? 0) > 0);
+/** A faceless video drawn on its words: one with templates, scenes or shots, or an explainer, whose scenes land word by word (#1216). */
+const facelessDrawsOnWords = (input: Omit<AdStyleInput, "pause_trim">): boolean =>
+  input.format === "explainer" || isAdStyleUgcInput({ templates: input.templates, scenes: input.scenes, shots: input.shots });
+
+/** The pauses a faceless narration is cut to (#1228): the call's own, `false` to keep them, else the ad default when the video draws on its */
+/** words. Read from the stored request by the quote, the run and its warnings alike, so any faceless format resolves it the same way. */
+export function facelessPauseTrim(input: AdStyleInput): PauseTrimTargets | false | undefined {
+  return input.pause_trim ?? (facelessDrawsOnWords(input) ? { ...AD_PAUSE_TRIM } : undefined);
+}
+export const facelessPauseTrimWarnings = (input: Omit<AdStyleInput, "pause_trim"> & { pause_trim?: unknown }): string[] =>
+  input.pause_trim === undefined && facelessDrawsOnWords(input) ? [AD_PAUSE_TRIM_WARNING] : [];
 
 /** The request with the default pinned and marked, so the run and its record say it; a run that named pause_trim, false included, is left as asked. */
 export function withAdPauseTrim<T extends AdStyleInput>(input: T): T & { pause_trim_source?: "ad_default" } {

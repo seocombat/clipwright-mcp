@@ -1,8 +1,8 @@
 import { defineWorkflowMethod, nativeLimitations, nativeQa, verticalOutput } from './shared.js';
 
-const script = 'A seed needs three simple things to begin growing. First, moisture helps the seed take in water. Next, suitable warmth supports its early growth. Finally, air allows the living seed to breathe. The exact conditions depend on the plant. Check the instructions for your seed before you start. Keep the steps in that order and watch for the first small root.';
+const script = 'A seed needs three simple things to begin growing. First, moisture helps the seed take in water. Next, suitable warmth supports its early growth. Finally, air allows the living seed to breathe. The exact conditions depend on the plant. Check the instructions for your seed before you start. Keep the steps in that order and watch for the first small root. Once it sprouts, move it to a bright window and keep the soil lightly damp.';
 export const facelessExplainer = defineWorkflowMethod({
-    id: 'faceless-explainer', version: 1, content_digest: '58c1f9c2f5fa4c59e4d655331f29a72627e3a1980c300d09f868f141f94bb5a8', authoring_status: 'ready', title: 'Explain a topic in an ordered sequence',
+    id: 'faceless-explainer', version: 1, content_digest: 'b25b3d717779efc0744d53cf2fb28a4f06b8dc30bdd38010774d2b2cf9e06ef9', authoring_status: 'ready', title: 'Explain a topic in an ordered sequence',
     purpose: 'Make one topic or supplied list understandable through an opening, ordered explanation and takeaway.',
     required_inputs: ['audience', 'message', 'topic', 'script'], required_features: ['exact_script', 'voice', 'word_anchors'],
     script_rules: { structure: ['opening', 'ordered_points', 'takeaway'], instructions: [

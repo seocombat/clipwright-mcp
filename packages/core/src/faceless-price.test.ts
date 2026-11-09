@@ -23,7 +23,9 @@ describe("25-second delivered output", () => {
         ai_generated: true, ai_disclosure: "AI-generated video" },
       created_at: "2026-09-27T10:00:00Z", finished_at: "2026-09-27T10:01:00Z" };
     expect(run.safeParse(finished).success).toBe(true);
-    expect(run.safeParse({ ...finished, faceless_billing: { ...quote, outputFrames: 624 } }).success).toBe(false);
+    // A run's bill may name an explainer shorter than 25 s (#1216), never a video shorter than its one-second floor.
+    expect(run.safeParse({ ...finished, faceless_billing: { ...quote, outputFrames: 470 } }).success).toBe(true);
+    expect(run.safeParse({ ...finished, faceless_billing: { ...quote, outputFrames: 24 } }).success).toBe(false);
   });
 });
 

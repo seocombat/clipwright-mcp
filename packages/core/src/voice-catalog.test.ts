@@ -129,7 +129,8 @@ describe("generated voice catalog — languages and quota", () => {
   it("the vendor verifies no live library voice for eleven_v3", () => {
     // If it starts to, this turns red and the default decision gets revisited.
     expect(live.filter((entry) => entry.verified_models.includes("eleven_v3"))).toEqual([]);
-    expect(vendorVerifiedModels(VOICE_CATALOG.voices)).toEqual(["eleven_flash_v2_5", "eleven_turbo_v2_5"]);
+    // eleven_v4 joined on 2026-11-09 (316 of 321 live voices); it is already the default for every voice (2026-10-25).
+    expect(vendorVerifiedModels(VOICE_CATALOG.voices)).toEqual(["eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_v4"]);
   });
 
   it("every live voice has non-empty verification, or there would be nothing to list", () => {

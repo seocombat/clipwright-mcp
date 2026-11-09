@@ -17,27 +17,32 @@ function refusals(body: Record<string, unknown>): string[] {
 /** The owner's library and defaults of 23.10, refreshed and extended by ear on 25.10, written here and not read from core, so editing the
  * catalog cannot move the check. */
 const OWNER = {
-  click: ["click_mouse", "click_soft", "click_crisp", "click_light"], toggle: ["switch_flip", "toggle_snap", "switch_heavy", "switch_light"],
+  click: ["click_mouse", "click_soft", "click_crisp", "click_light", "tick_soft", "click_sharp", "key"],
+  toggle: ["switch_flip", "toggle_snap", "switch_heavy", "switch_light"],
   ring: ["ring_classic", "ring_marimba", "ring_digital", "ring_double"], answer: ["answer_confirm", "answer_open", "answer_pop", "answer_select", "pickup"],
-  notify: ["chime", "glass_ping", "glass_soft", "bong", "question_ping"], step: ["drop", "drop_high", "tick", "pluck", "pluck_bright"],
-  whoosh: ["whoosh", "whip", "paper_swipe", "sweep", "slide_quick"], flash: ["shutter", "glitch", "swish"], pop: ["plop"], hangup: ["phone"],
-  money: ["cash_register", "coins"],
+  notify: ["chime", "glass_ping", "glass_soft", "bong", "question_ping", "thud", "ding"],
+  step: ["drop", "drop_high", "tick", "pluck", "pluck_bright", "thud", "blip", "marker"],
+  whoosh: ["whoosh", "whip", "paper_swipe", "sweep", "slide_quick", "swish_short", "whoosh_soft", "rise"], flash: ["shutter", "glitch", "swish"],
+  pop: ["plop", "thud", "blip", "stamp", "popper"], hangup: ["phone"], money: ["cash_register", "coins", "confetti", "popper"],
   // The owner's three short whooshes of 03.11 (#1076) lead, air_whoosh the default.
-  edit: ["air_whoosh", "swing", "swipe", "swell_hit", "whoosh_deep", "whoosh_low", "boom_low", "sub_drop", "riser_boom", "riser_hit"],
+  edit: ["air_whoosh", "swing", "swipe", "swell_hit", "whoosh_deep", "whoosh_low", "boom_low", "sub_drop", "riser_boom", "riser_hit", "thud", "stamp",
+    "swish_short", "whoosh_soft", "rise"],
 };
 
 describe("template sounds (#778 S3c, C2–C4)", () => {
-  it("holds the owner's 48 sounds and the call's ring by beat, his default first in each", () => {
+  /** The synthesised sounds of 07.11 join each beat after the recorded ones; no default moves, bar the step beat's (thud, 07.11). */
+  it("holds the owner's 49 recorded sounds, the 22 synthesised slots and the call's ring by beat, his default first in each", () => {
     expect(Object.fromEntries(TEMPLATE_SOUND_BEATS.map(beat => [beat, TEMPLATE_SOUNDS[beat].names]))).toEqual(OWNER);
     expect(DEFAULT_TEMPLATE_SOUNDS).toEqual({ click: "click_mouse", toggle: "switch_flip", ring: "ring_classic", answer: "answer_confirm", notify: "chime",
-      step: "drop", whoosh: "whoosh", flash: "shutter", pop: "plop", hangup: "phone", money: "cash_register", edit: "air_whoosh" });
-    expect(Object.values(OWNER).flat()).toHaveLength(49);
+      step: "thud", whoosh: "whoosh", flash: "shutter", pop: "plop", hangup: "phone", money: "cash_register", edit: "air_whoosh" });
+    expect(Object.values(OWNER).flat()).toHaveLength(71);
   });
 
   /** Mutant: accept any string as a name, or any key as a beat, and an unknown sound reaches the composition. */
   it("refuses an unknown beat, a name outside its beat's list, and any other value, each with its path", () => {
     const sounded = (template_sounds: unknown) => refusals({ ...longForm, template_sounds, templates: [pill] });
-    expect(sounded({ click: "chime" })).toEqual(["template_sounds: template_sounds.click \"chime\" is not a click sound: use click_mouse, click_soft, click_crisp, click_light"]);
+    expect(sounded({ click: "chime" })).toEqual(["template_sounds: template_sounds.click \"chime\" is not a click sound: use click_mouse, click_soft, click_crisp, click_light, " +
+      "tick_soft, click_sharp, key"]);
     expect(sounded({ boom: "chime" })).toEqual(["template_sounds: template_sounds has no beat boom: the beats are click, toggle, ring, answer, notify, step, " +
       "whoosh, flash, pop, hangup, money, edit"]);
     for (const value of [true, "chime", ["chime"], null, { click: 1 }]) expect(sounded(value)).toEqual([expect.stringMatching(/^template_sounds: template_sounds/)]);
@@ -123,7 +128,8 @@ describe("template sounds (#778 S3c, C2–C4)", () => {
     expect(refusals({ ...longForm, edit_sounds: true, template_sounds: { edit: "boom_low", click: "click_soft" } }))
       .toEqual(["template_sounds: template_sounds sounds templates: add templates or drop it"]);
     expect(refusals({ ...longForm, edit_sounds: true, template_sounds: { edit: "boom" } }))
-      .toEqual(["template_sounds: template_sounds.edit \"boom\" is not an edit sound: use air_whoosh, swing, swipe, swell_hit, whoosh_deep, whoosh_low, boom_low, sub_drop, riser_boom, riser_hit"]);
+      .toEqual(["template_sounds: template_sounds.edit \"boom\" is not an edit sound: use air_whoosh, swing, swipe, swell_hit, whoosh_deep, whoosh_low, boom_low, sub_drop, riser_boom, riser_hit, " +
+        "thud, stamp, swish_short, whoosh_soft, rise"]);
     expect(refusals({ ...longForm, edit_sounds: "yes" })).toHaveLength(1);
     // Mutant (Codex r3): require inserts, and a run with only layout windows is refused.
     expect([editSoundRefusals({ edit_sounds: true, layout_windows: [] }), editSoundRefusals({ edit_sounds: true, inserts: [] })]).toEqual([[], []]);

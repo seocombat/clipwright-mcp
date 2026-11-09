@@ -53,6 +53,10 @@ export const AI_DISCLOSURE_TEXT =
 export const FACELESS_AI_DISCLOSURE_TEXT =
   "This video was generated with AI: the voice, the opening clip and the images are synthetic.";
 
+/** An explainer has no opening clip: it is drawn, and its pictures are generated (#1277). */
+export const FACELESS_EXPLAINER_AI_DISCLOSURE_TEXT =
+  "This video was generated with AI: the voice, the animation and the images in it are synthetic.";
+
 /** A run with `scene_images` cannot call every image synthetic. One at the opening is animated */
 /** into the clip, and every shot may be the author's, so the sentence counts neither. */
 export const FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT =
@@ -65,6 +69,7 @@ export function aiDisclosureText(skill: string, input: unknown): string {
   // A long-form revision shows its root's synthetic presenter, so it says what the root says.
   if (skill === "revise_long_form") return AI_DISCLOSURE_TEXT;
   if (skill !== "make_faceless") return AI_DISCLOSURE_TEXT;
+  if ((input as { format?: unknown } | null)?.format === "explainer") return FACELESS_EXPLAINER_AI_DISCLOSURE_TEXT;
   return facelessOwnImages(input) ? FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT : FACELESS_AI_DISCLOSURE_TEXT;
 }
 

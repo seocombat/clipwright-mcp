@@ -149,9 +149,12 @@ export const BRAND_KIT_PATH = "/v1/brand-kit";
 export const brandKitInput = z.object({
   design: design.nullable().optional().describe("The DNA to save; null clears it, omitted keeps it."),
   voice: scriptVoice.nullable().optional().describe("The script voice to save; null clears it, omitted keeps it."),
-}).strict().refine(value => value.design !== undefined || value.voice !== undefined, { message: "pass design, voice or both; null clears one" });
+  mascot_id: assetId.nullable().optional().describe("A saved mascot (list_assets with mascot true) an explainer draws when it names no character; null clears it, omitted keeps it."),
+}).strict().refine(value => value.design !== undefined || value.voice !== undefined || value.mascot_id !== undefined,
+  { message: "pass design, voice, mascot_id or any of them; null clears one" });
 export type BrandKitInput = z.infer<typeof brandKitInput>;
-export const brandKit = z.object({ design: design.nullable(), voice: scriptVoice.nullable().default(null), updated_at: z.string().nullable(),
+export const brandKit = z.object({ design: design.nullable(), voice: scriptVoice.nullable().default(null), mascot_id: assetId.nullable().default(null),
+  updated_at: z.string().nullable(),
   looks: z.array(designLookEntry), fonts: z.array(z.enum(DESIGN_FONT_FAMILIES)) });
 export type BrandKit = z.infer<typeof brandKit>;
 

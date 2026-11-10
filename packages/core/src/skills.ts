@@ -15,12 +15,13 @@ import { LIVE_SHOT_FRAMINGS, LIVE_SHOT_KINDS, LIVE_SHOT_PRODUCT_PLACEMENTS, LIVE
 import { countWords } from "./pacing.js";
 import { pauseTrim, VOICE_PACE_MAX, VOICE_PACE_MIN } from "./reference-voice.js";
 import { AD_PAUSE_TRIM } from "./ad-pause-trim.js";
+import { generationShot, negationIn, shotIssues } from "./generation-shot.js";
 import { lexicalTokens, quoteOccurrences } from "./semantic-inserts.js";
 import { frameCanvasOf, FULL_FRAME_TRANSITIONS, INSERT_FITS, INSERT_MOTIONS, INSERT_RETIMES, INSERT_TRANSITIONS, LAYER_ENTERS, LAYER_EXITS, layerRefusals, LAYOUT_WINDOW_KINDS, MAX_ENTER_OFFSET_S,
   MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS, PRESENTER_FRAMINGS, SPLIT_MEDIA_SHARE, SPLIT_MEDIA_SIDES } from "./ugc-layers.js";
 import { FRAMING_SIZES, FRAMING_TRANSITIONS, framingRefusals, MAX_FRAMING } from "./ugc-framing.js";
 import { stagingFaceRect, stagingRect } from "./reference-staging.js";
-import { captionPlace, captionPlaceAt, place, plannedFace, presenterPlace } from "./scene-place.js";
+import { captionPlace, captionPlaceAt, place, PLACE_FORMS, plannedFace, presenterPlace } from "./scene-place.js";
 import { CAPTION_POSITION_VERTICAL } from "./caption-geometry.js";
 import { CALL_PHONE_DEFAULTS, CALL_SPEAKERS, CALL_STAGE_MAX_ENTER_SEC, CALL_STAGE_MAX_LEAD_SEC, CALL_STAGE_SIDES, callRefusals, DEFAULT_CALL_VOICES, MAX_CALL_CHARS,
   MAX_CALL_LINE_CHARS, MAX_CALL_LINES, MAX_CALL_SEC } from "./ugc-call.js";
@@ -225,7 +226,8 @@ const MUSIC_STOP = isMusicEnabled() ? " Music: ask whether the user wants music 
 /** The explainer offer (#1216) likewise only where the server sells the format. */
 const EXPLAINER_OFFER = facelessExplainerEnabled(typeof process === "undefined" ? {} : process.env) ? " For a how-to, how " +
   "something works, a tool walkthrough, or N mistakes or N ways, offer the explainer (make_faceless, format explainer) beside " +
-  "the remake, with explainer_fit and the price from quote_faceless. Pick its hero per video by meaning: propose two or three " +
+  "the remake, with explainer_fit and the price from quote_faceless: both levels, standard and pro (tier), for the user to pick; " +
+  "a film takes about half an hour. Pick its hero per video by meaning: propose two or three " +
   "characters from the product, its audience or the reels that took off, passed as character_details; reuse one only when the " +
   "user asks or the brand has its own. A delivered explainer keeps its hero as a mascot (list_assets with mascot true); " +
   "its id as mascot_id gives the same hero again with no pose pictures made or charged." : "";
@@ -444,9 +446,7 @@ export const mcpUgcOverlay = z.object({
   ...layerMedia,
   ...overlayMotion,
   position: overlayPosition,
-  place: z.record(z.string(), z.unknown()).optional().describe("Instead of position, a pinned box: {relative_to:\"frame\",rect:{left,top,width,height}} " +
-    "(frame shares); {relative_to:\"face\",rect} (origin the face centre, unit the face height); or {relative_to:\"face\"|\"captions\"|{layer:id}," +
-    "side:below|above|left|right|over,width|height,size_unit?:frame|face,gap?,align?}; fit?:contain|cover; allow_face?:true."),
+  place: z.record(z.string(), z.unknown()).optional().describe(`Instead of position, a pinned box: ${PLACE_FORMS}`),
 }).strict();
 export type UgcOverlay = z.infer<typeof ugcOverlay>;
 
@@ -477,6 +477,8 @@ export const ugcFraming = z.object({
 }).strict();
 export type UgcFraming = z.infer<typeof ugcFraming>;
 
+const SCENE_PLACE = "Over placement only: the box it is drawn in, scaled whole, by the frame or the face. Without it the scene keeps off the " +
+  `presenter's face and a held product; a place on the face needs allow_face, and one over either is drawn as asked and named in warnings[]. ${PLACE_FORMS}`;
 /** A graphic made for this run from words (#1107): no library kind draws it, so it is authored, checked and drawn on its words. */
 export const ugcScene = z.object({
   id: insertId.describe("Unique across inserts, overlays, layout_windows, templates, framing and scenes."),
@@ -489,8 +491,11 @@ export const ugcScene = z.object({
     .describe("The only words it shows, exactly; omitted, it shows no words."),
   colors: z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/, "a colour is #RRGGBB")).min(1).max(4).optional()
     .describe("Your colours for it; omitted, our palette."),
+  place: place.optional().describe(SCENE_PLACE),
 }).strict();
 export type UgcScene = z.infer<typeof ugcScene>;
+/** The slim MCP scene: `place` is any object here, its forms sit in the description and the server checks it strictly, as overlays do. */
+export const mcpUgcScene = ugcScene.extend({ place: z.record(z.string(), z.unknown()).optional().describe(SCENE_PLACE) }).strict();
 
 /** The video's motion style and the words drawn in another (#1123); the same object on make_ugc, make_faceless and the remake. */
 export const motionStyle = z.strictObject({
@@ -502,7 +507,7 @@ export const motionStyle = z.strictObject({
 export type MotionStyle = z.infer<typeof motionStyle>;
 
 /** A template's place (#973 S4); overlays and templates may stand by it with `{ layer }`. */
-const TEMPLATE_PLACE = "Over placement only: a box as an overlay's place (not by captions); the template scales whole into it.";
+const TEMPLATE_PLACE = `Over placement only: a box as an overlay's place (not by captions); the template scales whole into it. ${PLACE_FORMS}`;
 const templateEnvelope = {
   id: insertId.describe("Unique across inserts, overlays, layout_windows and templates."),
   anchor: layerMedia.anchor,
@@ -668,9 +673,22 @@ export const ugcLiveShot = z.strictObject({
   transition: z.enum(LIVE_SHOT_TRANSITIONS).optional().describe("The cuts into and out of the shot: cut (default), flash (white), light_leak " +
     "(warm) or whoosh (a cut with a whoosh). A flash plays the flash sound, a light leak and a whoosh the whoosh sound, as template_sounds names them; " +
     "template_sounds false keeps them silent. None at the video's own start or end."),
+  shot: generationShot.optional().describe("action only: the clip as a shot, second by second, in place of action alone; its beats run from 0 to " +
+    "the last beat's to_s and are stretched to the take's own length."),
 }).superRefine((shot, context) => {
   const custom = z.ZodIssueCode.custom;
   if (shot.kind !== "talking" && shot.action === undefined) context.addIssue({ code: custom, path: ["action"], message: `${shot.kind} needs action` });
+  if (shot.shot !== undefined && shot.kind !== "action") context.addIssue({ code: custom, path: ["shot"], message: "shot works on action shots" });
+  if (shot.shot !== undefined) {
+    for (const issue of shotIssues(shot.shot, shot.shot.beats.at(-1)!.to_s)) {
+      context.addIssue({ code: custom, path: ["shot", ...issue.path], message: issue.message });
+    }
+    // The cast's actions are written beside the shot, so they describe what is visible too.
+    shot.cast?.forEach((person, at) => {
+      const word = person.action === undefined ? null : negationIn(person.action);
+      if (word !== null) context.addIssue({ code: custom, path: ["cast", at, "action"], message: `"${word}" describes what is absent; describe what is visible instead` });
+    });
+  }
   if (shot.kind === "talking" && shot.setup !== undefined) context.addIssue({ code: custom, path: ["setup"], message: "setup works on talking_action and action shots" });
   if (shot.kind === "talking" && shot.framing !== undefined) context.addIssue({ code: custom, path: ["framing"], message: "framing works on talking_action and action shots" });
   if (shot.kind === "talking" && shot.product !== undefined) context.addIssue({ code: custom, path: ["product"], message: "a talking shot shows no product; use talking_action, or an actor view holding it (create_actor holding)" });
@@ -682,7 +700,7 @@ export const LIVE_SHOTS_DESCRIPTION = "Live shots of the actor on some words of 
   "and long-form qualification on the server; each kind has its own presenter-second price in list_prices.";
 /** The slim MCP shot list: the server checks each item strictly. */
 export const mcpLiveShots = z.array(z.record(z.string(), z.unknown())).min(1).max(MAX_LIVE_SHOTS)
-  .describe(`[{ id, kind: talking|talking_action|action, anchor: { quote }, cover_words?, action?, setup?, framing?: wide|full, product?: { placement: hand|beside }, cast?: [{ asset_id, role, action? }], transition?: cut|flash|light_leak|whoosh }]. ${LIVE_SHOTS_DESCRIPTION}`);
+  .describe(`[{ id, kind: talking|talking_action|action, anchor: { quote }, cover_words?, action?, setup?, framing?: wide|full, product?: { placement: hand|beside }, cast?: [{ asset_id, role, action? }], transition?: cut|flash|light_leak|whoosh, shot?: as generate_video shot (action only) }]. ${LIVE_SHOTS_DESCRIPTION}`);
 
 /** What admission pins for an `asset_id` insert; the run reads this key and checks this hash, never the asset row.
  * Server-only: it lives at the top of the stored input, and a public body naming it is refused as an unknown field. */

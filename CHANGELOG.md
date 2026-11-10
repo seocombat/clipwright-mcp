@@ -18,6 +18,32 @@ listed under.
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-11-10
+
+### Added
+
+- Explainers you make in your own agent: the film tools (`create_film_draft`, `put_film_files`, `make_voice`,
+  `preview_stills`, `render_film` and their quotes) now appear over stdio too, not only on the hosted server, whenever
+  the account can use them. `get_film_guide` and `get_film_kit` serve the guide, the method and the scene kit to read
+  first. `make_film_hero` draws a reusable character for your brand: 7 credits for each pose it keeps, up to 63, and
+  it is saved as a mascot that later films use for free.
+- *Server-side:* a film draft keeps any cues, sounds or captions a change leaves out; product pictures
+  (`scene_images`) can appear in a film; sounds the film names that are not in the library yet are made for it.
+- *Server-side:* any account can order a drawn explainer film: `make_faceless` with `format: "explainer"` takes `tier`,
+  `standard` (the default, 700 credits for a film up to 60 seconds plus 12 for each second over) or `pro` (1200 plus 20).
+  `quote_faceless` names both totals in `explainer_tiers`. A film takes about half an hour, one at a time per account; a busy
+  service refuses with `explainer_busy` and `Retry-After` before any credits are reserved. `tier` on another format is refused.
+
+- New clip models for `generate_video`: `kling-4.0` at 720p (23 credits a second) and 1080p (34), 3 to 30 seconds, and
+  `kling-4.0-flash` at 720p (14 credits a second), 3 to 20 seconds, both in 9:16 and 16:9, in `text` and `first_frame` mode.
+  `kling-4.0-flash` takes no `last_frame`; a request with one is refused before it is quoted.
+
+### Fixed
+
+- *Server-side:* a `first_frame` or `last_frame` within 2% of the requested format is scaled whole to the clip's size before the
+  clip is made, so the clip comes out at the listed size; `warnings[]` says so. Such a frame used to make some models return a clip
+  a few pixels off the listed size, which failed at no charge.
+
 ## [0.47.0] - 2026-11-09
 
 ### Added

@@ -499,6 +499,16 @@ describe('narration pace from the reference voice (reference-elements S7)', () =
             .toEqual([expect.objectContaining({ what: expect.stringContaining('sentence_end_s 2.4 s'), suggested_substitute: expect.stringContaining('pause_trim sentence_end_s 2') })]);
     });
 
+    /** Mutant: let the reference's measured pauses win over the request's, as the 2 s song gaps did on 09.11 (#1308); drop false. */
+    it('takes the request\'s pause_trim over the reference presenter\'s pauses, with no note about them', () => {
+        const profile = { ...structuredClone(PROFILE), voice: voice(2.6, [2.4, 0.3, 0.06]) };
+        const asked = compiled({ reference_profile: profile, pause_trim: AD_PAUSE_TRIM });
+        expect(native(asked).pause_trim).toEqual(AD_PAUSE_TRIM);
+        expect(asked.brief.reference_profile!.unmapped.filter(entry => entry.what.startsWith('narration pauses'))).toEqual([]);
+        expect(native(compiled({ reference_profile: profile, pause_trim: false })).pause_trim).toBe(false);
+        expect(makeUgcInput.safeParse(native(asked)).success).toBe(true);
+    });
+
     /** Mutant: keep the voice's own pauses here, and a remake without a measured voice reads slow, as the 05.11 ads did (#1136). */
     it('takes the ad-style pauses without a measured reference voice, and says so', () => {
         const document = compiled();

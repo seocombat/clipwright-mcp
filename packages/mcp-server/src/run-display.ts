@@ -1,4 +1,5 @@
-import { FACELESS_MIN_BASE_CREDITS, FAILED_STATE, videoResolutionLabel, type FacelessQuoteResponse, type PartsLine, type QuoteResponse } from "@clipwright/core";
+import { EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, FACELESS_MIN_BASE_CREDITS, FAILED_STATE, SKILL_FILM_TARIFFS, videoResolutionLabel,
+  type FacelessQuoteResponse, type PartsLine, type QuoteResponse } from "@clipwright/core";
 import type { WorkflowRunRead } from "@clipwright/core/workflows";
 
 /** How an agent shows `display_markdown`: as is, every number backed by a structured field. */
@@ -61,11 +62,13 @@ export function facelessQuoteMarkdown(quote: FacelessQuoteResponse): string {
   const length = quote.outputFrames / FACELESS_FPS;
   const pictures = quote.images !== undefined && quote.imageCredits !== undefined ? quote.images * quote.imageCredits : null;
   // An explainer (it names its pose pictures) makes no opening clip and draws its own scenes; every row is inside the total, and they add up to it.
-  const explainer = quote.posePictures !== undefined;
+  const explainer = quote.posePictures !== undefined, tiers = quote.explainer_tiers;
   const rows = [
     ...(pictures === null || (explainer && pictures === 0) ? [] :
       [[explainer ? "Hero pose pictures, at most" : "Generated pictures, at most", `${quote.images} × ${quote.imageCredits}`, credits(pictures)] as const]),
-    [quote.filmCredits !== undefined ? "Explainer film (up to 60 s, then 8 a second)" : pictures === null ? "Video" : "Story, voice and render",
+    [quote.filmCredits === undefined ? (pictures === null ? "Video" : "Story, voice and render") : tiers ? `Explainer film, ${tiers.tier} ` +
+      `(up to ${EXPLAINER_FILM_INCLUDED_SECONDS} s, then ${SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS[tiers.tier]].perExtraSecond} a second)`
+      : "Explainer film (up to 60 s, then 8 a second)",
       seconds(length), credits(quote.baseCredits - (pictures ?? 0))] as const,
     ...(explainer ? [] : [["Opening animated clip", "1", credits(quote.openerCredits)] as const]),
     ...(quote.baseCredits + quote.openerCredits >= FACELESS_MIN_BASE_CREDITS ? [] :
@@ -82,6 +85,9 @@ export function facelessQuoteMarkdown(quote: FacelessQuoteResponse): string {
     `**Quote** · make_faceless · ${seconds(length)} selected · captions ${quote.captions ? "on" : "off"} · **at most ${credits(quote.totalCredits)} credits**`,
     "", ...table(rows),
     "", "The most this video can cost: the charge counts the pictures actually made and the seconds delivered.",
+    // Both levels of the same explainer (#1291 F4), so the user picks one before money; a film takes about half an hour.
+    ...(tiers ? ["", `Explainer levels on this request: standard ${credits(tiers.standard)} credits · pro ${credits(tiers.pro)} credits ` +
+      `(this quote: ${tiers.tier}; pass tier to choose). A film takes about half an hour.`] : []),
     ...warningLines(quote.warnings),
   ].join("\n");
 }

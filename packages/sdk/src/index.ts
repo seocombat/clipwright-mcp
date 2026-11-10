@@ -1,4 +1,43 @@
 import {
+  createFilmDraftInput,
+  type CreateFilmDraftInput,
+  FILM_DRAFT_FILES_PATH,
+  FILM_DRAFT_PATH,
+  FILM_DRAFTS_PATH,
+  FILM_GUIDE_PATH,
+  FILM_KIT_PATH,
+  filmGuide,
+  filmKit,
+  filmKitQuery,
+  type FilmGuide,
+  type FilmKit,
+  type FilmKitQuery,
+  filmDraft,
+  type FilmDraft,
+  putFilmFilesInput,
+  type PutFilmFilesInput,
+  FILM_HEROES_PATH,
+  FILM_HEROES_QUOTE_PATH,
+  filmHeroInput,
+  type FilmHeroInput,
+  FILM_RENDERS_PATH,
+  FILM_RENDERS_QUOTE_PATH,
+  FILM_RUN_PATH,
+  type OwnAgentSkill,
+  FILM_STILLS_PATH,
+  FILM_STILLS_QUOTE_PATH,
+  FILM_VOICES_PATH,
+  FILM_VOICES_QUOTE_PATH,
+  filmRenderInput,
+  type FilmRenderInput,
+  filmRun,
+  type FilmRun,
+  filmStillsInput,
+  type FilmStillsRequest,
+  filmVoiceInput,
+  type FilmVoiceInput,
+  ownAgentQuote,
+  type OwnAgentQuote,
   account as accountSchema,
   type Account,
   ACTORS_PATH,
@@ -178,6 +217,7 @@ import {
   facelessIdempotencyKeyFor,
   generationIdempotencyKeyFor,
   idempotencyKeyFor,
+  ownAgentIdempotencyKeyFor,
   revisionIdempotencyKeyFor,
   uploadRequestIdempotencyKeyFor,
   assetBytesIdempotencyKeyFor,
@@ -914,6 +954,94 @@ export class ClipwrightClient {
       .flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]]))).toString();
     const path = search === "" ? item : `${item}?${search}`;
     return parseResponse(trendSearchRead, await this.#request(path, false, undefined, ((parsed.wait_seconds ?? 0) + 15) * 1000), item, false);
+  }
+
+  /** A new film draft for your own agent's scene code, under the account's brand theme frozen now. Free. */
+  async createFilmDraft(request: Partial<CreateFilmDraftInput> = {}): Promise<FilmDraft> {
+    const body = await this.#request(FILM_DRAFTS_PATH, true, { method: "POST", body: JSON.stringify(createFilmDraftInput.parse(request)) });
+    return parseResponse(filmDraft, body, FILM_DRAFTS_PATH, true);
+  }
+
+  /** One live film draft of the account. Free. */
+  async getFilmDraft(draftIdValue: string): Promise<FilmDraft> {
+    const path = FILM_DRAFT_PATH.replace(":id", encodeURIComponent(draftIdValue));
+    return parseResponse(filmDraft, await this.#request(path, false), path, false);
+  }
+
+  /** A change to a draft's files, anchors, sounds or captions on the revision you read; a stale revision is refused with 409. Free. */
+  async putFilmFiles(draftIdValue: string, request: PutFilmFilesInput): Promise<FilmDraft> {
+    const path = FILM_DRAFT_FILES_PATH.replace(":id", encodeURIComponent(draftIdValue));
+    const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(putFilmFilesInput.parse(request)) });
+    return parseResponse(filmDraft, body, path, true);
+  }
+
+  /** What stills of a draft revision would hold; spends no credits. */
+  async quoteStills(request: FilmStillsRequest): Promise<OwnAgentQuote> {
+    return this.#quoteFilm(FILM_STILLS_QUOTE_PATH, filmStillsInput.parse(request));
+  }
+
+  /** Stills of a draft revision on a delivered voice, gated first; charged per still drawn. Returns at once; read it with getFilmRun. */
+  async previewStills(request: FilmStillsRequest, opts?: StartUgcOptions): Promise<FilmRun> {
+    return this.#startFilm("film_stills", FILM_STILLS_PATH, filmStillsInput.parse(request), opts);
+  }
+
+  /** What a voice for this text would hold; spends no credits. */
+  async quoteVoice(request: FilmVoiceInput): Promise<OwnAgentQuote> {
+    return this.#quoteFilm(FILM_VOICES_QUOTE_PATH, filmVoiceInput.parse(request));
+  }
+
+  /** A voice with word timings, charged per second delivered. Returns at once; read it with getFilmRun. */
+  async makeVoice(request: FilmVoiceInput, opts?: StartUgcOptions): Promise<FilmRun> {
+    return this.#startFilm("film_voice", FILM_VOICES_PATH, filmVoiceInput.parse(request), opts);
+  }
+
+  /** What rendering a draft revision on a voice would hold; spends no credits. */
+  async quoteRender(request: FilmRenderInput): Promise<OwnAgentQuote> {
+    return this.#quoteFilm(FILM_RENDERS_QUOTE_PATH, filmRenderInput.parse(request));
+  }
+
+  /** The film rendered from a draft revision on a delivered voice, charged by its length only when delivered. Returns at once. */
+  async renderFilm(request: FilmRenderInput, opts?: StartUgcOptions): Promise<FilmRun> {
+    return this.#startFilm("film_render", FILM_RENDERS_PATH, filmRenderInput.parse(request), opts);
+  }
+
+  /** What making a hero would hold: every pose; spends no credits. */
+  async quoteFilmHero(request: FilmHeroInput): Promise<OwnAgentQuote> {
+    return this.#quoteFilm(FILM_HEROES_QUOTE_PATH, filmHeroInput.parse(request));
+  }
+
+  /** A hero's poses, saved as the account's mascot, charged per pose published. Returns at once; read it with getFilmRun. */
+  async makeFilmHero(request: FilmHeroInput, opts?: StartUgcOptions): Promise<FilmRun> {
+    return this.#startFilm("film_hero", FILM_HEROES_PATH, filmHeroInput.parse(request), opts);
+  }
+
+  /** The explainer guide, its method appendix and the scene kit's file list. Free. */
+  async getFilmGuide(): Promise<FilmGuide> {
+    return parseResponse(filmGuide, await this.#request(FILM_GUIDE_PATH, false), FILM_GUIDE_PATH, false);
+  }
+
+  /** The scene kit's files with its reference film, or one of them. Free. */
+  async getFilmKit(query: FilmKitQuery = {}): Promise<FilmKit> {
+    const { path: file } = filmKitQuery.parse(query);
+    const path = file ? `${FILM_KIT_PATH}?path=${encodeURIComponent(file)}` : FILM_KIT_PATH;
+    return parseResponse(filmKit, await this.#request(path, false), path, false);
+  }
+
+  /** One own-agent run of the account and what it delivered. Free. */
+  async getFilmRun(runIdValue: string): Promise<FilmRun> {
+    const path = FILM_RUN_PATH.replace(":id", encodeURIComponent(runIdValue));
+    return parseResponse(filmRun, await this.#request(path, false), path, false);
+  }
+
+  async #quoteFilm(path: string, request: unknown): Promise<OwnAgentQuote> {
+    return parseResponse(ownAgentQuote, await this.#request(path, false, { method: "POST", body: JSON.stringify(request) }), path, false);
+  }
+
+  async #startFilm(skill: OwnAgentSkill, path: string, request: unknown, opts: StartUgcOptions | undefined): Promise<FilmRun> {
+    const key = opts?.idempotencyKey ?? `${ownAgentIdempotencyKeyFor(skill, request, this.#getClientId())}:${attemptSuffix(opts?.attempt)}`;
+    // `true`: once sent, the run may have been created and its credits held.
+    const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(request), headers: { "Idempotency-Key": key } });
+    return parseResponse(filmRun, body, path, true);
   }
 
   /** What one image would cost and its size; spends no credits. */

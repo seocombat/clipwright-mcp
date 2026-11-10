@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { assetId } from "./assets.js";
+import { generationShot, shotIssues } from "./generation-shot.js";
 import { GENERATION_KINDS } from "./generations-output.js";
 import { runId } from "./runs.js";
 import { uploadId } from "./uploads.js";
@@ -12,7 +13,8 @@ export const GENERATE_VIDEO_RUN_PATH = "/v1/skills/generate_video/run";
 
 export const GENERATION_IMAGE_MODELS = ["seedream-5.0-flash", "flare"] as const;
 export const GENERATION_VIDEO_MODELS = [
-  "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5", "kling-3.0", "gemini-omni-flash-1.1",
+  "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5", "kling-3.0", "kling-4.0", "kling-4.0-flash",
+  "gemini-omni-flash-1.1",
 ] as const;
 export type GenerationImageModel = (typeof GENERATION_IMAGE_MODELS)[number];
 export type GenerationVideoModel = (typeof GENERATION_VIDEO_MODELS)[number];
@@ -74,6 +76,8 @@ export interface GenerationVideoCapability {
   duration_s: { min: number; max: number };
   /** The only lengths a model takes when it is not every whole second of the range. */
   duration_values?: readonly number[];
+  /** `false` where first_frame mode takes no last_frame; absent, it takes one. */
+  last_frame?: false;
   rows: readonly GenerationVideoRow[];
 }
 
@@ -167,6 +171,22 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     duration_s: { min: 3, max: 15 },
     rows: video("720p", 720, 1280, 12, H264, { vertical: true, horizontal: true }),
   },
+  "kling-4.0": {
+    kind: "video",
+    fps: GENERATION_VIDEO_FPS,
+    modes: { text: true, first_frame: true, reference: false },
+    duration_s: { min: 3, max: 30 },
+    rows: [...video("720p", 720, 1280, 23, H264, { vertical: true, horizontal: true }),
+      ...video("1080p", 1080, 1920, 34, H264, { vertical: true, horizontal: true })],
+  },
+  "kling-4.0-flash": {
+    kind: "video",
+    fps: GENERATION_VIDEO_FPS,
+    modes: { text: true, first_frame: true, reference: false },
+    duration_s: { min: 3, max: 20 },
+    last_frame: false,
+    rows: video("720p", 720, 1280, 14, H264, { vertical: true, horizontal: true }),
+  },
   // 360p 9:16 is not yet seen live.
   "gemini-omni-flash-1.1": {
     kind: "video",
@@ -206,9 +226,13 @@ export const generateImageRequest = z.strictObject({
 });
 export type GenerateImageRequest = z.infer<typeof generateImageRequest>;
 
-/** No audio field: the vendor is always asked for a silent clip. */
+const SHOT_DESCRIPTION = "The clip as a shot, in place of prompt: framing, subject, start_state, timed beats, camera, light and " +
+  "continuity. Write every field as what the frame shows: a state reads \"her fingertips are clean\", never as an absence.";
+
+/** No audio field: the vendor is always asked for a silent clip. Exactly one of `prompt` and `shot`. */
 export const generateVideoRequest = z.strictObject({
-  prompt,
+  prompt: prompt.optional().describe("What the clip shows, in your words; or pass shot instead."),
+  shot: generationShot.optional().describe(SHOT_DESCRIPTION),
   model: z.enum(GENERATION_VIDEO_MODELS),
   mode: z.enum(GENERATION_VIDEO_MODES),
   aspect_ratio: z.enum(GENERATION_VIDEO_ASPECTS),
@@ -229,9 +253,17 @@ export const generateVideoRequest = z.strictObject({
     issue("duration_s", `${request.model} takes ${capability.duration_values.join(", ")} seconds`);
   }
   if (request.mode === "first_frame" && request.first_frame === undefined) issue("first_frame", "first_frame mode requires first_frame");
+  if (request.last_frame !== undefined && capability.last_frame === false) issue("last_frame", `${request.model} takes no last_frame`);
   if (request.mode !== "first_frame") {
     if (request.first_frame !== undefined) issue("first_frame", "first_frame is only accepted in first_frame mode");
     if (request.last_frame !== undefined) issue("last_frame", "last_frame is only accepted in first_frame mode");
+  }
+  if ((request.prompt === undefined) === (request.shot === undefined)) issue("prompt", "pass exactly one of prompt and shot");
+  if (request.shot !== undefined) {
+    if (request.camera !== undefined) issue("camera", "a shot names its camera in shot.camera");
+    for (const found of shotIssues(request.shot, request.duration_s)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["shot", ...found.path], message: found.message });
+    }
   }
   if (request.mode === "reference" && request.references === undefined) issue("references", "reference mode requires 1 to 4 references");
   if (request.mode !== "reference" && request.references !== undefined) issue("references", "references are only accepted in reference mode");
@@ -254,6 +286,7 @@ export function findCapabilityRow(request: GenerationRequest): GenerationMatch |
     const capability = GENERATION_CAPABILITIES[request.model];
     const { min, max } = capability.duration_s;
     if (!capability.modes[request.mode] || request.duration_s < min || request.duration_s > max) return null;
+    if (request.last_frame !== undefined && capability.last_frame === false) return null;
     if (capability.duration_values && !capability.duration_values.includes(request.duration_s)) return null;
     const row = capability.rows.find((one) => one.aspect_ratio === request.aspect_ratio && one.resolution === request.resolution);
     return row?.measured ? { kind: "video", model: request.model, capability, row } : null;

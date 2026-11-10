@@ -55,6 +55,8 @@ const briefShape = {
     voice_warnings: z.array(workflowText(400)).max(WORKFLOW_VOICE_WARNINGS_MAX).optional(),
     // The user's notes each script revision answered, oldest first (#921).
     review_notes: z.array(workflowText(2000)).max(50).optional(),
+    // What this revision did with its new notes (#1307): the fields it changed, or each note it did not apply; said in the plan's warnings.
+    review_warnings: z.array(workflowText(400)).max(50).optional(),
 };
 export const workflowBrief = z.strictObject(briefShape);
 export type WorkflowBrief = z.infer<typeof workflowBrief>;

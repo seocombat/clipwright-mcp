@@ -34,6 +34,8 @@ const D1_VIDEO: Record<string, Partial<Record<string, number>>> = {
   "seedance-2.0": { "480p": 12, "720p": 24, "1080p": 59 },
   "seedance-2.5": { "480p": 17, "720p": 37, "1080p": 90 },
   "kling-3.0": { "720p": 12 },
+  "kling-4.0": { "720p": 23, "1080p": 34 },
+  "kling-4.0-flash": { "720p": 14 },
   "gemini-omni-flash-1.1": { "360p": 13, "720p": 13 },
 };
 
@@ -61,6 +63,12 @@ describe("capability table", () => {
       "gemini-omni-flash-1.1 9:16 720p 720x1280",
       "kling-3.0 16:9 720p 1280x720",
       "kling-3.0 9:16 720p 720x1280",
+      "kling-4.0 16:9 1080p 1920x1080",
+      "kling-4.0 16:9 720p 1280x720",
+      "kling-4.0 9:16 1080p 1080x1920",
+      "kling-4.0 9:16 720p 720x1280",
+      "kling-4.0-flash 16:9 720p 1280x720",
+      "kling-4.0-flash 9:16 720p 720x1280",
       "seedance-2.0 16:9 1080p 1920x1080",
       "seedance-2.0 16:9 480p 864x496",
       "seedance-2.0 16:9 720p 1280x720",
@@ -141,6 +149,12 @@ describe("findCapabilityRow and priceGeneration", () => {
     ["duration past the model's bound", video({ duration_s: 16 })],
     ["kling 3.0 at 1080p, a row that does not exist", video({ model: "kling-3.0", resolution: "1080p" })],
     ["omni flash at 360p 9:16, not measured", video({ model: "gemini-omni-flash-1.1", resolution: "360p" })],
+    ["kling 4.0 at 480p, a row that does not exist", video({ model: "kling-4.0", resolution: "480p" })],
+    ["kling 4.0 flash at 1080p, a row that does not exist", video({ model: "kling-4.0-flash", resolution: "1080p" })],
+    ["kling 4.0 in reference mode", video({ model: "kling-4.0", mode: "reference", references: [{ run_id: "run_abc" }] })],
+    ["kling 4.0 flash past 20 seconds", video({ model: "kling-4.0-flash", duration_s: 21 })],
+    ["kling 4.0 flash with a last frame", video({ model: "kling-4.0-flash", mode: "first_frame", first_frame: { run_id: "run_abc" },
+      last_frame: { run_id: "run_def" } })],
   ])("refuses %s", (_name, request) => {
     expect(findCapabilityRow(request)).toBeNull();
     expect(priceGeneration(request)).toBeNull();
@@ -238,6 +252,24 @@ describe("request schemas", () => {
     expect(generateVideoRequest.safeParse(video({ references: [frame] })).success).toBe(false);
   });
 
+  // Mutant: drop the last-frame check, and a Flash clip with a last frame is quoted and reserved, then refused by the model.
+  it("refuses a last frame on Kling 4.0 Flash before any quote, and takes one on Kling 4.0", () => {
+    const frames = { mode: "first_frame" as const, first_frame: { run_id: "run_abc" }, last_frame: { run_id: "run_def" } };
+    expect(generateVideoRequest.safeParse(video({ model: "kling-4.0", ...frames })).success).toBe(true);
+    expect(generateVideoRequest.safeParse(video({ model: "kling-4.0-flash", ...frames })).error?.issues)
+      .toMatchObject([{ path: ["last_frame"], message: "kling-4.0-flash takes no last_frame" }]);
+    expect(generateVideoRequest.safeParse(video({ model: "kling-4.0-flash", ...frames, last_frame: undefined })).success).toBe(true);
+  });
+
+  it("bounds Kling 4.0 at 3 to 30 seconds and Flash at 3 to 20", () => {
+    for (const [model, max] of [["kling-4.0", 30], ["kling-4.0-flash", 20]] as const) {
+      expect(generateVideoRequest.safeParse(video({ model, duration_s: 2 })).success, model).toBe(false);
+      expect(generateVideoRequest.safeParse(video({ model, duration_s: 3 })).success, model).toBe(true);
+      expect(generateVideoRequest.safeParse(video({ model, duration_s: max })).success, model).toBe(true);
+      expect(generateVideoRequest.safeParse(video({ model, duration_s: max + 1 })).success, model).toBe(false);
+    }
+  });
+
   it("takes 0 to 4 image references, an upload only with rights confirmed", () => {
     const base = { prompt: "x", model: "flare", aspect_ratio: "9:16" };
     const upload = { upload_id: UPLOAD, rights_confirmed: true };
@@ -253,7 +285,7 @@ describe("models list", () => {
   it("shows only measured rows and modes, without vendors", () => {
     const listed = generationModels.parse({ models: listGenerationModels(), contract_version: "test" }).models;
     expect(listed.map((one) => one.model)).toEqual(["seedream-5.0-flash", "flare", "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5",
-      "kling-3.0", "gemini-omni-flash-1.1"]);
+      "kling-3.0", "kling-4.0", "kling-4.0-flash", "gemini-omni-flash-1.1"]);
     expect(listed.find((one) => one.model === "seedance-2.0")).toEqual({
       model: "seedance-2.0", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 4, max: 15 }, max_references: 0,
       rows: [
@@ -279,6 +311,26 @@ describe("models list", () => {
         { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 12 },
       ],
     });
+    expect(listed.find((one) => one.model === "kling-4.0")).toEqual({
+      model: "kling-4.0", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 3, max: 30 }, max_references: 0,
+      rows: [
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 23 },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 23 },
+        { aspect_ratio: "9:16", resolution: "1080p", width: 1080, height: 1920, unit_credits: 34 },
+        { aspect_ratio: "16:9", resolution: "1080p", width: 1920, height: 1080, unit_credits: 34 },
+      ],
+    });
+    expect(listed.find((one) => one.model === "kling-4.0-flash")).toEqual({
+      model: "kling-4.0-flash", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 3, max: 20 },
+      max_references: 0,
+      rows: [
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 14 },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 14 },
+      ],
+    });
+    expect(priceGeneration(video({ model: "kling-4.0", resolution: "1080p", duration_s: 3 }))).toEqual({ unit_credits: 34, units: 3, credits: 102 });
+    expect(priceGeneration(video({ model: "kling-4.0-flash", aspect_ratio: "16:9", duration_s: 20 })))
+      .toEqual({ unit_credits: 14, units: 20, credits: 280 });
     expect(listed.find((one) => one.model === "gemini-omni-flash-1.1")).toEqual({
       model: "gemini-omni-flash-1.1", kind: "video", unit: "second", modes: ["text", "first_frame"], duration_s: { min: 4, max: 10 },
       duration_values: [4, 6, 8, 10], max_references: 0,
@@ -290,7 +342,7 @@ describe("models list", () => {
     });
     expect(listed.find((one) => one.model === "seedance-2.5")?.rows.map((row) => `${row.aspect_ratio} ${row.resolution}`))
       .toEqual(["9:16 480p", "16:9 480p", "9:16 720p", "16:9 720p", "9:16 1080p"]);
-    for (const one of listed) expect(JSON.stringify(one), one.model).not.toMatch(/byteplus|kie|fal\b|google\/|kling-3\.0\/video|bytedance/);
+    for (const one of listed) expect(JSON.stringify(one), one.model).not.toMatch(/byteplus|kie|fal\b|google\/|kling-3\.0\/video|keyframe-to-video|bytedance/);
   });
 });
 

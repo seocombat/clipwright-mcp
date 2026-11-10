@@ -1,0 +1,66 @@
+import type { SkillThemeManifest } from "./skill-theme.js";
+
+// The explainer kit's theme.json (#1291 F2): every colour of the kit's theme with the rule it takes a brand by, and its own
+// value as the default. The kit's bundle imports no core values, so a web test holds these defaults equal to scene-kit/src/theme.ts.
+
+export const EXPLAINER_THEME: SkillThemeManifest = {
+  version: 1,
+  // The kit's own brand: cream graph paper, near-black ink, cobalt. A brand equal to these draws the kit exactly as its author did.
+  roles: { background: "#F4EFE4", surface: "#FFFDF8", ink: "#15171E", accent: "#2346FF", accent_ink: "#FFFFFF" },
+  tokens: {
+    paper: { rule: "role(background)", default: "#F4EFE4" },
+    gridMinor: { rule: "alpha(accent, 0.085)", default: "rgba(35, 70, 255, .085)" },
+    gridMajor: { rule: "alpha(accent, 0.17)", default: "rgba(35, 70, 255, .17)" },
+    ink: { rule: "role(ink)", default: "#15171E" },
+    ink2: { rule: "mix(ink, background, 0.1)", default: "#2A2D37" },
+    mute: { rule: "mix(ink, background, 0.5)", default: "#85817A" },
+    ghost: { rule: "mix(ink, background, 0.8)", default: "#C6C1B6" },
+    accent: { rule: "role(accent)", default: "#2346FF" },
+    accentDark: { rule: "shade(accent, -0.12)", default: "#152FCC" },
+    accentSoft: { rule: "mix(accent, surface, 0.85)", default: "#DDE4FF" },
+    white: { rule: "fixed()", default: "#FFFFFF" },
+    card: { rule: "role(surface)", default: "#FFFDF8" },
+    line: { rule: "mix(ink, background, 0.85)", default: "#E0DACD" },
+    shadow: { rule: "shade(accent, -0.4)", default: "#1A2560" },
+    shutter: { rule: "shade(accent, -0.5)", default: "#101634" },
+    board: { rule: "mix(ink, accent, 0.1)", default: "#26332F" },
+    boardDark: { rule: "mix(ink, accent, 0.05)", default: "#141B19" },
+    accentOnDark: { rule: "readable(accent, board)", default: "#93A9FF" },
+    chalk: { rule: "role(background)", default: "#EEEBE1" },
+    boardText: { rule: "role(background)", default: "#F6F3EA" },
+    win: { rule: "mix(ink, accent, 0.06)", default: "#1B1D25" },
+    win2: { rule: "mix(ink, accent, 0.08)", default: "#262934" },
+    win3: { rule: "mix(ink, accent, 0.1)", default: "#353946" },
+    winText: { rule: "role(background)", default: "#E9E7E2" },
+    winMute: { rule: "mix(background, ink, 0.45)", default: "#8E8C95" },
+    // Meaning colours and the hero's rig are the style's own: a brand changes neither.
+    folder: { rule: "fixed()", default: "#F0C35A" },
+    folderDark: { rule: "fixed()", default: "#C9962A" },
+    tape: { rule: "fixed()", default: "rgba(243, 231, 184, .88)" },
+    good: { rule: "fixed()", default: "#1FA35B" },
+    warm: { rule: "fixed()", default: "#FF7A45" },
+    pink: { rule: "fixed()", default: "#FF8FA8" },
+    "hero.shell": { rule: "fixed()", default: "#FFFDF5" },
+    "hero.shellShade": { rule: "fixed()", default: "#E7E0CF" },
+    "hero.visor": { rule: "fixed()", default: "#1A1E2C" },
+    "hero.glow": { rule: "fixed()", default: "#A6C4FF" },
+    "hero.cheek": { rule: "fixed()", default: "#FF8FA8" },
+    "hero.outline": { rule: "fixed()", default: "#15171E" },
+    "hero.antenna": { rule: "fixed()", default: "#2346FF" },
+  },
+  pairs: [
+    ["ink", "paper"], ["ink", "card"], ["ink2", "paper"], ["ink2", "card"], ["accent", "paper"], ["accent", "card"], ["white", "accent"],
+    ["accentOnDark", "board"], ["boardText", "board"], ["chalk", "board"], ["winText", "win"], ["winText", "win2"],
+  ],
+  fonts: {
+    caption: { bind: "brand.body", default: "Onest" },
+    ui: { bind: "brand.body", default: "Onest" },
+    display: { bind: "brand.display", default: "Oswald" },
+    accent: { bind: "fixed", default: "Caveat" },
+    mono: { bind: "fixed", default: "JetBrains Mono" },
+  },
+  logo: "none",
+  hero: "atlas_9",
+  locks: ["the handwritten accent face", "the monospace face", "meaning colours: good, warm, pink, folder", "the hero's rig colours"],
+  variation: { grid_step: [24, 20, 28, 32], hero_side: ["right", "left"] },
+};

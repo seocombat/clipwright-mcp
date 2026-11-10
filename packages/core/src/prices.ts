@@ -6,7 +6,8 @@ import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
 import {
   FACELESS_CREDITS_PER_1500_FRAMES, FACELESS_IMAGE_CREDITS, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_BASE_CREDITS,
   FACELESS_MIN_SELECTED_SECONDS, FACELESS_OPENER_CREDITS, FACELESS_SHOT_CREDITS_PER_SECOND, facelessScenesEnabled, quoteFaceless,
-  EXPLAINER_BEAT_CREDITS, EXPLAINER_MAX_AUTHORED_BEATS, EXPLAINER_MAX_OBJECT_PICTURES, FACELESS_EXPLAINER_POSE_PICTURES, facelessExplainerEnabled,
+  EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, EXPLAINER_TIERS, FACELESS_EXPLAINER_POSE_PICTURES, facelessExplainerEnabled,
+  SKILL_FILM_TARIFFS,
 } from "./faceless-price.js";
 import { PRESENTER_ENGINES, SHOT_ENGINES } from "./face-billing.js";
 import { listGenerationModels } from "./generations.js";
@@ -15,6 +16,8 @@ import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS } from "./reference-
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
 import { TREND_SEARCH_CREDITS, TREND_SEARCH_REELS } from "./trend-search.js";
 import { isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
+import { isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
+  OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND } from "./own-agent-price.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
 export const PRICES_PATH = "/v1/public/prices";
@@ -144,7 +147,8 @@ function generationEntries(): PriceEntry[] {
   });
 }
 
-function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false, music = false, explainer = false): PriceEntry[] {
+function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false, music = false, explainer = false,
+  ownAgent = false): PriceEntry[] {
   const unit = EDIT_UNIT_PRICES;
   const parts = PARTS_FACE_TARIFF;
   const shotRates = parts.shotCreditsPerSecond ?? SHOT_CREDITS_PER_SECOND;
@@ -198,17 +202,29 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         `${FACELESS_MIN_SELECTED_SECONDS} s, ${facelessAt(FACELESS_MAX_SELECTED_SECONDS)} for ${FACELESS_MAX_SELECTED_SECONDS} s. ` +
         "Captions do not change the price." +
         (music ? " Music is added only when you ask for it and charged only when the delivered video carries it." : "") }),
-    // The explainer format (#1216) is sold only while it can be ordered.
-    ...(explainer ? [paid({ tool: "make_faceless", route: "POST /v1/skills/make_faceless/run", quote_tool: "quote_faceless", variant: "explainer",
-      lines: [{ label: "hero pose picture", unit: "image", credits: FACELESS_IMAGE_CREDITS },
-        { label: "picture of a thing the script names", unit: "image", credits: FACELESS_IMAGE_CREDITS },
-        { label: "production (storyboard, voice and render)", unit: "second", credits: FACELESS_CREDITS_PER_1500_FRAMES / 60 },
-        { label: "scene drawn for the explainer", unit: "scene", credits: EXPLAINER_BEAT_CREDITS }],
-      minimum_credits: FACELESS_MIN_BASE_CREDITS,
-      notes: `A drawn explainer with no opening clip. The hero's ${FACELESS_EXPLAINER_POSE_PICTURES} pose pictures are made only when you ` +
-        "name a character, and each is charged once it is in the delivered video; our own hero is free. A scene drawn for the explainer " +
-        `is charged only when the delivered video shows it, at most ${EXPLAINER_MAX_AUTHORED_BEATS} per video. A picture of a thing the script ` +
-        `names is charged only when a scene of the delivered video shows it, at most one for each thing a list script names and ${EXPLAINER_MAX_OBJECT_PICTURES} per video.` })] : []),
+    // The explainer format (#1216) is sold only while it can be ordered, one entry a level (#1291 F4).
+    ...(explainer ? EXPLAINER_TIERS.map(tier => paid({ tool: "make_faceless", route: "POST /v1/skills/make_faceless/run", quote_tool: "quote_faceless",
+      variant: `explainer ${tier}`,
+      lines: [{ label: `film up to ${EXPLAINER_FILM_INCLUDED_SECONDS} s`, unit: "call", credits: SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS[tier]].filmCredits },
+        { label: `each second over ${EXPLAINER_FILM_INCLUDED_SECONDS} s`, unit: "second", credits: SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS[tier]].perExtraSecond },
+        { label: "hero pose picture", unit: "image", credits: FACELESS_IMAGE_CREDITS }],
+      notes: `tier ${tier}${tier === "standard" ? " (the default)" : ""}. A drawn explainer film, made in about half an hour and charged only when ` +
+        "delivered, by its length. A mascot is the hero for free; a character you name, or one we draw to fit the script, adds its " +
+        `${FACELESS_EXPLAINER_POSE_PICTURES} pose pictures, each charged once it is in the delivered video.` })) : []),
+    // The «own agent» film runs (#1337) are sold only while the mode is offered.
+    ...(ownAgent ? [
+      paid({ tool: "preview_stills", route: "POST /v1/film-stills", quote_tool: "quote_stills", unit: "still", credits: OWN_STILL_CREDITS,
+        notes: `Up to ${OWN_STILLS_MAX_PER_CALL} stills of a film draft per call, each charged once it is drawn; a draft its check refuses costs nothing.` }),
+      paid({ tool: "make_voice", route: "POST /v1/film-voices", quote_tool: "quote_voice", unit: "second", credits: OWN_VOICE_CREDITS_PER_SECOND,
+        notes: "A narrated take with each word's timing, charged by its delivered seconds; a take that fails costs nothing." }),
+      paid({ tool: "render_film", route: "POST /v1/film-renders", quote_tool: "quote_render",
+        lines: [{ label: `film up to ${OWN_FILM_INCLUDED_SECONDS} s`, unit: "call", credits: OWN_FILM_RENDER_CREDITS },
+          { label: `each second over ${OWN_FILM_INCLUDED_SECONDS} s`, unit: "second", credits: OWN_FILM_EXTRA_SECOND_CREDITS }],
+        notes: "Charged only for a delivered film, by its length; a render that fails costs nothing." }),
+      paid({ tool: "make_film_hero", route: "POST /v1/film-heroes", quote_tool: "quote_film_hero", unit: "image", credits: OWN_HERO_POSE_CREDITS,
+        notes: `A hero in up to ${OWN_HERO_POSES} pose pictures, saved as a mascot of your assets; each pose is charged once it is published, and a ` +
+          "film that uses the mascot makes and charges none again. A hero that publishes no pose costs nothing." }),
+    ] : []),
     paid({ tool: "revise_run", route: "POST /v1/runs/{id}/revisions", quote_tool: "quote_revision",
       formula: `each shot generated anew: picture ${unit.picture}, clip ${unit.clip}, clip with a new picture ${unit.clip_with_new_picture}; ` +
         `plus ${EDIT_RENDER_PRICE} to render. A revision that generates nothing: ${EDIT_ZERO_UNIT_PRICE}. A kept candidate adds nothing`,
@@ -239,7 +255,7 @@ export function priceListFor(env: Record<string, string | undefined>): readonly 
   const longForm = env.CLIPWRIGHT_LONG_FORM_QUALIFICATION === "1" && env.CLIPWRIGHT_COMPOSE === "1" && env.CLIPWRIGHT_REMOTE_FETCH === "1";
   const liveShots = env.CLIPWRIGHT_LIVE_SHOTS === "1" && longForm, scenes = env.CLIPWRIGHT_SCENES === "1" && longForm;
   return Object.freeze(pricesResponse.parse({ prices: buildPriceList(liveShots, scenes, env.CLIPWRIGHT_FACELESS_SHOTS === "1",
-    scenes && facelessScenesEnabled(env), isMusicEnabled(env), facelessExplainerEnabled(env)) }).prices);
+    scenes && facelessScenesEnabled(env), isMusicEnabled(env), facelessExplainerEnabled(env), isOwnAgentEnabled(env)) }).prices);
 }
 
 export const PRICE_LIST: readonly PriceEntry[] = priceListFor(typeof process === "undefined" ? {} : process.env);

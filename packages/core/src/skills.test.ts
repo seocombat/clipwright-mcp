@@ -276,6 +276,12 @@ describe("makeUgcInput — script length gate", () => {
       "TREND_SEARCH_TASK_MAX_DURATION_SECONDS",
       // A faceless action shot's longest clip (#1113): a longer scene keeps its still and is not charged, so the bill never outruns the cap.
       "FACELESS_SHOT_MAX_SEC",
+      // The longest film and take the «own agent» mode prices (#1291 F2): a refusal before money; every second up to it is charged.
+      "OWN_FILM_MAX_SECONDS",
+      "OWN_VOICE_MAX_SECONDS",
+      // A styled film's beat and length bounds (#1338): the style runtime's drawing bounds, refused before money; the price is the film's.
+      "FILM_BEAT_MAX_SEC",
+      "FILM_STYLED_MAX_SEC",
     ];
     const durationCaps = Object.keys(contract).filter(
       (name) =>
@@ -481,6 +487,9 @@ describe("server instructions offer the explainer only where it is sold", () => 
     expect(text.slice(brief, visuals)).toMatch(/offer the explainer \(make_faceless, format explainer\) beside the remake, with explainer_fit and the price from quote_faceless/);
     expect(text.slice(brief, visuals)).toMatch(/propose two or three characters[^.]*passed as character_details; reuse one only when the user asks or the brand has its own\. A delivered explainer keeps its hero as a mascot[^.]*mascot_id[^.]*\.$/);
     expect(Object.keys(facelessQuoteResponse.shape)).toContain("explainer_fit");
-    expect(Object.keys(offeredFacelessInputShape)).toEqual(expect.arrayContaining(["character_details", "format"]));
+    expect(Object.keys(offeredFacelessInputShape)).toEqual(expect.arrayContaining(["character_details", "format", "tier"]));
+    // #1291 F4. Mutant: the offer quoting one level only, so the user never hears of the other.
+    expect(text.slice(brief, visuals)).toContain("both levels, standard and pro (tier), for the user to pick; a film takes about half an hour.");
+    expect(Object.keys(facelessQuoteResponse.shape)).toContain("explainer_tiers");
   });
 });

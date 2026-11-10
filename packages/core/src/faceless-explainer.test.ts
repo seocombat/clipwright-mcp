@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { EXPLAINER_OWN_FIELDS, explainerFieldRefusals, FACELESS_EXPLAINER_BRIEF_REFUSAL, makeFacelessInput, offeredFacelessInput,
-  quoteFacelessInput } from "./faceless-public.js";
+import { EXPLAINER_OWN_FIELDS, EXPLAINER_PRODUCT_PICTURES_REFUSAL, explainerFieldRefusals, FACELESS_EXPLAINER_BRIEF_REFUSAL, makeFacelessInput,
+  offeredFacelessInput, quoteFacelessInput } from "./faceless-public.js";
 import { EXPLAINER_BEAT_CREDITS, EXPLAINER_MAX_AUTHORED_BEATS, EXPLAINER_MAX_OBJECT_PICTURES, explainerBeatsEnabled, explainerObjectCeiling, FACELESS_IMAGE_CREDITS,
   FACELESS_OPENER_CREDITS, quoteFaceless } from "./faceless-price.js";
 import { namedThings } from "./explainer-fit.js";
@@ -33,8 +33,8 @@ describe("make_faceless format explainer (#1216)", () => {
       expect(explainerFieldRefusals({ ...base, [field]: {} })).toEqual([{ path: [field], message: `format explainer draws its own scenes; omit ${field}` }]);
       expect(explainerFieldRefusals({ ...base, format: "standard", [field]: {} })).toEqual([]);
     }
-    expect(EXPLAINER_OWN_FIELDS).toEqual(["style_reference", "scene_images", "transitions", "templates", "shots", "scenes", "moves", "motion_style", "music"]);
-    for (const [field, value] of [["scene_images", [{ image_url: "https://x.example/a.png", anchor }]],
+    expect(EXPLAINER_OWN_FIELDS).toEqual(["style_reference", "transitions", "templates", "shots", "scenes", "moves", "motion_style", "music"]);
+    for (const [field, value] of [
       ["style_reference", "https://x.example/a.png"], ["transitions", false], ["shots", [{ id: "s1", anchor, action: "The figure waves" }]],
       ["music", "auto"]] as const) {
       const parsed = makeFacelessInput.safeParse({ ...base, [field]: value });
@@ -45,6 +45,26 @@ describe("make_faceless format explainer (#1216)", () => {
     expect(brief.error?.issues.map(i => i.message)).toContain(FACELESS_EXPLAINER_BRIEF_REFUSAL);
     expect(makeFacelessInput.safeParse({ ...base, character_details: "A round mint cactus" }).success).toBe(true);
     expect(offeredFacelessInput.safeParse({ ...base }).success).toBe(true);
+  });
+
+  /** #1322. Mutants: keep scene_images among the explainer's own fields; take a fourth picture, an anchor naming no words or one said twice;
+   *  price the customer's pictures. */
+  it("takes up to three product pictures on words of the script, priced as without them", () => {
+    const image = (anchor: object) => ({ image_url: "https://x.example/jar.png", anchor });
+    const ok = makeFacelessInput.safeParse({ ...base, scene_images: [image({ quote: "word12 word13" }), image({ startWord: 40, endWord: 42 })] });
+    expect(ok.success).toBe(true);
+    expect(quoteFacelessInput(ok.data!, { explainerFilm: "skill-agent-opus-v1" }))
+      .toEqual(quoteFacelessInput(makeFacelessInput.parse(base), { explainerFilm: "skill-agent-opus-v1" }));
+    const refused = (images: object[], extra: object = {}) =>
+      makeFacelessInput.safeParse({ ...base, ...extra, scene_images: images }).error?.issues.filter(i => i.path[0] === "scene_images").map(i => i.message);
+    expect(refused([1, 2, 3, 4].map(n => image({ startWord: n * 5, endWord: n * 5 + 1 })))).toEqual([EXPLAINER_PRODUCT_PICTURES_REFUSAL]);
+    expect(refused([1, 2, 3].map(n => image({ startWord: n * 5, endWord: n * 5 + 1 })))).toBeUndefined();
+    expect(refused([image({ quote: "not in the script" })])).toEqual(["the anchor names no words of the script"]);
+    expect(refused([image({ quote: "twice" })], { script: `${script} twice and twice` }))
+      .toEqual(["the quote is said more than once in the script; add occurrence (0 is the first)"]);
+    expect(refused([image({ startWord: 2, endWord: 6 }), image({ startWord: 4, endWord: 8 })])).toEqual(["two of your pictures name the same words; give each its own"]);
+    // A picture video keeps its own rules: sixty pictures and no anchor check here.
+    expect(refused([1, 2, 3, 4].map(n => image({ startWord: n * 5, endWord: n * 5 + 1 })), { format: "standard" })).toBeUndefined();
   });
 
   /** Mutant: keep the opening clip, or price the hero's pictures without a character, and the quote misstates the run. */

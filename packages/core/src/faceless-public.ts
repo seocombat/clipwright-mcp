@@ -11,7 +11,8 @@ import { MAX_TEMPLATE_MEDIA, MAX_TEMPLATES, templateRefusals } from "./templates
 import { assetId } from "./asset-identity.js";
 import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
 import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MAX_SHOTS, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_MIN_SELECTED_SECONDS,
-  explainerObjectCeiling, facelessQuote, quoteFaceless, type FacelessQuote } from "./faceless-price.js";
+  EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, EXPLAINER_TIERS, explainerObjectCeiling, facelessQuote, FACELESS_EXPLAINER_POSE_PICTURES,
+  FACELESS_IMAGE_CREDITS, quoteFaceless, SKILL_FILM_TARIFFS, type FacelessQuote, type SkillFilmTariff } from "./faceless-price.js";
 import { DEFAULT_FACELESS_VOICE } from "./faceless-voices.js";
 import { resolveFacelessCustomerAnchors } from "./faceless-customer-anchors.js";
 import { FACELESS_TRANSITION_LOOKS } from "./faceless-media-record.js";
@@ -22,7 +23,7 @@ import { FACELESS_SHOT_TRANSITIONS, facelessActionShotRefusals } from "./faceles
 import { pauseTrim } from "./reference-voice.js";
 import { pinnedMascot } from "./mascots.js";
 
-const qualifiedImageUrl = uploadResponse.shape.url.max(MAX_URL_LENGTH).refine((value) => {
+export const qualifiedImageUrl = uploadResponse.shape.url.max(MAX_URL_LENGTH).refine((value) => {
   const host = new URL(value).hostname.toLowerCase();
   return host !== "localhost" && !host.endsWith(".localhost") &&
     host !== "127.0.0.1" && host !== "[::1]" &&
@@ -98,15 +99,37 @@ const common = {
   // A style dresses the captions, templates and scenes over the pictures (#1123); its spans sit on a script's words.
   motion_style: motionStyle.optional(),
   format: z.enum(FACELESS_FORMATS).optional(),
+  tier: z.enum(EXPLAINER_TIERS).optional(),
 };
 
 /** The explainer (#1216) draws its own scene on every phrase, so the fields that place pictures, clips or graphics have no room in it. */
-export const EXPLAINER_OWN_FIELDS = ["style_reference", "scene_images", "transitions", "templates", "shots", "scenes", "moves", "motion_style", "music"] as const;
-/** What an explainer request may not carry: a brief, or a field the explainer draws itself. */
-export function explainerFieldRefusals(input: Record<string, unknown>): { path: string[]; message: string }[] {
+export const EXPLAINER_OWN_FIELDS = ["style_reference", "transitions", "templates", "shots", "scenes", "moves", "motion_style", "music"] as const;
+export const explainerOwnFieldMessage = (field: string) => `format explainer draws its own scenes; omit ${field}`;
+/** An explainer places at most this many of the customer's product pictures, each on its own words (#1322). */
+export const EXPLAINER_MAX_PRODUCT_PICTURES = 3;
+export const EXPLAINER_PRODUCT_PICTURES_REFUSAL = `format explainer places at most ${EXPLAINER_MAX_PRODUCT_PICTURES} of your pictures`;
+/** Why an explainer's pictures cannot be placed: too many, or words of the script none or more than one of them names alone. */
+export function explainerPictureRefusals(script: unknown, images: unknown): { path: (string | number)[]; message: string }[] {
+  if (!Array.isArray(images) || typeof script !== "string") return [];
+  if (images.length > EXPLAINER_MAX_PRODUCT_PICTURES) return [{ path: ["scene_images"], message: EXPLAINER_PRODUCT_PICTURES_REFUSAL }];
+  const anchored = images as FacelessCustomerSceneImage[];
+  for (const [index, image] of anchored.entries()) {
+    try { resolveFacelessCustomerAnchors(script, [image]); }
+    catch (error) {
+      return [{ path: ["scene_images", index, "anchor"], message: error instanceof Error && error.message === "ambiguous_customer_anchor"
+        ? "the quote is said more than once in the script; add occurrence (0 is the first)" : "the anchor names no words of the script" }];
+    }
+  }
+  try { resolveFacelessCustomerAnchors(script, anchored); }
+  catch { return [{ path: ["scene_images"], message: "two of your pictures name the same words; give each its own" }]; }
+  return [];
+}
+/** What an explainer request may not carry: a brief, a field the explainer draws itself, or pictures it cannot place. */
+export function explainerFieldRefusals(input: Record<string, unknown>): { path: (string | number)[]; message: string }[] {
   if (input.format !== "explainer") return [];
   return [...(input.input_mode === "brief" ? [{ path: ["format"], message: FACELESS_EXPLAINER_BRIEF_REFUSAL }] : []),
-    ...EXPLAINER_OWN_FIELDS.filter(field => input[field] !== undefined).map(field => ({ path: [field], message: `format explainer draws its own scenes; omit ${field}` }))];
+    ...EXPLAINER_OWN_FIELDS.filter(field => input[field] !== undefined).map(field => ({ path: [field], message: explainerOwnFieldMessage(field) })),
+    ...explainerPictureRefusals(input.script, input.scene_images)];
 }
 /** A mascot is the explainer's hero already made: it needs the format, and it replaces a character the run would draw. */
 export function mascotFieldRefusals(input: Record<string, unknown>): { path: string[]; message: string }[] {
@@ -117,8 +140,11 @@ export function mascotFieldRefusals(input: Record<string, unknown>): { path: str
       .map(field => ({ path: [field], message: `mascot_id is the hero already made; omit ${field}` })),
   ];
 }
+/** A tier picks the explainer's level, so it means nothing on another format. */
+export const EXPLAINER_TIER_REFUSAL = "tier needs format explainer: it picks the explainer's level";
 function refuseExplainerFields(input: Record<string, unknown>, context: z.RefinementCtx) {
-  for (const { path, message } of [...explainerFieldRefusals(input), ...mascotFieldRefusals(input)]) context.addIssue({ code: customIssue, path, message });
+  const tier = input.tier !== undefined && input.format !== "explainer" ? [{ path: ["tier"], message: EXPLAINER_TIER_REFUSAL }] : [];
+  for (const { path, message } of [...explainerFieldRefusals(input), ...mascotFieldRefusals(input), ...tier]) context.addIssue({ code: customIssue, path, message });
 }
 
 /** The line a faceless quote and run name when a style has nothing to dress: captions off and no templates or scenes (#1123). */
@@ -167,7 +193,7 @@ function refineScript(input: z.infer<typeof scriptBase>, context: z.RefinementCt
   refuseTemplates(input, context);
   for (const { path, message } of moveRefusals({ script: input.script, moves: input.moves })) context.addIssue({ code: customIssue, path, message });
   // Scenes sit on the script's words as on make_ugc and share the templates' ids (#1113).
-  for (const { path, message } of sceneRefusals({ script: input.script, scenes: input.scenes, templates: input.templates })) {
+  for (const { path, message } of sceneRefusals({ script: input.script, scenes: input.scenes, templates: input.templates }, { presenter: false })) {
     context.addIssue({ code: customIssue, path, message });
   }
   for (const { path, message } of motionStyleRefusals(input)) context.addIssue({ code: customIssue, path, message });
@@ -238,13 +264,24 @@ export function parseFacelessStoredInputPreservingScript(input: unknown): Facele
 
 /** A request's quote: what the quote shows and admission reserves, read from the same fields by the same call. */
 /** `explainerBeats`: an explainer's drawn scenes are on, so the quote holds them. `explainerFilm`: the explainer is priced as one drawn film. */
-export function quoteFacelessInput(input: MakeFacelessInput, options: { explainerBeats?: boolean; explainerFilm?: boolean } = {}): FacelessQuote {
+export function quoteFacelessInput(input: MakeFacelessInput, options: { explainerBeats?: boolean; explainerFilm?: SkillFilmTariff } = {}): FacelessQuote {
   const character = !!(input.character_reference || input.character_details);
+  // A drawn film with no character and no mascot draws a hero that fits its script, priced as a named character's poses.
+  const filmHero = character || !(input.input_mode === "script" && input.mascot_id);
   return quoteFaceless({ outputFrames: input.duration_seconds * 25, captions: input.captions, music: input.music,
     shots: input.input_mode === "script" ? input.shots?.length ?? 0 : 0, scenes: input.input_mode === "script" ? input.scenes?.length ?? 0 : 0,
-    ...(input.format !== "explainer" ? {} : options.explainerFilm ? { explainer: { character, film: true } } : { explainer: { character,
+    ...(input.format !== "explainer" ? {} : options.explainerFilm ? { explainer: { character: filmHero, film: options.explainerFilm } } : { explainer: { character,
       ...(options.explainerBeats ? { beats: true } : {}), ...(input.input_mode === "script" ? { objects: explainerObjectCeiling(input.script) } : {}) } }) });
 }
+
+/** Both levels' totals for one explainer request (#1291 F4), each as admission would reserve it on that level; the quote names the chosen one. */
+export function explainerTierTotals(input: MakeFacelessInput): { tier: (typeof EXPLAINER_TIERS)[number]; standard: number; pro: number } {
+  const total = (tier: (typeof EXPLAINER_TIERS)[number]) => quoteFacelessInput(input, { explainerFilm: EXPLAINER_TIER_TARIFFS[tier] }).totalCredits;
+  return { tier: input.tier ?? "standard", standard: total("standard"), pro: total("pro") };
+}
+const tierFilm = (tier: (typeof EXPLAINER_TIERS)[number]) => SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS[tier]];
+const tierPrice = (tier: (typeof EXPLAINER_TIERS)[number]) =>
+  `${tierFilm(tier).filmCredits} credits for a film up to ${EXPLAINER_FILM_INCLUDED_SECONDS} s plus ${tierFilm(tier).perExtraSecond} each second over`;
 
 /** The API routes repeat these paths as literals, and a test keeps them equal. */
 export const FACELESS_QUOTE_PATH = "/v1/skills/make_faceless/quote";
@@ -271,7 +308,8 @@ export const offeredFacelessInputShape = {
     .describe("A mascot saved in your assets (list_assets with mascot true), for format explainer: its hero, already drawn, with no pose pictures made or charged. " +
       "Replaces character_reference and character_details."),
   scene_images: common.scene_images
-    .describe("Your images, each placed at a word range or quote of the narration."),
+    .describe("Your images, each placed at a word range or quote of the narration. Free. With format explainer: " +
+      `up to ${EXPLAINER_MAX_PRODUCT_PICTURES} pictures of your product, each shown as it is on its words, held by the hero, as a card or full frame.`),
   captions: common.captions.describe("Burned-in captions; on by default."),
   transitions: scriptInput.shape.transitions
     .describe("Flash or light leak on the cuts, with its sound: every scene change, or the one nearest each anchor (script only). " +
@@ -290,9 +328,11 @@ export const offeredFacelessInputShape = {
     "It fits a chain of concrete actions told by one narrator: a how-to by steps, how something works, a workflow, a tool walkthrough, " +
     "N mistakes or N ways, with something to show on every phrase. Reasoning without actions, a dialogue or a story about people fits " +
     "poorly. Every script quote answers explainer_fit: offer the format where it fits; where it does not, show its reason and its " +
-    "rewrite into actions before asking. The hero is drawn from character_reference or character_details (its pose pictures on the " +
-    "quote), else ours, free. A list of named things gets a picture of each in its scene, one for each thing on the quote, charged only " +
-    "when shown. Without voice, an English script is read by our fastest voice."),
+    "rewrite into actions before asking. The hero: mascot_id, else your brand's mascot, free; else the character you name or one that fits " +
+    `the script, its ${FACELESS_EXPLAINER_POSE_PICTURES} pose pictures at ${FACELESS_IMAGE_CREDITS} each on the quote. Priced as one film by tier; ` +
+    "a film takes about half an hour. Without voice, an English script is read by our fastest voice."),
+  tier: common.tier.describe(`Format explainer only. 'standard' (default): ${tierPrice("standard")}. 'pro': more careful direction and ` +
+    `richer scenes, ${tierPrice("pro")}. Pose pictures are on top. quote_faceless names both totals: show them and let the user pick.`),
   // No shape here keeps tools/list small, as for templates: the field is make_ugc's, which the client and the server check strictly.
   pause_trim: z.unknown().optional().describe("Script only: as make_ugc pause_trim, same default with templates, scenes, shots or format explainer."),
   voice: common.voice
@@ -334,6 +374,8 @@ export const facelessQuoteResponse = facelessQuote.extend({
   skill: z.literal("make_faceless"),
   /** Whether the script suits the explainer format, with the reason, and a rewrite into actions when it does not. */
   explainer_fit: z.strictObject({ fits: z.boolean(), reason: z.string(), rewrite: z.string().optional() }).optional(),
+  /** An explainer's two levels on the same request: each one's total, and the level `totalCredits` is for. */
+  explainer_tiers: z.strictObject({ tier: z.enum(EXPLAINER_TIERS), standard: z.number().int().positive(), pro: z.number().int().positive() }).optional(),
   warnings: z.array(z.string()).default([]),
   contract_version: z.string().min(1),
 }).strict();

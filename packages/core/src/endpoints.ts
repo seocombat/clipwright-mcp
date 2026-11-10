@@ -7,6 +7,10 @@ import { BRAND_EXTRACT_PATH, BRAND_KIT_PATH } from "./design.js";
 import { CREATOR_PROFILE_PATH, CREATOR_PROFILE_QUOTE_PATH, CREATOR_PROFILES_PATH } from "./creator-profile.js";
 import { TREND_SEARCH_PATH, TREND_SEARCH_QUOTE_PATH, TREND_SEARCHES_PATH } from "./trend-search.js";
 import { FEEDBACK_PATH } from "./feedback.js";
+import { FILM_DRAFT_FILES_PATH, FILM_DRAFT_PATH, FILM_DRAFTS_PATH } from "./film-drafts.js";
+import { FILM_GUIDE_PATH, FILM_KIT_PATH } from "./film-guide.js";
+import { FILM_HEROES_PATH, FILM_HEROES_QUOTE_PATH, FILM_RENDERS_PATH, FILM_RENDERS_QUOTE_PATH, FILM_RUN_PATH, FILM_STILLS_PATH, FILM_STILLS_QUOTE_PATH, FILM_VOICES_PATH,
+  FILM_VOICES_QUOTE_PATH } from "./own-agent-runs.js";
 import { GENERATION_MODELS_PATH } from "./generations.js";
 import { PRICES_PATH } from "./prices.js";
 import { REFERENCE_ANALYSES_PATH, REFERENCE_ANALYSIS_PATH, REFERENCE_ANALYSIS_QUOTE_PATH } from "./reference-analysis.js";
@@ -121,6 +125,24 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "GET", path: TREND_SEARCH_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   // Feedback from an agent (#941): free, with its own hourly cap in the handler.
   { method: "POST", path: FEEDBACK_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  // Film drafts of the «own agent» mode (#1291 F2): free, behind CLIPWRIGHT_OWN_AGENT; the files row stands before `:id`'s own.
+  { method: "POST", path: FILM_DRAFTS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: FILM_DRAFT_FILES_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "GET", path: FILM_DRAFT_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
+  // Its paid runs (#1337): stills, voice and render, each quoted first; one read of what a run delivered.
+  { method: "POST", path: FILM_STILLS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: FILM_STILLS_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: FILM_VOICES_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: FILM_VOICES_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: FILM_RENDERS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: FILM_RENDERS_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  // A hero saved as a mascot (#1356), quoted first like the rest.
+  { method: "POST", path: FILM_HEROES_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: FILM_HEROES_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "GET", path: FILM_RUN_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
+  // The mode's guide and scene kit, read-only (#1356).
+  { method: "GET", path: FILM_GUIDE_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
+  { method: "GET", path: FILM_KIT_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
 ];
 
 /** `GET /v1/runs/{id}`: the human notation, with the parameter in curly braces. */

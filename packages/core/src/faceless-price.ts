@@ -110,8 +110,26 @@ export const explainerObjectCeiling = (script: string): number => Math.min(EXPLA
 export const EXPLAINER_FILM_CREDITS = 500;
 export const EXPLAINER_FILM_INCLUDED_SECONDS = 60;
 export const EXPLAINER_FILM_CREDITS_PER_EXTRA_SECOND = 8;
-export const explainerFilmCredits = (outputFrames: number): number => EXPLAINER_FILM_CREDITS +
-  EXPLAINER_FILM_CREDITS_PER_EXTRA_SECOND * Math.max(0, Math.ceil(outputFrames / 25) - EXPLAINER_FILM_INCLUDED_SECONDS);
+/** The drawn-film tariffs and their film price: up to the included seconds, then each second past them. A snapshot names its tariff, so a
+ *  price change is a new tariff: a run admitted at the old price settles at it. */
+export const SKILL_FILM_TARIFFS = {
+  "skill-explainer-v1": { filmCredits: EXPLAINER_FILM_CREDITS, perExtraSecond: EXPLAINER_FILM_CREDITS_PER_EXTRA_SECOND },
+  "skill-agent-opus-v1": { filmCredits: 1200, perExtraSecond: 20 },
+  "skill-agent-sonnet-v1": { filmCredits: 900, perExtraSecond: 15 },
+  "skill-agent-sonnet-v2": { filmCredits: 700, perExtraSecond: 12 },
+} as const;
+export type SkillFilmTariff = keyof typeof SKILL_FILM_TARIFFS;
+export const isSkillFilmTariff = (value: unknown): value is SkillFilmTariff => typeof value === "string" && Object.hasOwn(SKILL_FILM_TARIFFS, value);
+export const skillFilmCredits = (tariff: SkillFilmTariff, outputFrames: number): number => SKILL_FILM_TARIFFS[tariff].filmCredits +
+  SKILL_FILM_TARIFFS[tariff].perExtraSecond * Math.max(0, Math.ceil(outputFrames / 25) - EXPLAINER_FILM_INCLUDED_SECONDS);
+export const explainerFilmCredits = (outputFrames: number): number => skillFilmCredits("skill-explainer-v1", outputFrames);
+/** The explainer's two levels a customer picks by name (#1291 F4): each freezes its film tariff at admission; omitted is `standard`. */
+export const EXPLAINER_TIERS = ["standard", "pro"] as const;
+export type ExplainerTier = (typeof EXPLAINER_TIERS)[number];
+export const EXPLAINER_TIER_TARIFFS = { standard: "skill-agent-sonnet-v2", pro: "skill-agent-opus-v1" } as const satisfies Record<ExplainerTier, SkillFilmTariff>;
+export const explainerTierTariff = (tier: ExplainerTier | undefined): SkillFilmTariff => EXPLAINER_TIER_TARIFFS[tier ?? "standard"];
+/** The explainer's film switch on `api` (#1291 F4): off, every explainer is refused before any reserve. */
+export const skillAgentEnabled = (env: Record<string, string | undefined>): boolean => env.CLIPWRIGHT_SKILL_AGENT === "1";
 
 /** The picture counts a parts snapshot's base may hold for `selectedFrames`: a picture video's ceiling, or an explainer's poses with or without a
  * named character. */
@@ -122,7 +140,7 @@ export const facelessImageCeilings = (selectedFrames: number): number[] =>
 /** An explainer makes no opening clip; its pictures are the hero's poses, charged as generated pictures when delivered. */
 export function quoteFaceless(input: { outputFrames: number; captions: boolean; music?: MusicRequest | undefined;
   shots?: number | undefined; scenes?: number | undefined;
-  explainer?: { character: boolean; beats?: boolean; objects?: number; film?: boolean } | undefined }): FacelessQuote {
+  explainer?: { character: boolean; beats?: boolean; objects?: number; film?: SkillFilmTariff } | undefined }): FacelessQuote {
   const outputFrames = z.number().int().min(FACELESS_MIN_OUTPUT_FRAMES).max(2250).parse(input.outputFrames);
   const captions = z.boolean().parse(input.captions);
   const openerCredits = input.explainer ? 0 : FACELESS_OPENER_CREDITS;
@@ -131,7 +149,7 @@ export function quoteFaceless(input: { outputFrames: number; captions: boolean; 
   const images = posePictures ?? facelessMaxGeneratedImages(outputFrames, FACELESS_PUBLIC_MAX_GENERATED_IMAGES);
   // A drawn film (#1291) is priced whole: its poses and the film, with no line of the scenes and pictures the film draws itself.
   if (input.explainer?.film) {
-    const filmCredits = explainerFilmCredits(outputFrames), baseCredits = images * FACELESS_IMAGE_CREDITS + filmCredits;
+    const filmCredits = skillFilmCredits(input.explainer.film, outputFrames), baseCredits = images * FACELESS_IMAGE_CREDITS + filmCredits;
     return { outputFrames, baseCredits, openerCredits, totalCredits: Math.max(FACELESS_MIN_BASE_CREDITS, baseCredits), tariffId: FACELESS_TARIFF_ID,
       captions, images, imageCredits: FACELESS_IMAGE_CREDITS, posePictures: posePictures!, filmCredits };
   }

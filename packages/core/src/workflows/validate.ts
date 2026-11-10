@@ -127,7 +127,7 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
     const readiness = checkWorkflowBrief(document.method.method_id, document.brief, capabilities);
     const { issues, warnings } = readiness;
     warnings.push(...workflowProductReferenceWarnings(document.method.method_id, document.assets), ...referenceProfileWarnings(document.brief.reference_profile),
-        ...document.brief.move_warnings ?? [], ...document.brief.voice_warnings ?? []);
+        ...document.brief.move_warnings ?? [], ...document.brief.voice_warnings ?? [], ...document.brief.review_warnings ?? []);
     const add = (code: string, path: string, message: string) => issues.push({ kind: code, path, message });
     const method = queryWorkflowMethod(document.method.method_id, capabilities)!;
     if (document.method.version !== method.descriptor.version || document.method.content_digest !== method.descriptor.content_digest) {

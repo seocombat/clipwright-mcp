@@ -26,6 +26,7 @@ from `list_prices`, never from memory: they change.
 |---|---|---|
 | Short UGC video with a presenter | `quote_ugc` | `make_ugc` |
 | Faceless video (narration over pictures) | `quote_faceless` | `make_faceless` |
+| A drawn explainer film, tier `standard` or `pro` | `quote_faceless` | `make_faceless` with `format: "explainer"` |
 | One image | `quote_image` | `generate_image` |
 | One silent clip | `quote_video` | `generate_video` |
 | A custom presenter | `quote_actor` | `create_actor` |
@@ -97,6 +98,12 @@ Some answers are wrong without an error: an omitted `aspect_ratio` follows the
 photo's shape, `person` chooses no face, and `make_faceless` without `voice`
 narrates in English. https://clipwright.io/skill.md lists each such trap; read
 it before the first paid call.
+
+Any account can order an explainer film. `standard` (the default) is 700 credits
+for a film up to 60 seconds plus 12 a second over, `pro` is 1200 plus 20; the
+quote names both, so show them and let the user pick. A film takes about half an
+hour, one at a time per account. A busy service answers `explainer_busy` with
+`Retry-After`: wait that long and try again.
 
 ## The closing report
 

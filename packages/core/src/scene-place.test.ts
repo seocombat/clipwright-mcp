@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { dispositionWarnings, makeUgcInput } from "@clipwright/core";
-import { captionPlaceAt, fitPlacedRect, presenterPlaceFace, presenterPlaceWantsWide, presetPlace, resolvePlace, usualFace, type Place,
+import { captionPlaceAt, fitPlacedRect, PLACE_FORMS, presenterPlaceFace, presenterPlaceWantsWide, presetPlace, resolvePlace, usualFace, type Place,
   type PresenterPlace } from "./scene-place.js";
+import { mcpUgcOverlay, mcpUgcScene, mcpUgcTemplate } from "./skills.js";
 import { admissionScene, frameCanvasOf, type LayerRect, OVERLAY_POSITIONS, overlayFootprints, overlayRect } from "./ugc-layers.js";
 import { templateSceneItems } from "./templates/index.js";
 import { freezeResolvedTimeline } from "./resolved-timeline.js";
@@ -291,5 +292,31 @@ describe("presenter_place (#973 S2b)", () => {
 
   it("starts from the wide view for a face smaller than the close view's", () => {
     expect([0.2, 0.267, 0.275, 0.3].map(face_height => presenterPlaceWantsWide({ face_height }))).toEqual([true, true, false, false]);
+  });
+});
+
+describe("one place shape for overlays, templates and scenes (#1327)", () => {
+  const tag = (place: unknown) => ({ id: "tag", kind: "tag", anchor: { startWord: 0, endWord: 2 }, data: { text: "$19" }, place });
+
+  /** Mutant: keep relative_to required, and the journey's {rect:{left,top,width,height}} is refused again as "Invalid input". */
+  it("takes a template's rect without relative_to as a frame rect", () => {
+    expect(refusals({ templates: [tag({ rect: { left: 0.3, top: 0.6, width: 0.3, height: 0.05 } })] })).toEqual([]);
+    expect(makeUgcInput.parse({ script, templates: [tag({ rect: { left: 0.3, top: 0.6, width: 0.3, height: 0.05 } })] }).templates![0]!.place)
+      .toEqual(frame(0.3, 0.6, 0.3, 0.05));
+  });
+
+  it("names the forms on every wrong shape the journey tried, never a bare Invalid input", () => {
+    for (const shape of [{ rect: { x: 0.3, y: 0.6, w: 0.3, h: 0.05 } }, { rect: [0.3, 0.6, 0.3, 0.05] }]) {
+      const [message] = refusals({ templates: [tag(shape)] });
+      expect(message).toContain('templates.0.place: place takes {relative_to:"frame",rect:{left,top,width,height}}');
+    }
+  });
+
+  it("describes the place forms once, on the MCP overlay, template and scene alike", () => {
+    const text = (schema: { shape: { place: { description?: string | undefined } } }) => schema.shape.place.description ?? "";
+    expect(text(mcpUgcOverlay)).toContain(PLACE_FORMS);
+    expect(text(mcpUgcTemplate)).toContain(PLACE_FORMS);
+    expect(text(mcpUgcScene)).toContain(PLACE_FORMS);
+    expect(PLACE_FORMS).toContain("rect:{left,top,width,height}");
   });
 });

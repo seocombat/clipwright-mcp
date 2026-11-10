@@ -1,9 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_PUBLIC_MAX_GENERATED_IMAGES, FACELESS_SLOWEST_CHARACTERS_PER_SECOND,
   FACELESS_SPEECH_MAX_CHARACTERS, facelessMaxEstimateFrames, facelessMaxGeneratedImages, facelessMaxOutputFrames, facelessQuote,
-  quoteFaceless } from "./faceless-price.js";
+  quoteFaceless, SKILL_FILM_TARIFFS, skillFilmCredits } from "./faceless-price.js";
 import { facelessPlannerInput } from "./faceless-public.js";
 import { run } from "./runs.js";
+
+/** The owner's film prices, written out once (rule 5; Opus 1200 and Sonnet 700, 2026-11-10). Every other test reads the table, so this is the one
+ *  place a repriced tariff turns red. Codex r2 (sonnet-700-1291). Mutants: v2 back at 900 and 15, or v1 moved, which reprices runs it froze. */
+describe("skill film tariffs", () => {
+  it("prices each tariff as decided and keeps the old Sonnet price for runs admitted on it", () => {
+    expect(SKILL_FILM_TARIFFS).toEqual({
+      "skill-explainer-v1": { filmCredits: 500, perExtraSecond: 8 },
+      "skill-agent-opus-v1": { filmCredits: 1200, perExtraSecond: 20 },
+      "skill-agent-sonnet-v1": { filmCredits: 900, perExtraSecond: 15 },
+      "skill-agent-sonnet-v2": { filmCredits: 700, perExtraSecond: 12 },
+    });
+    expect([skillFilmCredits("skill-agent-sonnet-v2", 30 * 25), skillFilmCredits("skill-agent-sonnet-v2", 75 * 25)]).toEqual([700, 880]);
+  });
+});
 
 // A delivered video may run 25 s since the owner's decision of 2026-09-27; the selection stays 30–90 s.
 describe("25-second delivered output", () => {

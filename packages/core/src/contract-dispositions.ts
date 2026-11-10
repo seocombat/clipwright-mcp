@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { makeUgcInputShape, mcpCaptionPlace, mcpLiveShots, mcpPresenterGaze, mcpPresenterPlace, mcpUgcCall, mcpUgcInterview, mcpUgcOverlay, mcpUgcTemplate } from "./skills.js";
+import { makeUgcInputShape, mcpCaptionPlace, mcpLiveShots, mcpPresenterGaze, mcpPresenterPlace, mcpUgcCall, mcpUgcInterview, mcpUgcOverlay, mcpUgcScene,
+  mcpUgcTemplate } from "./skills.js";
 import { MCP_UGC_DESCRIPTIONS } from "./mcp-ugc-descriptions.js";
 import { interviewWarnings } from "./ugc-interview.js";
 import { MAX_TEMPLATES, mcpTemplateSounds, templateFaceWarnings, templateMediaOf, templateSceneItems, templateSizeWarnings, type TemplateItem } from "./templates/index.js";
@@ -9,7 +10,7 @@ import { callWarnings } from "./ugc-call.js";
 import { BROLL_POLICY_DESCRIPTION } from "./broll-policy.js";
 import { mcpDesign } from "./design.js";
 import { isMusicEnabled, MUSIC_DISABLED_MESSAGE } from "./music.js";
-import { SCENES_DISABLED_MESSAGE } from "./ugc-scenes.js";
+import { MAX_SCENES, SCENES_DISABLED_MESSAGE } from "./ugc-scenes.js";
 import { MOTION_STYLE_UNUSED_WARNING, motionStyleAsked, motionStyleHasCanvas } from "./motion-styles.js";
 import { AD_PAUSE_TRIM_WARNING } from "./ad-pause-trim.js";
 
@@ -451,6 +452,7 @@ export const MCP_UGC_SHORTENED_TEXTS: readonly string[] = compactFields.map((fie
 export const mcpUgcInputShape = { ...offeredUgcInputShape, ...compactlyDescribed,
   overlays: z.array(mcpUgcOverlay).min(1).max(MAX_OVERLAYS).optional().describe(MCP_UGC_DESCRIPTIONS.overlays),
   templates: z.array(mcpUgcTemplate).min(1).max(MAX_TEMPLATES).optional().describe(MCP_UGC_DESCRIPTIONS.templates),
+  scenes: z.array(mcpUgcScene).min(1).max(MAX_SCENES).optional().describe(fieldText(offeredUgcInputShape.scenes) ?? ""),
   template_sounds: mcpTemplateSounds.optional(), call: mcpUgcCall.optional(),
   caption_place: mcpCaptionPlace.optional(), presenter_place: mcpPresenterPlace.optional(),
   interview: mcpUgcInterview.optional(), presenter_gaze: mcpPresenterGaze.optional(), shots: mcpLiveShots.optional(),

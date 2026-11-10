@@ -7,6 +7,7 @@ import { compositionVersionOf, parseSkill, resolvedScript, storedUgcInput, type 
 import { storedCreateActorInput } from "./account-actors.js";
 import { ANALYZE_CREATOR_SKILL } from "./creator-profile.js";
 import { FIND_TRENDS_SKILL } from "./trend-search.js";
+import { isOwnAgentSkill } from "./own-agent-runs.js";
 import { ANALYZE_REFERENCE_SKILL } from "./reference-analysis.js";
 import { dispositionWarnings, legacyCaptionWarnings } from "./contract-dispositions.js";
 import { buildSpeechModelWarnings, buildVoiceWarnings, TTS_MODELS, ttsModelBeforeV4Default } from "./voices.js";
@@ -81,7 +82,8 @@ export function derivedRunWarnings(
   voiceGenderOf: VoiceGenderResolver,
 ): string[] {
   // An analysis and a creator profile are runs outside `SKILLS`: their own row writes their warnings (#1032).
-  if (skill === ANALYZE_REFERENCE_SKILL || skill === ANALYZE_CREATOR_SKILL || skill === FIND_TRENDS_SKILL) return [];
+  // An own-agent run's warnings are written at admission and by its run, never derived from input (#1337).
+  if (skill === ANALYZE_REFERENCE_SKILL || skill === ANALYZE_CREATOR_SKILL || skill === FIND_TRENDS_SKILL || isOwnAgentSkill(skill)) return [];
   const parsed = parseSkill(skill);
   switch (parsed) {
     case "make_ugc":

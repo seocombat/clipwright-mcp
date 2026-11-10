@@ -6,6 +6,7 @@ import {
   FACELESS_QUOTE_PATH, FACELESS_RUN_PATH, makeFacelessInput, facelessPlannerInput, facelessQuoteResponse,
   offeredFacelessInput, offeredFacelessInputShape,
 } from "./faceless-public.js";
+import { EXPLAINER_TIER_TARIFFS, SKILL_FILM_TARIFFS } from "./faceless-price.js";
 import { run } from "./runs.js";
 import { parseSkill } from "./skills.js";
 import * as facelessContracts from "./faceless-public.js";
@@ -32,6 +33,13 @@ describe("makeFacelessInput", () => {
   it("accepts script and brief modes and defaults captions on", () => {
     expect(makeFacelessInput.parse(script).captions).toBe(true);
     expect(makeFacelessInput.parse(brief).captions).toBe(true);
+  });
+
+  /** A faceless frame has no presenter to keep a scene off, and its scenes are drawn where their author sets them (#1327). */
+  it("refuses a scene's place", () => {
+    const scene = { id: "s", anchor: { quote: "spoken words" }, brief: "an arrow", place: { rect: { left: 0.1, top: 0.6, width: 0.8, height: 0.1 } } };
+    expect(makeFacelessInput.safeParse({ ...script, scenes: [scene] }).error?.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`))
+      .toEqual(['scenes.0.place: scene "s": make_faceless draws its scenes where their author sets them; omit place']);
   });
 
   it("accepts qualified references and anchored customer scene images", () => {
@@ -153,5 +161,28 @@ describe("faceless shared contracts", () => {
         totalCredits: 350, tariffId: "faceless-image-i2v-v1", captions: true },
     });
     expect(parsed.faceless_billing?.totalCredits).toBe(350);
+  });
+});
+
+// #1291 F4 C1/C5. Mutants: tier taken on a picture video; a level the schema does not name; the description's prices retyped instead of read,
+// or naming a model, an engine or a switch.
+describe("the explainer's tier", () => {
+  const explainer = { input_mode: "script", script: "Open the app and tap save.", duration_seconds: 30, format: "explainer" };
+  it("is standard or pro on an explainer, and refused on any other format", () => {
+    expect(makeFacelessInput.parse({ ...explainer, tier: "pro" }).tier).toBe("pro");
+    expect(makeFacelessInput.parse(explainer).tier).toBeUndefined();
+    expect(makeFacelessInput.safeParse({ ...explainer, tier: "max" }).success).toBe(false);
+    const { format: _format, ...video } = explainer;
+    expect(makeFacelessInput.safeParse({ ...video, tier: "standard" }).error?.issues).toEqual([
+      expect.objectContaining({ path: ["tier"], message: facelessContracts.EXPLAINER_TIER_REFUSAL })]);
+  });
+  it("is described in customer terms with the prices billing charges", () => {
+    const text = offeredFacelessInputShape.tier.description ?? "";
+    expect(text).toContain(`'standard' (default): ${SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS.standard].filmCredits} credits for a film up to 60 s plus ` +
+      `${SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS.standard].perExtraSecond} each second over`);
+    expect(text).toContain(`${SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS.pro].filmCredits} credits for a film up to 60 s plus ` +
+      `${SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS.pro].perExtraSecond} each second over`);
+    expect(offeredFacelessInputShape.format.description).toContain("about half an hour");
+    expect(`${text} ${offeredFacelessInputShape.format.description}`).not.toMatch(/sonnet|opus|claude|anthropic|agent|CLIPWRIGHT|tariff/i);
   });
 });

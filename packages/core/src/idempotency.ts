@@ -6,6 +6,8 @@ import { candidateRequest } from "./edit-candidate.js";
 import { revisionRequest } from "./edit-revision.js";
 import { makeFacelessInput } from "./faceless-public.js";
 import { generateImageRequest, generateVideoRequest } from "./generations.js";
+import { filmHeroInput, filmRenderInput, filmStillsInput, filmVoiceInput } from "./own-agent-runs.js";
+import type { OwnAgentSkill } from "./own-agent-price.js";
 import { runId } from "./runs.js";
 import { measuredVideoSize, type RunVideo } from "./video-size.js";
 import { makeUgcInput } from "./skills.js";
@@ -88,6 +90,12 @@ export function generationIdempotencyKeyFor(skill: "generate_image" | "generate_
   return createHash("sha256")
     .update(clientId + JSON.stringify(canonicalize(parsed)))
     .digest("hex");
+}
+
+/** The key of an own-agent run (#1337): the client, the skill and its parsed request, so a retry of the same ask is the same run. */
+export function ownAgentIdempotencyKeyFor(skill: OwnAgentSkill, request: unknown, clientId: string): string {
+  const schema = skill === "film_stills" ? filmStillsInput : skill === "film_voice" ? filmVoiceInput : skill === "film_hero" ? filmHeroInput : filmRenderInput;
+  return createHash("sha256").update(clientId + JSON.stringify(canonicalize({ skill, request: schema.parse(request) }))).digest("hex");
 }
 
 /** What identifies an upload request: the url of an import, the declared file of an intent (`filename` is only a hint). */

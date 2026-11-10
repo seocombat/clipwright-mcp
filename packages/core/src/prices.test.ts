@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { ACTOR_UNIT_CREDITS, ACTOR_VIEW_PORTRAIT_CREDITS } from "./account-actors.js";
 import { EDIT_RENDER_PRICE, EDIT_UNIT_PRICES, EDIT_ZERO_UNIT_PRICE } from "./edit-billing.js";
 import { API_ENDPOINTS, endpointLabel } from "./endpoints.js";
-import { FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_BASE_CREDITS, FACELESS_MIN_SELECTED_SECONDS, quoteFaceless } from "./faceless-price.js";
+import { FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_BASE_CREDITS, FACELESS_MIN_SELECTED_SECONDS, quoteFaceless, SKILL_FILM_TARIFFS } from "./faceless-price.js";
 import { listGenerationModels } from "./generations.js";
 import { MUSIC_BED_CREDITS } from "./music.js";
 import { OPENAPI_ROUTES } from "./openapi.js";
@@ -30,10 +30,13 @@ const only = (tool: string, variant: string | null = null) => {
 describe("the price list covers the registry", () => {
   /** Mutants: a billed route left without a price; a paid entry on a free route; an entry naming no route. */
   it("every billed route has a paid entry, and every entry's route is a registry row of the same billedness", () => {
+    // The own-agent film routes (#1337) are sold only with their switch on, so the coverage is read on that list.
+    const sold = priceListFor({ CLIPWRIGHT_OWN_AGENT: "1" });
     for (const endpoint of API_ENDPOINTS.filter((row) => row.billed)) {
-      expect(PRICE_LIST.filter((entry) => entry.route === endpointLabel(endpoint) && isPaid(entry)), endpointLabel(endpoint)).not.toEqual([]);
+      expect(sold.filter((entry) => entry.route === endpointLabel(endpoint) && isPaid(entry)), endpointLabel(endpoint)).not.toEqual([]);
     }
-    for (const entry of PRICE_LIST) {
+    expect(PRICE_LIST.filter((entry) => entry.route?.startsWith("POST /v1/film-"))).toEqual([]);
+    for (const entry of sold) {
       const endpoint = LABELS.get(entry.route ?? "");
       expect(endpoint, `${entry.action} names ${entry.route}`).toBeDefined();
       expect(endpoint!.billed, entry.action).toBe(isPaid(entry));
@@ -81,40 +84,19 @@ describe("the music line of the price list", () => {
   });
 });
 
-// #1216 (owner 2026-11-07). Mutant: the explainer sold with its switch off, or listed with an opening clip it never makes.
-describe("the explainer line of the price list", () => {
-  it("sells a pose picture at a generated picture's price and the seconds, minimum 50, only while the switch is on", () => {
-    const explainer = (list: readonly { tool: string | null; variant: string | null }[]) => list.filter(item => item.tool === "make_faceless" && item.variant === "explainer");
+// #1216, by level since #1291 F4. Mutants: the explainer sold with its switch off; one level left off; a level's film or its second retyped,
+// or the levels swapped; the retired scene and object-picture lines still sold; a model or the engine named on the public list.
+describe("the explainer lines of the price list", () => {
+  it("sells each level's film, its second over 60 s and the hero's pose picture, only while the switch is on", () => {
+    const explainer = (list: readonly (typeof PRICE_LIST)[number][]) => list.filter(item => item.tool === "make_faceless" && item.variant?.startsWith("explainer"));
     expect(explainer(PRICE_LIST)).toEqual([]);
-    const [entry] = explainer(priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" })) as [ReturnType<typeof priceListFor>[number]];
-    expect(entry.lines.map(line => [line.unit, line.credits])).toEqual([["image", 7], ["image", 7], ["second", 1], ["scene", 65]]);
-    // #1277. Mutant: the object pictures charged but missing from the list, or listed without their ceiling.
-    expect(entry.lines[1]!.label).toBe("picture of a thing the script names");
-    expect(entry.notes).toContain("at most one for each thing a list script names and 12 per video.");
-    expect(entry.minimum_credits).toBe(FACELESS_MIN_BASE_CREDITS);
-  });
-  // 2026-11-08. Mutants: the explainer's scenes, its biggest part, left off the list, or sold with the explainer switch off.
-  it("lists a scene drawn for the explainer at 65, at most 8 per video, only while the explainer switch is on", () => {
-    const scene = (list: readonly (typeof PRICE_LIST)[number][]) => list.filter(item => item.tool === "make_faceless")
-      .flatMap(item => item.lines.filter(line => line.label === "scene drawn for the explainer").map(line => ({ variant: item.variant, notes: item.notes, line })));
-    expect(scene(priceListFor({}))).toEqual([]);
-    const [on] = scene(priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" }));
-    expect(on).toMatchObject({ variant: "explainer", line: { unit: "scene", credits: 65 } });
-    expect(on!.notes).toContain("A scene drawn for the explainer is charged only when the delivered video shows it, at most 8 per video.");
-    expect(priceLine("make_faceless", priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" }))).toContain("scene drawn for the explainer 65 credits");
-  });
-  // Codex r1. Mutant: the scene's price or ceiling retyped as a literal, so a changed constant leaves the list behind what billing charges.
-  it("reads the scene's price and ceiling from the constants billing charges by", async () => {
-    vi.resetModules();
-    vi.doMock("./faceless-price.js", async (actual) => ({ ...await actual<object>(), EXPLAINER_BEAT_CREDITS: 66, EXPLAINER_MAX_AUTHORED_BEATS: 7 }));
-    try {
-      const entry = (await import("./prices.js")).priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" }).find(item => item.variant === "explainer")!;
-      expect(entry.lines.find(line => line.unit === "scene")?.credits).toBe(66);
-      expect(entry.notes).toContain("at most 7 per video");
-    } finally {
-      vi.doUnmock("./faceless-price.js");
-      vi.resetModules();
-    }
+    const entries = explainer(priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" }));
+    expect(entries.map(entry => [entry.variant, entry.lines.map(line => [line.unit, line.credits])])).toEqual([
+      ["explainer standard", [["call", SKILL_FILM_TARIFFS["skill-agent-sonnet-v2"].filmCredits], ["second", SKILL_FILM_TARIFFS["skill-agent-sonnet-v2"].perExtraSecond], ["image", 7]]],
+      ["explainer pro", [["call", SKILL_FILM_TARIFFS["skill-agent-opus-v1"].filmCredits], ["second", SKILL_FILM_TARIFFS["skill-agent-opus-v1"].perExtraSecond], ["image", 7]]]]);
+    expect([SKILL_FILM_TARIFFS["skill-agent-sonnet-v2"].filmCredits, SKILL_FILM_TARIFFS["skill-agent-opus-v1"].filmCredits]).toEqual([700, 1200]);
+    expect(entries[0]!.notes).toContain("about half an hour");
+    expect(JSON.stringify(entries)).not.toMatch(/sonnet|opus|agent|scene drawn|thing the script names/i);
   });
 });
 

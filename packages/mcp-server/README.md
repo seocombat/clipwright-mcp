@@ -289,7 +289,10 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   and 90 (a longer narration runs to its end), and costs at most the quote. Narration plays over an opening
   animated clip and image scenes, with captions on by default. `voice` picks
   the narration voice by name. Returns a
-  `run_id` immediately; poll `get_run` until `succeeded`.
+  `run_id` immediately; poll `get_run` until `succeeded`. With `format: "explainer"` it makes a drawn explainer
+  film, open to every account: `tier` `standard` (the default, 700 credits up to 60 seconds plus 12 a second over)
+  or `pro` (1200 plus 20). The quote names both; a film takes about half an hour. A busy service answers
+  `explainer_busy` with `Retry-After`.
 - `delete_actor` — removes a personal actor of this account. Videos already made
   with it stay as they are. Free.
 - `get_actor_defaults`, `set_actor_defaults` — read and save an actor's B-roll

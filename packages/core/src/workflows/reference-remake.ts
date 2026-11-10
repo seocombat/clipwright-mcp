@@ -12,7 +12,8 @@ import type { LiveShotFraming } from '../live-shot-kinds.js';
 import { narrationPaceFromVoice, PAUSE_TRIM_CEILING_S, pauseTrimFromVoice } from '../reference-voice.js';
 import { AD_PAUSE_TRIM } from '../ad-pause-trim.js';
 import { countActorShots, coverWordOf, lexicalTokens, planSemanticInserts, quoteOccurrences } from '../semantic-inserts.js';
-import { actorId, callStage, type CallStage, insertBox, isNarratedUgcInput, makeUgcInput, makeUgcInputShape, MAX_INSERTS, MAX_LIVE_SHOTS, MAX_NARRATED_ACTOR_SHOTS,
+import { negationIn, SHOT_BEAT_MAX_S, type GenerationShot } from '../generation-shot.js';
+import { actorId, callStage, type CallStage, insertBox, isNarratedUgcInput, LIVE_SHOT_PRODUCT_PLACEMENTS, makeUgcInput, makeUgcInputShape, MAX_INSERTS, MAX_LIVE_SHOTS, MAX_NARRATED_ACTOR_SHOTS,
     MAX_PRESENTER_TAKES, MAX_SHOT_CAST, motionStyle, ugcCall, type UgcLiveShot, ugcLiveShotCastMember, ugcTemplate } from '../skills.js';
 import { ugcMarkedComponentsRefusal } from '../presenter-takes.js';
 import { CALL_PHONE_DEFAULTS, CALL_STAGE_SIDES } from '../ugc-call.js';
@@ -39,6 +40,9 @@ import { preferChosen, type RemakeChooser } from './remake-chooser.js';
 import { beatCue, FLASH_SNAP_S, planMotion, type MotionAdded } from './remake-motion.js';
 
 // The reference-remake compiler (#857 S2a): a profile and an accepted script become a complete plan whose native input is a make_ugc input.
+
+/** The steps a product demo takes, then a still hold (#1307 S2): with the hold, at most four beats in one clip. */
+export const DEMO_MAX_STEPS = 3;
 
 const remakeFields = {
     plan_id: workflowId.optional(), base_version: saveWorkflowPlan.shape.base_version.optional(),
@@ -76,6 +80,20 @@ const remakeFields = {
         .refine(cast => new Set(cast.map(person => person.asset_id)).size === cast.length, { message: 'each cast picture appears once' }).optional()
         .describe(`Up to ${MAX_SHOT_CAST} more people beside the actor in every acting live shot, as make_ugc shots cast: a picture, a role and ` +
             'what they do. Without an acting live shot the plan names it undrawn.'),
+    pause_trim: makeUgcInputShape.pause_trim.describe('Narration pauses, as make_ugc pause_trim; it wins over the reference\'s pauses. ' +
+        `Omitted: the reference presenter's measured pauses, else ${AD_PAUSE_TRIM.sentence_end_s} and ${AD_PAUSE_TRIM.comma_s}.`),
+    product: z.strictObject({
+        asset_id: assetId.describe('Your product image (ast_…), as make_ugc product_asset_id.'),
+        placement: z.enum(LIVE_SHOT_PRODUCT_PLACEMENTS).default('hand').describe('hand: every acting live shot starts with it in the actor\'s hand; ' +
+            'beside: standing within reach.'),
+        name: z.string().trim().min(1).max(40).default('product').describe('What it is, as the shots name it: jar, bottle, drill.'),
+        demo: z.array(z.strictObject({
+            action: z.string().trim().min(1).max(300).describe('One step of using it, done once, as cause, contact and result: her fingertip dips ' +
+                'into the jar once and lifts a dab of cream.'),
+            end_state: z.string().trim().min(1).max(200).describe('What the frame shows when the step ends: a dab of cream sits on her fingertip.'),
+        })).min(1).max(DEMO_MAX_STEPS).optional().describe('The reference\'s demo beats become one live shot of the actor using it, from a first ' +
+            'frame with it in hand, in these steps, then a still hold. Describe what is visible.'),
+    }).optional().describe('Your product in the actor\'s hand (or beside them) in every acting live shot.'),
 };
 const revisionPair = (value: { plan_id?: string | undefined; base_version?: number | undefined }, context: z.RefinementCtx) => {
     if ((value.plan_id === undefined) !== (value.base_version === undefined)) {
@@ -141,6 +159,46 @@ const GESTURE_ACTIONS: Record<ReferenceGesture, string | undefined> = { both_han
     hold_object: 'holds an object up to the camera', open_palms: 'opens both palms toward the viewer', wave: 'waves at the viewer', shrug: 'shrugs',
     thumbs_up: 'gives a thumbs up', other: undefined };
 const REACTION = 'reacts to the words with a warm smile and a nod';
+/** The longest demo clip: the longest live shot take the run renders. Words past it are the presenter's usual take. */
+export const DEMO_CLIP_MAX_S = 15;
+type RemakeProduct = { asset_id: string; placement: (typeof LIVE_SHOT_PRODUCT_PLACEMENTS)[number]; name: string;
+    demo?: { action: string; end_state: string }[] | undefined };
+const heldAt = (product: RemakeProduct) => product.placement === 'hand' ? `in one hand at chest height, its label to the camera`
+    : 'standing beside the presenter within reach, its label to the camera';
+/** A gesture's action with the product named when the gesture holds something. */
+const gestureAction = (kind: ReferenceGesture, product: RemakeProduct | undefined) =>
+    kind === 'hold_object' && product ? `holds the ${product.name} up to the camera, its label toward the lens` : GESTURE_ACTIONS[kind];
+/** The demo as one clip of `seconds` (#1307 S2): it opens on one product already where the shots hold it, each step once, then a still hold;
+ *  every second is owned by a beat, so the clip has no seconds to repeat a step in. */
+export function demoShot(product: RemakeProduct & { demo: { action: string; end_state: string }[] }, seconds: number): GenerationShot {
+    const hold = product.placement === 'hand'
+        ? { action: `The presenter holds the ${product.name} still at chest height, its label to the camera, and smiles`,
+            end_state: `The presenter holds the ${product.name} at chest height, its label to the camera` }
+        : { action: `The presenter rests both hands beside the ${product.name} and smiles at the camera`,
+            end_state: `The ${product.name} stands beside the presenter, its label to the camera` };
+    // The hold goes last whenever the clip has a second for it: without it the clip's last seconds repeat a step. Short of seconds, the steps
+    // become one beat that does each in turn.
+    const merged = { action: product.demo.map(step => step.action.replace(/[.!?]+$/, '')).join(', then '), end_state: product.demo.at(-1)!.end_state };
+    const steps = seconds >= product.demo.length + 1 ? [...product.demo, hold] : seconds >= 2 ? [merged, hold] : [merged];
+    const length = Math.max(steps.length, Math.min(seconds, steps.length * SHOT_BEAT_MAX_S)), base = Math.floor(length / steps.length);
+    let from = 0;
+    const beats = steps.map((step, at) => {
+        const to = from + base + (at < length - base * steps.length ? 1 : 0), beat = { from_s: from, to_s: to, action: step.action, end_state: step.end_state };
+        from = to;
+        return beat;
+    });
+    return {
+        framing: { size: 'medium' },
+        subject: { label: 'the presenter', fixed: ['the face, hair and clothes of Image 1', `the ${product.name}'s shape, colours and printed label`],
+            objects: [{ name: product.name, count: 1, at_start: heldAt(product) }] },
+        start_state: product.placement === 'hand' ? `The presenter holds one ${product.name} in one hand at chest height, its label to the camera`
+            : `One ${product.name} stands beside the presenter within reach, its label to the camera`,
+        beats,
+        camera: { move: 'static' },
+        light: { key: 'the light of Image 1' },
+        continuity: { persistent: [`exactly one ${product.name}`, 'the same place as Image 1'], end_state: beats.at(-1)!.end_state },
+    };
+}
 const SHOT_SIZE_RANK: Readonly<Record<PresenterFraming, number>> = { close: 0, wide: 1, full: 2 };
 /** An acting shot's first frame, wider than the take (#1175 S7): the beat's measured size when wider (medium and wide are the wide view), else */
 /** wide on a close take, since an action needs the hands in frame; undefined keeps the take's view. */
@@ -327,6 +385,14 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
     const parsed = planReferenceRemake.safeParse(input);
     if (!parsed.success) return { kind: 'invalid', issues: parsed.error.issues.map(issue => ({ kind: 'invalid_request', path: issue.path.join('.'), message: issue.message })) };
     const request = parsed.data, { script } = request, profile = request.reference_profile;
+    // The product's words reach a clip model, which draws what a sentence names: they describe what is visible (#1307 S2).
+    const said = request.product ? [['product.name', request.product.name] as const, ...(request.product.demo ?? []).flatMap((step, at) =>
+        [[`product.demo.${at}.action`, step.action] as const, [`product.demo.${at}.end_state`, step.end_state] as const]),
+    // The cast acts in the demo clip beside its words.
+    ...request.product.demo ? (request.cast ?? []).flatMap((person, at) => person.action ? [[`cast.${at}.action`, person.action] as const] : []) : []] : [];
+    const negated = said.flatMap(([path, text]) => { const word = negationIn(text); return word === null ? [] : [{ path, word }]; });
+    if (negated.length) return { kind: 'invalid', issues: negated.map(({ path, word }) => ({ kind: 'invalid_request', path,
+        message: `"${word}" describes what is absent; describe what is visible instead (her fingertips are clean, the jar is closed)` })) };
     const words = referenceScriptWords(script), tokens = lexicalTokens(script), language = captionLanguageOf(script);
     if (words.length === 0) return { kind: 'invalid', issues: [{ kind: 'invalid_request', path: 'script', message: 'The script has no words to place beats on.' }] };
     // The quote's own length estimate and limit, so a compiled plan is never refused there as too long.
@@ -1180,24 +1246,70 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
     const meets = (layer: Layer, start: number, end: number) => { const range = rangeOf(layer); return !!range && range.startWord < end && start < range.coverWord; };
     const covers = (layer: Layer) => layer.field === 'inserts' || layer.field === 'layout_windows' || ((layer.field === 'templates' || layer.field === 'scenes')
         && ((layer.item as { placement?: string }).placement ?? TEMPLATE_KINDS.find(entry => entry.kind === layer.kind)?.placements[0]) === 'full');
+    const product = request.product;
+    const holding = product ? { product: { placement: product.placement } } : {};
+    // The reference's demo, with the product's steps given, is one clip of the actor using it (#1307 S2): adjacent demo beats join the first.
+    const demoBeat = (index: number) => profile.beats[index]!.role === 'demo' && profile.beats[index]!.presenter_behaviour !== 'listening';
+    const demoEnds = new Map<number, number>(), joined = new Map<number, number>();
+    let lead: number | undefined;
+    for (const { beat } of onScreen) {
+        if (!demoBeat(beat)) { lead = undefined; continue; }
+        if (lead !== undefined && spans[beat]!.start <= demoEnds.get(lead)!) {
+            demoEnds.set(lead, Math.max(demoEnds.get(lead)!, spans[beat]!.end));
+            joined.set(beat, lead);
+        } else {
+            lead = beat;
+            demoEnds.set(beat, spans[beat]!.end);
+        }
+    }
+    if (product && !product.demo && shotsOn && shotsAsked) {
+        for (const beat of demoEnds.keys()) {
+            const group = [beat, ...[...joined].filter(([, head]) => head === beat).map(([at]) => at)].map(at => at + 1).join(', ');
+            note(beat, `the reference's demo of the product (beats ${group})`,
+                `the presenter's usual take: pass product.demo, the steps of using your ${product.name}, to show it in the presenter's hands`);
+        }
+    }
+    /** The words a demo clip covers: up to the longest clip at the slowest pace, cut at a clause end inside it; the presenter says the rest. */
+    const clipEnd = (start: number, end: number) => {
+        const most = Math.floor(DEMO_CLIP_MAX_S * WORDS_PER_SECOND_MIN + 1e-9);
+        if (end - start <= most) return end;
+        const stop = words.slice(start, start + most).findLastIndex(word => word.stop !== undefined);
+        return start + (stop >= 0 ? stop + 1 : most);
+    };
     const wanted = !shotsAsked || !shotsOn ? [] : onScreen.flatMap(({ beat: index }, at) => {
         const beat = profile.beats[index]!, span = spans[index]!;
+        if (product?.demo && demoEnds.has(index)) {
+            const end = clipEnd(span.start, demoEnds.get(index)!);
+            if ((call && resumeAt! > span.start && resumeAt! < end) || layers.some(layer => covers(layer) && meets(layer, span.start, end))) return [];
+            if (end < demoEnds.get(index)!) {
+                note(index, `the demo's words past one clip (${DEMO_CLIP_MAX_S} s)`, `the presenter's usual take on the last ${demoEnds.get(index)! - end} words`);
+            }
+            const wider = shotFramingOf(beat.shot_size, framing), demo = { ...product, demo: product.demo };
+            const shot: UgcLiveShot = { id: `ref-${index + 1}-shot`, kind: 'action', anchor: { startWord: span.start, endWord: end },
+                action: demo.demo.map(step => step.action.replace(/[.!?]+$/u, '')).join(', then '), ...holding, ...wider ? { framing: wider } : {},
+                ...request.cast ? { cast: request.cast } : {}, shot: demoShot(demo, Math.ceil(((end - span.start) * duration) / words.length)) };
+            const last = Math.max(index, ...[...joined].filter(([, head]) => head === index).map(([at]) => at));
+            return [{ beat: index, words: end - span.start, shot, demo: last }];
+        }
+        if (joined.has(index) && product?.demo) return [];
         if (beat.presenter_behaviour !== 'speaking' && beat.presenter_behaviour !== 'reacting') return [];
         if (request.live_shots === undefined && !beat.gestures?.length) return [];
         // Beats sharing one span of words take one shot, and a call never opens inside a shot's words.
         if (onScreen.slice(0, at).some(entry => spans[entry.beat]!.start === span.start) || (call && resumeAt! > span.start && resumeAt! < span.end)) return [];
         if (layers.some(layer => covers(layer) && meets(layer, span.start, span.end))) return [];
-        const action = [...new Set([...beat.gestures ?? []].sort((a, b) => a.at_s - b.at_s).flatMap(entry => GESTURE_ACTIONS[entry.kind] ?? []))].join(', then ');
+        const action = [...new Set([...beat.gestures ?? []].sort((a, b) => a.at_s - b.at_s).flatMap(entry => gestureAction(entry.kind, product) ?? []))].join(', then ');
         const acted = beat.presenter_behaviour === 'reacting' || !!action;
         const wider = shotFramingOf(beat.shot_size, framing);
-        // The request's cast stands beside the actor in every acting shot (#1192): those shots share one setup, so one cast.
+        // The request's cast stands beside the actor in every acting shot (#1192): those shots share one setup, so one cast; so does the product.
         const shot: UgcLiveShot = { id: `ref-${index + 1}-shot`, anchor: { startWord: span.start, endWord: span.end },
             ...beat.presenter_behaviour === 'reacting' ? { kind: 'action' as const, action: action || REACTION }
                 : action ? { kind: 'talking_action' as const, action } : { kind: 'talking' as const },
-            ...acted && wider ? { framing: wider } : {}, ...acted && request.cast ? { cast: request.cast } : {} };
-        return [{ beat: index, words: span.end - span.start, shot }];
+            ...acted && wider ? { framing: wider } : {}, ...acted && request.cast ? { cast: request.cast } : {}, ...acted ? holding : {} };
+        return [{ beat: index, words: span.end - span.start, shot, demo: undefined as number | undefined }];
     });
     const kept = new Set([...wanted].sort((a, b) => b.words - a.words || a.beat - b.beat).slice(0, MAX_LIVE_SHOTS));
+    /** Each demo clip's layer, with the last reference beat it shows. */
+    const demos = new Map<Layer, number>();
     for (const entry of wanted) {
         const { beat, shot } = entry;
         if (!kept.has(entry)) {
@@ -1221,6 +1333,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
             moves.set(layer, { keys: ['transition'], added: [{ beat_index: beat,
                 what: `${lookName(look!)} on the cuts into and out of the hook's live shot (beat ${beat + 1})` }] });
         }
+        if (entry.demo !== undefined) demos.set(layer, entry.demo);
         layers.push(layer);
     }
     const soundsOn = longForm && !['warned', 'rejected', 'stored'].includes(executor?.field_dispositions.edit_sounds ?? '');
@@ -1257,10 +1370,11 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         note(0, `narration pace ${pace.target_wps} words/s of the reference presenter (speed ${pace.wanted} wanted)`,
             `voice_pace ${pace.voice_pace}, the end of the speed range: the narration may run ${pace.wanted > pace.voice_pace ? 'slower' : 'faster'} than the reference`);
     }
-    // Speed first, then the residual: pauses longer than the presenter's word-gap medians are cut in silence only.
+    // Speed first, then pauses past the presenter's word-gap medians are cut; the request's own win, as a reference's gaps may be a song's (#1308).
     // A remake is an ad: without the reference's own pauses it takes the ad-style default (#1136).
-    const pauseTrim = pauseTrimFromVoice(profile.voice), pauseTargets = pauseTrim?.targets ?? { ...AD_PAUSE_TRIM };
-    if (!pauseTrim?.targets) note(0, 'narration pauses (the reference presenter\'s pauses were not measured)',
+    const pauseTrim = request.pause_trim === undefined ? pauseTrimFromVoice(profile.voice) : undefined;
+    const pauseTargets = request.pause_trim ?? pauseTrim?.targets ?? { ...AD_PAUSE_TRIM };
+    if (request.pause_trim === undefined && !pauseTrim?.targets) note(0, 'narration pauses (the reference presenter\'s pauses were not measured)',
         `pause_trim ${AD_PAUSE_TRIM.sentence_end_s} s after a sentence and ${AD_PAUSE_TRIM.comma_s} s after a comma, the default for an ad`);
     for (const { key, median_s } of pauseTrim?.capped ?? []) {
         note(0, `narration pauses ${key} ${Math.round(median_s * 100) / 100} s of the reference presenter`,
@@ -1301,10 +1415,11 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         const field = (name: Layer['field']) => { const items = layers.filter(layer => layer.field === name).map(layer => layer.item); return items.length ? { [name]: items } : {}; };
         native = { script, actor_id: request.actor_id, ...(framing !== 'close' ? { presenter_framing: framing } : {}), ...(mic ? { presenter_mic: true } : {}),
             ...(request.voice ? { voice: request.voice } : {}), ...(request.voice_id ? { voice_id: request.voice_id } : {}),
-            ...(pace.kind === 'paced' && !fixedPace ? { voice_pace: pace.voice_pace } : {}), ...(pauseTargets ? { pause_trim: pauseTargets } : {}),
+            ...(pace.kind === 'paced' && !fixedPace ? { voice_pace: pace.voice_pace } : {}), pause_trim: pauseTargets,
             ...(profile.captions.present ? { captions: true, caption_style: captionStyle, ...(captionsPlaced ? { caption_position: captionPosition } : {}) } : {}),
             ...field('caption_emphasis'), ...field('templates'), ...field('scenes'), ...field('overlays'), ...field('inserts'), ...field('layout_windows'), ...field('framing'),
-            ...(call ? { call } : {}), ...field('shots') };
+            ...(call ? { call } : {}), ...field('shots'),
+            ...product && layers.some(layer => layer.field === 'shots' && (layer.item as UgcLiveShot).product) ? { product_asset_id: product.asset_id } : {} };
         // Cut sounds only when the client asks: on a remake they sounded too loud on every cut (#1076).
         if (request.edit_sounds === true && soundsOn && cutToSound()) native.edit_sounds = true;
         if (request.music !== undefined && musicOn) native.music = request.music;
@@ -1423,6 +1538,13 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         }
         break;
     }
+    if (product && !native.product_asset_id) {
+        note(0, `your product ${product.asset_id} in the presenter's ${product.placement === 'hand' ? 'hand' : 'shots'}`, `not shown: no live shot acts on this plan ` +
+            `(${!shotsOn ? 'live shots are not available here' : request.live_shots === false ? 'live_shots is false' : 'no beat of the reference acts, and no product.demo'})`);
+    } else if (product) {
+        note(0, `your product in every talking second`, 'only in the live shots: the usual take shows the actor as the actor view does; an actor view ' +
+            'holding it (create_actor holding) shows it throughout');
+    }
     if (request.cast && !layers.some(layer => layer.field === 'shots' && (layer.item as UgcLiveShot).cast)) {
         note(0, `your cast (${request.cast.map(person => person.role).join(', ')})`, 'not drawn: the plan has no acting live shot, where the reference presenter gestures or reacts');
     }
@@ -1438,7 +1560,9 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         ...native.edit_sounds ? [`a sound on every cut, as you asked${motion.sounded.length ? `; the reference has a whoosh or a click on beats ${sounded}` : ''}`] : [],
         ...native.music ? [`music under the voice, as you asked${music >= 0 ? '; the reference has a music bed' : ''}`] : [],
         ...native.shots ? [`live shots of the presenter on beats ${beatsOf(layers.filter(layer => layer.field === 'shots').map(layer => layer.beat))}, as you asked; ` +
-            'each shot kind bills its own presenter-second price'] : []];
+            'each shot kind bills its own presenter-second price'] : [],
+        ...[...demos].filter(([layer]) => layers.includes(layer)).map(([layer, last]) => `the demo on beats ${layer.beat + 1}${last > layer.beat ? `–${last + 1}` : ''}: ` +
+            `one live shot of the presenter using your ${product!.name}, from a first frame with it ${product!.placement === 'hand' ? 'in hand' : 'beside them'}`)];
     // Every place the compiler chose for an unpinned asset is named (#1170): the line its name matches, else its order in assets.
     const shownBy = (asset: Asset) => layers.find(layer => JSON.stringify(layer.item).includes(`"${asset.asset_id}"`));
     for (const { asset, beat } of guessed.filter(entry => entry.how === 'name' && shownBy(entry.asset))) {

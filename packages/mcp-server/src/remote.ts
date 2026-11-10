@@ -3,6 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { ClipwrightClient } from "@clipwright/sdk";
+import { isOwnAgentEnabled } from "@clipwright/core";
 
 import { createServer, type CreateServerOptions } from "./server.js";
 
@@ -25,7 +26,7 @@ export async function listTools(options: CreateServerOptions): Promise<Tool[]> {
 
 /** Answers one POST of Streamable HTTP without a session, in JSON, with a server that reads no files; `parsedBody` skips a second parse. */
 export async function handleRemoteRequest(client: ClipwrightClient, request: Request, parsedBody?: unknown): Promise<Response> {
-  const server = createServer(client, { fileAccess: "refuse" });
+  const server = createServer(client, { fileAccess: "refuse", ownAgent: isOwnAgentEnabled(process.env) });
   // No `sessionIdGenerator`: the SDK's stateless mode, which issues no session id and checks none.
   const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true });
   await server.connect(transport);

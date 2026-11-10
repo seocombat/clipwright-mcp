@@ -92,6 +92,7 @@ import {
 import { formatGetRun, type McpToolResponse, RUN_WAIT_MAX_SECONDS, withFailureReport } from "./format.js";
 import { facelessQuoteMarkdown, RUN_DISPLAY_HINT, ugcQuoteMarkdown } from "./run-display.js";
 import { registerWorkflowTools } from './workflow-tools.js';
+import { registerFilmDraftTools } from "./film-tools.js";
 import { advertiseSlimTools, describeTool } from "./advertised-schema.js";
 import { answerInvalidArguments } from "./invalid-arguments.js";
 
@@ -113,6 +114,8 @@ const packageVersion = (): string =>
 export interface CreateServerOptions {
   /** `local` reads the caller's files (stdio); `refuse` is a remote server, where a path names a file on another machine. */
   fileAccess: "local" | "refuse";
+  /** Lists the «own agent» film tools (#1291 F2); off until the mode launches, so the public tool list stays as it is. */
+  ownAgent?: boolean;
 }
 
 /** What `upload_image` answers a path on a server that reads no files; the tool list stays the same on both transports. */
@@ -230,6 +233,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   const server = new McpServer({ name: "clipwright", version: packageVersion() }, { instructions: MCP_SERVER_INSTRUCTIONS });
   answerInvalidArguments(server);
   registerWorkflowTools(server, client);
+  if (options.ownAgent === true) registerFilmDraftTools(server, client);
 
   // tools/list publishes the full schema; an empty schema leaves agents guessing.
   server.registerTool(
@@ -417,6 +421,15 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     "the people and works in it), {run_id} of a succeeded generate_image run of this account until its reusable_until, " +
     `or {asset_id} of a picture asset from create_asset, whose rights were confirmed when it was made. ${closedTerms}`;
   const generationTerms = `${generationCharge} ${REPEAT_TEXT("attempt 2")}`;
+  const shotGuide =
+    "Pass prompt, or shot to describe the clip as a shot. Write the first frame as start_state, and declare every object the clip " +
+    "shows in subject.objects with its exact count and where it is at the start. Split duration_s into beats of 1 to 5 seconds that " +
+    "cover every second: one action per beat, done once, written as cause, contact and result (a fingertip dips into the jar once " +
+    "and lifts a small dab), and an end_state saying what the frame shows when the beat ends (a dab sits on the fingertip). A " +
+    "change runs toward a stated end (the dab thins and sinks in; the cheek glows), and a still beat owns the last seconds, so " +
+    "the action is not repeated. Write every field as what is visible, \"her fingertips are clean\", never as an absence: no, " +
+    "not, never, without and the like are refused. For a sequence, pass the previous clip's continuity.end_state as continues_from " +
+    "and repeat light word for word. A shot that breaks a rule is refused before any charge.";
   // Strict objects: an unknown key is refused at the tool, not stripped. The clip's mode rules run in the handler.
   const imageTool = generateImageRequest, imageRunTool = generateImageRequest.extend(agentRetryShape);
   const videoTool = z.strictObject(generateVideoRequest.shape), videoRunTool = videoTool.extend(agentRetryShape);
@@ -473,7 +486,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "Price one generate_video call WITHOUT spending credits: its credits (unit_credits per second of duration_s), " +
-        `its width and height, and warnings. A reference is as quote_image states it. ${closedTerms}`,
+        `its width and height, and warnings. ${shotGuide} A reference is as quote_image states it. ${closedTerms}`,
       inputSchema: videoTool,
     },
     async (args) => withFailureReport(async () => ({
@@ -487,7 +500,8 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Generate a clip",
       annotations: { readOnlyHint: false, destructiveHint: false },
       description: withPriceLine("generate_video",
-        "Generate one silent clip (paid): a NEW run of skill generate_video, charged unit_credits per second of duration_s " +
+        "Generate one silent clip from a prompt or a shot, as quote_video explains (paid): a NEW run of skill generate_video, " +
+        "charged unit_credits per second of duration_s " +
         "once it is delivered. Modes: text; first_frame (first_frame, optional last_frame, of the requested aspect ratio " +
         "within 2%); reference (1 to 4 references). Poll get_run; once it succeeded, generation.url is the clip. " + generationTerms),
       inputSchema: videoRunTool,

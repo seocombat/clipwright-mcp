@@ -201,13 +201,26 @@ describe("display_markdown on quotes and finished runs (#1000)", () => {
 
     /** #1291 E5. Mutant: the film row labelled as seconds of story and render, or its price left out of the rows. */
     it.each([[true, 63 + 620], [false, 620]])("quote_faceless of a 75 s skill explainer (character %s) names its film row and sums to %i", (character, total) => {
-      const quote = { ...quoteFaceless({ outputFrames: 1875, captions: true, explainer: { character, film: true } }), skill: "make_faceless" as const,
+      const quote = { ...quoteFaceless({ outputFrames: 1875, captions: true, explainer: { character, film: "skill-explainer-v1" } }), skill: "make_faceless" as const,
         warnings: [], contract_version: "2026-11-02" };
       const shown = facelessQuoteMarkdown(quote);
       expect([quote.totalCredits, rowsSum(shown), headerTotal(shown)]).toEqual([total, total, total]);
       expect(shown).toContain("| Explainer film (up to 60 s, then 8 a second) | 75 s | 620 |");
       expect(shown).not.toContain("Story, voice and render");
     });
+
+    /** #1291 F4. Mutants: the film row priced at another level's second; the other level's total hidden; a model named on the quote. */
+    it.each([["standard", "skill-agent-sonnet-v2", 12], ["pro", "skill-agent-opus-v1", 20]] as const)("quote_faceless of a %s explainer names its level's second and both totals",
+      (tier, film, perSecond) => {
+        const at = (tariff: "skill-agent-sonnet-v2" | "skill-agent-opus-v1") => quoteFaceless({ outputFrames: 1875, captions: true, explainer: { character: true, film: tariff } });
+        const quote = { ...at(film), skill: "make_faceless" as const, warnings: [], contract_version: "2026-11-02",
+          explainer_tiers: { tier, standard: at("skill-agent-sonnet-v2").totalCredits, pro: at("skill-agent-opus-v1").totalCredits } };
+        const shown = facelessQuoteMarkdown(quote);
+        expect([rowsSum(shown), headerTotal(shown)]).toEqual([quote.totalCredits, quote.totalCredits]);
+        expect(shown).toContain(`| Explainer film, ${tier} (up to 60 s, then ${perSecond} a second) | 75 s |`);
+        expect(shown).toContain(`standard ${63 + 700 + 15 * 12} credits · pro ${(63 + 1200 + 15 * 20).toLocaleString("en-US")} credits`);
+        expect(shown).not.toMatch(/sonnet|opus|agent/i);
+      });
 
     /** #1277. Mutant: the pictures of the things the script names left out of the rows, so they miss the total. */
     it("lists an explainer's object pictures as a row the total adds up", () => {

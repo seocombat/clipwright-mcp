@@ -456,6 +456,19 @@ exceed `credits_estimate`. `make_faceless` charges the delivered length and neve
 more than its quote. Read `credits_charged` on the finished run: it is `null`
 until the run settles, while `credits_reserved` holds the reserve. Checked 2026-10-31.
 
+**An explainer film comes in two tiers, and any account can order it.**
+`make_faceless` with `format: "explainer"` takes `tier`: `standard` (the
+default) is 700 credits for a film up to 60 seconds plus 12 for each second
+over; `pro` is 1200 plus 20, with more careful direction and richer scenes. A
+hero you name, or one drawn to fit the script, adds its 9 pose pictures at 7
+each; a saved mascot adds none. `quote_faceless` answers both totals in
+`explainer_tiers`: show them and let the user pick. A film takes about half an
+hour. One film runs at a time per account: a second one is refused with
+`explainer_busy` (429), and when every film slot is busy a new one is refused
+with `explainer_busy` (503). Both come before any credits are reserved, and
+`Retry-After` says how many seconds to wait; try again then.
+`tier` on any other format is refused.
+
 **The price field has a different name in each quote.** `credits_estimate` in
 `quote_ugc`, `quote_actor` and `quote_analysis`; `credits` in `quote_image`,
 `quote_video` and `quote_candidate`; `totalCredits` in `quote_faceless`;

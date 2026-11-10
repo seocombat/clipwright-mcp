@@ -22,7 +22,14 @@ const options = {
   allow_face: z.literal(true).optional().describe("Cover the presenter's face on purpose; without it a box on the face is refused."),
 };
 
-export const placeFrame = z.strictObject({ relative_to: z.literal("frame"),
+/** The place's forms, one text for every layer that takes a place (#1327): the MCP descriptions and the refusal of a wrong shape say it. */
+export const PLACE_FORMS = "{relative_to:\"frame\",rect:{left,top,width,height}} in frame shares (relative_to may be omitted); " +
+  "{relative_to:\"face\",rect} with origin the face centre and unit the face height; or {relative_to:\"face\"|\"captions\"|{layer:id}," +
+  "side:below|above|left|right|over,width|height,size_unit?:frame|face,gap?,align?}; fit?:contain|cover; allow_face?:true. " +
+  "Example: {\"rect\":{\"left\":0.1,\"top\":0.62,\"width\":0.8,\"height\":0.1}}.";
+
+/** A rect with no `relative_to` is on the frame: nothing else could mean it (#1327). */
+export const placeFrame = z.strictObject({ relative_to: z.literal("frame").default("frame"),
   rect: z.strictObject({ left: share, top: share, width: span, height: span }).describe("In shares of the frame's width and height."), ...options });
 export const placeFace = z.strictObject({ relative_to: z.literal("face"),
   rect: faceUnitsRect.describe("Origin the presenter's face centre, unit the face height, on both axes."), ...options });
@@ -38,7 +45,7 @@ export const placeNextTo = z.strictObject({
   ...options,
 }).refine(item => item.width !== undefined || item.height !== undefined, { message: "pass width, height or both", path: ["width"] });
 /** Where an overlay is drawn instead of a preset position; no rule moves it. */
-export const place = z.union([placeFrame, placeFace, placeNextTo]);
+export const place = z.union([placeFrame, placeFace, placeNextTo], { error: `place takes ${PLACE_FORMS}` });
 export type Place = z.infer<typeof place>;
 export type PlaceNextTo = z.infer<typeof placeNextTo>;
 

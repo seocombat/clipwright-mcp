@@ -1,0 +1,162 @@
+import { describe, expect, it } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { parseApiFailure, putFilmFilesInput, type FilmRun } from "@clipwright/core";
+import type { ClipwrightClient } from "@clipwright/sdk";
+import { listTools } from "./remote.js";
+import { ClipwrightApiError } from "@clipwright/sdk";
+import { ownAgentOpenFor, registerFilmDraftTools, stillImages, waitForFilmRun } from "./film-tools.js";
+
+// #1291 F2, #1337: the «own agent» film tools are listed only where the mode is offered, so the public tool list is unchanged before launch.
+
+const FILM_TOOLS = ["create_film_draft", "get_film_draft", "get_film_guide", "get_film_kit", "get_film_run", "make_film_hero", "make_voice", "preview_stills",
+  "put_film_files", "quote_film_hero", "quote_render", "quote_stills", "quote_voice", "render_film"];
+
+describe("the film tools (#1291 F2, #1337)", () => {
+  /** Mutant: register them unconditionally, and every client sees tools the API refuses. */
+  it("are listed with the mode on and absent with it off", async () => {
+    const off = (await listTools({ fileAccess: "refuse" })).map(tool => tool.name);
+    expect(off.filter(name => FILM_TOOLS.includes(name))).toEqual([]);
+    const on = (await listTools({ fileAccess: "refuse", ownAgent: true })).map(tool => tool.name);
+    expect(on.filter(name => FILM_TOOLS.includes(name)).sort()).toEqual(FILM_TOOLS);
+    expect(on.length).toBe(off.length + FILM_TOOLS.length);
+  });
+
+  it("offer the draft's schema: a draft id, a base revision and the sound markup", async () => {
+    const put = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(tool => tool.name === "put_film_files")!;
+    expect(put.inputSchema.required).toEqual(expect.arrayContaining(["draft_id", "base_revision"]));
+    expect(Object.keys(put.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["files", "cues", "sfx", "captions"]));
+  });
+
+  /** #1356. Mutants: a film tool whose listed text does not send the agent to the guide, or a guide tool that does not say to read it first. */
+  it("send the agent to get_film_guide from every other film tool, and the guide says to read it first", async () => {
+    const tools = (await listTools({ fileAccess: "refuse", ownAgent: true })).filter(tool => FILM_TOOLS.includes(tool.name));
+    for (const tool of tools.filter(t => t.name !== "get_film_guide")) expect(tool.description, tool.name).toMatch(/get_film_guide/);
+    expect(tools.find(t => t.name === "get_film_guide")!.description).toMatch(/^Free\. Read this first/);
+  });
+
+  /** #1356 C4. Mutants: a schema or a tool text that says only "replaces", and the agent resends every anchor, sound and caption on each patch. */
+  it("say that cues, sfx and captions left out of a patch keep the draft's", async () => {
+    const put = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(tool => tool.name === "put_film_files")!;
+    // Field guidance is describe_tool's and the REST schema's: both read it from core.
+    for (const field of ["cues", "sfx", "captions"] as const) expect(putFilmFilesInput.shape[field].description, field).toMatch(/omitted, the draft's stay/);
+    expect(put.description).toMatch(/cues, sfx and captions[^.]*omitted[^.]*kept/);
+  });
+
+  /** #1356 C4. Mutant: the tool fills an omitted field with an empty one, and REST and MCP disagree about what a patch keeps. */
+  it("put_film_files forwards only the fields the agent sent", async () => {
+    const sent: unknown[] = [];
+    const api = { putFilmFiles: async (_id: string, change: unknown) => { sent.push(change); return {}; } };
+    const server = new McpServer({ name: "film-test", version: "0.0.0" });
+    registerFilmDraftTools(server, api as unknown as ClipwrightClient);
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair(), client = new Client({ name: "film-test", version: "0.0.0" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    try { await client.callTool({ name: "put_film_files", arguments: { draft_id: `fdr_${"a".repeat(32)}`, base_revision: 2, files: { "Movie.tsx": "b" } } }); }
+    finally { await client.close(); }
+    expect(sent).toEqual([{ base_revision: 2, files: { "Movie.tsx": "b" } }]);
+  });
+});
+
+const run = (state: string, over: Partial<FilmRun> = {}): FilmRun => ({ run_id: "run_s", skill: "film_stills", state, credits_reserved: 6, credits_charged: null,
+  warnings: [], error: null, created_at: "2026-11-09T12:00:00.000Z", finished_at: null, ...over });
+
+/** Each run tool as an MCP client calls it: the registered handler, a fake API behind it. */
+async function callFilmTool(name: string, args: Record<string, unknown>, reads: FilmRun[], started: FilmRun) {
+  const api = { previewStills: async () => started, makeVoice: async () => started, renderFilm: async () => started, makeFilmHero: async () => started,
+    getFilmRun: async () => reads.shift()! };
+  const server = new McpServer({ name: "film-test", version: "0.0.0" });
+  registerFilmDraftTools(server, api as unknown as ClipwrightClient, { pollMs: 0, sleep: async () => undefined,
+    fetchImpl: (async () => new Response(new Uint8Array([7]))) as unknown as typeof fetch });
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair(), client = new Client({ name: "film-test", version: "0.0.0" });
+  await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+  try { return (await client.callTool({ name, arguments: args })).content as { type: string; text?: string }[]; }
+  finally { await client.close(); }
+}
+
+describe("the run tools as a client calls them (#1337)", () => {
+  const drawn = run("succeeded", { stills: { frames: [{ at: 1, seconds: 1, frame: 30, image_url: "https://r2.test/f1.png", findings: [] }],
+    sheet_url: null, refusals: [] } });
+  /** Codex r1. Mutants: answer preview_stills or make_voice without waiting, and the agent gets a queued run and no pictures. */
+  it("preview_stills and make_voice wait for their run and answer what it delivered", async () => {
+    const stills = await callFilmTool("preview_stills", { draft_id: `fdr_${"a".repeat(32)}`, revision: 1, voice_run_id: "run_v1", at: [1] },
+      [run("generating"), drawn], run("queued"));
+    expect([JSON.parse(stills[0]!.text!).state, stills.map(c => c.type)]).toEqual(["succeeded", ["text", "image"]]);
+    const voice = await callFilmTool("make_voice", { text: "Hello there." }, [run("succeeded", { skill: "film_voice" })], run("queued", { skill: "film_voice" }));
+    expect(JSON.parse(voice[0]!.text!).state).toBe("succeeded");
+  });
+
+  /** Mutant: wait on a render, which takes minutes, past the agent's tool timeout. */
+  it("render_film answers at once with the call to poll", async () => {
+    const film = await callFilmTool("render_film", { draft_id: `fdr_${"a".repeat(32)}`, revision: 1, voice_run_id: "run_v1" }, [],
+      run("queued", { skill: "film_render" }));
+    expect(JSON.parse(film[0]!.text!).poll).toEqual({ tool: "get_film_run", arguments: { run_id: "run_s" }, retry_after_seconds: 5 });
+  });
+
+  /** #1356. Mutants: wait on nine pose pictures past the tool timeout, or offer a hero tool with nothing to draw it from. */
+  it("make_film_hero answers at once with the call to poll, and its schema names every source of the hero", async () => {
+    const hero = await callFilmTool("make_film_hero", { character_details: "A round mint cactus" }, [], run("queued", { skill: "film_hero" }));
+    expect(JSON.parse(hero[0]!.text!).poll).toEqual({ tool: "get_film_run", arguments: { run_id: "run_s" }, retry_after_seconds: 5 });
+    const tools = await listTools({ fileAccess: "refuse", ownAgent: true });
+    for (const name of ["quote_film_hero", "make_film_hero"]) {
+      const tool = tools.find(t => t.name === name)!;
+      expect(Object.keys(tool.inputSchema.properties ?? {}).sort()).toEqual(["character_details", "character_reference", "script", "voice_run_id"]);
+      expect(tool.inputSchema.required ?? []).toEqual([]);
+    }
+    expect(tools.find(t => t.name === "make_film_hero")!.description).toMatch(/per pose published.*mascot_id/s);
+  });
+});
+
+describe("a stills run as pictures (#1337)", () => {
+  /** Mutant: answer before the run ends, and the agent gets no pictures to look at. */
+  it("waits for the run to end, then returns each still as a picture", async () => {
+    const reads = [run("generating"), run("succeeded", { stills: { frames: [1, 2].map(i => ({ at: i, seconds: i, frame: i * 30,
+      image_url: `https://r2.test/f${i}.png`, findings: [] })), sheet_url: null, refusals: [] } })];
+    const done = await waitForFilmRun({ getFilmRun: async () => reads.shift()! }, run("queued"), { pollMs: 0, sleep: async () => undefined });
+    expect(done.state).toBe("succeeded");
+    const fetched: string[] = [];
+    const images = await stillImages(done, (async (url: string) => { fetched.push(url); return new Response(new Uint8Array([7])); }) as unknown as typeof fetch);
+    expect([fetched, images.map(i => i.mimeType)]).toEqual([["https://r2.test/f1.png", "https://r2.test/f2.png"], ["image/png", "image/png"]]);
+  });
+
+  /** Mutant: send every still when a sheet was asked, and the agent's context takes six pictures for one. */
+  it("sends the sheet alone when there is one, and nothing for a refused revision", async () => {
+    const sheet = run("succeeded", { stills: { frames: [{ at: 1, seconds: 1, frame: 30, image_url: "https://r2.test/f1.png", findings: [] }],
+      sheet_url: "https://r2.test/sheet.png", refusals: [] } });
+    const fetchImpl = (async () => new Response(new Uint8Array([1]))) as unknown as typeof fetch;
+    expect((await stillImages(sheet, fetchImpl)).length).toBe(1);
+    expect(await stillImages(run("failed", { stills: { frames: [], sheet_url: null, refusals: ["Movie.tsx:1: x"] } }), fetchImpl)).toEqual([]);
+  });
+});
+
+// #1356: the stdio bin lists the film tools only when the API opens them to the key. Mutant: always true or always false turns a case red.
+describe("ownAgentOpenFor (#1356)", () => {
+  const refused = (status: number) => new ClipwrightApiError(parseApiFailure({ status, bodyText: "{}", retryAfterHeader: null }));
+  it("says yes when the guide answers", async () => {
+    const log: string[] = [];
+    expect(await ownAgentOpenFor({ getFilmGuide: async () => ({}) as never }, l => log.push(l))).toBe(true);
+    expect(log).toEqual([]);
+  });
+  it("says no, silently, when the API refuses the key", async () => {
+    const log: string[] = [];
+    expect(await ownAgentOpenFor({ getFilmGuide: async () => { throw refused(404); } }, l => log.push(l))).toBe(false);
+    expect(log).toEqual([]);
+  });
+  it("says no with one stderr line when the API is unreachable", async () => {
+    const log: string[] = [];
+    expect(await ownAgentOpenFor({ getFilmGuide: async () => { throw new TypeError("fetch failed"); } }, l => log.push(l))).toBe(false);
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatch(/no usable answer/);
+  });
+  /** Mutants: a 5xx counts as "closed" silently, or the line carries the error's message with the key in it. */
+  it("says no with one fixed line on a 5xx, and never prints the key or the body", async () => {
+    const log: string[] = [];
+    const failure = new ClipwrightApiError(parseApiFailure({ status: 503, bodyText: "Bearer cw_secretkey\nsecond line", retryAfterHeader: null }));
+    failure.message = "Bearer cw_secretkey\nsecond line";
+    expect(await ownAgentOpenFor({ getFilmGuide: async () => { throw failure; } }, l => log.push(l))).toBe(false);
+    expect(log).toHaveLength(1);
+    expect(log[0]).toContain("HTTP 503");
+    expect(log[0]).not.toContain("cw_secretkey");
+    expect(log[0]).not.toContain("\n");
+  });
+});

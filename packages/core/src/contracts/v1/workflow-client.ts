@@ -37,7 +37,8 @@ export const WORKFLOW_TOOL_DESCRIPTIONS = {
         'Turn each note about a shot into fields: a picture on a line is that asset\'s anchor (words of the script); a graphic on a line, or none there, is a line_edits item ' +
         '(quote, and template with kind and data as make_ugc templates; without template the reference\'s graphic on those words goes). ' +
         'Your own picks from list_moves go in moves, never in line_edits; a move on words whose line edit sets a graphic is not drawn. The plan is built from this call ' +
-        'alone, so pass every anchor, line edit and move again on each revision.',
+        'alone, so pass every anchor, line edit and move again on each revision. A note changes nothing by itself: pauses go in pause_trim, the product in the ' +
+        'actor\'s hand in product, and the reference\'s demo of it in product.demo; warnings name each note a revision did not apply.',
     get_workflow_plan: 'Read the current account-owned plan, revision, content digest, readiness issues and warnings. Free and read-only. The document is intent; it is not a delivered video or creative acceptance.',
     approve_workflow_plan: 'Explicitly approve the chosen plan revision and content_digest. Free; it stores approval but starts no run. Read all issues and warnings first. Take revision and content_digest from the plan answer. Approval is separate from a quote and a paid launch.',
     quote_workflow_plan: 'Quote the approved current plan without spending credits. Free and read-only. Show the native price and every warning before requesting a paid launch. The returned quote_id expires and binds the exact revision and semantic input. Its launch is the ready run_workflow_plan body, with a fresh idempotency_key.',

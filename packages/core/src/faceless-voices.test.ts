@@ -10,6 +10,7 @@ import {
   facelessDefaultVoiceName,
   facelessEstimatedSeconds,
   facelessSpeechWordsPerSecond,
+  FACELESS_MEASURED_CHARACTERS_PER_SECOND,
   FACELESS_MEASURED_WORDS_PER_SECOND,
   FACELESS_SPEECH_MODEL,
   FACELESS_VOICE_NAMES,
@@ -307,12 +308,29 @@ describe("the pace a faceless script's length is estimated at (#1275)", () => {
     expect(facelessSpeechWordsPerSecond({ script: english(10), voice: "not-a-voice" })).toBe(3.095);
   });
 
-  // #1275 checks: 192 English words with the explainer default are admitted at about 53 s; with a 2.6 w/s voice they stay past the 65 s bound.
-  it("estimates 192 English explainer words at 53 s, 74 s with a 2.6 words/s voice, and 150 Turkish words at 62 s", () => {
-    expect(facelessEstimatedSeconds({ script: english(192), format: "explainer" })).toBe(53);
+  // #1275 checks, on characters since #1356: 192 English words (959 characters) with the explainer default are admitted at about 54 s;
+  // with an unmeasured voice they stay on 2.6 words a second, past the 65 s bound; 150 Turkish words are 899 characters.
+  it("estimates 192 English explainer words at 54 s, 74 s with an unmeasured voice, and 150 Turkish words at 56 s", () => {
+    expect(facelessEstimatedSeconds({ script: english(192), format: "explainer" })).toBe(54);
     expect(facelessEstimatedSeconds({ script: english(192), format: "explainer", voice: es })).toBe(74);
-    expect(facelessEstimatedSeconds({ script: turkish(150), format: "explainer" })).toBe(62);
-    expect(Math.round(150 / 2.6)).toBe(58);
+    expect(facelessEstimatedSeconds({ script: turkish(150), format: "explainer" })).toBe(56);
+  });
+
+  // #1356: the default narrator's measured takes, prod and lab. Words at 3.095 a second read prod scripts (5.2 to 5.4 characters a word)
+  // 1.3 to 3.8 s short; characters hold every take within 1.4 s. Mutant: the estimate back on words fails the 81-word, 30 s take.
+  it("estimates every measured take of the default narrator within 1.4 s, on its characters", () => {
+    const file = JSON.parse(readFileSync("docs/assets/measurements/faceless-default-narrator-takes-2026-11-10.json", "utf8")) as
+      { voice: string; rows: Array<{ words: number; characters: number; duration_s: number }> };
+    expect(file.voice).toBe(DEFAULT_FACELESS_VOICE);
+    expect(file.rows).toHaveLength(7);
+    for (const row of file.rows) {
+      const spaces = row.words - 1, letters = row.characters - spaces;
+      const script = Array.from({ length: row.words }, (_, i) =>
+        "x".repeat(Math.floor(letters * (i + 1) / row.words) - Math.floor(letters * i / row.words))).join(" ");
+      expect(Array.from(script).length).toBe(row.characters);
+      expect(Math.abs(facelessEstimatedSeconds({ script }) - row.duration_s), JSON.stringify(row)).toBeLessThanOrEqual(1.4);
+    }
+    expect(FACELESS_MEASURED_CHARACTERS_PER_SECOND[DEFAULT_FACELESS_VOICE]).toBe(15.115);
   });
 
   it("picks the faster Turkish voice for a Turkish explainer and keeps core's table the one the default reads", () => {

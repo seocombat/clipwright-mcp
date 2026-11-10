@@ -31,7 +31,8 @@ export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published, after quote_
   "your assets: from character_reference or character_details, else invented to fit the meaning of script (or of voice_run_id's text). " +
   "A run that publishes no pose charges nothing. Returns at once; call get_film_run until it is succeeded, then pass hero.mascot_id to " +
   "create_film_draft: every later film uses it with no pose made or charged again.";
-export const GET_FILM_RUN_DESCRIPTION = "Free. One stills, voice, render or hero run: its state, credits, warnings and what it delivered.";
+export const GET_FILM_RUN_DESCRIPTION = "Free. One stills, voice, render or hero run: its state, credits, warnings and what it delivered. " +
+  "Waits up to 45 s for an unfinished run to end; call it again while it is still working.";
 export const GET_FILM_GUIDE_DESCRIPTION = "Free. Read this first, before any other film tool: the explainer guide (each step's tool, the rules the " +
   "checks refuse, a whole example film), its method appendix, and the scene kit's files get_film_kit serves.";
 export const GET_FILM_KIT_DESCRIPTION = "Free. The scene kit's sources your film imports as scene-kit, with a reference film (films/espresso-hit): " +
@@ -96,7 +97,16 @@ export async function ownAgentOpenFor(client: Pick<ClipwrightClient, "getFilmGui
   }
 }
 
-export type FilmToolsTiming = { pollMs?: number; sleep?: (ms: number) => Promise<void>; fetchImpl?: typeof fetch };
+/** What a stdio server offers, by the API: the film tools by the guide, the made-for-you explainer by its line on the price list. */
+export async function stdioModes(client: Pick<ClipwrightClient, "getFilmGuide" | "listPrices">, log: (line: string) => void = console.error):
+  Promise<{ ownAgent: boolean; explainer: boolean }> {
+  const explainer = client.listPrices().then(({ prices }) => prices.some(p => p.tool === "make_faceless" && p.variant?.startsWith("explainer") === true),
+    () => { log("clipwright mcp: could not read the price list; starting without the explainer offer"); return false; });
+  const [ownAgent, sold] = await Promise.all([ownAgentOpenFor(client, log), explainer]);
+  return { ownAgent, explainer: sold };
+}
+
+export type FilmToolsTiming ={ pollMs?: number; sleep?: (ms: number) => Promise<void>; fetchImpl?: typeof fetch };
 
 export function registerFilmDraftTools(server: McpServer, client: ClipwrightClient, timing: FilmToolsTiming = {}): void {
   const { fetchImpl, ...wait } = timing;
@@ -147,7 +157,7 @@ export function registerFilmDraftTools(server: McpServer, client: ClipwrightClie
   async (input) => withFailureReport(async () => runAnswer(await client.makeFilmHero(input), fetchImpl)));
   server.registerTool("get_film_run", { title: "Read a film run", annotations: { readOnlyHint: true, destructiveHint: false },
     description: GET_FILM_RUN_DESCRIPTION + GUIDE_FIRST, inputSchema: { run_id: runId } },
-  async ({ run_id }) => withFailureReport(async () => runAnswer(await client.getFilmRun(run_id), fetchImpl)));
+  async ({ run_id }) => withFailureReport(async () => waited(await client.getFilmRun(run_id))));
   server.registerTool("get_film_guide", { title: "Read the film guide", annotations: { readOnlyHint: true, destructiveHint: false },
     description: GET_FILM_GUIDE_DESCRIPTION, inputSchema: {} },
   async () => withFailureReport(async () => ({ content: [text(await client.getFilmGuide())] })));

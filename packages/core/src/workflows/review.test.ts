@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { WORKFLOW_METHODS, capabilityProfile, workflowNativeInput, queryWorkflowMethod, checkWorkflowBrief, validateWorkflowPlan,
-    protectedProductArea, workflowPlanDocument, type CapabilityProfile } from './index.js';
+    protectedProductArea, workflowPlanDocument, WORKFLOW_CHARACTER_REFERENCE_DESCRIPTION, type CapabilityProfile } from './index.js';
+import { buildOpenApiDocument } from '../openapi.js';
 
 const snapshot: CapabilityProfile = { v: 1, content_digest: 'a'.repeat(64), executors: [
     { skill: 'make_ugc', configured: true, qualified: true, enabled: true, profiles: ['ugc-native-v1'], features: ['exact_script', 'actor', 'voice'],
@@ -330,6 +331,21 @@ describe('WF-01 review: native source and tools-list boundaries', () => {
         { id: 'faceless-explainer', native: { skill: 'make_faceless', input: { input_mode: 'script', script: 'Show the item', duration_seconds: 30, scene_images: [{ image_url: 'https://example.com/item.png', anchor: { quote: 'the item' } }] } } },
     ])('refuses every native media URL without a stable workflow binding %#', ({ id, native }) => {
         expect(kinds(checkWorkflowBrief(id, { ...plan(id).brief, script: 'Show the item', native }, snapshot))).toContain('unbound_native_source');
+    });
+    // #1359: a plan's schema text says what its validation does with character_reference: refused, never "in every picture".
+    it('describes character_reference in every plan schema of OpenAPI as the refusal validation gives', () => {
+        const schemas = (buildOpenApiDocument() as { components: { schemas: Record<string, unknown> } }).components.schemas;
+        const found = (node: unknown): string[] => !node || typeof node !== 'object' ? [] : Object.entries(node).flatMap(([key, value]) =>
+            key === 'character_reference' && value && typeof value === 'object' ? [String((value as { description?: unknown }).description)] : found(value));
+        const planSchemas = Object.keys(schemas).filter(name => /Workflow/.test(name) && found(schemas[name]).length);
+        expect(planSchemas).toEqual(expect.arrayContaining(['WorkflowMethod', 'CreateWorkflowPlan', 'SaveWorkflowPlan']));
+        for (const name of planSchemas) for (const text of found(schemas[name])) expect(text, name).toBe(WORKFLOW_CHARACTER_REFERENCE_DESCRIPTION);
+        expect(WORKFLOW_CHARACTER_REFERENCE_DESCRIPTION).toMatch(/refused/);
+        for (const input_mode of ['script', 'brief'] as const) {
+            const input = input_mode === 'script' ? { input_mode, script: 'Show the item', duration_seconds: 30 } : { input_mode, brief: 'Show the item', duration_seconds: 30 };
+            const native = { skill: 'make_faceless', input: { ...input, character_reference: 'https://example.com/person.png' } };
+            expect(kinds(checkWorkflowBrief('faceless-explainer', { ...plan('faceless-explainer').brief, script: 'Show the item', native }, snapshot))).toContain('unbound_native_source');
+        }
     });
     it('requires native long-form qualification before an insert can be considered', () => {
         const document = plan();

@@ -7,6 +7,7 @@ import {
   offeredFacelessInput, offeredFacelessInputShape,
 } from "./faceless-public.js";
 import { EXPLAINER_TIER_TARIFFS, SKILL_FILM_TARIFFS } from "./faceless-price.js";
+import { buildOpenApiDocument } from "./openapi.js";
 import { run } from "./runs.js";
 import { parseSkill } from "./skills.js";
 import * as facelessContracts from "./faceless-public.js";
@@ -162,6 +163,21 @@ describe("faceless shared contracts", () => {
     });
     expect(parsed.faceless_billing?.totalCredits).toBe(350);
   });
+});
+
+// #1359 C1: the field says what each format does with the character, so a standard run's use of it is never a guess.
+it("describes character_reference per format, in customer terms", () => {
+  const text = offeredFacelessInputShape.character_reference.description ?? "";
+  expect(text).toContain("Standard format: the figure is in every picture we generate and in the opening clip; your own scene_images are shown as they are.");
+  expect(text).toContain("Format explainer: the figure is the hero.");
+  expect(text).toContain("a public https image, or a picture you uploaded or saved in your assets.");
+  expect(text).not.toMatch(/flare|fal|seedance|kie|CLIPWRIGHT|reference role/i);
+  // OpenAPI reads the same schema: both branches of MakeFacelessInput carry the very text MCP offers.
+  const schemas = (buildOpenApiDocument() as { components: { schemas: Record<string, { oneOf: { properties: Record<string, { description?: string }> }[] }> } })
+    .components.schemas;
+  const branches = schemas.MakeFacelessInput!.oneOf;
+  expect(branches.length).toBeGreaterThan(1);
+  for (const branch of branches) expect(branch.properties.character_reference?.description).toBe(text);
 });
 
 // #1291 F4 C1/C5. Mutants: tier taken on a picture video; a level the schema does not name; the description's prices retyped instead of read,

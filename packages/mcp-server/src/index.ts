@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ClipwrightClient } from "@clipwright/sdk";
 import { apiBaseUrlFromEnv } from "@clipwright/core";
 import { createServer } from "./server.js";
-import { ownAgentOpenFor } from "./film-tools.js";
+import { stdioModes } from "./film-tools.js";
 
 const apiKey = process.env.CLIPWRIGHT_API_KEY;
 if (!apiKey) {
@@ -19,7 +19,7 @@ try {
 }
 const client = new ClipwrightClient({ apiKey, baseUrl });
 
-const server = createServer(client, { fileAccess: "local", ownAgent: await ownAgentOpenFor(client) });
+const server = createServer(client, { fileAccess: "local", ...await stdioModes(client) });
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

@@ -223,15 +223,26 @@ export const MAKE_UGC_AGENT_PROTOCOL =
 /** The music stop (#1063) is said only where the server offers music, so an agent never asks for a field it refuses. */
 const MUSIC_STOP = isMusicEnabled() ? " Music: ask whether the user wants music under the voice, and show its " +
   "price from the quote; it is off unless asked." : "";
-/** The explainer offer (#1216) likewise only where the server sells the format. */
-const EXPLAINER_OFFER = facelessExplainerEnabled(typeof process === "undefined" ? {} : process.env) ? " For a how-to, how " +
-  "something works, a tool walkthrough, or N mistakes or N ways, offer the explainer (make_faceless, format explainer) beside " +
-  "the remake, with explainer_fit and the price from quote_faceless: both levels, standard and pro (tier), for the user to pick; " +
-  "a film takes about half an hour. Pick its hero per video by meaning: propose two or three " +
-  "characters from the product, its audience or the reels that took off, passed as character_details; reuse one only when the " +
-  "user asks or the brand has its own. A delivered explainer keeps its hero as a mascot (list_assets with mascot true); " +
-  "its id as mascot_id gives the same hero again with no pose pictures made or charged." : "";
-export const MCP_SERVER_INSTRUCTIONS =
+/** The explainer offer (#1216) likewise only where the server sells the format; its second way (#1356) only where the film tools are listed. */
+const EXPLAINER_SOLD = facelessExplainerEnabled(typeof process === "undefined" ? {} : process.env);
+const OWN_WAY = "you write the film yourself, starting with get_film_guide, paid by part (voice, hero poses, stills, render), " +
+  "each part quoted before it is made";
+function explainerOffer(ownAgent: boolean, sold: boolean): string {
+  if (!sold && !ownAgent) return "";
+  const ways = !sold ? ` beside the remake: ${OWN_WAY}; it spends your own model time, about half an hour.`
+    : " (make_faceless, format explainer) beside the remake, with explainer_fit and the price from quote_faceless: both levels, " +
+      "standard and pro (tier), for the user to pick; a film takes about half an hour." + (ownAgent ? ` Offer its second way beside ` +
+      `them: ${OWN_WAY}. It costs fewer credits than a film made for the user, but spends your own model time, about half an hour. ` +
+      "Show both ways with their prices and let the user pick." : "");
+  return " For a how-to, how something works, a tool walkthrough, or N mistakes or N ways, offer the explainer" + ways +
+    " Pick its hero per video by meaning: propose two or three characters from the product, its audience or the reels that took " +
+    "off, passed as character_details; reuse one only when the user asks or the brand has its own. A delivered explainer keeps " +
+    "its hero as a mascot (list_assets with mascot true); its id as mascot_id gives the same hero again with no pose pictures made or charged.";
+}
+/** The text for a server with the film tools listed or not; `explainer` is whether the API sells the format, this environment's flag when omitted. */
+export const mcpServerInstructions = ({ ownAgent, explainer }: { ownAgent: boolean; explainer?: boolean | undefined }): string =>
+  serverInstructions(explainerOffer(ownAgent, explainer ?? EXPLAINER_SOLD));
+const serverInstructions = (offer: string): string =>
   "Clipwright makes short presenter (UGC) videos, faceless narrated videos, single images and silent clips. It renders " +
   "them on its servers and returns the MP4 or image file; it publishes nothing anywhere.\n\n" +
   "tools/list says each tool and field in short. describe_tool answers a tool's full guidance, or one field's, free: read it " +
@@ -258,7 +269,7 @@ export const MCP_SERVER_INSTRUCTIONS =
   "with approve_workflow_plan, then quoted and run. For an ad made with make_ugc directly, pass pause_trim " +
   "{sentence_end_s: 0.15, comma_s: 0.08} and offer a live shot of the actor on its hook (shots: acting, framed wide or full) with its price " +
   "from quote_ugc. plan_reference_remake adds live shots where the reference presenter moves; show them on the quote, and drop them if the " +
-  `user declines. If the user declines the brief, go on as asked.${EXPLAINER_OFFER}\n\n` +
+  `user declines. If the user declines the brief, go on as asked.${offer}\n\n` +
   "Compose the visuals from our catalogue, in a remake and in a direct video alike. Before you compile or quote, read list_moves " +
   "and pick moves by meaning: one for the hook, one for each line of proof (a number, a list, a review) and one for the call to action. " +
   "Show the user each pick on the words it sits on, beside your choice of whom the viewer trusts and where; then pass the picks as " +
@@ -303,6 +314,7 @@ export const MCP_SERVER_INSTRUCTIONS =
   "result, offer to tell Clipwright with send_feedback (free; pass run_id). Send it once the user agrees.\n\n" +
   "End with a short report: the link to each file, its length, the credits charged against the quote, and warnings[] " +
   "word for word. Video links expire after 7 days, so tell the user to download the file.";
+export const MCP_SERVER_INSTRUCTIONS = mcpServerInstructions({ ownAgent: false });
 
 export const MAKE_FACELESS_DESCRIPTION =
   "Start a paid finished faceless video from a script or brief. You select 30–90 seconds; " +

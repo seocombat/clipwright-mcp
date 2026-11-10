@@ -55,6 +55,14 @@ export const FACELESS_MEASURED_WORDS_PER_SECOND: Partial<Record<FacelessVoiceNam
   narrator_tr_confident_woman: 2.418, narrator_tr_mature_man: 2.277,
 };
 
+/** Whole-take characters per second, spaces included, of the same voices. Words vary in length, so a script's length is */
+/** estimated on its characters where the voice has this measure. */
+export const FACELESS_MEASURED_CHARACTERS_PER_SECOND: Partial<Record<FacelessVoiceName, number>> = {
+  narrator_en_wise_lady: 15.115, narrator_en_kind_girl: 15.262, narrator_en_firm_lady: 15.011, narrator_en_gentle_man: 16.232,
+  narrator_en_deep_gentleman: 15.229, narrator_en_storyteller: 13.908, narrator_en_brisk_man: 17.608,
+  narrator_tr_confident_woman: 16.05, narrator_tr_mature_man: 15.118,
+};
+
 /** The voice a run speaks when it names none: an explainer's script is read by the fastest measured voice of its language,
  *  every other format and a language without a measured voice by the default. */
 export function facelessDefaultVoiceName(input: { format?: string | undefined; script?: string | undefined } | undefined): FacelessVoiceName {
@@ -72,15 +80,23 @@ export function facelessDefaultVoiceName(input: { format?: string | undefined; s
 /** The words per second a script's length is estimated at: the measured pace of the voice that will speak it (the named one, else the default for
  *  the format and the script's language), the flat estimate when that voice is unmeasured or reads another alphabet than the script. */
 export function facelessSpeechWordsPerSecond(input: { voice?: string | undefined; format?: string | undefined; script: string }): number {
-  const voice = input.voice !== undefined && isFacelessVoiceName(input.voice) ? input.voice : facelessDefaultVoiceName(input);
-  const alphabet = detectScriptFamily(input.script);
-  const matches = alphabet === "neutral" || alphabet === VOICE_LANGUAGE[FACELESS_VOICES[voice].language].alphabet;
-  return (matches ? FACELESS_MEASURED_WORDS_PER_SECOND[voice] : undefined) ?? estimateWordsPerSecond(input.script);
+  const voice = measuredSpeaker(input);
+  return (voice ? FACELESS_MEASURED_WORDS_PER_SECOND[voice] : undefined) ?? estimateWordsPerSecond(input.script);
 }
 
-/** A faceless script's estimated narration length in seconds at its voice's pace; an estimate, as `estimateDurationSec` is. */
+/** The voice that will speak `input`, when its measures apply: none when it reads another alphabet than the script. */
+function measuredSpeaker(input: { voice?: string | undefined; format?: string | undefined; script: string }): FacelessVoiceName | undefined {
+  const voice = input.voice !== undefined && isFacelessVoiceName(input.voice) ? input.voice : facelessDefaultVoiceName(input);
+  const alphabet = detectScriptFamily(input.script);
+  return alphabet === "neutral" || alphabet === VOICE_LANGUAGE[FACELESS_VOICES[voice].language].alphabet ? voice : undefined;
+}
+
+/** A faceless script's estimated narration length in seconds: its characters at the voice's measured rate, else its words at the */
+/** voice's pace; an estimate, as `estimateDurationSec` is. */
 export function facelessEstimatedSeconds(input: { voice?: string | undefined; format?: string | undefined; script: string }): number {
-  return Math.max(1, Math.round(countWords(input.script) / facelessSpeechWordsPerSecond(input)));
+  const voice = measuredSpeaker(input), perSecond = voice ? FACELESS_MEASURED_CHARACTERS_PER_SECOND[voice] : undefined;
+  const seconds = perSecond ? Array.from(input.script.trim()).length / perSecond : countWords(input.script) / facelessSpeechWordsPerSecond(input);
+  return Math.max(1, Math.round(seconds));
 }
 
 type FacelessVoiceLanguage = (typeof FACELESS_VOICES)[FacelessVoiceName]["language"];

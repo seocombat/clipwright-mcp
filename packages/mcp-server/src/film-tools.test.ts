@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -6,7 +6,7 @@ import { parseApiFailure, putFilmFilesInput, type FilmRun } from "@clipwright/co
 import type { ClipwrightClient } from "@clipwright/sdk";
 import { listTools } from "./remote.js";
 import { ClipwrightApiError } from "@clipwright/sdk";
-import { ownAgentOpenFor, registerFilmDraftTools, stillImages, waitForFilmRun } from "./film-tools.js";
+import { FILM_POLL_MS, FILM_WAIT_MS, ownAgentOpenFor, registerFilmDraftTools, stdioModes, stillImages, waitForFilmRun } from "./film-tools.js";
 
 // #1291 F2, #1337: the «own agent» film tools are listed only where the mode is offered, so the public tool list is unchanged before launch.
 
@@ -93,6 +93,45 @@ describe("the run tools as a client calls them (#1337)", () => {
     expect(JSON.parse(film[0]!.text!).poll).toEqual({ tool: "get_film_run", arguments: { run_id: "run_s" }, retry_after_seconds: 5 });
   });
 
+  /** #1356 C1. Mutant: get_film_run answers an unfinished run at once, and the agent spends a turn on every 5 s of a render. */
+  it("get_film_run waits for an unfinished run, answers a finished one after one read, and says it waits", async () => {
+    const reads = [run("queued"), run("generating"), drawn];
+    const waited = await callFilmTool("get_film_run", { run_id: "run_s" }, reads, run("queued"));
+    expect([JSON.parse(waited[0]!.text!).state, reads.length, waited.map(c => c.type)]).toEqual(["succeeded", 0, ["text", "image"]]);
+    const later = [run("generating")], done = await callFilmTool("get_film_run", { run_id: "run_s" }, [drawn, ...later], run("queued"));
+    expect([JSON.parse(done[0]!.text!).state, later.length]).toEqual(["succeeded", 1]);
+    const tool = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(t => t.name === "get_film_run")!;
+    expect(tool.description).toMatch(/Waits up to 45 s/);
+  });
+
+  /** #1356 C1, Codex r1. Mutants: a longer wait (450 s) runs past the agent's tool timeout; a shorter poll or none reads the run too often or too late. */
+  it("get_film_run on a run that never ends reads it every FILM_POLL_MS and answers by the last read that started inside FILM_WAIT_MS", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const start = Date.now(), reads: number[] = [];
+      const api = { getFilmRun: async () => { reads.push(Date.now() - start); return run("generating"); } };
+      const server = new McpServer({ name: "film-test", version: "0.0.0" });
+      registerFilmDraftTools(server, api as unknown as ClipwrightClient);
+      const [clientSide, serverSide] = InMemoryTransport.createLinkedPair(), client = new Client({ name: "film-test", version: "0.0.0" });
+      await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+      let answer: { type: string; text?: string }[] | null = null;
+      const call = client.callTool({ name: "get_film_run", arguments: { run_id: "run_s" } })
+        .then(result => { answer = result.content as { type: string; text?: string }[]; });
+      await vi.advanceTimersByTimeAsync(FILM_WAIT_MS - 1);
+      expect(answer).toBeNull();
+      await vi.advanceTimersByTimeAsync(FILM_POLL_MS + 1);
+      await call;
+      await client.close();
+      expect(JSON.parse(answer![0]!.text!).poll).toEqual({ tool: "get_film_run", arguments: { run_id: "run_s" }, retry_after_seconds: 5 });
+      expect(reads[0]).toBe(0);
+      expect(reads.slice(1).map((at, i) => at - reads[i]!)).toEqual(Array(reads.length - 1).fill(FILM_POLL_MS));
+      expect(reads.at(-2)!).toBeLessThan(FILM_WAIT_MS);
+      expect(reads.at(-1)!).toBeLessThanOrEqual(FILM_WAIT_MS + FILM_POLL_MS);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   /** #1356. Mutants: wait on nine pose pictures past the tool timeout, or offer a hero tool with nothing to draw it from. */
   it("make_film_hero answers at once with the call to poll, and its schema names every source of the hero", async () => {
     const hero = await callFilmTool("make_film_hero", { character_details: "A round mint cactus" }, [], run("queued", { skill: "film_hero" }));
@@ -126,6 +165,24 @@ describe("a stills run as pictures (#1337)", () => {
     const fetchImpl = (async () => new Response(new Uint8Array([1]))) as unknown as typeof fetch;
     expect((await stillImages(sheet, fetchImpl)).length).toBe(1);
     expect(await stillImages(run("failed", { stills: { frames: [], sheet_url: null, refusals: ["Movie.tsx:1: x"] } }), fetchImpl)).toEqual([]);
+  });
+});
+
+// #1356 C5: the stdio bin offers a made-for-you explainer by the API's price list, not by its own environment. Mutants: ignore the list
+// (always false, or the local flag), or count an entry of another tool, and one case turns red.
+describe("stdioModes (#1356 C5)", () => {
+  const entry = (tool: string, variant: string | null) => ({ action: tool, tool, route: null, variant, lines: [], formula: null, minimum_credits: null,
+    quote_tool: null, notes: null });
+  const api = (prices: ReturnType<typeof entry>[]) => ({ getFilmGuide: async () => ({}) as never, listPrices: async () => ({ prices }) });
+  it("offers the made-for-you explainer when the API prices it, and not when it does not", async () => {
+    expect(await stdioModes(api([entry("make_faceless", "explainer standard"), entry("make_faceless", "explainer pro")]))).toEqual({ ownAgent: true, explainer: true });
+    expect(await stdioModes(api([entry("make_faceless", null), entry("make_ugc", "explainer standard")]))).toEqual({ ownAgent: true, explainer: false });
+  });
+  it("says no with one fixed stderr line when the price list does not answer", async () => {
+    const log: string[] = [];
+    const modes = await stdioModes({ getFilmGuide: async () => ({}) as never, listPrices: async () => { throw new TypeError("fetch failed cw_secret"); } },
+      l => log.push(l));
+    expect([modes, log.length, log[0]?.includes("cw_secret")]).toEqual([{ ownAgent: true, explainer: false }, 1, false]);
   });
 });
 

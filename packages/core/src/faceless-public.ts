@@ -81,7 +81,10 @@ const common = {
   duration_seconds: z.number().min(FACELESS_MIN_SELECTED_SECONDS).max(FACELESS_MAX_SELECTED_SECONDS).refine((seconds) => Number.isInteger(seconds * 25),
     "duration_seconds must align to a 25 fps frame boundary"),
   style_reference: qualifiedImageUrl.optional(),
-  character_reference: qualifiedImageUrl.optional(),
+  // Described here once: the MCP shape and OpenAPI both read this schema (#1359).
+  character_reference: qualifiedImageUrl.optional()
+    .describe("A picture of a person or figure: a public https image, or a picture you uploaded or saved in your assets. Standard format: the figure is in every picture we generate and in the opening clip; " +
+      "your own scene_images are shown as they are. Format explainer: the figure is the hero."),
   character_details: z.string().trim().min(1).max(2000).optional(),
   /** A saved mascot of this account (#1257) the explainer's hero is drawn from: its poses are not made again, and the quote shows none. */
   mascot_id: assetId.optional(),
@@ -300,8 +303,7 @@ export const offeredFacelessInputShape = {
     .describe("Selected length, 30 to 90 seconds, on a 1/25 s frame boundary. The video ends with its narration and runs at least 25 seconds (an explainer, as long as its narration), usually at most a quarter past the selection and 90 seconds; when the narration takes longer, the video runs to its end. A video more than 5 seconds longer than the selection says so in warnings[]. The charge never exceeds the quote. A script is accepted when its estimated length is 21 seconds to the selection plus 5, at most 90."),
   style_reference: common.style_reference
     .describe("Public https image whose visual style the scenes follow."),
-  character_reference: common.character_reference
-    .describe("Public https image of a person or figure to keep consistent across scenes."),
+  character_reference: common.character_reference,
   character_details: common.character_details
     .describe("Fixed visual details of that person or figure, such as hair, clothing and absent accessories; kept in every generated scene."),
   mascot_id: common.mascot_id

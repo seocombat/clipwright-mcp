@@ -36,7 +36,7 @@ import {
   MAKE_UGC_AGENT_PROTOCOL,
   MAKE_FACELESS_DESCRIPTION,
   MAKE_FACELESS_AGENT_PROTOCOL,
-  MCP_SERVER_INSTRUCTIONS,
+  mcpServerInstructions,
   makeFacelessInput,
   offeredFacelessInput,
   REVISION_CHARGE_TEXT,
@@ -116,6 +116,8 @@ export interface CreateServerOptions {
   fileAccess: "local" | "refuse";
   /** Lists the «own agent» film tools (#1291 F2); off until the mode launches, so the public tool list stays as it is. */
   ownAgent?: boolean;
+  /** Whether the API sells the explainer format, as stdio asks it at start; omitted, the server's own flag decides (the hosted server). */
+  explainer?: boolean;
 }
 
 /** What `upload_image` answers a path on a server that reads no files; the tool list stays the same on both transports. */
@@ -230,10 +232,11 @@ function uploadNextAction(upload: { width: number; height: number; expires_at: s
 /** Builds the MCP server with its tools registered but NO transport connected, */
 /** so tool registration is testable without a stdio process. */
 export function createServer(client: ClipwrightClient, options: CreateServerOptions = { fileAccess: "local" }): McpServer {
-  const server = new McpServer({ name: "clipwright", version: packageVersion() }, { instructions: MCP_SERVER_INSTRUCTIONS });
+  const ownAgent = options.ownAgent === true;
+  const server = new McpServer({ name: "clipwright", version: packageVersion() }, { instructions: mcpServerInstructions({ ownAgent, explainer: options.explainer }) });
   answerInvalidArguments(server);
   registerWorkflowTools(server, client);
-  if (options.ownAgent === true) registerFilmDraftTools(server, client);
+  if (ownAgent) registerFilmDraftTools(server, client);
 
   // tools/list publishes the full schema; an empty schema leaves agents guessing.
   server.registerTool(

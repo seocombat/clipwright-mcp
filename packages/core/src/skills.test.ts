@@ -492,4 +492,65 @@ describe("server instructions offer the explainer only where it is sold", () => 
     expect(text.slice(brief, visuals)).toContain("both levels, standard and pro (tier), for the user to pick; a film takes about half an hour.");
     expect(Object.keys(facelessQuoteResponse.shape)).toContain("explainer_tiers");
   });
+
+  /** #1356 C2. Mutants: the second way said without the film tools, left out beside them, or placed after the hero. */
+  const offer = async (flag: string | undefined, ownAgent: boolean): Promise<string> => {
+    vi.resetModules();
+    vi.stubEnv("CLIPWRIGHT_FACELESS_EXPLAINER", flag);
+    try {
+      const text = (await import("./skills.js")).mcpServerInstructions({ ownAgent });
+      const brief = text.indexOf("If the user declines the brief, go on as asked."), visuals = text.indexOf("\n\nCompose the visuals");
+      return text.slice(brief, visuals);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  };
+  const SECOND_WAY = "you write the film yourself, starting with get_film_guide, paid by part (voice, hero poses, stills, render), " +
+    "each part quoted before it is made";
+
+  it("names the user's own agent as the second way only where the film tools are listed", async () => {
+    const both = await offer("1", true);
+    expect(both).toContain(`a film takes about half an hour. Offer its second way beside them: ${SECOND_WAY}. It costs fewer credits than a ` +
+      "film made for the user, but spends your own model time, about half an hour. Show both ways with their prices and let the user pick. Pick its hero");
+    expect(await offer("1", false)).not.toContain("get_film_guide");
+    expect((await offer("1", false)).length).toBeGreaterThan(0);
+    const own = await offer(undefined, true);
+    expect(own).toContain(`offer the explainer beside the remake: ${SECOND_WAY}; it spends your own model time, about half an hour. Pick its hero`);
+    expect(own).not.toContain("make_faceless");
+    expect(await offer(undefined, false)).toBe("If the user declines the brief, go on as asked.");
+  });
+
+  /** #1356 C5. Mutant: the caller's answer ignored for the environment's flag. */
+  it("takes whether the format is sold from the caller when it says, and from the environment when it does not", async () => {
+    vi.resetModules();
+    vi.stubEnv("CLIPWRIGHT_FACELESS_EXPLAINER", undefined);
+    try {
+      const { mcpServerInstructions } = await import("./skills.js");
+      expect(mcpServerInstructions({ ownAgent: true, explainer: true })).toContain("offer the explainer (make_faceless, format explainer)");
+      expect(mcpServerInstructions({ ownAgent: true })).not.toContain("make_faceless, format explainer");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+    vi.stubEnv("CLIPWRIGHT_FACELESS_EXPLAINER", "1");
+    try {
+      expect((await import("./skills.js")).mcpServerInstructions({ ownAgent: false, explainer: false })).not.toContain("offer the explainer");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  it("keeps the constant as the text of a server without the film tools", async () => {
+    vi.resetModules();
+    vi.stubEnv("CLIPWRIGHT_FACELESS_EXPLAINER", "1");
+    try {
+      const skills = await import("./skills.js");
+      expect(skills.MCP_SERVER_INSTRUCTIONS).toBe(skills.mcpServerInstructions({ ownAgent: false }));
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
 });

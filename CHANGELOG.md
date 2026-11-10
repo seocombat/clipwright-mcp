@@ -18,6 +18,26 @@ listed under.
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-11-10
+
+### Added
+
+- *Dashboard:* the runs of a film your own agent makes show what they made. A render plays and downloads as an MP4,
+  stills open in order with their notes, a voice plays and downloads, and a hero links to its mascot in Assets.
+  Each has Delete, except the hero, which you delete in Assets.
+
+### Changed
+
+- `character_reference` on `make_faceless` takes your own uploads and saved assets, and the character appears in
+  every scene.
+
+- `get_film_run` waits up to 45 seconds for an unfinished film run before it answers, as `make_voice` and
+  `preview_stills` do, so your agent asks again far less often while a film renders.
+- Where the film tools are listed, the server's instructions offer an explainer both ways: made for you
+  (`make_faceless`), or written by your own agent from `get_film_guide` and paid by part, each part quoted first.
+  The agent shows both with their prices and lets you pick. Over stdio, the made-for-you film is offered whenever the
+  price list sells it.
+
 ## [0.48.0] - 2026-11-10
 
 ### Added

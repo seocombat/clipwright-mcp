@@ -32,8 +32,13 @@ const exactFacelessScript = z.string().superRefine((value, context) => {
     const parsed = nativeScript.safeParse(value);
     if (!parsed.success) for (const issue of parsed.error.issues) context.addIssue({ code: z.ZodIssueCode.custom, path: issue.path, message: issue.message });
 }).meta({ minLength, maxLength });
+/** A plan refuses a picture URL here (`unbound_native_source`); the run's own description would promise the opposite (#1359). */
+export const WORKFLOW_CHARACTER_REFERENCE_DESCRIPTION = 'Not taken in a plan: a URL here is refused. Bind the picture as an asset instead.';
+const planCharacterReference = nativeFacelessScript.shape.character_reference.describe(WORKFLOW_CHARACTER_REFERENCE_DESCRIPTION);
 // Reuse native validation while preserving raw text and a visible input shape for tools/list.
-const workflowFacelessInput = z.discriminatedUnion('input_mode', [nativeFacelessScript.safeExtend({ script: exactFacelessScript }), nativeFacelessBrief]);
+const workflowFacelessInput = z.discriminatedUnion('input_mode', [
+    nativeFacelessScript.safeExtend({ script: exactFacelessScript, character_reference: planCharacterReference }),
+    nativeFacelessBrief.safeExtend({ character_reference: planCharacterReference })]);
 export const workflowNativeInput = z.discriminatedUnion('skill', [
     z.strictObject({ skill: z.literal('make_ugc'), input: workflowUgcInput }),
     z.strictObject({ skill: z.literal('make_faceless'), input: workflowFacelessInput }),

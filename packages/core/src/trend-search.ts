@@ -42,9 +42,11 @@ export const TREND_SEARCH_TASK_MAX_DURATION_SECONDS = 120;
 export const TREND_SEARCH_DEADLINE_SECONDS = 300;
 /** Measured wall time of a search, for `retry_after_seconds`. */
 export const TREND_SEARCH_EXPECTED_SECONDS = 20;
-export const TREND_SEARCH_DEFAULT_DAYS = 90;
-/** The narrowest window: 48 hours. */
-export const TREND_SEARCH_MIN_DAYS = 2;
+/** The window a search without one gets: the last week, so the ranking shows what is taking off now (#1394). */
+export const TREND_SEARCH_DEFAULT_DAYS = 7;
+/** The narrowest window: the last 24 hours. */
+export const TREND_SEARCH_MIN_DAYS = 1;
+export const TREND_SEARCH_MAX_DAYS = 365;
 export const TREND_FUNNEL_MAX_CHARS = 24;
 /** A creator's usual comment rate needs this many of their videos with both counts. */
 export const TREND_COMMENT_NORM_MIN_VIDEOS = 3;
@@ -73,6 +75,14 @@ export const TREND_TAKEOFF_TIERS = ["surging", "rising"] as const;
 export const TREND_TAKEOFF_MIN_ACCEL = 1;
 export const TREND_SURGING_X = 3;
 
+/** A search's read-only page (#1202) opens for this many days after the search, and again after the account shares it. */
+export const TREND_GALLERY_DAYS = 7;
+export const TREND_GALLERY_PATH = "/gallery";
+/** The page's token: 24 random bytes in base64url. */
+export const trendGalleryToken = z.string().regex(/^[A-Za-z0-9_-]{32}$/);
+/** The page's address on a site origin, no trailing slash; `ref=share` names where a visitor who signs up from it came from. */
+export const trendGalleryUrl = (origin: string, token: string): string => `${origin}${TREND_GALLERY_PATH}/${token}?ref=share`;
+
 /** A search with at most this many reels that took off is weak (#1250): its answer suggests other wordings of the topic. */
 export const TREND_WEAK_TOP_MAX = 1;
 export const TREND_SUGGESTED_WORDINGS_MAX = 3;
@@ -96,7 +106,9 @@ export const findTrendsRequest = z.strictObject({
     .describe("The topic in a few words."),
   platform: z.enum(TREND_PLATFORMS).default("mix"),
   language: z.string().regex(/^[a-z]{2}$/).optional().describe("ISO 639-1; filters TikTok only."),
-  posted_within_days: z.number().int().min(TREND_SEARCH_MIN_DAYS).max(365).default(TREND_SEARCH_DEFAULT_DAYS),
+  posted_within_days: z.number().int().min(TREND_SEARCH_MIN_DAYS).max(TREND_SEARCH_MAX_DAYS).default(TREND_SEARCH_DEFAULT_DAYS)
+    .describe(`Reels posted within this many days: ${TREND_SEARCH_MIN_DAYS} is the last 24 hours, ${TREND_SEARCH_DEFAULT_DAYS} by default, ` +
+      `at most ${TREND_SEARCH_MAX_DAYS}.`),
 });
 export type FindTrendsRequest = z.infer<typeof findTrendsRequest>;
 export type FindTrendsArgs = z.input<typeof findTrendsRequest>;
@@ -225,6 +237,9 @@ export const trendSearchAnswer = z.strictObject({
   balance_after_credits: z.number().int().nullable(),
   created_at: z.string().datetime(),
   finished_at: z.string().datetime().nullable(),
+  gallery_url: z.string().url().nullable().describe(`A read-only page of this search's reels that opens without signing in, ` +
+    `for ${TREND_GALLERY_DAYS} days after the search finished; null before it succeeds and after the link expires.`),
+  gallery_expires_at: z.string().datetime().nullable().describe("When gallery_url stops opening; null with no link."),
   untrusted_content: trendUntrusted,
   display_markdown: z.string().optional().describe("The reels as a compact markdown table, built from the fields above."),
   display_hint: z.string().optional(),
@@ -239,6 +254,8 @@ export const trendSearchRead = trendSearchAnswer.extend({
   sort: z.string().optional(),
   error: z.object({ code: z.string(), message: z.string() }).nullable(),
   untrusted_content: z.object({ note: z.string(), fields: z.array(z.string()) }),
+  gallery_url: z.string().nullable().optional(),
+  gallery_expires_at: z.string().nullable().optional(),
 });
 export type TrendSearchRead = z.infer<typeof trendSearchRead>;
 
@@ -591,6 +608,8 @@ export function trendSearchMarkdown(answer: TrendSearchAnswer): string {
   lines.push("", `- Posted within ${answer.posted_within_days} days${answer.language ? ` · language ${answer.language}` : ""} · ` +
     `${result.found} found, ${result.in_window} in the window, ${result.reels.length} with their creator's median`,
   `- Measured ${result.measured_at.slice(0, 16).replace("T", " ")} UTC${answer.sort === "best" ? "" : ` · ordered by ${answer.sort}`}`,
+  ...answer.gallery_url === null ? [] : [`- Gallery with covers, opens without signing in until ${answer.gallery_expires_at?.slice(0, 10) ?? "—"}: ` +
+    `${answer.gallery_url}`],
   "", "| # | Platform | Creator | Posted | Views | Views/h | x median | x size | Comments × | Creator median | Length | Caption |",
   "|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|");
   const handle = (reel: TrendReel) => `@${reel.creator.handle.replace(/_/g, "\\_")}`;
@@ -630,6 +649,7 @@ export const FIND_TRENDS_DESCRIPTION =
   "x_median (views over the creator's median). Charged only on success, a mix that reached one platform too; " +
   `${TREND_SEARCH_PER_HOUR} per hour. poll repeats this call. Each reel says why it is here, and a reel measured before carries its speed now; ` +
   "the same call with another sort reorders the same search for free within the hour. A weak result (under two reels that took off) " +
-  "lists suggested_wordings: search again with one.";
+  "lists suggested_wordings: search again with one. With no keywords it searches the primary saved niche (trend_niches). " +
+  `A finished search has gallery_url, a page with covers to share for ${TREND_GALLERY_DAYS} days.`;
 
 export const QUOTE_TRENDS_DESCRIPTION = "Price find_trends: 0 when the same query from the last hour would answer. Free.";

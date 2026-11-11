@@ -120,6 +120,10 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "GET /v1/trend-searches/{id}":
     "One topic search: queued, searching, succeeded with the reels and warnings, or failed with its error. sort reads the same reels " +
     "in another order. Free.",
+  "GET /v1/trend-niches": "Reads the account's saved niches, the primary first. Free.",
+  "POST /v1/trend-niches":
+    "Saves the account's niches, up to three, replacing the saved list; the first is the primary, and a trend search with no keywords " +
+    "searches it. Free.",
   "POST /v1/skills/make_ugc/quote": "Prices a make_ugc call with this input. Charges nothing.",
   "POST /v1/skills/make_ugc/run":
     "Starts a video run and answers at once with a run_id. Poll the run for the result.",

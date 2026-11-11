@@ -190,6 +190,7 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
         "run_workflow_plan",
         "send_feedback",
         "set_actor_defaults",
+        "trend_niches",
         "update_asset",
         "upload_image",
       ]);

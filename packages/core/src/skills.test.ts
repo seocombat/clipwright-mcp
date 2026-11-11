@@ -282,6 +282,8 @@ describe("makeUgcInput — script length gate", () => {
       // A styled film's beat and length bounds (#1338): the style runtime's drawing bounds, refused before money; the price is the film's.
       "FILM_BEAT_MAX_SEC",
       "FILM_STYLED_MAX_SEC",
+      // The trend search window's upper bound (#1394): how old a found reel may be, priced per search, never a render length.
+      "TREND_SEARCH_MAX_DAYS",
     ];
     const durationCaps = Object.keys(contract).filter(
       (name) =>

@@ -79,7 +79,9 @@ import {
   QUOTE_CREATOR_PROFILE_DESCRIPTION,
   FIND_TRENDS_DESCRIPTION,
   QUOTE_TRENDS_DESCRIPTION,
-  findTrendsRequest,
+  findTrendsInput,
+  TREND_NICHES_DESCRIPTION,
+  trendNichesInput,
   trendSort,
   analyzeCreatorRequest,
   creatorProfileId,
@@ -858,7 +860,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Quote a trend search",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description: QUOTE_TRENDS_DESCRIPTION,
-      inputSchema: findTrendsRequest.shape,
+      inputSchema: findTrendsInput.shape,
     },
     async (request) => withFailureReport(async () => ({
       content: [{ type: "text", text: JSON.stringify(await client.quoteTrends(request)) }],
@@ -870,7 +872,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Find trending reels on a topic",
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       description: withPriceLine("find_trends", FIND_TRENDS_DESCRIPTION),
-      inputSchema: { ...findTrendsRequest.shape, sort: trendSort.optional() },
+      inputSchema: { ...findTrendsInput.shape, sort: trendSort.optional() },
     },
     // A repeat of the same request replays the search for free and waits again, in any sort, so no read tool is listed (tools/list budget).
     async ({ sort, ...request }) => withFailureReport(async () => {
@@ -879,9 +881,21 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       const done = started.state === "queued" || started.state === "searching"
         ? await client.getTrendSearch(started.search_id, { wait_seconds: CREATOR_START_WAIT_SECONDS, display: "markdown", ...order })
         : await client.getTrendSearch(started.search_id, { display: "markdown", ...order });
-      return { content: [{ type: "text", text: JSON.stringify(withTrendPoll(done, { ...request, ...order })) }] };
+      // The repeat names the words the server searched (#1201): a niche saved in between must not turn the free repeat into a new search.
+      const searched = { keywords: done.keywords, platform: done.platform, ...(done.language === null ? {} : { language: done.language }),
+        posted_within_days: done.posted_within_days };
+      return { content: [{ type: "text", text: JSON.stringify(withTrendPoll(done, { ...searched, ...order })) }] };
     }),
   );
+  // Saved niches (#1201): one tool reads and saves them; free.
+  server.registerTool("trend_niches", {
+    title: "Read or save the trend niches",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    description: TREND_NICHES_DESCRIPTION,
+    inputSchema: { niches: trendNichesInput.shape.niches.optional() },
+  }, async ({ niches }) => withFailureReport(async () => ({
+    content: [{ type: "text", text: JSON.stringify(niches === undefined ? await client.getTrendNiches() : await client.setTrendNiches({ niches })) }],
+  })));
   server.registerTool(
     "delete_creator_profile",
     {

@@ -106,7 +106,9 @@ you run yourself.
    `get_account`. Then start from what works: lead the remembered request, or
    a new one, through reels that already took off. Every paid call waits for
    the user's go-ahead on its free quote (section 3).
-   1. Ask the topic in a few words, unless the user named it. Quote it with
+   1. Ask the topic in a few words, unless the user named it or saved a main
+      niche (`trend_niches`, free): then search that one, no keywords needed,
+      and offer to save a topic the user names often. Quote it with
       `quote_trends`, show the price and wait for the go-ahead. Then run
       `find_trends` and call it again with its `poll.arguments` until it
       succeeds; those repeats charge nothing more.
@@ -204,11 +206,11 @@ For a source build, the command is `node` with the absolute path to
 | `CLIPWRIGHT_API_URL` | no | Defaults to `https://api.clipwright.io`; set it only for another environment. |
 
 After a restart, confirm that `tools/list`
-returns 57 tools: `make_ugc`, `get_run`, `get_run_shots`, `delete_run_media`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
+returns 58 tools: `make_ugc`, `get_run`, `get_run_shots`, `delete_run_media`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
 `list_generation_models`, `quote_image`, `generate_image`, `quote_video`, `generate_video`, `quote_ugc`, `list_actors`,
 `list_voices`, `list_template_sounds`, `list_moves`, `upload_image`, `create_upload`, `get_upload`, `delete_upload`, `create_asset`, `list_assets`, `get_asset`, `update_asset`,
 `delete_asset`, `quote_analysis`, `analyze_reference`, `get_reference_analysis`, `quote_creator_profile`, `analyze_creator`,
-`get_creator_profile`, `delete_creator_profile`, `quote_trends`, `find_trends`, `get_account`, `list_prices`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
+`get_creator_profile`, `delete_creator_profile`, `quote_trends`, `find_trends`, `trend_niches`, `get_account`, `list_prices`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
 `set_actor_defaults`, `extract_brand`, `brand_kit`, `quote_faceless`, `make_faceless`, `list_workflows`, `get_workflow`, `prepare_workflow_plan`,
 `plan_reference_remake`, `get_workflow_plan`, `approve_workflow_plan`, `quote_workflow_plan`, `run_workflow_plan`, `send_feedback`,
 `describe_tool`. Fewer tools means the client keeps an old copy of the list

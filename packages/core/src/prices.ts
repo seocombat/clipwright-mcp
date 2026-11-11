@@ -114,6 +114,7 @@ const FREE_TOOLS: Readonly<Record<string, string>> = {
   get_creator_profile: "GET /v1/creator-profiles/{id}",
   delete_creator_profile: "DELETE /v1/creator-profiles/{id}",
   quote_trends: "POST /v1/trend-searches/quote",
+  trend_niches: "POST /v1/trend-niches",
   list_workflows: "GET /v1/public/workflows",
   get_workflow: "GET /v1/public/workflows/{id}",
   prepare_workflow_plan: "POST /v1/workflow-plans",

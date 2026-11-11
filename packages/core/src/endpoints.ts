@@ -7,6 +7,7 @@ import { BRAND_EXTRACT_PATH, BRAND_KIT_PATH } from "./design.js";
 import { BRAND_STYLE_PROPOSE_PATH, BRAND_STYLES_PATH } from "./brand-styles.js";
 import { CREATOR_PROFILE_PATH, CREATOR_PROFILE_QUOTE_PATH, CREATOR_PROFILES_PATH } from "./creator-profile.js";
 import { TREND_SEARCH_PATH, TREND_SEARCH_QUOTE_PATH, TREND_SEARCHES_PATH } from "./trend-search.js";
+import { TREND_NICHES_PATH } from "./trend-niches.js";
 import { FEEDBACK_PATH } from "./feedback.js";
 import { FILM_DRAFT_CHECK_PATH, FILM_DRAFT_FILES_PATH, FILM_DRAFT_PATH, FILM_DRAFTS_PATH } from "./film-drafts.js";
 import { FILM_GUIDE_PATH, FILM_KIT_PATH } from "./film-guide.js";
@@ -126,6 +127,9 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "POST", path: TREND_SEARCH_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: true, mcp: true },
   { method: "POST", path: TREND_SEARCHES_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: true, mcp: true },
   { method: "GET", path: TREND_SEARCH_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
+  // Saved niches (#1201): free; the Trends page saves them.
+  { method: "GET", path: TREND_NICHES_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
+  { method: "POST", path: TREND_NICHES_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: true, mcp: true },
   // Feedback from an agent (#941): free, with its own hourly cap in the handler.
   { method: "POST", path: FEEDBACK_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   // Film drafts of the «own agent» mode (#1291 F2): free, behind CLIPWRIGHT_OWN_AGENT; the files row stands before `:id`'s own.

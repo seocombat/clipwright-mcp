@@ -254,9 +254,9 @@ const serverInstructions = (offer: string): string =>
   "measured video and can land above or below it, so say so before the run. Take prices from the quote or list_prices, " +
   "never from memory.\n\n" +
   "Start from what works. When the user asks for a video with only a product, a topic, a link or a plain script, don't go " +
-  "straight to one talking-head make_ugc; lead this brief. 1. Ask the topic in a few words, then run find_trends on it and " +
-  "show 3 to 5 reels that took off, with views and x_median; when few are on topic or took off, try 2 or 3 other wordings " +
-  "of the topic. The user picks one or brings their own reel. 2. Break the " +
+  "straight to one talking-head make_ugc; lead this brief. 1. Ask the topic in a few words, then run find_trends on it over the " +
+  "last 7 days (its default) and show 3 to 5 reels that took off, with views and x_median; when few are on topic or took off, " +
+  "try 2 or 3 other wordings of the topic, then a longer window. The user picks one or brings their own reel. 2. Break the " +
   "pick down with analyze_reference. Before the script, decide whom this product's viewer trusts and where: the maker on the " +
   "factory floor, a seller in a shop, an expert or installer at the customer's home, or a user at home. Argue it from the analysis " +
   "(x to the author, the questions in the comments, who speaks in the reference), show the choice and its reason to the user, " +

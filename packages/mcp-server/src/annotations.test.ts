@@ -38,6 +38,7 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   delete_creator_profile: { readOnlyHint: false, destructiveHint: true },
   quote_trends: { readOnlyHint: true, destructiveHint: false },
   find_trends: { readOnlyHint: false, destructiveHint: false },
+  trend_niches: { readOnlyHint: false, destructiveHint: false },
   set_actor_defaults: { readOnlyHint: false, destructiveHint: false },
   extract_brand: { readOnlyHint: true, destructiveHint: false },
   brand_kit: { readOnlyHint: false, destructiveHint: false },

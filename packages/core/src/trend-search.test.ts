@@ -7,7 +7,7 @@ import {
   buildTrendResult, findTrendsRequest, shortlistTrendReels, sortTrendReels, storedTrendResult, TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_REELS,
   TREND_SEARCH_PER_HOUR, TREND_SEARCH_REELS, TREND_SORTS, TREND_UNTRUSTED, trendCoverUrl, trendFunnelWord, trendQueryKey, trendReelReasons, trendResult,
   trendSearchAnswer, trendSearchMarkdown, trendSearchQuery, trendSizeBand, trendSizeNormKey, trendMomentum, trendTakeoff, type TrendSearchAnswer,
-  type TrendSort, type TrendSourceReel,
+  type TrendSort, type TrendSourceReel, trendGalleryToken, trendGalleryUrl,
 } from "./trend-search.js";
 
 /** A topic search (#921): which reels are worth a creator read, the x to each creator's median, the replay key, the request and the table. */
@@ -336,25 +336,31 @@ describe("a card's norms, reasons and order (#1200)", () => {
 });
 
 describe("the request and its replay key", () => {
-  it("defaults to both platforms and 90 days, and still takes one platform", () => {
-    expect(findTrendsRequest.parse({ keywords: "AI agent memory" })).toEqual({ keywords: "AI agent memory", platform: "mix", posted_within_days: 90 });
+  // Mutant: keep the 90-day default, and a search that names no window ranks months-old reels (#1394).
+  it("defaults to both platforms and 7 days, and still takes one platform", () => {
+    expect(findTrendsRequest.parse({ keywords: "AI agent memory" })).toEqual({ keywords: "AI agent memory", platform: "mix", posted_within_days: 7 });
     for (const platform of ["tiktok", "instagram"]) expect(findTrendsRequest.parse({ keywords: "ai", platform }).platform).toBe(platform);
   });
 
   it.each([
     ["one character", { keywords: "a" }], ["two spaces around one letter", { keywords: " a " }], ["101 characters", { keywords: "k".repeat(101) }],
     ["YouTube", { keywords: "ai", platform: "youtube" }], ["an upper-case language", { keywords: "ai", language: "EN" }],
-    ["a three-letter language", { keywords: "ai", language: "eng" }], ["1 day", { keywords: "ai", posted_within_days: 1 }],
+    ["a three-letter language", { keywords: "ai", language: "eng" }], ["0 days", { keywords: "ai", posted_within_days: 0 }],
     ["366 days", { keywords: "ai", posted_within_days: 366 }], ["a fraction of a day", { keywords: "ai", posted_within_days: 7.5 }],
     ["an unknown field", { keywords: "ai", sort: "views" }], ["no keywords", {}],
   ])("refuses %s", (_label, body) => {
     expect(findTrendsRequest.safeParse(body).success).toBe(false);
   });
 
+  // Mutant: keep the 48-hour floor, and "what took off today" cannot be asked (#1394).
+  it("takes a window from the last 24 hours up to a year", () => {
+    for (const days of [1, 2, 365]) expect(findTrendsRequest.parse({ keywords: "ai", posted_within_days: days }).posted_within_days).toBe(days);
+  });
+
   // Mutant: key by the keywords as typed, and the same query in another case pays twice within the hour.
   it("matches the same query whatever its case and spacing, and tells apart platform, language and window", () => {
     const key = (body: Record<string, unknown>) => trendQueryKey(findTrendsRequest.parse(body));
-    expect(key({ keywords: "  AI   Agent\tMemory " })).toBe("mix:*:90:ai agent memory");
+    expect(key({ keywords: "  AI   Agent\tMemory " })).toBe("mix:*:7:ai agent memory");
     expect(key({ keywords: "ai agent memory" })).toBe(key({ keywords: "AI  AGENT memory" }));
     expect(new Set([key({ keywords: "ai agent" }), key({ keywords: "ai agent", platform: "instagram" }), key({ keywords: "ai agent", platform: "tiktok" }),
       key({ keywords: "ai agent", language: "en" }), key({ keywords: "ai agent", posted_within_days: 30 })]).size).toBe(5);
@@ -362,7 +368,7 @@ describe("the request and its replay key", () => {
 
   // Mutant: fold the platform into the mix key, and a row stored before the mix stops replaying (its key was written as `tiktok:`).
   it("keeps a single platform's key as rows stored before the mix wrote it", () => {
-    expect(trendQueryKey(findTrendsRequest.parse({ keywords: "AI agent", platform: "tiktok", language: "en" }))).toBe("tiktok:en:90:ai agent");
+    expect(trendQueryKey(findTrendsRequest.parse({ keywords: "AI agent", platform: "tiktok", language: "en" }))).toBe("tiktok:en:7:ai agent");
     expect(trendQueryKey(findTrendsRequest.parse({ keywords: "AI agent", platform: "instagram", posted_within_days: 30 }))).toBe("instagram:*:30:ai agent");
   });
 });
@@ -375,8 +381,18 @@ describe("the answer and its table", () => {
     return trendSearchAnswer.parse({ search_id: `trs_${"a".repeat(32)}`, keywords: "AI [agent] memory", platform: "tiktok", language: null,
       posted_within_days: 90, state: "succeeded", result, retry_after_seconds: null, warnings, error: null, credits_reserved: TREND_SEARCH_CREDITS,
       credits_charged: TREND_SEARCH_CREDITS, balance_after_credits: 100 - TREND_SEARCH_CREDITS, created_at: NOW.toISOString(), finished_at: NOW.toISOString(), untrusted_content: TREND_UNTRUSTED,
-      sort: "best" });
+      sort: "best", gallery_url: null, gallery_expires_at: null });
   };
+
+  it("names the gallery link and its end under the measured line, and no line without a link (#1202)", () => {
+    const token = "A".repeat(32);
+    const shared = trendSearchMarkdown({ ...answer(), gallery_url: trendGalleryUrl("https://clipwright.io", token),
+      gallery_expires_at: "2026-11-12T12:00:00.000Z" });
+    expect(shared).toContain(`- Measured 2026-11-05 12:00 UTC\n- Gallery with covers, opens without signing in until 2026-11-12: https://clipwright.io/gallery/${token}?ref=share\n`);
+    expect(trendSearchMarkdown(answer())).not.toContain("Gallery");
+    expect(trendGalleryToken.safeParse(token).success).toBe(true);
+    expect(trendGalleryToken.safeParse(`${token}=`).success).toBe(false);
+  });
 
   it("shows each reel with its creator, views and x, the top one bold, and the keywords quoted", () => {
     const markdown = trendSearchMarkdown(answer());

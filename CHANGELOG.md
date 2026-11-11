@@ -18,6 +18,31 @@ listed under.
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-11-11
+
+### Changed
+
+- `find_trends` and `quote_trends` search the last 7 days when `posted_within_days` is left out, instead of 90, so the
+  ranking shows what is taking off now. *Server-side* for a REST request without the field; from this release the SDK,
+  CLI and MCP server leave an unnamed field to the server, and earlier releases keep sending 90 until updated. Pass
+  `posted_within_days` to search a longer window; the price does not change.
+
+### Added
+
+- `posted_within_days: 1` searches the reels of the last 24 hours (the narrowest window was 48 hours). *Server-side*;
+  earlier client releases refuse 1 before sending it. *Dashboard:* the Trends page offers 24 h and starts on 7 days.
+- *Server-side:* a finished `find_trends` search answers `gallery_url`, a read-only page of its reels with covers, numbers,
+  links to the originals and why the top three are there, which opens without signing in for 7 days; `gallery_expires_at`
+  says when it stops. The page shows no account details and no credits. `display=markdown` names the link too.
+- *Dashboard:* the Trends page keeps every card's cover for searches made from now on, so an older tab still shows them,
+  and a Share button opens the same read-only page for another 7 days and copies its link. The tab says how many times
+  the shared page was opened.
+- Saved niches: keep up to three topics on your account, the first your main one, with the `trend_niches` tool,
+  `getTrendNiches` and `setTrendNiches` in the SDK, or `GET` and `POST /v1/trend-niches`. Saving is free. `find_trends`
+  and `quote_trends` with no `keywords` search your main niche with its platform and language, at the usual search price.
+  *Server-side.*
+- *Dashboard:* the Trends page lists your niches, saves them, and fills the search with one in a click.
+
 ## [0.53.0] - 2026-11-11
 
 ### Added

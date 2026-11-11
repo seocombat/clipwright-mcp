@@ -135,8 +135,13 @@ import {
   TREND_SEARCHES_PATH,
   TREND_SEARCH_PATH,
   TREND_SEARCH_QUOTE_PATH,
-  findTrendsRequest,
   type FindTrendsArgs,
+  findTrendsInput,
+  type FindTrendsInput,
+  TREND_NICHES_PATH,
+  trendNichesRead,
+  type TrendNichesRead,
+  type TrendNichesInput,
   trendSearchQuote,
   type TrendSearchQuote,
   trendSearchRead,
@@ -962,16 +967,28 @@ export class ClipwrightClient {
   }
 
   /** What findTrends would hold and charge for this query now: 0 when a search of the same query from the last hour would answer. Free. */
-  async quoteTrends(request: FindTrendsArgs): Promise<TrendSearchQuote> {
-    const body = await this.#request(TREND_SEARCH_QUOTE_PATH, false, { method: "POST", body: JSON.stringify(findTrendsRequest.parse(request)) });
+  /** Without keywords it prices the primary saved niche. */
+  async quoteTrends(request: FindTrendsInput): Promise<TrendSearchQuote> {
+    const body = await this.#request(TREND_SEARCH_QUOTE_PATH, false, { method: "POST", body: JSON.stringify(findTrendsInput.parse(request)) });
     return parseResponse(trendSearchQuote, body, TREND_SEARCH_QUOTE_PATH, false);
   }
 
-  /** Starts a search for reels on a topic, answered at once (state=queued); the same query within an hour answers the same */
-  /** search, so a retry needs no key. Paid: the price is held now and charged once it succeeds. */
-  async findTrends(request: FindTrendsArgs): Promise<TrendSearchRead> {
-    const body = await this.#request(TREND_SEARCHES_PATH, true, { method: "POST", body: JSON.stringify(findTrendsRequest.parse(request)) });
+  /** Starts a search for reels on a topic, answered at once (state=queued); the same query within an hour answers the same search, so a */
+  /** retry needs no key. Paid: held now, charged once it succeeds. Without keywords: the primary saved niche, named in the answer. */
+  async findTrends(request: FindTrendsInput): Promise<TrendSearchRead> {
+    const body = await this.#request(TREND_SEARCHES_PATH, true, { method: "POST", body: JSON.stringify(findTrendsInput.parse(request)) });
     return parseResponse(trendSearchRead, body, TREND_SEARCHES_PATH, true);
+  }
+
+  /** The account's saved niches, the primary first. Free. */
+  async getTrendNiches(): Promise<TrendNichesRead> {
+    return parseResponse(trendNichesRead, await this.#request(TREND_NICHES_PATH, false), TREND_NICHES_PATH, false);
+  }
+
+  /** Saves the account's niches, at most three, replacing the saved list; [] clears it. Free. */
+  async setTrendNiches(input: TrendNichesInput): Promise<TrendNichesRead> {
+    const body = await this.#request(TREND_NICHES_PATH, false, { method: "POST", body: JSON.stringify(input) });
+    return parseResponse(trendNichesRead, body, TREND_NICHES_PATH, false);
   }
 
   /** One topic search; `wait_seconds` (≤ 50) lets the server hold the read until it finishes. Free. */
@@ -1287,7 +1304,7 @@ export type { PricesResponseRead };
 export type { FeedbackRequest, FeedbackResponse };
 export type { AnalyzeReferenceRequest, ReferenceAnalysisQuery, ReferenceAnalysisRead };
 export type { AnalyzeCreatorRequest, CreatorProfileQuery, CreatorProfileQuote, CreatorProfileRead };
-export type { FindTrendsArgs, TrendSearchQuery, TrendSearchQuote, TrendSearchRead };
+export type { FindTrendsArgs, FindTrendsInput, TrendNichesInput, TrendNichesRead, TrendSearchQuery, TrendSearchQuote, TrendSearchRead };
 export type { UploadListRead };
 export type { CreateWorkflowPlanArgs, SaveWorkflowPlanArgs, ApproveWorkflowPlanArgs, LaunchWorkflowArgs, PlanReferenceRemakeArgs,
   WorkflowCatalogRead, WorkflowMethodRead, WorkflowPlanRead, WorkflowQuoteRead, WorkflowLaunchRead, WorkflowRunRead };

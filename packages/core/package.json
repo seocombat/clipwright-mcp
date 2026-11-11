@@ -1,6 +1,6 @@
 {
   "name": "@clipwright/core",
-  "version": "0.53.0",
+  "version": "0.54.0",
   "description": "Zod schemas and the shared request/response contract of the Clipwright UGC video API",
   "repository": {
     "type": "git",

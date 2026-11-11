@@ -31,7 +31,8 @@ import { PUBLIC_API_BASE_URL, PUBLIC_APP_BASE_URL } from "./public-endpoints.js"
 import { healthResponse, publicSkillsResponse } from "./public-responses.js";
 import { analysisQuoteResponse, analyzeReferenceRequest, referenceAnalysis, referenceAnalysisId, referenceAnalysisQuery } from "./reference-analysis.js";
 import { analyzeCreatorRequest, creatorProfileAnswer, creatorProfileId, creatorProfileQuery, creatorProfileQuote } from "./creator-profile.js";
-import { findTrendsRequest, trendSearchAnswer, trendSearchId, trendSearchQuery, trendSearchQuote } from "./trend-search.js";
+import { trendSearchAnswer, trendSearchId, trendSearchQuery, trendSearchQuote } from "./trend-search.js";
+import { findTrendsInput, trendNiches, trendNichesInput } from "./trend-niches.js";
 import { runId, runQuery } from "./runs.js";
 import { quoteResponse } from "./skills.js";
 import { templateSoundsList } from "./templates/sounds.js";
@@ -83,7 +84,7 @@ const TAGS = {
   Catalogs: "Voices, template sounds, generation models, skills and prices.",
   "Reference analysis": "A reference video read into a profile a remake plan takes.",
   "Creator profiles": "A creator's latest videos with each one's views against their median.",
-  "Trend searches": "Reels on a topic, each with its views against its creator's median.",
+  "Trend searches": "Reels on a topic, each with its views against its creator's median, and the niches saved on the account.",
   Account: "Balance, debt and holds.",
   Feedback: "What is missing, confusing, wrong or slow; we read every one.",
 } as const;
@@ -256,13 +257,17 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
   "DELETE /v1/creator-profiles/{id}": { exposure: "public", operationId: "deleteCreatorProfile", tag: "Creator profiles",
     params: { id: creatorProfileId }, responses: { 204: null } },
   "POST /v1/trend-searches/quote": { exposure: "public", operationId: "quoteTrends", tag: "Trend searches",
-    body: named("FindTrendsRequest", findTrendsRequest), responses: { 200: named("TrendSearchQuote", trendSearchQuote) } },
+    body: named("FindTrendsRequest", findTrendsInput), responses: { 200: named("TrendSearchQuote", trendSearchQuote) } },
   "POST /v1/trend-searches": { exposure: "public", operationId: "findTrends", tag: "Trend searches",
     billedWithoutKey: "a resend within an hour answers the same search, and only a succeeded one is charged",
-    body: named("FindTrendsRequest", findTrendsRequest),
+    body: named("FindTrendsRequest", findTrendsInput),
     responses: { 202: named("TrendSearch", trendSearchAnswer), 200: named("TrendSearch", trendSearchAnswer) } },
   "GET /v1/trend-searches/{id}": { exposure: "public", operationId: "getTrendSearch", tag: "Trend searches", params: { id: trendSearchId },
     query: trendSearchQuery, responses: { 200: named("TrendSearch", trendSearchAnswer) } },
+  "GET /v1/trend-niches": { exposure: "public", operationId: "getTrendNiches", tag: "Trend searches",
+    responses: { 200: named("TrendNiches", trendNiches) } },
+  "POST /v1/trend-niches": { exposure: "public", operationId: "setTrendNiches", tag: "Trend searches",
+    body: named("TrendNichesInput", trendNichesInput), responses: { 200: named("TrendNiches", trendNiches) } },
   "POST /v1/feedback": { exposure: "public", operationId: "sendFeedback", tag: "Feedback",
     body: named("FeedbackRequest", feedbackRequest),
     responses: { 201: named("Feedback", feedbackResponse), 200: named("Feedback", feedbackResponse) } },

@@ -1,6 +1,6 @@
 import {
   ASSET_LIST_MAX_LIMIT, ASSET_TOOL_PAGE, CANDIDATE_CHARGE_TEXT, CREATOR_PROFILE_CREDITS, MAX_OVERLAYS_AT_ONCE, MUSIC_BED_CREDITS, REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS,
-  REVISION_CHARGE_TEXT, SCENE_CREDITS, SCRIPT_LENGTH_DESCRIPTION, TEMPLATE_KINDS, TREND_SEARCH_PER_HOUR, TREND_SEARCH_REELS,
+  REVISION_CHARGE_TEXT, SCENE_CREDITS, SCRIPT_LENGTH_DESCRIPTION, TEMPLATE_KINDS, TREND_GALLERY_DAYS, TREND_SEARCH_PER_HOUR, TREND_SEARCH_REELS,
 } from "@clipwright/core";
 
 // Every price here comes from its core constant, so a listed price can neither drift from nor be swapped against the charge.
@@ -38,7 +38,9 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "profiled, answers the same profile, free. Poll " +
     "get_creator_profile when it says so.",
   find_trends: `Reels that took off on a topic: up to ${TREND_SEARCH_REELS} per platform, one per creator, TikTok and Instagram ranked by ` +
-    `x_median. Charged only on success, a one-platform mix too; ${TREND_SEARCH_PER_HOUR} per hour. poll repeats this call; sort reorders it free.`,
+    `x_median. Charged only on success, a one-platform mix too; ${TREND_SEARCH_PER_HOUR} per hour. poll repeats this call; sort reorders it free. ` +
+    `No keywords: the primary saved niche (trend_niches). gallery_url: a page to share for ${TREND_GALLERY_DAYS} days.`,
+  trend_niches: "Free. Alone: the saved niches, the first the primary. niches: save the user's confirmed list, at most 3, replacing it; [] clears it.",
   make_ugc: "Start a lip-synced UGC video; the actor is actor_id, image or the default. Format and resolution follow the request " +
     "and the source, defaulting to 1080x1920. Captions are OPT-IN: ask the user first. " +
     "A field marked NOT HONORED YET does not reach the renderer. Poll get_run with its poll.arguments; a failed run whose video " +

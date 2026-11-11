@@ -269,12 +269,17 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   the same query from the last hour would answer. Free.
 - `find_trends` — reels that took off on a topic: keywords on TikTok and
   Instagram in one ranking by default (`platform: mix`), or on one of them, up
-  to 10 reels per platform posted within `posted_within_days`, one per creator,
+  to 10 reels per platform posted within `posted_within_days` (7 by default; 1
+  is the last 24 hours), one per creator,
   ranked by the reel's views over its creator's median views. `language`
   filters the TikTok reels only. Waits for the result; an unfinished one is read
   by repeating the call, free. 20 credits held and charged once it succeeds,
   also when a mix reaches only one platform (`warnings[]` names the other); a
-  search that finds no reel costs nothing. 10 new searches per hour.
+  search that finds no reel costs nothing. 10 new searches per hour. Without
+  `keywords` it searches your main saved niche, with its platform and language.
+- `trend_niches` — without arguments, the account's saved niches, the first
+  the main one; with `niches`, saves the list you confirmed, up to three,
+  replacing the saved one (`[]` clears it). Free.
 - `quote_actor` — price of a personal actor before creating one. Free.
 - `create_actor` — **creates a personal actor from a description; this costs
   money.** Each requested format is a separate charged image. With `portrait`

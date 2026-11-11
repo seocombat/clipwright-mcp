@@ -42,6 +42,12 @@ describe("mascot_id on make_faceless", () => {
     expect([withInk("#0A4644"), withInk("#0a4644"), withInk("#0A464400"), withInk("teal")]).toEqual([true, false, false, false]);
     expect(mascotPoses.safeParse({ neutral: { ...pose, mouth: { x: 0.5, y: 0.6, w: 0.2 } } }).success).toBe(true);
   });
+
+  // #1371. Mutants: refuse the mark, and a photo hero cannot be saved or pinned; take any value, and a pose reads as a photo by accident.
+  it("pins a pose marked as a photo, and only by true", () => {
+    const marked = (photo: unknown) => pinnedMascot.safeParse({ asset_id: id, poses: { neutral: { ...pose, photo } } }).success;
+    expect([marked(true), marked(false), marked("yes")]).toEqual([true, false, false]);
+  });
 });
 
 describe("a mascot in answers and requests", () => {

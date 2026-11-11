@@ -44,3 +44,18 @@ export function videoHoldWarnings(input: Pick<MakeUgcInput, "script" | "inserts"
       `it covers can take up to ${longestSec.toFixed(1)} s; if the narration outlasts the clip, its last frame holds to the end`] : [];
   }));
 }
+
+/** A picture whose short side is under this many pixels cannot fill a 1080 p frame sharply: it is set on a stage at the size its pixels carry. */
+export const PICTURE_MIN_SHORT_SIDE = 1080;
+
+/** The quote's warning for each pinned picture insert too small to fill the frame, naming the photo and the reason. */
+export function pictureQualityWarnings(input: Pick<MakeUgcInput, "inserts">, pinned: readonly PinnedInsertAsset[] | undefined): string[] {
+  if (!pinned?.length) return [];
+  return (input.inserts ?? []).flatMap((item, index) => {
+    const asset = pinned.find(one => one.insert_id === item.id);
+    if (item.media_type !== "image" || asset?.kind !== "image" || Math.min(asset.width, asset.height) >= PICTURE_MIN_SHORT_SIDE) return [];
+    const what = `inserts[${index}] insert ${item.id}: its picture (${asset.asset_id}) is ${asset.width}×${asset.height}, under ${PICTURE_MIN_SHORT_SIDE} px on its short side`;
+    return [item.fit === "cover" ? `${what}; filling the frame enlarges it and shows it soft, so set fit auto or drop fit to have it shown on a stage`
+      : `${what}; it is shown whole on a stage at the size its pixels carry, never filled to the frame`];
+  });
+}

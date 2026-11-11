@@ -1,5 +1,5 @@
 import {
-  CANDIDATE_CHARGE_TEXT, CREATOR_PROFILE_CREDITS, MAX_OVERLAYS_AT_ONCE, MUSIC_BED_CREDITS, REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS,
+  ASSET_LIST_MAX_LIMIT, ASSET_TOOL_PAGE, CANDIDATE_CHARGE_TEXT, CREATOR_PROFILE_CREDITS, MAX_OVERLAYS_AT_ONCE, MUSIC_BED_CREDITS, REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS,
   REVISION_CHARGE_TEXT, SCENE_CREDITS, SCRIPT_LENGTH_DESCRIPTION, TEMPLATE_KINDS, TREND_SEARCH_PER_HOUR, TREND_SEARCH_REELS,
 } from "@clipwright/core";
 
@@ -20,7 +20,7 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "\"data\" answers only the data. Pass asset_id of an MP4 asset, at most 120 s and 100 MiB, or source_url of an Instagram " +
     "reel or post or a TikTok video. A YouTube link is refused: upload its MP4 with create_asset. Charged once it succeeds; a " +
     "failed analysis costs nothing. 10 new full and 60 new data analyses per hour. The same asset or full link in the same mode " +
-    "answers the same analysis free unless it failed; a vm.tiktok.com link always starts a new one; one made before frames and " +
+    "answers the same analysis free unless it failed; one made before frames and " +
     "speakers existed is redone free once. Poll get_reference_analysis with wait_seconds: 50.",
   create_asset: "Save a picture or clip as an asset until you delete it. source: {run_id} of a succeeded generation, " +
     "{upload_id}, a public https {url} (kind: \"video\" for an MP4), {base64, media_type} of a PNG or JPEG up to 700000 bytes, " +
@@ -109,11 +109,14 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "short link not seen before quotes the full price. A YouTube or unknown link is refused. Free.",
   list_prices: "Every tool's price in credits: lines per unit added up, with minimum_credits, or a formula; free tools cost 0. " +
     "Exact numbers come from the quote tool. Free.",
-  get_asset: "Read one asset with a fresh url (an hour). awaiting_upload: PUT the file; processing: read again shortly; failed: " +
+  get_asset: "Read one asset with a fresh url (an hour) and a small preview picture to look at. awaiting_upload: PUT the file; " +
+    "processing: read again shortly; failed: " +
     "error.code; deleted: asset_not_found. Free.",
   delete_upload: "Delete an upload: unusable at once, erased after 7 days unless another upload of the same picture is kept. " +
     "Refused with upload_in_use while an unfinished run uses it. Free.",
-  list_assets: "List assets, newest first, by role and kind; mascot true lists saved mascots, whose id is make_faceless mascot_id. next_cursor pages. pending lists assets in progress and today's " +
+  list_assets: `List assets, newest first, ${ASSET_TOOL_PAGE} a page unless limit (up to ${ASSET_LIST_MAX_LIMIT}), fewer when a page would not fit your ` +
+    "tool output; filter by role and kind rather than reading them all; mascot true lists saved mascots with their poses, whose id is " +
+    "make_faceless mascot_id. next_cursor pages. pending lists assets in progress and today's " +
     "failures; usage counts against 2000 assets and 1 GB, or 20 GB once credits were bought. Free.",
   quote_actor: "Price create_actor WITHOUT spending credits. Each format is a charged image, except a portrait from your own " +
     "image, which costs nothing. A portrait not within 2% of 9:16 is refused here; one without exactly one well-framed face fails at no charge.",
@@ -149,10 +152,10 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
   prepare_workflow_plan: "Free; starts no run. The complete document: omit plan_id and base_version to create, supply both to save " +
     "a revision. Strict, at most 256000 JSON bytes; keep accepted narration exact. After a lost save answer, read the saved document; " +
     "never auto-approve or buy.",
-  brand_kit: "Free. Alone: saved design, script voice, our looks and faces. design, voice: save the user's confirmed one; " +
+  brand_kit: "Free. Alone: saved design, script voice, styles, our looks and faces. design, voice, style: save the user's confirmed one; " +
     "voice {} clears it.",
   extract_brand: "Free. A site's colours, fonts, logo, corners and name as a proposed design and voice; the user confirms. " +
-    "logo_url: create_asset it for design.logo_asset_id.",
+    "logo_url: create_asset it for design.logo_asset_id. analysis_id: a style from a reference video's analysis.",
 };
 
 /** A top field's text in tools/list; a field not named keeps its first words. */

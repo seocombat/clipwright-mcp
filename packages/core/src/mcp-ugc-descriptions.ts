@@ -16,7 +16,7 @@ const TEMPLATE_GISTS: Record<(typeof TEMPLATE_KIND_IDS)[number], string | null> 
   callout: "an arrow or ring on target {x,y}, % of the frame from top left; may point at the face",
   checklist: "rows a cursor clicks in turn (item: row index from 0), each click flipping it",
   phone_call: "an incoming call at the side (right unless side left), answered on answer_at",
-  compare: "before, then after sweeping or wiping in on reveal_at, on a 3:5 card",
+  compare: "before, then after sweeping or wiping in on reveal_at (wipe_full: until it fills the card), on a 3:5 card",
   notification: "at the top; stack cards drop in on their at",
   progress: "steps checked in turn on advance_at (one per step) or evenly",
   rating: "stars filling up to stars (1–5 in halves)",

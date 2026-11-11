@@ -10,6 +10,7 @@ import { facelessRunBilling } from "./faceless-price.js";
 import { revisionBilling } from "./edit-billing.js";
 import { SHOT_OPERATION_MODES, shotId } from "./edit-operations.js";
 import { runGeneration } from "./generations-output.js";
+import { postText } from "./post-text.js";
 import { runVideo } from "./video-size.js";
 
 /** Shared run stages; each skill uses the stages it needs. */
@@ -172,6 +173,8 @@ export const run = z.object({
       composition_policy: z.string().optional(),
       /** Each drawn template and scene with its origin; one left out is in `warnings[]`, not here. */
       elements: z.array(runElement).max(64).optional(),
+      /** A done-for-you explainer's lines to publish with it; the video is delivered and charged the same without them. */
+      post_text: postText.optional(),
     })
     .nullable(),
   /** A succeeded video's measured frame in pixels; absent when its file was not measured, never taken from the request. */

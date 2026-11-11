@@ -5,7 +5,31 @@ import { freezeResolvedTimeline, readResolvedTimeline } from "./resolved-timelin
 import { derivedRunWarnings } from "./run-static-warnings.js";
 import { parseRunPreflight } from "./run-preflight.js";
 import { makeUgcInput, type PinnedInsertAsset } from "./skills.js";
-import { videoHoldWarnings, videoMediaRefusal } from "./ugc-video-media.js";
+import { pictureQualityWarnings, videoHoldWarnings, videoMediaRefusal } from "./ugc-video-media.js";
+
+describe("a small product picture on the quote (#1246)", () => {
+  const insert = (extra: object = {}) => [{ id: "prod", media_type: "image", asset_id: "asset_p2", anchor: { quote: "one two" }, ...extra }];
+  const pinned = (width: number, height: number): PinnedInsertAsset[] => [{ insert_id: "prod", asset_id: "asset_p2", key: "k", sha256: "a".repeat(64), bytes: 10,
+    kind: "image", media_type: "image/png", width, height } as unknown as PinnedInsertAsset];
+  const ask = (extra?: object) => ({ inserts: insert(extra) }) as never;
+
+  it("names the photo and the reason when its short side is under 1080", () => {
+    const [warning] = pictureQualityWarnings(ask(), pinned(700, 394));
+    expect(warning).toContain("inserts[0] insert prod");
+    expect(warning).toContain("700×394");
+    expect(warning).toContain("on a stage");
+  });
+
+  it("says nothing of a large picture, a video or an unpinned one", () => {
+    expect(pictureQualityWarnings(ask(), pinned(2000, 1500))).toEqual([]);
+    expect(pictureQualityWarnings(ask({ media_type: "video" }), pinned(700, 394))).toEqual([]);
+    expect(pictureQualityWarnings(ask(), undefined)).toEqual([]);
+  });
+
+  it("warns that fit cover enlarges it", () => {
+    expect(pictureQualityWarnings(ask({ fit: "cover" }), pinned(700, 394))[0]).toContain("fit auto");
+  });
+});
 
 // Video media in inserts, overlays and layout windows (#778 S2c): what is refused, and the quote's hold warning.
 

@@ -13,7 +13,7 @@ import { dispositionWarnings, legacyCaptionWarnings } from "./contract-dispositi
 import { buildSpeechModelWarnings, buildVoiceWarnings, TTS_MODELS, ttsModelBeforeV4Default } from "./voices.js";
 import { buildActorGenderWarnings, buildVoiceActorMatchWarnings, presenterViewWarnings, renderedPresenterFraming, type Gender } from "./actors.js";
 import { resolveAspectRatio, upscaleWarning } from "./aspect.js";
-import { videoHoldWarnings } from "./ugc-video-media.js";
+import { pictureQualityWarnings, videoHoldWarnings } from "./ugc-video-media.js";
 import { DEFAULT_RESOLUTION } from "./skills.js";
 import {
   parseRunPreflight,
@@ -165,6 +165,7 @@ function ugcRunWarnings(
     // Templates are judged against the face as rendered, the view the pin holds (#884 S5d).
     ...dispositionWarnings({ ...input, presenter_framing: renderedPresenterFraming(pin) }),
     ...videoHoldWarnings(input, parsed.data.insert_assets),
+    ...pictureQualityWarnings(input, parsed.data.insert_assets),
     ...(compositionVersionOf(parsed.data) === 1 ? legacyCaptionWarnings(input) : []),
     ...aspectFactWarnings(preflight.aspect, input),
     ...presenterViewWarnings(input, pin),

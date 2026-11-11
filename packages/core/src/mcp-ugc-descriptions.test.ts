@@ -10,7 +10,7 @@ import { TEMPLATE_KINDS, templateDataText } from "./templates/index.js";
 
 /** The full text each shorter MCP text was written from (#1045): a change to it fails here until its MCP text says the same. */
 const WRITTEN_FROM: Record<keyof typeof MCP_UGC_DESCRIPTIONS, string> = {
-  script: "88b8571a4dfdb711", tts_model: "d219950201eba850", caption_style: "7e5ac74a91d2f231", templates: "4a31eb78b8a26dbc",
+  script: "88b8571a4dfdb711", tts_model: "d219950201eba850", caption_style: "7e5ac74a91d2f231", templates: "d769223a46f3e7ff",
   caption_emphasis: "bfa2c9ec4722ca2f", voice: "73b578402af2880d", actor_id: "ecf5a12b89539b24", voice_id: "1c0134d77b71bb6a",
   broll_policy: "65c93e6540eb6296", overlays: "4b5ac21d7b17f1a4", image: "b97912c680ba6699", framing: "604e412f563f4d38",
   actor_gender: "779a80e8a5de8d2a", aspect_ratio: "23f56f8973a4a61e", caption_mode: "a43a7d15ec6ca984", visible_ai_label: "588db58fe25ab7c3",

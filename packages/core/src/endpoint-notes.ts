@@ -42,6 +42,10 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "POST /v1/brand-kit": "Saves the account's design, or clears it with null. A video that names neither design nor template_theme draws in it. Free.",
   "POST /v1/brand/extract": "Reads a public site's colours, fonts, logo and corners into a proposed design with readable text, for you to confirm. " +
     "Free; counts towards the hourly url downloads.",
+  "POST /v1/brand-styles/propose": "Reads a finished analysis of a video you like into a proposed style: colours, faces, corners, motion and its " +
+    "transition and caption habits, never its logo, characters or frames. Free. Draw sample stills with its theme_overrides before you save it.",
+  "POST /v1/brand-styles": "Saves a confirmed style under a name, beside the brand kit; saving a name again replaces it. A film draft names it in " +
+    "brand_style. Free.",
   "GET /v1/runs/{id}": "State of one run of any skill, its warnings and its video url.",
   "GET /v1/runs/{id}/shots":
     "The shots of one run: each shot's span, words, description and preview, and whether the run can be edited.",

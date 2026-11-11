@@ -16,7 +16,9 @@ export const OWN_FILM_RENDER_CREDITS = 100, OWN_FILM_INCLUDED_SECONDS = 60, OWN_
 /** A second of delivered voice, rounded up once per take. */
 export const OWN_VOICE_CREDITS_PER_SECOND = 2;
 /** The bounds a run may ask: stills per call, the longest film and take. */
-export const OWN_STILLS_MAX_PER_CALL = 8, OWN_FILM_MAX_SECONDS = 120, OWN_VOICE_MAX_SECONDS = 120;
+export const OWN_STILLS_MAX_PER_CALL = 24, OWN_FILM_MAX_SECONDS = 120, OWN_VOICE_MAX_SECONDS = 120;
+/** Up to this many stills come one picture each; a round of more always comes with a sheet (#1372). */
+export const OWN_STILLS_SINGLE_MAX = 8;
 /** A hero's pose picture, priced as the done-for-you explainer's, and the poses a hero is made of. */
 export const OWN_HERO_POSE_CREDITS = FACELESS_IMAGE_CREDITS, OWN_HERO_POSES = FACELESS_EXPLAINER_POSE_PICTURES;
 

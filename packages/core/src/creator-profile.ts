@@ -60,7 +60,7 @@ export const creatorLinkKey = z.string().regex(/^(instagram|tiktok):(?:@[a-z0-9_
 
 export const CREATOR_URL_YOUTUBE_REFUSAL = "YouTube channels are not read; pass an Instagram or TikTok profile or video link";
 export const CREATOR_URL_ACCEPTED = "an Instagram profile or reel link (instagram.com/<handle>, instagram.com/reel/<code>, /p/<code>) or a TikTok " +
-  "profile or video link (tiktok.com/@<handle>, tiktok.com/@<handle>/video/<id>, vm.tiktok.com/<code>)";
+  "profile or video link (tiktok.com/@<handle>, tiktok.com/@<handle>/video/<id>, vt.tiktok.com/<code>, vm.tiktok.com/<code>)";
 
 export type CreatorUrl =
   | { ok: true; url: string; platform: CreatorPlatform; handle: string; key: string; linkKey: string; videoUrl: null }

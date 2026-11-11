@@ -1,13 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ClipwrightApiError, type ClipwrightClient } from "@clipwright/sdk";
-import { createFilmDraftInput, filmDraftId, filmHeroInput, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, putFilmFilesInput, runId,
-  type FilmRun } from "@clipwright/core";
+import { checkFilmInput, createFilmDraftInput, filmDraftId, filmHeroInput, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_STILLS_MAX_PER_CALL,
+  OWN_STILLS_SINGLE_MAX, putFilmFilesInput, runId, type FilmRun } from "@clipwright/core";
 
 import { withFailureReport, type McpToolResponse } from "./format.js";
+import { fetchImage, IMAGE_BUDGET_MS, type ImageBlock } from "./images.js";
 
-// The «own agent» explainer's film drafts and runs (#1291 F2, #1337): your agent keeps its scene files here, reads back the frozen brand
-// theme, sees its stills as pictures, takes a voice with word timings and orders the render. Listed only where the mode is offered, so the
-// public tool list does not change before it launches.
+// The «own agent» explainer's film drafts and runs (#1291 F2, #1337): scene files, the frozen brand theme, stills as pictures, a voice with
+// word timings and the render. Listed only where the mode is offered.
 
 export const CREATE_FILM_DRAFT_DESCRIPTION = "Free. Starts a film draft for an explainer you write yourself, frozen in the account's brand " +
   "(brand_kit): the answer names the kit's colour tokens (T.*), faces (FONT.*) and the variation (grid step, hero side) your scenes draw with. " +
@@ -16,23 +16,32 @@ export const PUT_FILM_FILES_DESCRIPTION = "Free. Saves scene files (Movie.tsx, c
   "{s, at, dt, n, step, g} or {s, from, to}) and captions (one phrase a line, *word* its accent) on base_revision; a file set to null is " +
   "deleted, an omitted one kept; cues, sfx and captions each replace the draft's when sent, and an omitted one is kept. A stale base_revision is refused: read the draft again. Code imports only react, scene-kit and its own files.";
 export const GET_FILM_DRAFT_DESCRIPTION = "Free. A film draft: its revision, frozen theme, file names and sizes, anchors, sounds and captions.";
+export const CHECK_FILM_DESCRIPTION = "Free and instant. Runs the checks stills and render_film run before money on a draft revision and a " +
+  "delivered voice: captions on the voice, Movie.tsx's factory, anchors, names and stamps, product pictures, sounds and the storyboard. Answers " +
+  "refusals as file:line, warnings, each anchor's second and word, and the voice's end. Pass changes (files, cues, sfx, captions, storyboard) to " +
+  "check them before saving. Run it after every change and fix until ok is true; then take stills.";
 export const QUOTE_VOICE_DESCRIPTION = "Free. What make_voice would hold for this text: the most it can charge. Show it and wait for the go-ahead.";
 export const MAKE_VOICE_DESCRIPTION = "Paid per second delivered, after quote_voice. Speaks the script with a narrator and returns its words, each " +
-  "with start and end seconds: write chunks, anchors and scenes on these timings. Waits up to 45 s; an unfinished run names get_film_run to call.";
+  "with start and end seconds: write chunks, anchors and scenes on these timings; film_sec is how long the film on it runs. Waits up to 45 s; an " +
+  "unfinished run names get_film_run to call.";
 export const QUOTE_STILLS_DESCRIPTION = "Free. What preview_stills would hold: one still per asked moment.";
-export const PREVIEW_STILLS_DESCRIPTION = "Paid per still drawn, after quote_stills. Gates the draft revision first (a refusal names file:line and " +
-  "is free), then draws up to 8 moments (anchors, shown 0.25 s after, or seconds) on the draft's theme and the voice's captions, and returns " +
-  "them as pictures with what the layout probe found on each. sheet: one tiled picture instead of one per still. Look at every still and fix.";
-export const QUOTE_RENDER_DESCRIPTION = "Free. What render_film would hold: the film at the voice's length, charged only when delivered.";
+export const PREVIEW_STILLS_DESCRIPTION = "Paid per still drawn, after quote_stills and a clean check_film. Gates the draft revision first (a refusal " +
+  `names file:line and is free), then draws up to ${OWN_STILLS_MAX_PER_CALL} moments (anchors, shown 0.25 s after, or seconds; omitted, the ` +
+  "storyboard's events) on the draft's theme and the voice's captions, and returns them as pictures with what the layout probe found on each. " +
+  `sheet: one tiled picture instead of one per still, always above ${OWN_STILLS_SINGLE_MAX}. Look at every still and fix.`;
+export const QUOTE_RENDER_DESCRIPTION = "Free. What render_film would hold, charged only when delivered, and film_sec: how long the film " +
+  "runs, the voice then a short tail.";
 export const RENDER_FILM_DESCRIPTION = "Paid when the film is delivered, after quote_render. Renders the draft revision on the voice: captions " +
   "on its words, the sound events under it, the frozen theme. Returns at once; call get_film_run until it is succeeded (video_url) or failed.";
 export const QUOTE_FILM_HERO_DESCRIPTION = "Free. What make_film_hero would hold: every pose of the hero, the most it can charge. Show it and wait for the go-ahead.";
 export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published, after quote_film_hero. Draws a hero in nine poses and saves it as a mascot of " +
   "your assets: from character_reference or character_details, else invented to fit the meaning of script (or of voice_run_id's text). " +
-  "A run that publishes no pose charges nothing. Returns at once; call get_film_run until it is succeeded, then pass hero.mascot_id to " +
-  "create_film_draft: every later film uses it with no pose made or charged again.";
+  "A person's photo is drawn as a cartoon unless character_details ask for a photoreal look; a photoreal hero keeps a still face. " +
+  "A run that publishes no pose charges nothing. Returns at once; call get_film_run until it is succeeded: it shows the poses as one picture, " +
+  "look at it before any stills. Then pass hero.mascot_id to create_film_draft: every later film uses it with no pose made or charged again.";
 export const GET_FILM_RUN_DESCRIPTION = "Free. One stills, voice, render or hero run: its state, credits, warnings and what it delivered. " +
-  "Waits up to 45 s for an unfinished run to end; call it again while it is still working.";
+  "Waits up to 45 s for an unfinished run to end; call it again while it is still working. A delivered stills run answers its " +
+  "pictures again, at no charge.";
 export const GET_FILM_GUIDE_DESCRIPTION = "Free. Read this first, before any other film tool: the explainer guide (each step's tool, the rules the " +
   "checks refuse, a whole example film), its method appendix, and the scene kit's files get_film_kit serves.";
 export const GET_FILM_KIT_DESCRIPTION = "Free. The scene kit's sources your film imports as scene-kit, with a reference film (films/espresso-hit): " +
@@ -42,7 +51,6 @@ const GUIDE_FIRST = " Read get_film_guide first.";
 
 /** A run is read this often while a tool waits on it, and a tool waits at most this long, inside an agent's usual 60 s timeout. */
 export const FILM_POLL_MS = 2_000, FILM_WAIT_MS = 45_000;
-const FETCH_TIMEOUT_MS = 10_000;
 const finished = (run: FilmRun) => run.state === "succeeded" || run.state === "failed";
 const text = (value: unknown) => ({ type: "text" as const, text: JSON.stringify(value) });
 const withPoll = (run: FilmRun) => finished(run) ? run : { ...run, poll: { tool: "get_film_run", arguments: { run_id: run.run_id }, retry_after_seconds: 5 } };
@@ -59,29 +67,34 @@ export async function waitForFilmRun(client: Pick<ClipwrightClient, "getFilmRun"
   return current;
 }
 
-/** A delivered stills run as pictures: the sheet when there is one, else each still; a picture that does not load is left out. */
-export async function stillImages(run: FilmRun, fetchImpl: typeof fetch = fetch): Promise<{ type: "image"; data: string; mimeType: string }[]> {
-  const stills = run.stills;
-  if (!stills || run.state !== "succeeded") return [];
-  const urls = stills.sheet_url ? [{ url: stills.sheet_url, mimeType: "image/png" }] : stills.frames.map(f => ({ url: f.image_url, mimeType: "image/png" }));
-  const loaded = await Promise.all(urls.map(async ({ url, mimeType }) => {
-    try {
-      const res = await fetchImpl(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-      return res.ok ? [{ type: "image" as const, data: Buffer.from(await res.arrayBuffer()).toString("base64"), mimeType }] : [];
-    } catch {
-      return [];
-    }
-  }));
-  return loaded.flat();
+/** A delivered run as pictures: a stills run's sheet when there is one or above OWN_STILLS_SINGLE_MAX stills, else each still; a delivered
+ *  hero as its pose sheet (#1371). `note` says what did not come as a picture; the run's text keeps every link and finding either way (#1372). */
+export async function stillPictures(run: FilmRun, fetchImpl?: typeof fetch): Promise<{ images: ImageBlock[]; note: string | null }> {
+  if (run.state !== "succeeded") return { images: [], note: null };
+  const stills = run.stills, heroSheet = run.hero?.sheet_url;
+  if (!stills) {
+    if (!heroSheet) return { images: [], note: null };
+    const image = await fetchImage(heroSheet, { ...(fetchImpl ? { fetchImpl } : {}), deadline: Date.now() + IMAGE_BUDGET_MS });
+    return image ? { images: [image], note: null }
+      : { images: [], note: "The pose sheet did not load: call get_film_run with this run_id to read it again, at no charge." };
+  }
+  const many = stills.frames.length > OWN_STILLS_SINGLE_MAX;
+  if (many && !stills.sheet_url) return { images: [], note: `These ${stills.frames.length} stills have no sheet, so none is sent as a picture: ` +
+    "open each image_url." };
+  const urls = stills.sheet_url ? [stills.sheet_url] : stills.frames.map(f => f.image_url), deadline = Date.now() + IMAGE_BUDGET_MS;
+  const images = (await Promise.all(urls.map(url => fetchImage(url, { ...(fetchImpl ? { fetchImpl } : {}), deadline })))).filter(i => i !== null);
+  if (images.length === urls.length) return { images, note: null };
+  const what = stills.sheet_url ? "The sheet did not load" : `${urls.length - images.length} of ${urls.length} stills did not load`;
+  return { images, note: `${what}: call get_film_run with this run_id to read the pictures again, at no charge.` };
 }
 
 /** A run's answer: the run, with its pictures when it drew stills. Image blocks, as the analysis read answers them; the shared response type
  *  keeps text-only for every other tool's callers. */
 async function runAnswer(run: FilmRun, fetchImpl?: typeof fetch): Promise<McpToolResponse> {
-  return { content: [text(withPoll(run)), ...await stillImages(run, fetchImpl)] } as unknown as McpToolResponse;
+  const { images, note } = await stillPictures(run, fetchImpl);
+  return { content: [text({ ...withPoll(run), ...(note ? { pictures: note } : {}) }), ...images] } as unknown as McpToolResponse;
 }
 
-/** How the run tools wait and fetch: the real clock and network unless a test binds its own. */
 /** Asks the API whether the mode is open for this key: the guide answers an account it is open to and is refused (4xx) for the rest.
  *  Unreachable or a server fault: no film tools, one stderr line, the server still starts. */
 export async function ownAgentOpenFor(client: Pick<ClipwrightClient, "getFilmGuide">, log: (line: string) => void = console.error): Promise<boolean> {
@@ -130,6 +143,12 @@ export function registerFilmDraftTools(server: McpServer, client: ClipwrightClie
     description: GET_FILM_DRAFT_DESCRIPTION + GUIDE_FIRST,
     inputSchema: { draft_id: filmDraftId },
   }, async ({ draft_id }) => withFailureReport(async () => ({ content: [{ type: "text", text: JSON.stringify(await client.getFilmDraft(draft_id)) }] })));
+  server.registerTool("check_film", {
+    title: "Check a film draft",
+    annotations: { readOnlyHint: true, destructiveHint: false },
+    description: CHECK_FILM_DESCRIPTION + GUIDE_FIRST,
+    inputSchema: { draft_id: filmDraftId, ...checkFilmInput.shape },
+  }, async ({ draft_id, ...request }) => withFailureReport(async () => ({ content: [text(await client.checkFilm(draft_id, request))] })));
 
   server.registerTool("quote_voice", { title: "Quote a film voice", annotations: { readOnlyHint: true, destructiveHint: false },
     description: QUOTE_VOICE_DESCRIPTION + GUIDE_FIRST, inputSchema: filmVoiceInput.shape },

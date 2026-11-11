@@ -7,7 +7,7 @@ import { placeAnchorOf, placeByCaptions, type Place } from "../scene-place.js";
 import { callout } from "./callout.js";
 import { chatWindow, chatWindowV1 } from "./chat-window.js";
 import { checklist } from "./checklist.js";
-import { compare, compareV1 } from "./compare.js";
+import { compare, compareV1, compareV2 } from "./compare.js";
 import { endCard } from "./end-card.js";
 import { lowerThird, lowerThirdV1 } from "./lower-third.js";
 import { notification, notificationV1 } from "./notification.js";
@@ -80,9 +80,9 @@ export const TEMPLATE_KIND_IDS = ["tag", "lower_third", "end_card", "title_card"
   "notification", "progress", "rating", "chat_window", "video_grid", "word_title", "phone_screen", "terminal", "pointer_chips", "chart", "race",
   "hand_title", "word_fill"] as const;
 /** Earlier versions of kinds a frozen timeline may still name, each with its own footprint (A8, #819). The phone's version 2 (#857 S5) and the
- *  five kinds' version 2 (#1119) only add optional fields, so version 1 keeps its geometry. */
+ *  five kinds' version 2 (#1119) only add optional fields, and compare's version 3 (#1159) one reveal, so earlier versions keep their geometry. */
 export const TEMPLATE_KIND_HISTORY: readonly TemplateKind[] = [{ ...phoneCall, kindVersion: 1 } as TemplateKind,
-  ...[chatWindowV1, notificationV1, terminalV1, lowerThirdV1, compareV1] as unknown as TemplateKind[]];
+  ...[chatWindowV1, notificationV1, terminalV1, lowerThirdV1, compareV1, compareV2] as unknown as TemplateKind[]];
 
 /** A kind as it was at `version`: the current entry or one from its history; a version neither holds has no footprint to draw. */
 export function templateKindAt(kind: string, version: number | undefined, kinds: readonly TemplateKind[] = TEMPLATE_KINDS,

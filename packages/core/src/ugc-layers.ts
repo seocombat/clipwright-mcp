@@ -34,6 +34,9 @@ export const INSERT_MIN_SHOWN = 0.25;
 /** A picture's scroll runs down or up a tall picture, its pan left or right across a wide one (#1051 S2). */
 export const INSERT_MOTIONS = { scroll: ["down", "up"], pan: ["left", "right"] } as const;
 export type InsertMotion = { kind: "scroll"; direction: "down" | "up" } | { kind: "pan"; direction: "left" | "right" };
+/** How a product picture comes onto its stage: tilted in depth and settling flat, slid in as a card, lit by a spotlight, or pushed in slowly. */
+export const INSERT_STAGE_ENTRANCES = ["lean_in", "slide_card", "spotlight", "push"] as const;
+export type InsertStageEntrance = (typeof INSERT_STAGE_ENTRANCES)[number];
 export const SPLIT_MEDIA_SIDES = ["top", "bottom"] as const;
 export const SPLIT_MEDIA_SHARE = { min: 0.3, max: 0.7, default: 0.5 } as const;
 

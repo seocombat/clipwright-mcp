@@ -28,6 +28,11 @@ export const ASSET_URL_TTL_SECONDS = 3600;
 export const ASSET_DELETE_GRACE_DAYS = 7;
 export const ASSET_NAME_MAX_CHARS = 80;
 export const ASSET_LIST_MAX_LIMIT = 100;
+/** The page `list_assets` asks when the agent names no limit (#1372): the API's 50 overflowed an agent's tool output. */
+export const ASSET_TOOL_PAGE = 8;
+/** The most characters one `list_assets` answer carries (#1376): a page of 20 assets with their signed links runs past an agent's tool output,
+ *  so a page longer than this is asked again at the count that fits. */
+export const ASSET_TOOL_ANSWER_CHARS = 12_000;
 
 /** A customer clip: up to 100 MiB and 120 s, a non-fragmented MP4 in h264 or hevc. */
 export const ASSET_VIDEO_MAX_BYTES = 100 * 1024 * 1024;
@@ -157,6 +162,8 @@ export const asset = z.strictObject({
   /** Present when the asset is the cover of a saved mascot (#1257): pass its id as mascot_id to make_faceless. */
   mascot: mascotSummary.optional(),
   url: z.string().url().startsWith("https://"),
+  /** The one-asset read only (#1372): a small WebP of the picture, long side at most 512, signed like `url`; absent until it is made. */
+  preview_url: z.string().url().startsWith("https://").optional(),
   expires_at: z.string().datetime(),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
@@ -290,13 +297,16 @@ export const CREATE_ASSET_DESCRIPTION =
 
 export const LIST_ASSETS_DESCRIPTION =
   "List the assets of this account, newest first, each with a freshly signed url, its role, name, size and " +
-  "content_digest; filter by role and kind, and pass next_cursor as cursor for the next page. pending lists assets " +
+  `content_digest; ${ASSET_TOOL_PAGE} a page unless you pass limit (up to ${ASSET_LIST_MAX_LIMIT}), and fewer when the page would not fit ` +
+  "your tool output. Filter by role and kind (mascot true: saved mascots with their poses) rather than reading the whole library, " +
+  "and pass next_cursor as cursor for the next page. pending lists assets " +
   "still awaiting their upload or processing, and those that failed today with the reason. usage says how much " +
   `of the ${ASSET_ACCOUNT_MAX_COUNT} assets and of the storage (${STORAGE_TERMS}) is used. Free.`;
 
 export const GET_ASSET_DESCRIPTION =
   "Read one asset by asset_id with a freshly signed url (valid for an hour), its role, name, media_type, bytes, " +
-  "width, height, content_digest and, for a clip, duration_frames, fps, codec and pix_fmt. An asset still in " +
+  "width, height, content_digest and, for a clip, duration_frames, fps, codec and pix_fmt, plus a small preview " +
+  "picture of it to look at when one is ready. An asset still in " +
   "progress answers state awaiting_upload (PUT the file, then read again) or processing (read again in a few " +
   "seconds); a refused one answers state failed with error.code. A deleted asset answers asset_not_found. Free.";
 

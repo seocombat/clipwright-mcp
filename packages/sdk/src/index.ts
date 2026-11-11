@@ -1,6 +1,11 @@
 import {
   createFilmDraftInput,
   type CreateFilmDraftInput,
+  checkFilmInput,
+  type CheckFilmInput,
+  filmCheck,
+  type FilmCheck,
+  FILM_DRAFT_CHECK_PATH,
   FILM_DRAFT_FILES_PATH,
   FILM_DRAFT_PATH,
   FILM_DRAFTS_PATH,
@@ -50,9 +55,19 @@ import {
   type ActorCatalogEntry,
   BRAND_EXTRACT_PATH,
   BRAND_KIT_PATH,
-  brandKit,
-  type BrandKit,
+  BRAND_STYLE_PROPOSE_PATH,
+  BRAND_STYLES_PATH,
+  brandKitWithStyles,
+  type BrandKitWithStyles,
   type BrandKitInput,
+  brandStyle,
+  type BrandStyle,
+  brandStyleProposal,
+  type BrandStyleProposal,
+  proposeBrandStyleInput,
+  type ProposeBrandStyleInput,
+  saveBrandStyleInput,
+  type SaveBrandStyleInput,
   type DesignInput,
   extractBrandResponse,
   type ExtractBrandResponse,
@@ -727,20 +742,32 @@ export class ClipwrightClient {
     return parseResponse(actorDefaults, body, path, false);
   }
 
-  /** The account's saved design DNA (#1122); `design` is null when none is saved. */
-  async getBrandKit(): Promise<BrandKit> {
-    return parseResponse(brandKit, await this.#request(BRAND_KIT_PATH, false), BRAND_KIT_PATH, false);
+  /** The account's saved design DNA (#1122), `null` when none is saved, and its saved styles (#1364). */
+  async getBrandKit(): Promise<BrandKitWithStyles> {
+    return parseResponse(brandKitWithStyles, await this.#request(BRAND_KIT_PATH, false), BRAND_KIT_PATH, false);
   }
 
   /** Saves the account's design DNA, or clears it with `null`; spends no credits. The saved script voice stays as it is. */
-  async setBrandKit(design: DesignInput | null): Promise<BrandKit> {
+  async setBrandKit(design: DesignInput | null): Promise<BrandKitWithStyles> {
     return this.saveBrandKit({ design });
   }
 
   /** Saves each part of the brand kit given: design DNA, script voice or both; `null` clears a part, an omitted one stays. Free. */
-  async saveBrandKit(input: BrandKitInput): Promise<BrandKit> {
+  async saveBrandKit(input: BrandKitInput): Promise<BrandKitWithStyles> {
     const body = await this.#request(BRAND_KIT_PATH, false, { method: "POST", body: JSON.stringify(input) });
-    return parseResponse(brandKit, body, BRAND_KIT_PATH, false);
+    return parseResponse(brandKitWithStyles, body, BRAND_KIT_PATH, false);
+  }
+
+  /** A style proposed from a finished analysis of a video you like, for the customer to confirm; spends no credits. */
+  async proposeBrandStyle(input: ProposeBrandStyleInput): Promise<BrandStyleProposal> {
+    const body = await this.#request(BRAND_STYLE_PROPOSE_PATH, false, { method: "POST", body: JSON.stringify(proposeBrandStyleInput.parse(input)) });
+    return parseResponse(brandStyleProposal, body, BRAND_STYLE_PROPOSE_PATH, false);
+  }
+
+  /** Saves a confirmed style by name beside the brand kit, replacing one of that name; spends no credits. */
+  async saveBrandStyle(input: SaveBrandStyleInput): Promise<BrandStyle> {
+    const body = await this.#request(BRAND_STYLES_PATH, false, { method: "POST", body: JSON.stringify(saveBrandStyleInput.parse(input)) });
+    return parseResponse(brandStyle, body, BRAND_STYLES_PATH, false);
   }
 
   /** A proposed design DNA read from a public site, for the customer to confirm; spends no credits. */
@@ -973,6 +1000,14 @@ export class ClipwrightClient {
     const path = FILM_DRAFT_FILES_PATH.replace(":id", encodeURIComponent(draftIdValue));
     const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(putFilmFilesInput.parse(request)) });
     return parseResponse(filmDraft, body, path, true);
+  }
+
+  /** The checks stills and the render run before money, on a draft revision (with unsaved changes laid over it) and a delivered voice: refusals
+   *  as `file:line`, warnings, each anchor's second and the voice's end. Free; a stale revision is refused with 409. */
+  async checkFilm(draftIdValue: string, request: CheckFilmInput): Promise<FilmCheck> {
+    const path = FILM_DRAFT_CHECK_PATH.replace(":id", encodeURIComponent(draftIdValue));
+    const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(checkFilmInput.parse(request)) });
+    return parseResponse(filmCheck, body, path, true);
   }
 
   /** What stills of a draft revision would hold; spends no credits. */

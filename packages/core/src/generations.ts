@@ -217,9 +217,20 @@ export type GenerationReference = z.infer<typeof generationReference>;
 
 const prompt = z.string().trim().min(1).max(GENERATION_PROMPT_MAX_CHARS);
 
+/** Added to a prompt that works from a reference picture, unless `keep_text` is set (#1248): models redraw a label as garbled letters. */
+export const GENERATION_NO_TEXT_CLAUSE = "No text, no lettering, no watermark, no logos on the object beyond the reference's plain shapes.";
+const keepText = z.boolean().optional().describe("Keep the reference's own lettering; by default a no-text line is added to the prompt.");
+
+/** The prompt a model gets: with a reference and no `keep_text`, the no-text line follows it (a prompt that already says so is left alone). */
+export function withNoTextClause(promptText: string, options: { hasReference: boolean; keepText?: boolean | undefined }): string {
+  if (!options.hasReference || options.keepText === true || /\bno (?:text|lettering)\b/i.test(promptText)) return promptText;
+  return `${promptText}\n${GENERATION_NO_TEXT_CLAUSE}`;
+}
+
 /** No `visible_ai_label`: an unknown key is refused, never passed to the provenance policy (D12). */
 export const generateImageRequest = z.strictObject({
   prompt,
+  keep_text: keepText,
   model: z.enum(GENERATION_IMAGE_MODELS),
   aspect_ratio: z.enum(GENERATION_IMAGE_ASPECTS),
   references: z.array(generationReference).max(GENERATION_MAX_REFERENCES).optional(),
@@ -233,6 +244,7 @@ const SHOT_DESCRIPTION = "The clip as a shot, in place of prompt: framing, subje
 export const generateVideoRequest = z.strictObject({
   prompt: prompt.optional().describe("What the clip shows, in your words; or pass shot instead."),
   shot: generationShot.optional().describe(SHOT_DESCRIPTION),
+  keep_text: keepText,
   model: z.enum(GENERATION_VIDEO_MODELS),
   mode: z.enum(GENERATION_VIDEO_MODES),
   aspect_ratio: z.enum(GENERATION_VIDEO_ASPECTS),

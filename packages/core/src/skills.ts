@@ -17,7 +17,7 @@ import { pauseTrim, VOICE_PACE_MAX, VOICE_PACE_MIN } from "./reference-voice.js"
 import { AD_PAUSE_TRIM } from "./ad-pause-trim.js";
 import { generationShot, negationIn, shotIssues } from "./generation-shot.js";
 import { lexicalTokens, quoteOccurrences } from "./semantic-inserts.js";
-import { frameCanvasOf, FULL_FRAME_TRANSITIONS, INSERT_FITS, INSERT_MOTIONS, INSERT_RETIMES, INSERT_TRANSITIONS, LAYER_ENTERS, LAYER_EXITS, layerRefusals, LAYOUT_WINDOW_KINDS, MAX_ENTER_OFFSET_S,
+import { frameCanvasOf, FULL_FRAME_TRANSITIONS, INSERT_FITS, INSERT_MOTIONS, INSERT_RETIMES, INSERT_STAGE_ENTRANCES, INSERT_TRANSITIONS, LAYER_ENTERS, LAYER_EXITS, layerRefusals, LAYOUT_WINDOW_KINDS, MAX_ENTER_OFFSET_S,
   MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS, PRESENTER_FRAMINGS, SPLIT_MEDIA_SHARE, SPLIT_MEDIA_SIDES } from "./ugc-layers.js";
 import { FRAMING_SIZES, FRAMING_TRANSITIONS, framingRefusals, MAX_FRAMING } from "./ugc-framing.js";
 import { stagingFaceRect, stagingRect } from "./reference-staging.js";
@@ -404,6 +404,8 @@ export const ugcInsert = z.object({
   box: insertBox.optional().describe("Pictures: own box in frame shares; omitted is the frame."),
   motion: z.strictObject({ kind: z.enum(["scroll", "pan"]), direction: z.enum(["down", "up", "left", "right"]) }).optional()
     .describe("Pictures: scroll (down, up) a tall one or pan (left, right) a wide one end to end, filling its box or the frame."),
+  stage: z.strictObject({ entrance: z.enum(INSERT_STAGE_ENTRANCES) }).optional()
+    .describe("Pictures: product stage, whole on a backdrop; entrance lean_in, slide_card, spotlight or push. Small or flat-ground pictures get one anyway."),
   retime: z.strictObject({ mode: z.enum(INSERT_RETIMES), at_s: z.number().min(0).max(600).optional() }).optional()
     .describe("Videos: at_s into the insert (default middle); ramp slows there, stutter repeats frames."),
 }).strict().refine(insert => insert.image_motion === undefined || insert.media_type === "image", {
@@ -413,6 +415,9 @@ export const ugcInsert = z.object({
 }).refine(insert => insert.motion === undefined || (insert.media_type === "image" && insert.image_motion === undefined && insert.fit !== "contain"
   && (INSERT_MOTIONS[insert.motion.kind] as readonly string[]).includes(insert.motion.direction)), {
   path: ["motion"], message: "motion needs media_type=image, no image_motion and no fit contain; scroll goes down or up, pan left or right",
+}).refine(insert => insert.stage === undefined || (insert.media_type === "image" && insert.image_motion === undefined && insert.motion === undefined
+  && insert.fit === undefined && insert.box === undefined), {
+  path: ["stage"], message: "stage needs media_type=image and none of image_motion, motion, fit or box",
 }).refine(insert => insert.retime === undefined || insert.media_type === "video", {
   path: ["retime"], message: "retime requires media_type=video",
 }).refine(hasOneSource, ONE_SOURCE);

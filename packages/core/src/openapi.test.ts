@@ -20,7 +20,7 @@ describe("the OpenAPI marking of the route registry", () => {
     const excluded = API_ENDPOINTS.filter((endpoint) => OPENAPI_ROUTES[endpointLabel(endpoint)]?.exposure === "excluded");
     expect(excluded.map(endpointLabel).sort()).toEqual(["GET /", "GET /internal/portfolio-metrics", "GET /robots.txt",
       "GET /v1/film-drafts/{id}", "GET /v1/film-guide", "GET /v1/film-kit", "GET /v1/film-runs/{id}", "GET /v1/public/actor-previews/{actor_id}/{version}/{file}", "POST /v1/film-drafts",
-      "POST /v1/film-drafts/{id}/files", "POST /v1/film-heroes", "POST /v1/film-heroes/quote", "POST /v1/film-renders", "POST /v1/film-renders/quote", "POST /v1/film-stills", "POST /v1/film-stills/quote",
+      "POST /v1/film-drafts/{id}/check", "POST /v1/film-drafts/{id}/files", "POST /v1/film-heroes", "POST /v1/film-heroes/quote", "POST /v1/film-renders", "POST /v1/film-renders/quote", "POST /v1/film-stills", "POST /v1/film-stills/quote",
       "POST /v1/film-voices", "POST /v1/film-voices/quote"]);
     for (const endpoint of excluded) {
       const route = OPENAPI_ROUTES[endpointLabel(endpoint)];

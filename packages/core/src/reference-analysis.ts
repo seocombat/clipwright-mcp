@@ -70,7 +70,7 @@ export const referenceSourceKey = z.string().regex(/^(instagram|tiktok):[A-Za-z0
 
 export const REFERENCE_URL_YOUTUBE_REFUSAL = "YouTube gives no video file through our source; upload the MP4 with create_asset";
 export const REFERENCE_URL_ACCEPTED = "an Instagram reel or post link (instagram.com/reel/<code>, /reels/<code>, /p/<code>) or a TikTok " +
-  "video link (tiktok.com/@<user>/video/<id>, vm.tiktok.com/<code>)";
+  "video link (tiktok.com/@<user>/video/<id>, vt.tiktok.com/<code>, vm.tiktok.com/<code>)";
 
 export type ReferenceUrl =
   | { ok: true; url: string; platform: ReferenceSourcePlatform; key: string | null }
@@ -247,7 +247,7 @@ export type ReferenceAnalysisQuery = z.infer<typeof referenceAnalysisQuery>;
 
 /** What asking again costs, in the quote and in a succeeded analysis (#1007). */
 export const REFERENCE_REPEAT_NOTE = "Asking again for the same asset_id, or the same reel by its full link, in the same mode is free and answers " +
-  "the succeeded analysis at once, with no time limit. A short vm.tiktok.com link never repeats: each start is a new, paid analysis.";
+  "the succeeded analysis at once, with no time limit. A short vt.tiktok.com or vm.tiktok.com link is followed to its video first, so it repeats like the full link.";
 
 /** The call a succeeded full analysis leads to (#1172): a remake plan from this analysis, with the user's script and an actor added. */
 export const REFERENCE_NEXT_NOTE = "To make a video like this reference, write the user's script on its hook, structure and pacing, never its words, " +
@@ -372,7 +372,7 @@ export const ANALYZE_REFERENCE_DESCRIPTION =
   `Answers at once with state queued; call get_reference_analysis with wait_seconds: ${REFERENCE_WAIT_MAX_SECONDS} until succeeded or failed ` +
   "(full about 2–3 minutes, data under one). " +
   "The same asset, or reel by its full link, in the same mode returns the same analysis, free, unless it " +
-  "failed; a short vm.tiktok.com link always starts a new one. An analysis made before frames and speakers existed is redone free " +
+  "failed, and a short vt.tiktok.com or vm.tiktok.com link counts as the full link of its video. An analysis made before frames and speakers existed is redone free " +
   "once (replaces_analysis_id names the old one, still readable). The asset is not changed. " +
   "For a video like the reference, pass the succeeded analysis_id to plan_reference_remake (its next says so). " +
   "The profile names techniques; it copies no face, voice, music or brand of the reference.";

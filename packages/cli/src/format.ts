@@ -15,6 +15,7 @@ export function formatRun(run: WorkflowRunRead): string {
   if (run.final_output?.video_url) {
     lines.push(`video_url: ${run.final_output.video_url}`);
     lines.push(`ai_disclosure: ${run.final_output.ai_disclosure}`);
+    if (run.final_output.post_text) lines.push("post_text:", ...run.final_output.post_text.split("\n").map(line => `  ${line}`));
   }
   if (run.warnings.length > 0) {
     lines.push(`warnings: ${run.warnings.join(", ")}`);

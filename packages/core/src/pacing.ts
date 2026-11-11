@@ -38,8 +38,33 @@ export function estimateWordsPerSecond(script: string, model?: TtsModelId): numb
   return measured ?? ESTIMATE_WORDS_PER_SECOND_CYRILLIC;
 }
 
-/** An ESTIMATE from the script's pace, not a fact: the charge follows the measured duration. */
-export function estimateDurationSec(script: string, model?: TtsModelId): number {
-  const words = countWords(script);
-  return Math.max(1, Math.round(words / estimateWordsPerSecond(script, model)));
+/** A language whose words are longer than English ones is paced by characters, not words: a Turkish word is a fifth longer, so words/s ran */
+/** its takes short. Delivered takes of Latin script read at 15.48 characters/s untrimmed (46 takes, median) and 16.95 trimmed (8). */
+export const ESTIMATE_CHARS_PER_SECOND_LATIN = 15.5;
+/** A take cut with pause_trim reads 9% faster: 16.95 against 15.48 characters/s. */
+export const PAUSE_TRIM_PACE_FACTOR = 1.09;
+/** The pace of a language against English, from the catalog sample of each (one sentence read by 10 voices, median characters/s over English's 15.1). */
+export const LATIN_LANGUAGE_PACE: Readonly<Record<string, number>> = {
+  cs: 0.82, da: 0.97, de: 0.93, es: 0.91, fi: 0.89, fil: 0.8, fr: 1.08, hr: 0.87, hu: 0.93, id: 0.86, it: 1, ms: 0.92, nl: 1.01,
+  no: 0.91, pl: 0.9, pt: 0.92, ro: 0.84, sk: 0.9, sv: 0.91, tr: 0.86, vi: 1.05,
+};
+
+/** What a make_ugc quote knows about the take: the named voice (catalog names start with their language, `tr_male_…`) and a pause_trim. */
+export type SpeechPace = { voice?: string | undefined; pauseTrim?: boolean };
+
+/** The catalog language of a voice named in a pace and measured in LATIN_LANGUAGE_PACE; English and unknown voices have none. */
+const measuredLanguageOf = (voice: string | undefined): string | undefined => {
+  const language = voice === undefined ? undefined : /^([a-z]{2,3})_/.exec(voice)?.[1];
+  return language !== undefined && Object.hasOwn(LATIN_LANGUAGE_PACE, language) ? language : undefined;
+};
+
+/** An ESTIMATE from the script's pace, not a fact: the charge follows the measured duration. Given `pace`, a take cut with pause_trim */
+/** reads 9% faster and Latin script in a language measured above is timed by characters; any other take is timed by words as before. */
+export function estimateDurationSec(script: string, model?: TtsModelId, pace?: SpeechPace): number {
+  const trim = pace?.pauseTrim ? PAUSE_TRIM_PACE_FACTOR : 1;
+  const language = measuredLanguageOf(pace?.voice);
+  if (language !== undefined && detectScriptFamily(script) === "latin") {
+    return Math.max(1, Math.round(Array.from(script.replace(/\s+/g, " ").trim()).length / (ESTIMATE_CHARS_PER_SECOND_LATIN * LATIN_LANGUAGE_PACE[language]! * trim)));
+  }
+  return Math.max(1, Math.round(countWords(script) / (estimateWordsPerSecond(script, model) * trim)));
 }

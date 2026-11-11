@@ -25,10 +25,11 @@ describe("the own-agent tariff", () => {
   it("prices a film by its started seconds over the base, a take once rounded up and each still", () => {
     expect([ownFilmRenderCredits(45), ownFilmRenderCredits(60), ownFilmRenderCredits(60.2), ownFilmRenderCredits(75)]).toEqual([100, 100, 102, 130]);
     expect([ownVoiceCredits(12.3), ownVoiceCredits(12)]).toEqual([26, 24]);
-    expect([ownStillsCredits(0), ownStillsCredits(4)]).toEqual([0, 4]);
+    // #1356 C5: up to 24 stills a call at 1 credit each; a 25th is never held or charged.
+    expect([ownStillsCredits(0), ownStillsCredits(4), ownStillsCredits(24)]).toEqual([0, 4, 24]);
     expect(() => ownFilmRenderCredits(0)).toThrow();
     expect(() => ownFilmRenderCredits(121)).toThrow();
-    expect(() => ownStillsCredits(9)).toThrow();
+    expect(() => ownStillsCredits(25)).toThrow();
   });
 
   /** Mutant (Codex r1): any unit priced by today's constants instead of the run's snapshot, and a price change reprices runs already held. */

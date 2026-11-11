@@ -2,15 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { parseApiFailure, putFilmFilesInput, type FilmRun } from "@clipwright/core";
+import { OWN_STILLS_SINGLE_MAX, parseApiFailure, putFilmFilesInput, type FilmRun } from "@clipwright/core";
 import type { ClipwrightClient } from "@clipwright/sdk";
 import { listTools } from "./remote.js";
 import { ClipwrightApiError } from "@clipwright/sdk";
-import { FILM_POLL_MS, FILM_WAIT_MS, ownAgentOpenFor, registerFilmDraftTools, stdioModes, stillImages, waitForFilmRun } from "./film-tools.js";
+import { FILM_POLL_MS, FILM_WAIT_MS, ownAgentOpenFor, registerFilmDraftTools, stdioModes, stillPictures, waitForFilmRun } from "./film-tools.js";
 
 // #1291 F2, #1337: the «own agent» film tools are listed only where the mode is offered, so the public tool list is unchanged before launch.
 
-const FILM_TOOLS = ["create_film_draft", "get_film_draft", "get_film_guide", "get_film_kit", "get_film_run", "make_film_hero", "make_voice", "preview_stills",
+const FILM_TOOLS = ["check_film", "create_film_draft", "get_film_draft", "get_film_guide", "get_film_kit", "get_film_run", "make_film_hero", "make_voice", "preview_stills",
   "put_film_files", "quote_film_hero", "quote_render", "quote_stills", "quote_voice", "render_film"];
 
 describe("the film tools (#1291 F2, #1337)", () => {
@@ -56,21 +56,42 @@ describe("the film tools (#1291 F2, #1337)", () => {
     finally { await client.close(); }
     expect(sent).toEqual([{ base_revision: 2, files: { "Movie.tsx": "b" } }]);
   });
+
+  /** #1356 C1. Mutants: a check tool that is not read-only, that drops the unsaved changes, or names no internal-free reason to call it. */
+  it("check_film is read-only, forwards the revision, the voice and unsaved changes, and answers the check", async () => {
+    const sent: unknown[] = [];
+    const api = { checkFilm: async (id: string, request: unknown) => { sent.push([id, request]); return { ok: true, refusals: [] }; } };
+    const listed = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(tool => tool.name === "check_film")!;
+    expect(listed.annotations?.readOnlyHint).toBe(true);
+    expect(listed.inputSchema.required).toEqual(expect.arrayContaining(["draft_id", "revision", "voice_run_id"]));
+    expect(listed.description).toMatch(/^Free and instant\./);
+    const server = new McpServer({ name: "film-test", version: "0.0.0" });
+    registerFilmDraftTools(server, api as unknown as ClipwrightClient);
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair(), client = new Client({ name: "film-test", version: "0.0.0" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    const draft = `fdr_${"a".repeat(32)}`;
+    let answer: { type: string; text?: string }[];
+    try { answer = (await client.callTool({ name: "check_film", arguments: { draft_id: draft, revision: 3, voice_run_id: "run_v1", cues: { hook: 0.2 } } }))
+      .content as { type: string; text?: string }[]; }
+    finally { await client.close(); }
+    expect(sent).toEqual([[draft, { revision: 3, voice_run_id: "run_v1", cues: { hook: 0.2 } }]]);
+    expect(JSON.parse(answer[0]!.text!)).toEqual({ ok: true, refusals: [] });
+  });
 });
 
 const run = (state: string, over: Partial<FilmRun> = {}): FilmRun => ({ run_id: "run_s", skill: "film_stills", state, credits_reserved: 6, credits_charged: null,
   warnings: [], error: null, created_at: "2026-11-09T12:00:00.000Z", finished_at: null, ...over });
 
 /** Each run tool as an MCP client calls it: the registered handler, a fake API behind it. */
-async function callFilmTool(name: string, args: Record<string, unknown>, reads: FilmRun[], started: FilmRun) {
+async function callFilmTool(name: string, args: Record<string, unknown>, reads: FilmRun[], started: FilmRun,
+  fetchImpl: typeof fetch = (async () => new Response(new Uint8Array([7]))) as unknown as typeof fetch) {
   const api = { previewStills: async () => started, makeVoice: async () => started, renderFilm: async () => started, makeFilmHero: async () => started,
     getFilmRun: async () => reads.shift()! };
   const server = new McpServer({ name: "film-test", version: "0.0.0" });
-  registerFilmDraftTools(server, api as unknown as ClipwrightClient, { pollMs: 0, sleep: async () => undefined,
-    fetchImpl: (async () => new Response(new Uint8Array([7]))) as unknown as typeof fetch });
+  registerFilmDraftTools(server, api as unknown as ClipwrightClient, { pollMs: 0, sleep: async () => undefined, fetchImpl });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair(), client = new Client({ name: "film-test", version: "0.0.0" });
   await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
-  try { return (await client.callTool({ name, arguments: args })).content as { type: string; text?: string }[]; }
+  try { return (await client.callTool({ name, arguments: args })).content as { type: string; text?: string; data?: string }[]; }
   finally { await client.close(); }
 }
 
@@ -84,6 +105,19 @@ describe("the run tools as a client calls them (#1337)", () => {
     expect([JSON.parse(stills[0]!.text!).state, stills.map(c => c.type)]).toEqual(["succeeded", ["text", "image"]]);
     const voice = await callFilmTool("make_voice", { text: "Hello there." }, [run("succeeded", { skill: "film_voice" })], run("queued", { skill: "film_voice" }));
     expect(JSON.parse(voice[0]!.text!).state).toBe("succeeded");
+  });
+
+  /** #1371 C4, Codex r3. Mutant: pictures only for a stills run, and a delivered hero reaches the agent as text with no sheet to look at. */
+  it("make_film_hero and get_film_run answer a delivered hero with its pose sheet as one picture, read from the run's sheet_url", async () => {
+    const hero = run("succeeded", { skill: "film_hero", hero: { mascot_id: `ast_${"a".repeat(32)}`, poses: ["neutral", "palm"], character: null,
+      sheet_url: "https://r2.test/runs/run_s/hero-sheet.png" } });
+    for (const [name, args, reads] of [["make_film_hero", { character_details: "A round mint cactus" }, []],
+      ["get_film_run", { run_id: "run_s" }, [hero]]] as const) {
+      const fetched: string[] = [], answer = await callFilmTool(name, args, [...reads], hero,
+        (async (url: string) => { fetched.push(url); return new Response(new Uint8Array([7])); }) as unknown as typeof fetch);
+      expect([name, answer.map(c => c.type), answer[1]?.data, fetched]).toEqual([name, ["text", "image"], "Bw==", ["https://r2.test/runs/run_s/hero-sheet.png"]]);
+      expect(JSON.parse(answer[0]!.text!).hero.sheet_url).toBe("https://r2.test/runs/run_s/hero-sheet.png");
+    }
   });
 
   /** Mutant: wait on a render, which takes minutes, past the agent's tool timeout. */
@@ -154,7 +188,7 @@ describe("a stills run as pictures (#1337)", () => {
     const done = await waitForFilmRun({ getFilmRun: async () => reads.shift()! }, run("queued"), { pollMs: 0, sleep: async () => undefined });
     expect(done.state).toBe("succeeded");
     const fetched: string[] = [];
-    const images = await stillImages(done, (async (url: string) => { fetched.push(url); return new Response(new Uint8Array([7])); }) as unknown as typeof fetch);
+    const { images } = await stillPictures(done, (async (url: string) => { fetched.push(url); return new Response(new Uint8Array([7])); }) as unknown as typeof fetch);
     expect([fetched, images.map(i => i.mimeType)]).toEqual([["https://r2.test/f1.png", "https://r2.test/f2.png"], ["image/png", "image/png"]]);
   });
 
@@ -163,8 +197,88 @@ describe("a stills run as pictures (#1337)", () => {
     const sheet = run("succeeded", { stills: { frames: [{ at: 1, seconds: 1, frame: 30, image_url: "https://r2.test/f1.png", findings: [] }],
       sheet_url: "https://r2.test/sheet.png", refusals: [] } });
     const fetchImpl = (async () => new Response(new Uint8Array([1]))) as unknown as typeof fetch;
-    expect((await stillImages(sheet, fetchImpl)).length).toBe(1);
-    expect(await stillImages(run("failed", { stills: { frames: [], sheet_url: null, refusals: ["Movie.tsx:1: x"] } }), fetchImpl)).toEqual([]);
+    expect((await stillPictures(sheet, fetchImpl)).images.length).toBe(1);
+    expect(await stillPictures(run("failed", { stills: { frames: [], sheet_url: null, refusals: ["Movie.tsx:1: x"] } }), fetchImpl))
+      .toEqual({ images: [], note: null });
+  });
+});
+
+const frames = (count: number, findings: (i: number) => string[] = () => []) => Array.from({ length: count }, (_, i) =>
+  ({ at: i + 1, seconds: i + 1, frame: (i + 1) * 30, image_url: `https://r2.test/f${i + 1}.png`, findings: findings(i + 1) }));
+const fetchedBy = (urls: string[], answer: (url: string) => Response | Promise<Response> = () => new Response(new Uint8Array([7]))) =>
+  (async (url: string) => { urls.push(url); return answer(url); }) as unknown as typeof fetch;
+
+// #1372 C1: 17 frames inline dropped the agent's connection three times and lost a paid round.
+describe("many stills come as one sheet (#1372 C1)", () => {
+  /** Mutants: a threshold of 8 or more (`>=`), or none, and either the 8 or the 9 case turns red. */
+  it(`sends ${OWN_STILLS_SINGLE_MAX} stills one by one, and one more as the sheet alone`, async () => {
+    const eight: string[] = [];
+    expect((await stillPictures(run("succeeded", { stills: { frames: frames(OWN_STILLS_SINGLE_MAX), sheet_url: null, refusals: [] } }),
+      fetchedBy(eight))).images).toHaveLength(OWN_STILLS_SINGLE_MAX);
+    expect(eight).toHaveLength(OWN_STILLS_SINGLE_MAX);
+    const nine: string[] = [];
+    const nineSheet = run("succeeded", { stills: { frames: frames(OWN_STILLS_SINGLE_MAX + 1), sheet_url: "https://r2.test/sheet.png", refusals: [] } });
+    expect([(await stillPictures(nineSheet, fetchedBy(nine))).images.length, nine]).toEqual([1, ["https://r2.test/sheet.png"]]);
+  });
+
+  /** Mutant: fall back to every frame when a run of more than 8 has no sheet, and the answer is the one that dropped the connection. */
+  it("sends no frame of a run above the limit that has no sheet, and says why", async () => {
+    const urls: string[] = [];
+    const { images, note } = await stillPictures(run("succeeded", { stills: { frames: frames(17), sheet_url: null, refusals: [] } }), fetchedBy(urls));
+    expect([images, urls]).toEqual([[], []]);
+    expect(note).toMatch(/17 stills.*image_url/);
+  });
+
+  /** Mutant: no retry, and a passing network failure loses the picture. */
+  it("retries a picture that failed to load", async () => {
+    let calls = 0;
+    const { images, note } = await stillPictures(run("succeeded", { stills: { frames: frames(1), sheet_url: null, refusals: [] } }),
+      fetchedBy([], () => { calls += 1; if (calls === 1) throw new TypeError("socket hang up"); return calls === 2 ? new Response("busy", { status: 503 })
+        : new Response(new Uint8Array([7])); }));
+    expect([images.length, calls, note]).toEqual([1, 3, null]);
+  });
+
+  /** Mutants: a failed fetch fails the tool answer, or the text drops a still or its findings, or says nothing of the missing pictures. */
+  it("answers every still with its findings when no picture loads, and names the free re-read", async () => {
+    const drawn = run("succeeded", { stills: { frames: frames(3, i => i === 2 ? ["text clipped: \"MORNING\""] : []), sheet_url: null, refusals: [] } });
+    const answer = await callFilmTool("get_film_run", { run_id: "run_s" }, [drawn], run("queued"),
+      (async () => { throw new TypeError("network down"); }) as unknown as typeof fetch);
+    expect(answer.map(c => c.type)).toEqual(["text"]);
+    const body = JSON.parse(answer[0]!.text!) as FilmRun & { pictures?: string };
+    expect(body.stills!.frames.map(f => [f.image_url, f.findings])).toEqual(drawn.stills!.frames.map(f => [f.image_url, f.findings]));
+    expect(body.pictures).toMatch(/3 of 3 stills did not load.*get_film_run.*no charge/);
+  });
+});
+
+// #1372 C2: a paid round's pictures are read again with no new run.
+describe("a stills run read again (#1372 C2)", () => {
+  /** Mutants: pictures only on the call that drew them, or a re-read that starts a run; either turns this red. */
+  it("get_film_run answers the same sheet on a second read and starts no run", async () => {
+    const sheet = run("succeeded", { stills: { frames: frames(12), sheet_url: "https://r2.test/sheet.png", refusals: [] } });
+    const started: string[] = [];
+    const api = { previewStills: async () => { started.push("previewStills"); return sheet; }, getFilmRun: async () => sheet };
+    const server = new McpServer({ name: "film-test", version: "0.0.0" });
+    registerFilmDraftTools(server, api as unknown as ClipwrightClient, { pollMs: 0, sleep: async () => undefined,
+      fetchImpl: (async (url: string) => new Response(new TextEncoder().encode(url))) as unknown as typeof fetch });
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair(), client = new Client({ name: "film-test", version: "0.0.0" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    const read = async () => (await client.callTool({ name: "get_film_run", arguments: { run_id: "run_s" } })).content as { type: string; data?: string }[];
+    let first: { type: string; data?: string }[], second: { type: string; data?: string }[];
+    try { first = await read(); second = await read(); } finally { await client.close(); }
+    expect(first.map(c => c.type)).toEqual(["text", "image"]);
+    expect(Buffer.from(second[1]!.data!, "base64").toString()).toBe("https://r2.test/sheet.png");
+    expect([second, started]).toEqual([first, []]);
+    const tool = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(t => t.name === "get_film_run")!;
+    expect(tool.description).toMatch(/pictures again.*no charge/);
+  });
+
+  /** #1371 C4. Mutants: answer a delivered hero as text alone, or a hero with no sheet as a broken picture, and the agent goes to stills unseen. */
+  it("shows a delivered hero's pose sheet as one picture, and none for a hero without one", async () => {
+    const hero = (sheet_url: string | null) => run("succeeded", { skill: "film_hero", hero: { mascot_id: `ast_${"a".repeat(32)}`, poses: ["neutral"], character: null, sheet_url } });
+    const fetched: string[] = [], fetchImpl = (async (url: string) => { fetched.push(url); return new Response(new Uint8Array([1])); }) as unknown as typeof fetch;
+    expect((await stillPictures(hero("https://r2.test/hero-sheet.png"), fetchImpl)).images.map(i => i.type)).toEqual(["image"]);
+    expect([(await stillPictures(hero(null), fetchImpl)).images, fetched]).toEqual([[], ["https://r2.test/hero-sheet.png"]]);
+    expect((await listTools({ fileAccess: "refuse", ownAgent: true })).find(t => t.name === "make_film_hero")!.description).toMatch(/look at it before .*stills/i);
   });
 });
 

@@ -117,6 +117,7 @@ export function terminalRunMarkdown(run: WorkflowRunRead): string {
   return [`**${out.title}** · \`${run.run_id}\` · ${run.skill}`, "", "| File | Length |", "|---|---:|",
     `| ${out.link ? `[Download](${out.link})` : "—"} | ${out.length} |`, ...money,
     ...(out.link ? ["", "The link is temporary: download the file."] : []),
+    ...(run.final_output?.post_text ? ["", "Text to publish with it:", ...run.final_output.post_text.split("\n").map(line => `> ${line}`)] : []),
     ...(run.generation ? [`To use it in a template or insert: create_asset with source {"run_id": "${run.run_id}"} until ${run.generation.reusable_until}, then pass the asset_id.`] : []),
     ...warningLines(run.warnings)].join("\n");
 }

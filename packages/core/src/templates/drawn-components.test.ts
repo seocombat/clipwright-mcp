@@ -40,14 +40,14 @@ describe("version 2 of five kinds (#1119)", () => {
     compare: { before: asset(1), after: asset(2), reveal_at: "in reality" },
   };
 
-  /** Mutant: drop or misnumber a kind's version 1 in the history, and a frozen version-1 timeline has no footprint to draw. */
-  it("keeps each kind's version 1 in the history, drawing its data where version 2 draws it", () => {
+  /** Mutant: drop or misnumber a kind's version 1 (or compare's 2, #1159) in the history, and a frozen timeline has no footprint to draw. */
+  it("keeps each kind's earlier versions in the history, drawing its data where the current version draws it", () => {
     for (const [name, data] of Object.entries(V1)) {
-      const current = kind(name), placement = current.placements[0]!;
-      expect({ name, version: current.kindVersion, v1: templateKindAt(name, 1).kindVersion, parses: current.data.safeParse(data).success,
-        same: JSON.stringify(templateFootprint({ kind: name, kindVersion: 1, placement, data }, "9:16")) ===
-          JSON.stringify(templateFootprint({ kind: name, kindVersion: 2, placement, data }, "9:16")) })
-        .toEqual({ name, version: 2, v1: 1, parses: true, same: true });
+      const current = kind(name), placement = current.placements[0]!, earlier = name === "compare" ? [1, 2] : [1];
+      const at = (kindVersion: number) => JSON.stringify(templateFootprint({ kind: name, kindVersion, placement, data }, "9:16"));
+      expect({ name, version: current.kindVersion, earlier: earlier.map(version => templateKindAt(name, version).kindVersion),
+        parses: current.data.safeParse(data).success, same: earlier.every(version => at(version) === at(current.kindVersion)) })
+        .toEqual({ name, version: name === "compare" ? 3 : 2, earlier, parses: true, same: true });
     }
   });
 

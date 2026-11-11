@@ -4,10 +4,11 @@ import { ACTOR_PREVIEW_PATH } from "./actors.js";
 import { ASSET_BYTES_PATH, ASSET_ITEM_PATH, ASSETS_PATH } from "./assets.js";
 import { ACTOR_DEFAULTS_PATH } from "./broll-policy.js";
 import { BRAND_EXTRACT_PATH, BRAND_KIT_PATH } from "./design.js";
+import { BRAND_STYLE_PROPOSE_PATH, BRAND_STYLES_PATH } from "./brand-styles.js";
 import { CREATOR_PROFILE_PATH, CREATOR_PROFILE_QUOTE_PATH, CREATOR_PROFILES_PATH } from "./creator-profile.js";
 import { TREND_SEARCH_PATH, TREND_SEARCH_QUOTE_PATH, TREND_SEARCHES_PATH } from "./trend-search.js";
 import { FEEDBACK_PATH } from "./feedback.js";
-import { FILM_DRAFT_FILES_PATH, FILM_DRAFT_PATH, FILM_DRAFTS_PATH } from "./film-drafts.js";
+import { FILM_DRAFT_CHECK_PATH, FILM_DRAFT_FILES_PATH, FILM_DRAFT_PATH, FILM_DRAFTS_PATH } from "./film-drafts.js";
 import { FILM_GUIDE_PATH, FILM_KIT_PATH } from "./film-guide.js";
 import { FILM_HEROES_PATH, FILM_HEROES_QUOTE_PATH, FILM_RENDERS_PATH, FILM_RENDERS_QUOTE_PATH, FILM_RUN_PATH, FILM_STILLS_PATH, FILM_STILLS_QUOTE_PATH, FILM_VOICES_PATH,
   FILM_VOICES_QUOTE_PATH } from "./own-agent-runs.js";
@@ -80,6 +81,8 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "GET", path: BRAND_KIT_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: true },
   { method: "POST", path: BRAND_KIT_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: true, mcp: true },
   { method: "POST", path: BRAND_EXTRACT_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: BRAND_STYLE_PROPOSE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: BRAND_STYLES_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: "/v1/skills/create_actor/quote", billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: "/v1/skills/create_actor/run", billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: "/v1/uploads", billed: false, onQuickstart: false, jsonBody: false, cabinet: true, mcp: false },
@@ -128,6 +131,7 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   // Film drafts of the «own agent» mode (#1291 F2): free, behind CLIPWRIGHT_OWN_AGENT; the files row stands before `:id`'s own.
   { method: "POST", path: FILM_DRAFTS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: FILM_DRAFT_FILES_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: FILM_DRAFT_CHECK_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "GET", path: FILM_DRAFT_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   // Its paid runs (#1337): stills, voice and render, each quoted first; one read of what a run delivered.
   { method: "POST", path: FILM_STILLS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },

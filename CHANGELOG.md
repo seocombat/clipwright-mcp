@@ -18,6 +18,90 @@ listed under.
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-11-11
+
+### Added
+
+- *Server-side:* a `compare` template takes `reveal: "wipe_full"` (#1159): the wipe crosses the whole card, the divider
+  slides out and the after picture ends filling the card. Without the field, or with `sweep` or `wipe`, it draws as before.
+- *Server-side:* a product picture insert takes `stage` with an `entrance` (`lean_in`, `slide_card`, `spotlight` or
+  `push`): the picture is shown whole on a backdrop instead of filling the frame. A small or flat-ground picture is set on
+  a stage anyway, with a warning, so it is never shown soft.
+- `generate_image` and `generate_video` take `keep_text`. Without it, a prompt that works from a reference picture asks
+  for no lettering, so a label is not redrawn as garbled letters. A delivered generation answers `thumbnail_urls`, and
+  the MCP server shows them, so your agent sees the image or clip it made.
+- `find_trends` answers `suggested_wordings`: other wordings of the topic to try when few reels took off.
+- A style from a video you like: `extract_brand` with the `analysis_id` of a finished full `analyze_reference` proposes
+  its colours, faces, corners and pace for free; `brand_kit` saves it by name, up to 12 styles, and lists them.
+  `create_film_draft` takes `brand_style` to draw a film in a saved style instead of the kit's design.
+- *Server-side:* the film's own length, `film_sec`, in a delivered `make_voice` answer (`voice.film_sec`) and in the
+  `quote_render` answer: the voice, then a short tail. Tell the user this length, not the voice's.
+- *Server-side:* `create_film_draft` with a saved mascot warns about the poses it lacks, before any code is written: a
+  pose the mascot lacks shows its neutral pose instead.
+
+### Changed
+
+- `list_assets` in the MCP server reads 8 assets a page by default. A page that would not fit your agent's tool output
+  is cut to the assets that fit, with a line saying so; `next_cursor` continues after them.
+
+### Fixed
+
+- *Server-side:* the stills' layout check no longer flags the filled boxes and circles of a checklist as running into
+  the card they sit on. A row laid across another drawing is still flagged.
+- *Server-side:* a quoted video length follows the script's language and `pause_trim`; it ran 25–40% short before.
+- *Server-side:* a short TikTok share link (`vt.tiktok.com`) works as a reference in `analyze_reference`.
+
+## [0.51.0] - 2026-11-11
+
+### Added
+
+- A delivered `make_film_hero` run answers `hero.sheet_url`: the published poses on one picture. `make_film_hero` and
+  `get_film_run` in the MCP server show it as an image, so your agent can look at the hero before it takes stills.
+- A delivered done-for-you explainer (`make_faceless`, format `explainer`) can carry `final_output.post_text`: 1–3 lines
+  to publish with the film, in its script's language, saying nothing the script does not. `get_run` shows them under the
+  video and `clipwright runs <id>` prints them. The field is optional: a film without it is delivered and charged the same.
+
+### Changed
+
+- *Server-side:* an explainer hero drawn from a photo of a person comes out as a cartoon in the mascot style, in
+  `make_film_hero` and in `make_faceless` explainers alike. To keep the photo, ask for a photoreal look in
+  `character_details`; such a hero keeps a still face, with no moving mouth.
+- *Server-side:* the film guide's script step adds three rules: write live speech, without filler, slogans or a row of
+  equally short sentences; use only the user's own figures and results; show every change to an approved script as a
+  new full version and get a new OK before the voice. Its last step hands the film over with 1–3 lines to publish.
+- *Server-side:* `check_film` refuses, free, a file over 8 000 syntax nodes, as stills already did, and words the
+  file-size and file-count refusals as stills do: `name: over 40000 bytes`, `the film has 13 files; at most 12`.
+  `put_film_files` uses the same words. The film guide lists the three limits and asks for one file per scene.
+- `preview_stills` and `get_film_run` send more than 8 stills as one tiled sheet, and up to 8 as single pictures. A picture
+  that does not load is tried again. When one still fails to load, the answer still lists every still with its findings and
+  says to call `get_film_run` again, which re-sends a delivered round's pictures at no charge. *Server-side:* a stills round
+  of more than 8 always comes with a sheet.
+- `get_asset` answers a small preview picture of the asset next to its details. *Server-side:* `GET /v1/assets/{id}` has
+  `preview_url` once the preview is ready.
+- `list_assets` answers 20 assets a page unless you pass `limit` (up to 100), so a page fits an agent's tool output.
+- *Server-side:* a storyboard phrase under 1.5 events a second is named once, by `check_film`, with how many events
+  to add; `preview_stills` and `render_film` no longer repeat it.
+- *Server-side:* when a saved mascot's pose is left out of a film, the warning names the pose your code asks for.
+- *Server-side:* `make_film_hero` takes your own actor's picture from `list_actors` as `character_reference`.
+
+## [0.50.0] - 2026-11-10
+
+### Added
+
+- `check_film` (`checkFilm` in the SDK): a free, instant check of a film draft on its voice. It answers what stills and
+  `render_film` would refuse, as `file:line`, with each anchor's second and word and the voice's end, and it can check
+  changes before they are saved.
+- A film draft keeps a `storyboard`: one row per phrase of the voice with the events on its words, sent with
+  `put_film_files` and read back with the draft.
+
+### Changed
+
+- **Breaking:** *Server-side:* stills and `render_film` refuse, free, a draft without a storyboard, or with one that
+  leaves part of the voice or an anchor the code reads without a phrase or an event. Send a storyboard with
+  `put_film_files` before the code.
+- `preview_stills` draws up to 24 moments a call, at 1 credit each; with no `at` it draws the storyboard's events,
+  spread over the film.
+
 ## [0.49.0] - 2026-11-10
 
 ### Added

@@ -13,6 +13,8 @@ import {
   actorDefaultsInput,
   type DesignInput,
   extractBrandInput,
+  proposeBrandStyleInput,
+  type SaveBrandStyleInput,
   mcpDesign,
   mcpScriptVoice,
   type ScriptVoice,
@@ -64,6 +66,10 @@ import {
   DELETE_CREATOR_PROFILE_DESCRIPTION,
   GET_ASSET_DESCRIPTION,
   LIST_ASSETS_DESCRIPTION,
+  ASSET_BASE64_MAX_BYTES,
+  ASSET_TOOL_ANSWER_CHARS,
+  ASSET_TOOL_PAGE,
+  type AssetItemRead,
   UPDATE_ASSET_DESCRIPTION,
   ANALYZE_REFERENCE_DESCRIPTION,
   QUOTE_ANALYSIS_DESCRIPTION,
@@ -93,6 +99,7 @@ import { formatGetRun, type McpToolResponse, RUN_WAIT_MAX_SECONDS, withFailureRe
 import { facelessQuoteMarkdown, RUN_DISPLAY_HINT, ugcQuoteMarkdown } from "./run-display.js";
 import { registerWorkflowTools } from './workflow-tools.js';
 import { registerFilmDraftTools } from "./film-tools.js";
+import { fetchImage } from "./images.js";
 import { advertiseSlimTools, describeTool } from "./advertised-schema.js";
 import { answerInvalidArguments } from "./invalid-arguments.js";
 
@@ -203,6 +210,26 @@ const { display: _display, ...readQuery } = referenceAnalysisQuery.shape;
 const creatorProfileQueryWait = creatorProfileQuery.shape.wait_seconds;
 const FRAME_FETCH_TIMEOUT_MS = 10_000;
 
+/** A thumbnail is about 512 px of JPEG; one larger than this is not the small preview and is left out. */
+export const THUMBNAIL_MAX_BYTES = 300_000;
+
+/** A succeeded generation's own small JPEGs as image blocks (#1245): the picture, or the clip's start, middle and end; a failed run has none. */
+export async function generationThumbnails(run: { state: string; generation?: { thumbnail_urls?: string[] | undefined } | undefined },
+  fetchImpl: typeof fetch = fetch): Promise<{ type: "image"; data: string; mimeType: "image/jpeg" }[]> {
+  if (run.state !== "succeeded") return [];
+  const loaded = await Promise.all((run.generation?.thumbnail_urls ?? []).slice(0, 3).map(async url => {
+    try {
+      const res = await fetchImpl(url, { signal: AbortSignal.timeout(FRAME_FETCH_TIMEOUT_MS) });
+      if (!res.ok) return [];
+      const bytes = Buffer.from(await res.arrayBuffer());
+      return bytes.byteLength <= THUMBNAIL_MAX_BYTES ? [{ type: "image" as const, data: bytes.toString("base64"), mimeType: "image/jpeg" as const }] : [];
+    } catch {
+      return [];
+    }
+  }));
+  return loaded.flat();
+}
+
 /** The analysis's key frames as image blocks, the hook first, at most eight spread over the rest; a frame that does not load is left out. */
 export async function keyFrameImages(frames: unknown, fetchImpl: typeof fetch = fetch):
   Promise<{ type: "image"; data: string; mimeType: "image/jpeg" }[]> {
@@ -279,7 +306,9 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       withFailureReport(async () => {
         // The API holds the read (#1036); the caller's cancel aborts it. Terminal shape lives in `formatGetRun`.
         const run = await client.getRun(run_id, { ...(wait_seconds ? { wait_seconds } : {}), signal: extra.signal });
-        return formatGetRun(run);
+        const answer = formatGetRun(run);
+        const images = await generationThumbnails(run);
+        return images.length === 0 ? answer : { ...answer, content: [...answer.content, ...images] } as unknown as McpToolResponse;
       }),
   );
 
@@ -667,7 +696,24 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         cursor: z.string().min(1).optional().describe("next_cursor of the previous page"),
       },
     },
-    async (query) => withFailureReport(async () => assetText(client.listAssets(query))),
+    async (query) => withFailureReport(async () => {
+      const page = await client.listAssets({ ...query, limit: query.limit ?? ASSET_TOOL_PAGE }), text = JSON.stringify(page);
+      if (text.length <= ASSET_TOOL_ANSWER_CHARS || page.assets.length < 2) return { content: [{ type: "text" as const, text }] };
+      // #1376: the newest assets that fit, asked again so next_cursor continues after them, and a line saying so.
+      let room = ASSET_TOOL_ANSWER_CHARS - (text.length - page.assets.reduce((sum, a) => sum + JSON.stringify(a).length + 1, 0)), fits = 0;
+      for (const asset of page.assets.slice(0, -1)) {
+        room -= JSON.stringify(asset).length + 1;
+        if (room < 0) break;
+        fits++;
+      }
+      // The shorter page carries its own next_cursor, which the full one may not have had: one asset fewer while it still runs over.
+      let cut = await client.listAssets({ ...query, limit: Math.max(1, fits) });
+      while (JSON.stringify(cut).length > ASSET_TOOL_ANSWER_CHARS && cut.assets.length > 1) {
+        cut = await client.listAssets({ ...query, limit: cut.assets.length - 1 });
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify(cut) }, { type: "text" as const, text: `This page was cut to ${cut.assets.length} ` +
+        "assets to fit your tool output; next_cursor continues. To find one sooner, filter by role or kind, or pass mascot true." }] };
+    }),
   );
 
   server.registerTool(
@@ -678,7 +724,15 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       description: GET_ASSET_DESCRIPTION,
       inputSchema: { asset_id: assetId },
     },
-    async ({ asset_id }) => withFailureReport(async () => assetText(client.getAsset(asset_id))),
+    async ({ asset_id }) => withFailureReport(async () => {
+      const item = await client.getAsset(asset_id);
+      // #1372: the agent looks at the picture it picks; the preview, else a picture small enough to send whole, else none.
+      const ready = item.state === "ready" ? item as Extract<AssetItemRead, { state: "ready" }> : null;
+      const small = ready?.kind === "image" && ready.bytes <= ASSET_BASE64_MAX_BYTES ? ready.url : null;
+      const source = typeof ready?.preview_url === "string" ? ready.preview_url : small;
+      const image = source ? await fetchImage(source, { maxBytes: ASSET_BASE64_MAX_BYTES }) : null;
+      return { content: [{ type: "text" as const, text: JSON.stringify(item) }, ...(image ? [image] : [])] } as unknown as McpToolResponse;
+    }),
   );
 
   server.registerTool(
@@ -940,11 +994,20 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     description: "Free. A public site's colours, fonts, logo and corners as a proposed design, and its own name and description as a " +
       "proposed script voice (voice.about); the user confirms them before brand_kit saves either. " +
-      "logo_url: import with create_asset for design.logo_asset_id.",
-    inputSchema: extractBrandInput.shape,
-  }, async ({ url }) => withFailureReport(async () => ({
-    content: [{ type: "text", text: JSON.stringify(await client.extractBrand(url)) }],
-  })));
+      "logo_url: import with create_asset for design.logo_asset_id. " +
+      "analysis_id instead of url: a style proposed from a finished analyze_reference of a video the user likes (colours, faces, motion, " +
+      "transition and caption habits; never its logo, characters or frames). Draw a few sample stills with its theme_overrides on a film " +
+      "draft, show them, then save the confirmed style with brand_kit style.",
+    inputSchema: { url: extractBrandInput.shape.url.optional(), analysis_id: proposeBrandStyleInput.shape.analysis_id.optional(),
+      name: proposeBrandStyleInput.shape.name },
+  }, async ({ url, analysis_id, name }) => withFailureReport(async () => {
+    if ((url === undefined) === (analysis_id === undefined)) {
+      return { content: [{ type: "text", text: "Pass url (a site) or analysis_id (a reference video's analysis), one of them." }], isError: true };
+    }
+    const answer = analysis_id === undefined ? await client.extractBrand(url!)
+      : await client.proposeBrandStyle({ analysis_id, ...(name === undefined ? {} : { name }) });
+    return { content: [{ type: "text", text: JSON.stringify(answer) }] };
+  }));
 
   // One tool reads and saves the kit: a second would cost tools/list bytes no client has to spare (#1003).
   server.registerTool("brand_kit", {
@@ -952,9 +1015,18 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     description: "Free. With neither field: the saved design (used when a video names none), the saved script voice, our looks and faces. " +
       "design, voice: save the user's confirmed one; the other stays as saved, and voice {} clears the voice. Read voice before you write " +
-      "a script: when a call passes none, the server takes its banned phrases out, adds its sign-off and names both in warnings[].",
-    inputSchema: { design: mcpDesign.optional(), voice: mcpScriptVoice.optional() },
-  }, async ({ design, voice }) => withFailureReport(async () => {
+      "a script: when a call passes none, the server takes its banned phrases out, adds its sign-off and names both in warnings[]. " +
+      "styles: the saved styles; style saves the user's confirmed one by name (a film draft names it in brand_style).",
+    inputSchema: { design: mcpDesign.optional(), voice: mcpScriptVoice.optional(),
+      style: z.object({ name: z.string(), design: mcpDesign, habits: z.record(z.string(), z.unknown()).optional(),
+        source_analysis_id: z.string().optional() }).strict().optional() },
+  }, async ({ design, voice, style }) => withFailureReport(async () => {
+    if (style !== undefined) {
+      if (design !== undefined || voice !== undefined) {
+        return { content: [{ type: "text", text: "Save a style alone: send style without design or voice." }], isError: true };
+      }
+      return { content: [{ type: "text", text: JSON.stringify(await client.saveBrandStyle(style as SaveBrandStyleInput)) }] };
+    }
     const cleared = voice !== undefined && Object.values(voice).every(value => value === undefined);
     return { content: [{ type: "text", text: JSON.stringify(design === undefined && voice === undefined ? await client.getBrandKit()
       : await client.saveBrandKit({ ...(design === undefined ? {} : { design: design as DesignInput }),

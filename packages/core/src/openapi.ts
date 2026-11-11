@@ -7,7 +7,8 @@ import {
   asset, assetId, ASSET_PUT_MEDIA_TYPES, assetBytesQuery, assetList, assetListQuery, createAssetRequest, pendingAsset, updateAssetRequest,
 } from "./assets.js";
 import { actorDefaults, actorDefaultsInput } from "./broll-policy.js";
-import { brandKit, brandKitInput, extractBrandInput, extractBrandResponse } from "./design.js";
+import { brandKitInput, extractBrandInput, extractBrandResponse } from "./design.js";
+import { brandKitWithStyles, brandStyle, brandStyleProposal, proposeBrandStyleInput, saveBrandStyleInput } from "./brand-styles.js";
 import { offeredUgcInput } from "./contract-dispositions.js";
 import { workflowCatalogResponse, workflowMethodResponse } from "./contracts/v1/workflow-catalog.js";
 import { workflowLaunchResponse } from "./contracts/v1/workflow-execution.js";
@@ -156,9 +157,13 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
     responses: { 200: named("ActorDefaults", actorDefaults) } },
   "POST /v1/actors/{id}/defaults": { exposure: "public", operationId: "setActorDefaults", tag: "Actors", params: ACTOR,
     body: named("ActorDefaultsInput", actorDefaultsInput), responses: { 200: named("ActorDefaults", actorDefaults) } },
-  "GET /v1/brand-kit": { exposure: "public", operationId: "getBrandKit", tag: "Brand", responses: { 200: named("BrandKit", brandKit) } },
+  "GET /v1/brand-kit": { exposure: "public", operationId: "getBrandKit", tag: "Brand", responses: { 200: named("BrandKit", brandKitWithStyles) } },
   "POST /v1/brand-kit": { exposure: "public", operationId: "setBrandKit", tag: "Brand",
-    body: named("BrandKitInput", brandKitInput), responses: { 200: named("BrandKit", brandKit) } },
+    body: named("BrandKitInput", brandKitInput), responses: { 200: named("BrandKit", brandKitWithStyles) } },
+  "POST /v1/brand-styles/propose": { exposure: "public", operationId: "proposeBrandStyle", tag: "Brand",
+    body: named("ProposeBrandStyleInput", proposeBrandStyleInput), responses: { 200: named("BrandStyleProposal", brandStyleProposal) } },
+  "POST /v1/brand-styles": { exposure: "public", operationId: "saveBrandStyle", tag: "Brand",
+    body: named("SaveBrandStyleInput", saveBrandStyleInput), responses: { 200: named("BrandStyle", brandStyle) } },
   "POST /v1/brand/extract": { exposure: "public", operationId: "extractBrand", tag: "Brand",
     body: named("ExtractBrandInput", extractBrandInput), responses: { 200: named("ExtractBrand", extractBrandResponse) } },
   "POST /v1/skills/create_actor/quote": { exposure: "public", operationId: "quoteCreateActor", tag: "Skills",
@@ -189,6 +194,7 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
   "POST /v1/film-drafts": { exposure: "excluded", reason: "Not offered yet: film drafts join the contract when their mode launches (#1291 F2)." },
   "POST /v1/film-drafts/{id}/files": { exposure: "excluded", reason: "Not offered yet: film drafts join the contract when their mode launches (#1291 F2)." },
   "GET /v1/film-drafts/{id}": { exposure: "excluded", reason: "Not offered yet: film drafts join the contract when their mode launches (#1291 F2)." },
+  "POST /v1/film-drafts/{id}/check": { exposure: "excluded", reason: "Not offered yet: the film check joins the contract with the drafts it reads (#1356)." },
   "POST /v1/film-stills/quote": { exposure: "excluded", reason: "Not offered yet: film runs join the contract when their mode launches (#1337)." },
   "POST /v1/film-stills": { exposure: "excluded", reason: "Not offered yet: film runs join the contract when their mode launches (#1337)." },
   "POST /v1/film-voices/quote": { exposure: "excluded", reason: "Not offered yet: film runs join the contract when their mode launches (#1337)." },

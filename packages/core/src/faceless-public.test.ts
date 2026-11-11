@@ -169,7 +169,7 @@ describe("faceless shared contracts", () => {
 it("describes character_reference per format, in customer terms", () => {
   const text = offeredFacelessInputShape.character_reference.description ?? "";
   expect(text).toContain("Standard format: the figure is in every picture we generate and in the opening clip; your own scene_images are shown as they are.");
-  expect(text).toContain("Format explainer: the figure is the hero.");
+  expect(text).toContain("Format explainer: the figure is the hero, a person's photo drawn as a cartoon unless character_details ask for a photoreal look.");
   expect(text).toContain("a public https image, or a picture you uploaded or saved in your assets.");
   expect(text).not.toMatch(/flare|fal|seedance|kie|CLIPWRIGHT|reference role/i);
   // OpenAPI reads the same schema: both branches of MakeFacelessInput carry the very text MCP offers.

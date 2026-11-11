@@ -526,7 +526,7 @@ describe("checklist, phone call and compare, with inner quotes (#778 S3b(i), D6,
       "quote? inner quote}, style? switch|check, size? small|medium|large");
     expect(text).toContain("data caller ≤ 24, subtitle? ≤ 32, avatar? {asset_id} image (cut to fill), answer_at inner quote, side? left|right, size?");
     expect(text).toContain("data before {asset_id} image (cut to fill), after {asset_id} image (cut to fill), labels? {before? ≤ 20, after? ≤ 20}, " +
-      "reveal_at inner quote, reveal? sweep|wipe, size?");
+      "reveal_at inner quote, reveal? sweep|wipe|wipe_full, size?");
   });
 
   /** Mutant: skip the order check, or search the whole script, and a beat lands before the one ahead of it or outside its own item. */

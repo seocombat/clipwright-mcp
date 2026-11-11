@@ -19,6 +19,8 @@ export const mascotPose = z.strictObject({
   eyes: z.strictObject({ points: z.array(z.strictObject({ x: share, y: share })).min(1).max(4), w: share, h: share, skin: z.string().min(1).max(40) }).optional(),
   /** The pose's saved face rig, an object key; absent for a mascot made without one. */
   rig: z.string().min(1).max(300).optional(),
+  /** A photo of a person, kept as one on request: no mouth is drawn or moved on it. */
+  photo: z.literal(true).optional(),
 });
 export type MascotPose = z.infer<typeof mascotPose>;
 

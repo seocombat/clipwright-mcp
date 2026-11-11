@@ -43,6 +43,7 @@ export * from "./default-actor.js";
 export * from "./voices.js";
 export * from "./voice-catalog.js";
 export * from "./runs.js";
+export * from "./post-text.js";
 // The delivered video's measured size and its short name (720p, 1080p, 4K).
 export * from "./video-size.js";
 // Refusal bodies: the error shape is contract too, and once a 402 carries numbers it no
@@ -114,6 +115,7 @@ export * from "./reference-staging.js";
 export * from "./reference-text-spans.js";
 export * from "./reference-voice.js";
 export * from "./reference-analysis.js";
+export * from "./brand-styles.js";
 export * from "./reference-display.js";
 export * from "./creator-profile.js";
 export * from "./trend-search.js";

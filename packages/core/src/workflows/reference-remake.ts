@@ -396,7 +396,8 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
     const words = referenceScriptWords(script), tokens = lexicalTokens(script), language = captionLanguageOf(script);
     if (words.length === 0) return { kind: 'invalid', issues: [{ kind: 'invalid_request', path: 'script', message: 'The script has no words to place beats on.' }] };
     // The quote's own length estimate and limit, so a compiled plan is never refused there as too long.
-    const duration = estimateDurationSec(script, resolveTtsModel({ voice: request.voice, voice_id: request.voice_id, script }));
+    // Untrimmed, the longest the quote can time the take, so a plan that compiles is never refused there; the voice names its language's pace.
+    const duration = estimateDurationSec(script, resolveTtsModel({ voice: request.voice, voice_id: request.voice_id, script }), { voice: request.voice });
     if (duration > LONG_FORM_QUALIFICATION_MAX_DURATION_SEC) return { kind: 'invalid', issues: [{ kind: 'invalid_request', path: 'script',
         message: `The script runs about ${duration} s, longer than the ${LONG_FORM_QUALIFICATION_MAX_DURATION_SEC} s a reference remake renders: shorten it.` }] };
     const method = queryWorkflowMethod('reference-remake', capabilities)!.descriptor;

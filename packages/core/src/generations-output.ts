@@ -15,5 +15,7 @@ export const runGeneration = z.strictObject({
   height: z.number().int().positive(),
   duration_s: z.number().positive().nullable(),
   reusable_until: z.string().datetime().describe("Until then, create_asset with source.run_id turns this file into an asset_id for templates and inserts."),
+  /** Small JPEG links (one for a picture; start, middle and end for a clip); absent when none was made (#1245). */
+  thumbnail_urls: z.array(z.string().url()).max(3).optional(),
 });
 export type RunGeneration = z.infer<typeof runGeneration>;

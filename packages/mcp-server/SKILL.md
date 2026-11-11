@@ -518,8 +518,8 @@ retry. A field named in `withheld` is null on every shot: "not shown", not
 **A reference reel is polled with `get_reference_analysis`, not `get_run`.** Pass
 an Instagram or TikTok link as `source_url` (no `create_asset` first); a YouTube
 link is refused, so ask for the MP4. The same reel by its full link, in the same
-mode, answers its earlier analysis for free; a short `vm.tiktok.com` link always
-starts a new, paid one. `mode: "data"` reads many reels cheaply, without a
+mode, answers its earlier analysis for free; a short `vt.tiktok.com` or `vm.tiktok.com`
+link counts as the full link of its video. `mode: "data"` reads many reels cheaply, without a
 `reference_profile`. Checked 2026-10-31.
 
 **An unknown terminal state reads as in progress.** The MCP formatter reports a

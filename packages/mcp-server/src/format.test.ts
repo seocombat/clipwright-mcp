@@ -31,6 +31,17 @@ it("preserves explicit unavailable speech timing gaps in successful MCP output",
   expect(result.speech_timing_gaps).toEqual(metric);
 });
 
+/** #1366. Mutants: the post lines dropped from the success answer or from its report, or a key added to a film delivered without them. */
+it("a film delivered with post lines carries them and shows them quoted in the report; one without them adds nothing", () => {
+  const final_output = { video_url: "https://cdn.example/v.mp4", duration_seconds: 30, ai_generated: true as const, ai_disclosure: AI_DISCLOSURE_TEXT };
+  const lined = payload(formatGetRun(run("succeeded", { skill: "make_faceless", final_output: { ...final_output, post_text: "Heat moves out.\nCool air stays." } })));
+  expect(lined.post_text).toBe("Heat moves out.\nCool air stays.");
+  expect(lined.display_markdown).toContain("> Heat moves out.\n> Cool air stays.");
+  const bare = payload(formatGetRun(run("succeeded", { skill: "make_faceless", final_output })));
+  expect(bare).not.toHaveProperty("post_text");
+  expect(bare.display_markdown).not.toMatch(/^> |publish/m);
+});
+
 /** Mutant: drop `video` from the success answer, or invent one; the agent then cannot name 720p, or names a guess (#1188). */
 it("a succeeded video carries its measured frame and names it in the report; an unmeasured one carries neither", () => {
   const final_output = { video_url: "https://cdn.example/v.mp4", duration_seconds: 7.36, ai_generated: true as const, ai_disclosure: AI_DISCLOSURE_TEXT };

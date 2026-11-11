@@ -195,6 +195,7 @@ describe("module surface", () => {
     expect(Object.keys(generationsModule).sort()).toEqual([
       "GENERATE_IMAGE_QUOTE_PATH", "GENERATE_IMAGE_RUN_PATH", "GENERATE_VIDEO_QUOTE_PATH", "GENERATE_VIDEO_RUN_PATH", "GENERATION_CAMERAS",
       "GENERATION_CAPABILITIES", "GENERATION_IMAGE_ASPECTS", "GENERATION_IMAGE_MODELS", "GENERATION_MAX_REFERENCES", "GENERATION_MODELS_PATH",
+      "GENERATION_NO_TEXT_CLAUSE", "withNoTextClause",
       "GENERATION_PROMPT_MAX_CHARS", "GENERATION_RESOLUTIONS", "GENERATION_VIDEO_ASPECTS", "GENERATION_VIDEO_FPS", "GENERATION_VIDEO_MODELS",
       "GENERATION_VIDEO_MODES", "findCapabilityRow", "generateImageRequest", "generateVideoRequest", "generationModels", "generationQuote",
       "generationReference", "listGenerationModels", "priceGeneration",

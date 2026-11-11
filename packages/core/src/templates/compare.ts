@@ -7,8 +7,9 @@ import { templateMedia } from "./slot.js";
 /** The card is 3:5, as tall as the reference's, and both pictures are cut to fill it; at medium it takes the full frame's width, or less where a
  * 3:5 card would run past the frame's height (square and wide frames). */
 export const COMPARE_CARD_SHAPE = 3 / 5;
-/** How the after picture comes in: on a diagonal from the right, or wiped across from the left behind a divider (#1119). */
-export const COMPARE_REVEALS = ["sweep", "wipe"] as const;
+/** How the after picture comes in: on a diagonal from the right, wiped across from the left behind a divider (#1119), or wiped on until the
+ * divider slides out and the after picture fills the card (#1159). */
+export const COMPARE_REVEALS = ["sweep", "wipe", "wipe_full"] as const;
 const data = z.object({ before: templateMedia, after: templateMedia,
   labels: z.object({ before: z.string().min(1).max(20).optional(), after: z.string().min(1).max(20).optional() }).strict().optional(),
   reveal_at: z.string().min(1).max(200), reveal: z.enum(COMPARE_REVEALS).optional(), size: templateSize }).strict();
@@ -16,9 +17,9 @@ const data = z.object({ before: templateMedia, after: templateMedia,
 /** Expectation against reality on a full frame: the before picture on a card, the after one swept in on a diagonal on a word (ref 50–55 s). */
 export const compare: TemplateKind<typeof data> = {
   kind: "compare",
-  kindVersion: 2,
+  kindVersion: 3,
   description: "a full-frame 3:5 card showing the before image; on reveal_at the after image sweeps in on a diagonal (reveal absent) or wipes in " +
-    "from the left to a middle divider; both stay, with optional label pills",
+    "from the left to a middle divider, and both stay; wipe_full wipes on until the after image fills the card; optional label pills",
   placements: ["full"],
   data,
   text: { "labels.before": 20, "labels.after": 20 },
@@ -38,5 +39,6 @@ export const compare: TemplateKind<typeof data> = {
     reveal_at: "in reality" },
 };
 
-/** Version 1: the sweep only; its footprint is version 2's. */
+/** Version 1: the sweep only; version 2 adds the half wipe. Both keep version 3's footprint. */
 export const compareV1 = { ...compare, kindVersion: 1 } as TemplateKind<typeof data>;
+export const compareV2 = { ...compare, kindVersion: 2 } as TemplateKind<typeof data>;

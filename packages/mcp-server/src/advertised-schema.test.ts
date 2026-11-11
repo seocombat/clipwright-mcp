@@ -283,13 +283,13 @@ const ANSWER_FIELDS: Record<string, string[]> = {
 
 /** The full text each listed text was written from: a change to it fails here until the listed text says the same, then pin the new digest. */
 const WRITTEN_FROM: Record<string, string> = {
-  analyze_creator: "7b719565ce3545fb", analyze_reference: "7470cd3b5d69774e", brand_kit: "1b5d31f10debd2ea", extract_brand: "112b76358d1111aa",
+  analyze_creator: "7b719565ce3545fb", analyze_reference: "6caf3019638a9de6", brand_kit: "67ef2944b7b8752d", extract_brand: "8cc03d7318dacfb8",
   prepare_workflow_plan: "dcc184695ee43de7", create_actor: "64dc97d2adf395ca", create_asset: "a72d252508f84fe1",
   create_candidate: "ac7da0d7f8974609", create_upload: "d851091117ab3350", delete_actor: "e625ea18d3d26377", delete_asset: "dd3a4991f04a444f",
-  delete_creator_profile: "c5ee9a4029150781", find_trends: "fc42bb71d6a811d0", delete_run_media: "e4f93b3a9cd5ea05", delete_upload: "ebb515f237d976c0", generate_image: "92cdec4c8c45facb",
-  generate_video: "64d846bf7106bb14", get_account: "69e49b07e4b1be32", get_asset: "508a09c765a61f1f", get_creator_profile: "ccb8cc20d52ad7c9",
+  delete_creator_profile: "c5ee9a4029150781", find_trends: "03faa17e06482ed9", delete_run_media: "e4f93b3a9cd5ea05", delete_upload: "ebb515f237d976c0", generate_image: "92cdec4c8c45facb",
+  generate_video: "64d846bf7106bb14", get_account: "69e49b07e4b1be32", get_asset: "37bd480834513438", get_creator_profile: "ccb8cc20d52ad7c9",
   get_reference_analysis: "cf4027c19e9a3dd3", get_run: "0ad53c727736d024", get_run_shots: "2b13db5cf3bca267", get_upload: "4bd3baac899982b4",
-  list_actors: "89ca3249262caa88", list_assets: "ffa330bb764bedab", list_generation_models: "5737b2f41d69b048", list_moves: "067d552b22260a07", list_prices: "73634ccff928eacc",
+  list_actors: "89ca3249262caa88", list_assets: "9745c35b2ba82774", list_generation_models: "5737b2f41d69b048", list_moves: "067d552b22260a07", list_prices: "73634ccff928eacc",
   list_template_sounds: "22aba7b06ba63bfd", list_voices: "726e995f8c322a19", make_faceless: "01ad3322c484672d", make_ugc: "7526c26c0963d629",
   plan_reference_remake: "581fe1cca7125762", "plan_reference_remake.music": "2f4412656b080b28", quote_actor: "e12a380eb9ee5f43",
   "quote_actor.aspect_ratios": "696dce090682b9ab", "quote_actor.description": "683e0cde898f0b05", "quote_actor.quality": "30a1a4112b5cec33",
@@ -299,7 +299,7 @@ const WRITTEN_FROM: Record<string, string> = {
   "quote_ugc.actor_id": "ec9da39dc8413ce5", "quote_ugc.aspect_ratio": "b49a2e8f98e0ba34", "quote_ugc.broll_policy": "d8b247cc27906eaa",
   "quote_ugc.image": "8beaedf565c18d60", "quote_ugc.inserts": "2b0530cdf229962a", "quote_ugc.layout_windows": "48fd405d98d1c275",
   "quote_ugc.music": "ef9b89fd232638f1", "quote_ugc.overlays": "51dd7c5214297733", "quote_ugc.scenes": "1ef584e9b5864e44",
-  "quote_ugc.script": "a9b4f9ba26c63207", "quote_ugc.shots": "bf153113146b5c54", "quote_ugc.templates": "7b59c92fa0d03167",
+  "quote_ugc.script": "a9b4f9ba26c63207", "quote_ugc.shots": "bf153113146b5c54", "quote_ugc.templates": "7a82e2f3b6c7b3ec",
   "quote_ugc.tts_model": "716efd015654205b", "quote_ugc.voice": "ce189b0cde20f160", "quote_ugc.voice_id": "35656914f07fa68d",
   quote_video: "e34757e5bef21b72", revise_run: "47fcbe16835c2a97", run_workflow_plan: "eadcf5c87214179c", send_feedback: "facfb59478212d21",
   upload_image: "b07fead9a6855d53",

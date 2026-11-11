@@ -84,7 +84,8 @@ const common = {
   // Described here once: the MCP shape and OpenAPI both read this schema (#1359).
   character_reference: qualifiedImageUrl.optional()
     .describe("A picture of a person or figure: a public https image, or a picture you uploaded or saved in your assets. Standard format: the figure is in every picture we generate and in the opening clip; " +
-      "your own scene_images are shown as they are. Format explainer: the figure is the hero."),
+      "your own scene_images are shown as they are. Format explainer: the figure is the hero, a person's photo drawn as a cartoon unless " +
+      "character_details ask for a photoreal look."),
   character_details: z.string().trim().min(1).max(2000).optional(),
   /** A saved mascot of this account (#1257) the explainer's hero is drawn from: its poses are not made again, and the quote shows none. */
   mascot_id: assetId.optional(),

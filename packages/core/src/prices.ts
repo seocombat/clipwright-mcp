@@ -14,7 +14,9 @@ import { listGenerationModels } from "./generations.js";
 import { PARTS_FACE_TARIFF, PRESENTER_ENGINE_LABELS, SCENE_CREDITS, SHOT_CREDITS_PER_SECOND, SHOT_ENGINE_LABELS } from "./parts-pricing.js";
 import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS } from "./reference-analysis.js";
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
-import { TREND_SEARCH_CREDITS, TREND_SEARCH_REELS } from "./trend-search.js";
+import {
+  TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_CREDITS, TREND_PAGE_WINDOW_SECONDS, TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_REELS,
+} from "./trend-search.js";
 import { isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
 import { isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
   OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND } from "./own-agent-price.js";
@@ -187,7 +189,13 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
       quote_tool: "quote_trends", notes: `Up to ${TREND_SEARCH_REELS} reels per platform on a topic, TikTok and Instagram together by ` +
         "default, each with its x to its creator's median views. The same price for one platform or both. " +
         "Held at the start and charged once it succeeds, a mix that reaches only one platform included; no reel found, or a failed search, costs nothing. " +
-        "The same query again within an hour answers the same search for free." }),
+        "The same query again within an hour answers the same search for free. " +
+        `Every account gets ${TREND_FREE_SEARCHES_PER_MONTH} free searches each calendar month; a failed one does not count.` }),
+    paid({ tool: "find_trends", route: "POST /v1/trend-searches", variant: "next page", unit: "call", credits: TREND_PAGE_CREDITS,
+      quote_tool: "quote_trends", notes: `The next places of a finished search: up to ${TREND_SEARCH_REELS} more creators per platform, ` +
+        `up to ${TREND_SEARCH_MAX_PAGES} pages with the first, started within ${TREND_PAGE_WINDOW_SECONDS / 3600} hours of the search. ` +
+        "Never free. Held at the start and charged once it finds new reels; no new reel, or a failed page, costs nothing. " +
+        "A page already made opens again for free." }),
     paid({ tool: "make_faceless", route: "POST /v1/skills/make_faceless/run", quote_tool: "quote_faceless",
       lines: [{ label: "generated picture", unit: "image", credits: FACELESS_IMAGE_CREDITS },
         { label: "opening clip", unit: "clip", credits: FACELESS_OPENER_CREDITS },

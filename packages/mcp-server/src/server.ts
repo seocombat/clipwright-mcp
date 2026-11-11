@@ -882,8 +882,10 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         ? await client.getTrendSearch(started.search_id, { wait_seconds: CREATOR_START_WAIT_SECONDS, display: "markdown", ...order })
         : await client.getTrendSearch(started.search_id, { display: "markdown", ...order });
       // The repeat names the words the server searched (#1201): a niche saved in between must not turn the free repeat into a new search.
-      const searched = { keywords: done.keywords, platform: done.platform, ...(done.language === null ? {} : { language: done.language }),
-        posted_within_days: done.posted_within_days };
+      // A next page (#1393) repeats as its search and number, which answer the same page free.
+      const searched = typeof done.parent_search_id === "string" && done.page !== undefined ? { search_id: done.parent_search_id, page: done.page }
+        : { keywords: done.keywords, platform: done.platform, ...(done.language === null ? {} : { language: done.language }),
+          posted_within_days: done.posted_within_days };
       return { content: [{ type: "text", text: JSON.stringify(withTrendPoll(done, { ...searched, ...order })) }] };
     }),
   );

@@ -453,6 +453,7 @@ const BARE_ERROR_CODES = [
   "run_not_found",
   "source_aspect_mismatch",
   "source_not_usable",
+  "trend_page_unavailable",
   "trend_search_limited",
   "trend_search_not_found",
   "trends_unavailable",

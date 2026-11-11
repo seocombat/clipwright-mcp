@@ -36,5 +36,8 @@ export const account = z.object({
   grants: z.array(creditGrant).default([]),
   /** Up to 10 replies, newest first. Defaults to empty, so a client older than the server reads the body unchanged. */
   support_replies: z.array(supportReply).default([]),
+  /** Free trend searches left this month (#1398) and when they renew; absent from a server older than them. */
+  free_trend_searches_left: z.number().int().nonnegative().optional(),
+  free_trend_searches_reset_at: z.string().datetime().optional(),
 });
 export type Account = z.infer<typeof account>;

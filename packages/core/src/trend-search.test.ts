@@ -4,7 +4,8 @@ import { CREATOR_CAPTION_MAX_CHARS } from "./creator-profile.js";
 import { HOSTILE_TEXTS, renderedTags } from "./__fixtures__/hostile-markdown.js";
 import { PRICE_LIST } from "./prices.js";
 import {
-  buildTrendResult, findTrendsRequest, shortlistTrendReels, sortTrendReels, storedTrendResult, TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_REELS,
+  buildTrendResult, findTrendsPayload, findTrendsRequest, shortlistTrendReels, sortTrendReels, storedTrendResult, TREND_PAGE_CREDITS,
+  TREND_PAGE_WINDOW_SECONDS, TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_MAX_REELS,
   TREND_SEARCH_PER_HOUR, TREND_SEARCH_REELS, TREND_SORTS, TREND_UNTRUSTED, trendCoverUrl, trendFunnelWord, trendQueryKey, trendReelReasons, trendResult,
   trendSearchAnswer, trendSearchMarkdown, trendSearchQuery, trendSizeBand, trendSizeNormKey, trendMomentum, trendTakeoff, type TrendSearchAnswer,
   type TrendSort, type TrendSourceReel, trendGalleryToken, trendGalleryUrl,
@@ -457,6 +458,24 @@ describe("the answer and its table", () => {
     expect(markdown).toContain("| 3,000 | 42 | **3.0×** | 2.0× | 5.0× | 1,000 | 30 s |");
     expect(markdown).toContain("Why the first 1:\n1. @loud: comments 5.0× the creator's norm; 3.0× the creator's median after 3 days; 2.0× the usual views");
     expect(trendSearchMarkdown(answer())).not.toContain("ordered by");
+  });
+
+  // Mutant: number a page from 1, and the agent's "place 3" names a reel of the first page.
+  it("numbers a next page's places after the earlier pages and offers the next page with its price (#1393)", () => {
+    const parent = `trs_${"b".repeat(32)}`;
+    const page = trendSearchMarkdown({ ...answer(), page: 2, parent_search_id: parent, first_place: 21,
+      next_page: { page: 3, credits_estimate: TREND_PAGE_CREDITS, available_until: "2026-11-06T12:00:00.000Z" } });
+    expect(page).toContain(`\` · page 2 of \`${parent}\` · TikTok`);
+    expect(page).toContain("| [21](https://www.tiktok.com/@ana_ai/video/7700000000000000001) |");
+    expect(page).toContain("Why the first 2:\n21. @ana\\_ai");
+    expect(page).toContain(`More: up to 10 more places for 10 credits until 2026-11-06 12:00 UTC: find_trends with search_id ${parent} and page 3, ` +
+      "quoted first with quote_trends.");
+    expect(trendSearchMarkdown(answer())).not.toContain("More:");
+    // Pinned as literals: the owner's +10 for each next page, five pages in all, a day to start them (2026-11-11).
+    expect([TREND_PAGE_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_PAGE_WINDOW_SECONDS]).toEqual([10, 5, 86_400]);
+    expect(PRICE_LIST.find(entry => entry.tool === "find_trends" && entry.variant === "next page")).toMatchObject({
+      lines: [{ label: null, unit: "call", credits: 10 }] });
+    expect(findTrendsPayload.safeParse({ searchId: parent, accountId: "acc", page: 1 }).success).toBe(false);
   });
 
   it("names every third-party field, and the price list carries the search at its constant", () => {

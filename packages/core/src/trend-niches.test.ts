@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { findTrendsInput, resolveFindTrends, TREND_NICHE_REQUIRED_MESSAGE, trendNichesInput } from "./trend-niches.js";
+import {
+  findTrendsInput, resolveFindTrends, TREND_NICHE_REQUIRED_MESSAGE, TREND_PAGE_FIELDS_MESSAGE, trendNichesInput, trendPageTarget,
+} from "./trend-niches.js";
 import { TREND_SEARCH_DEFAULT_DAYS, trendQueryKey } from "./trend-search.js";
 
 /** Saved niches (#1201): the list a save accepts, and the request a search with no keywords runs. */
@@ -16,6 +18,18 @@ describe("saved niches", () => {
     expect(trendNichesInput.safeParse({ niches: [{ keywords: "tile shop" }, { keywords: "tile shop", platform: "tiktok" }] }).success).toBe(true);
     expect(trendNichesInput.safeParse({ niches: [{ keywords: "tile shop", language: "en" }, { keywords: "tile shop" }] }).success).toBe(true);
     expect(trendNichesInput.parse({ niches: [] }).niches).toEqual([]);
+  });
+
+  // Mutant: let a page's fields reach a search, and a page asked with words starts a whole paid search on them (#1393).
+  it("takes a next page as its search and number alone, and never as a search", () => {
+    const id = `trs_${"c".repeat(32)}`;
+    expect(trendPageTarget(findTrendsInput.parse({ search_id: id, page: 2 }))).toEqual({ ok: true, target: { searchId: id, page: 2 } });
+    expect(trendPageTarget(findTrendsInput.parse({ keywords: "tile shop" }))).toEqual({ ok: true, target: null });
+    for (const input of [{ search_id: id }, { page: 2 }, { search_id: id, page: 2, keywords: "tile shop" }, { search_id: id, page: 2, posted_within_days: 7 }]) {
+      expect(trendPageTarget(findTrendsInput.parse(input))).toEqual({ ok: false, message: TREND_PAGE_FIELDS_MESSAGE });
+      expect(resolveFindTrends(findTrendsInput.parse(input), PRIMARY)).toEqual({ ok: false, message: TREND_PAGE_FIELDS_MESSAGE });
+    }
+    expect([1, 6].map((page) => findTrendsInput.safeParse({ search_id: id, page }).success)).toEqual([false, false]);
   });
 
   /** Mutant: give findTrendsInput the request's defaults, and the server cannot tell an unnamed platform from mix. */

@@ -166,17 +166,20 @@ describe("the run tools as a client calls them (#1337)", () => {
     }
   });
 
-  /** #1356. Mutants: wait on nine pose pictures past the tool timeout, or offer a hero tool with nothing to draw it from. */
+  /** #1356. Mutants: wait on nine pose pictures past the tool timeout, or offer a hero tool with nothing to draw it from. #1380: mascot_id
+   *  completes a saved mascot, and the description says so. */
   it("make_film_hero answers at once with the call to poll, and its schema names every source of the hero", async () => {
     const hero = await callFilmTool("make_film_hero", { character_details: "A round mint cactus" }, [], run("queued", { skill: "film_hero" }));
     expect(JSON.parse(hero[0]!.text!).poll).toEqual({ tool: "get_film_run", arguments: { run_id: "run_s" }, retry_after_seconds: 5 });
     const tools = await listTools({ fileAccess: "refuse", ownAgent: true });
     for (const name of ["quote_film_hero", "make_film_hero"]) {
       const tool = tools.find(t => t.name === name)!;
-      expect(Object.keys(tool.inputSchema.properties ?? {}).sort()).toEqual(["character_details", "character_reference", "script", "voice_run_id"]);
+      expect(Object.keys(tool.inputSchema.properties ?? {}).sort())
+        .toEqual(["character_details", "character_reference", "mascot_id", "script", "voice_run_id"]);
       expect(tool.inputSchema.required ?? []).toEqual([]);
     }
     expect(tools.find(t => t.name === "make_film_hero")!.description).toMatch(/per pose published.*mascot_id/s);
+    expect(tools.find(t => t.name === "make_film_hero")!.description).toMatch(/With mascot_id alone, completes that saved mascot/);
   });
 });
 

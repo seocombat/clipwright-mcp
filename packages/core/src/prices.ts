@@ -17,7 +17,7 @@ import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_VIDEOS } from "./creator-profi
 import { TREND_SEARCH_CREDITS, TREND_SEARCH_REELS } from "./trend-search.js";
 import { isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
 import { isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
-  OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND } from "./own-agent-price.js";
+  OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND } from "./own-agent-price.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
 export const PRICES_PATH = "/v1/public/prices";
@@ -210,11 +210,14 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         { label: "hero pose picture", unit: "image", credits: FACELESS_IMAGE_CREDITS }],
       notes: `tier ${tier}${tier === "standard" ? " (the default)" : ""}. A drawn explainer film, made in about half an hour and charged only when ` +
         "delivered, by its length. A mascot is the hero for free; a character you name, or one we draw to fit the script, adds its " +
-        `${FACELESS_EXPLAINER_POSE_PICTURES} pose pictures, each charged once it is in the delivered video.` })) : []),
+        `${FACELESS_EXPLAINER_POSE_PICTURES} pose pictures, ${FACELESS_IMAGE_CREDITS} credits each for the pictures made, charged only with a ` +
+        "delivered video." })) : []),
     // The «own agent» film runs (#1337) are sold only while the mode is offered.
     ...(ownAgent ? [
       paid({ tool: "preview_stills", route: "POST /v1/film-stills", quote_tool: "quote_stills", unit: "still", credits: OWN_STILL_CREDITS,
-        notes: `Up to ${OWN_STILLS_MAX_PER_CALL} stills of a film draft per call, each charged once it is drawn; a draft its check refuses costs nothing.` }),
+        notes: `Up to ${OWN_STILLS_MAX_PER_CALL} stills of a film draft per call. The first ${OWN_FREE_STILLS} stills drawn of each draft in any ` +
+          `${OWN_FREE_STILLS_WINDOW_HOURS} hours are free; each still past them is charged once it is drawn. quote_stills says how many of yours ` +
+          "are free. A draft its check refuses costs nothing and uses none of the free stills." }),
       paid({ tool: "make_voice", route: "POST /v1/film-voices", quote_tool: "quote_voice", unit: "second", credits: OWN_VOICE_CREDITS_PER_SECOND,
         notes: "A narrated take with each word's timing, charged by its delivered seconds; a take that fails costs nothing." }),
       paid({ tool: "render_film", route: "POST /v1/film-renders", quote_tool: "quote_render",
@@ -223,7 +226,8 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         notes: "Charged only for a delivered film, by its length; a render that fails costs nothing." }),
       paid({ tool: "make_film_hero", route: "POST /v1/film-heroes", quote_tool: "quote_film_hero", unit: "image", credits: OWN_HERO_POSE_CREDITS,
         notes: `A hero in up to ${OWN_HERO_POSES} pose pictures, saved as a mascot of your assets; each pose is charged once it is published, and a ` +
-          "film that uses the mascot makes and charges none again. A hero that publishes no pose costs nothing." }),
+          "film that uses the mascot makes and charges none again. Completing a saved mascot charges only the poses it adds. A hero that " +
+          "publishes no pose costs nothing." }),
     ] : []),
     paid({ tool: "revise_run", route: "POST /v1/runs/{id}/revisions", quote_tool: "quote_revision",
       formula: `each shot generated anew: picture ${unit.picture}, clip ${unit.clip}, clip with a new picture ${unit.clip_with_new_picture}; ` +

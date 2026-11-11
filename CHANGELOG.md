@@ -18,6 +18,22 @@ listed under.
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-11-11
+
+### Added
+
+- `make_film_hero` and `quote_film_hero` take `mascot_id` alone to complete a saved mascot: only the poses it lacks are
+  drawn, in its look, and added to it, so the same `mascot_id` then has them. Each added pose is charged as a hero pose;
+  a completion that adds none costs nothing. The `create_film_draft` warning about missing poses now names this fix.
+
+### Changed
+
+- *Server-side:* `preview_stills` is free for the first 120 stills of each film draft in any 24 hours; each still past
+  them costs 1 credit, as before. `quote_stills` answers `free_units`, how many of the asked stills are free, and
+  `free_left`, the free stills the draft has left after them. A stills run that fails uses none of them. The free stills
+  are counted again when the run starts, so if another call on the same draft used some since the quote, the run's
+  `credits_reserved` shows the stills it now pays for.
+
 ## [0.52.0] - 2026-11-11
 
 ### Added

@@ -4,7 +4,7 @@ import { EXPLAINER_MAX_PRODUCT_PICTURES, facelessCustomerSceneImage, qualifiedIm
 import { FACELESS_VOICE_NAMES } from "./faceless-voices.js";
 import { filmDraftId } from "./film-drafts.js";
 import { MASCOT_POSES } from "./mascots.js";
-import { OWN_AGENT_SKILLS, OWN_STILLS_MAX_PER_CALL, OWN_STILLS_SINGLE_MAX, OWN_VOICE_MAX_SECONDS } from "./own-agent-price.js";
+import { OWN_AGENT_SKILLS, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL, OWN_STILLS_SINGLE_MAX, OWN_VOICE_MAX_SECONDS } from "./own-agent-price.js";
 import { runId } from "./runs.js";
 
 // The paid runs of the «own agent» mode (#1291 F2): stills of a draft revision, a voice with word timings, the film's render, a hero saved as
@@ -73,8 +73,12 @@ export const filmHeroInput = z.strictObject({
   script: z.string().trim().min(1).max(OWN_VOICE_MAX_CHARS).optional()
     .describe("With no character named: the film's script, and a hero is invented to fit its meaning"),
   voice_run_id: runId.optional().describe("With no character and no script: a delivered make_voice run of this account, whose text is the script"),
-}).refine(value => FILM_HERO_SOURCE_FIELDS.some(field => value[field] !== undefined),
-  "name the hero with character_reference or character_details, or pass script or voice_run_id");
+  mascot_id: assetId.optional().describe("Alone, instead of the fields above: a saved mascot of this account (list_assets with mascot true) that lacks " +
+    "poses. Only the poses it lacks are drawn, in its look, and added to it, so the same mascot_id then has them"),
+}).refine(value => value.mascot_id !== undefined || FILM_HERO_SOURCE_FIELDS.some(field => value[field] !== undefined),
+  "name the hero with character_reference or character_details, pass script or voice_run_id, or pass mascot_id")
+  .refine(value => value.mascot_id === undefined || FILM_HERO_SOURCE_FIELDS.every(field => value[field] === undefined),
+    `mascot_id completes a saved mascot and takes no other field: drop ${FILM_HERO_SOURCE_FIELDS.join(", ")}`);
 export type FilmHeroInput = z.infer<typeof filmHeroInput>;
 
 /** The seconds a take is held at before it is spoken: every character at the slowest pace, two seconds of lead and tail. */
@@ -97,6 +101,10 @@ export const ownAgentQuote = z.strictObject({
   units: z.number().int().nonnegative(),
   /** `film_render`: how long the film will run. */
   film_sec: filmSec.optional(),
+  /** `film_stills`: how many of the asked stills are free, and the free stills the draft has left in the rolling day after them. */
+  free_units: z.number().int().nonnegative().optional()
+    .describe(`How many of the asked stills are free: the first ${OWN_FREE_STILLS} stills of a draft in any ${OWN_FREE_STILLS_WINDOW_HOURS} h are`),
+  free_left: z.number().int().nonnegative().optional().describe("Free stills this draft has left in the rolling day after this call"),
   warnings: z.array(z.string()),
 });
 export type OwnAgentQuote = z.infer<typeof ownAgentQuote>;

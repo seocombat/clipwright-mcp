@@ -1010,12 +1010,13 @@ export class ClipwrightClient {
     return parseResponse(filmCheck, body, path, true);
   }
 
-  /** What stills of a draft revision would hold; spends no credits. */
+  /** What stills of a draft revision would hold, and how many of them are free; spends no credits. */
   async quoteStills(request: FilmStillsRequest): Promise<OwnAgentQuote> {
     return this.#quoteFilm(FILM_STILLS_QUOTE_PATH, filmStillsInput.parse(request));
   }
 
-  /** Stills of a draft revision on a delivered voice, gated first; charged per still drawn. Returns at once; read it with getFilmRun. */
+  /** Stills of a draft revision on a delivered voice, gated first; a draft's first stills in any 24 hours are free, the rest charged per still drawn.
+   *  Returns at once; read it with getFilmRun. */
   async previewStills(request: FilmStillsRequest, opts?: StartUgcOptions): Promise<FilmRun> {
     return this.#startFilm("film_stills", FILM_STILLS_PATH, filmStillsInput.parse(request), opts);
   }

@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ClipwrightApiError, type ClipwrightClient } from "@clipwright/sdk";
-import { checkFilmInput, createFilmDraftInput, filmDraftId, filmHeroInput, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_STILLS_MAX_PER_CALL,
+import { checkFilmInput, createFilmDraftInput, filmDraftId, filmHeroInput, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL,
   OWN_STILLS_SINGLE_MAX, putFilmFilesInput, runId, type FilmRun } from "@clipwright/core";
 
 import { withFailureReport, type McpToolResponse } from "./format.js";
@@ -24,8 +24,10 @@ export const QUOTE_VOICE_DESCRIPTION = "Free. What make_voice would hold for thi
 export const MAKE_VOICE_DESCRIPTION = "Paid per second delivered, after quote_voice. Speaks the script with a narrator and returns its words, each " +
   "with start and end seconds: write chunks, anchors and scenes on these timings; film_sec is how long the film on it runs. Waits up to 45 s; an " +
   "unfinished run names get_film_run to call.";
-export const QUOTE_STILLS_DESCRIPTION = "Free. What preview_stills would hold: one still per asked moment.";
-export const PREVIEW_STILLS_DESCRIPTION = "Paid per still drawn, after quote_stills and a clean check_film. Gates the draft revision first (a refusal " +
+export const QUOTE_STILLS_DESCRIPTION = "Free. What preview_stills would hold: one still per asked moment. free_units: how many of them are " +
+  `free (the first ${OWN_FREE_STILLS} stills of a draft in any ${OWN_FREE_STILLS_WINDOW_HOURS} h); free_left: the draft's free stills after them; the start counts them again.`;
+export const PREVIEW_STILLS_DESCRIPTION = `Free for a draft's first ${OWN_FREE_STILLS} stills in any ${OWN_FREE_STILLS_WINDOW_HOURS} h, then paid ` +
+  "per still drawn, after quote_stills and a clean check_film. Gates the draft revision first (a refusal " +
   `names file:line and is free), then draws up to ${OWN_STILLS_MAX_PER_CALL} moments (anchors, shown 0.25 s after, or seconds; omitted, the ` +
   "storyboard's events) on the draft's theme and the voice's captions, and returns them as pictures with what the layout probe found on each. " +
   `sheet: one tiled picture instead of one per still, always above ${OWN_STILLS_SINGLE_MAX}. Look at every still and fix.`;
@@ -33,9 +35,11 @@ export const QUOTE_RENDER_DESCRIPTION = "Free. What render_film would hold, char
   "runs, the voice then a short tail.";
 export const RENDER_FILM_DESCRIPTION = "Paid when the film is delivered, after quote_render. Renders the draft revision on the voice: captions " +
   "on its words, the sound events under it, the frozen theme. Returns at once; call get_film_run until it is succeeded (video_url) or failed.";
-export const QUOTE_FILM_HERO_DESCRIPTION = "Free. What make_film_hero would hold: every pose of the hero, the most it can charge. Show it and wait for the go-ahead.";
+export const QUOTE_FILM_HERO_DESCRIPTION = "Free. What make_film_hero would hold: every pose of the hero (with mascot_id, every pose the mascot " +
+  "lacks), the most it can charge. Show it and wait for the go-ahead.";
 export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published, after quote_film_hero. Draws a hero in nine poses and saves it as a mascot of " +
   "your assets: from character_reference or character_details, else invented to fit the meaning of script (or of voice_run_id's text). " +
+  "With mascot_id alone, completes that saved mascot instead: only the poses it lacks are drawn, in its look, and added to it. " +
   "A person's photo is drawn as a cartoon unless character_details ask for a photoreal look; a photoreal hero keeps a still face. " +
   "A run that publishes no pose charges nothing. Returns at once; call get_film_run until it is succeeded: it shows the poses as one picture, " +
   "look at it before any stills. Then pass hero.mascot_id to create_film_draft: every later film uses it with no pose made or charged again.";

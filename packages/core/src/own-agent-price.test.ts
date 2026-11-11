@@ -1,13 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { isOwnAgentEnabled, OWN_AGENT_TARIFF, ownAgentCharge, ownAgentTerms, ownAgentTermsNow, ownFilmRenderCredits, ownHeroCredits, ownStillsCredits,
-  ownVoiceCredits } from "./own-agent-price.js";
+import { isOwnAgentEnabled, OWN_AGENT_TARIFF, OWN_AGENT_TARIFF_V1, ownAgentCharge, ownAgentTerms, ownAgentTermsNow, ownFilmRenderCredits, ownHeroCredits, ownStillsCredits,
+  ownVoiceCredits, type OwnAgentTerms } from "./own-agent-price.js";
 
 // #1291 F2, 02-solution §4: the «own agent» prices as parameters, the owner's proposal (still 1, render 100 to 60 s + 2/s, voice 2/s).
 
 describe("the own-agent tariff", () => {
   it("freezes the proposal as a snapshot its schema accepts", () => {
     expect(ownAgentTerms.parse(ownAgentTermsNow())).toEqual({ tariff: OWN_AGENT_TARIFF, still_credits: 1, render_credits: 100, included_seconds: 60,
-      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 7 });
+      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 7, free_stills: 120, free_stills_window_hours: 24 });
+  });
+
+  /** #1369 stage 2. Mutants: keep the old tariff name for the new price, accept free stills on the old one, or charge granted stills. */
+  it("names free stills a new tariff and charges only the delivered stills past the grant", () => {
+    const { free_stills: _f, free_stills_window_hours: _w, ...rest } = ownAgentTermsNow();
+    const before: OwnAgentTerms = { ...rest, tariff: OWN_AGENT_TARIFF_V1 };
+    expect([OWN_AGENT_TARIFF, ownAgentTerms.parse(before).tariff]).toEqual(["own-agent-v2", "own-agent-v1"]);
+    expect(() => ownAgentTerms.parse({ ...before, free_stills: 120, free_stills_window_hours: 24 })).toThrow(/only on own-agent-v2/);
+    expect(() => ownAgentTerms.parse(rest)).toThrow(/only on own-agent-v2/);
+    expect(() => ownAgentTerms.parse({ ...ownAgentTermsNow(), free_stills_window_hours: undefined })).toThrow(/with their window/);
+    expect([ownStillsCredits(24, ownAgentTermsNow(), 24), ownStillsCredits(24, ownAgentTermsNow(), 10), ownStillsCredits(20, ownAgentTermsNow(), 24)])
+      .toEqual([0, 14, 0]);
+    expect(ownAgentCharge({ skill: "film_stills", frames: 12, free: 10 }, ownAgentTermsNow(), 14)).toBe(2);
+    expect(() => ownStillsCredits(4, before, 1)).toThrow(/outside these terms/);
+    expect(() => ownStillsCredits(24, ownAgentTermsNow(), 121)).toThrow(/outside these terms/);
   });
 
   /** #1356. Mutants: price a pose at anything but the done-for-you's 7, take a tenth pose, or price a hero on terms frozen before poses. */

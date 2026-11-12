@@ -13,6 +13,7 @@ import { isMusicEnabled, MUSIC_DISABLED_MESSAGE } from "./music.js";
 import { MAX_SCENES, SCENES_DISABLED_MESSAGE } from "./ugc-scenes.js";
 import { MOTION_STYLE_UNUSED_WARNING, motionStyleAsked, motionStyleHasCanvas } from "./motion-styles.js";
 import { AD_PAUSE_TRIM_WARNING } from "./ad-pause-trim.js";
+import { isPresenterMatteEnabled, needsPresenterCutout, PRESENTER_MATTE_DISABLED_MESSAGE } from "./presenter-matte.js";
 
 /** Disposition registry for `make_ugc` input fields: every field must have a recorded */
 /** decision. The type guards completeness; tests at each effect boundary prove truth. */
@@ -469,6 +470,7 @@ export interface RejectedFieldHit {
 /** reserve), by MCP and by the SDK. */
 export function rejectedFields(
   input: Readonly<Record<string, unknown>>,
+  env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env,
 ): RejectedFieldHit[] {
   const hits: RejectedFieldHit[] = [];
   for (const field of CONTRACT_FIELDS) {
@@ -476,6 +478,10 @@ export function rejectedFields(
     if (disposition.kind !== "rejected") continue;
     if (input[field] === undefined) continue;
     hits.push({ field, message: disposition.message });
+  }
+  // A kind behind its own switch is refused by value, the field itself staying open (#1428).
+  if (!hits.some(hit => hit.field === "templates") && needsPresenterCutout(input.templates) && !isPresenterMatteEnabled(env)) {
+    hits.push({ field: "templates", message: PRESENTER_MATTE_DISABLED_MESSAGE });
   }
   return hits;
 }

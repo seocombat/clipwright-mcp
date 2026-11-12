@@ -18,6 +18,37 @@ listed under.
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-11-12
+
+### Added
+
+- `make_ugc` templates `cover_story` and `backdrop`: the presenter is cut out of the take and stands in front of the design. A cover
+  puts a magazine masthead behind the presenter's head. A backdrop has eight styles: `swap`, `wall`, `gallery`, `sticker`, `doodle`,
+  `glass`, `pop_out` and `vertigo`. Titles stay readable and props stay in view on close and full-body takes. Both are free and work
+  on a run without inserts, overlays, windows or shots; on other runs they are refused before any charge.
+- `make_ugc` template `series_frame`: a numbered list of 3 to 17 items, each played in turn in one of five looks (`card`, `orbit`,
+  `ui`, `phone`, `editor`), with a blur dissolve between items and an optional loop back to the first. 9:16 only. Free.
+- `make_ugc` template `comment_cta`: a closing call to action that acts out a comment keyword: the code word typed and sent in a
+  comment field, the reply in direct messages, then a follow. `loop` ends the video on its first frame. 9:16 only. Free.
+- `list_moves` offers the moves `cover-story`, `series-frame` and `comment-funnel`.
+- `analyze_creator` profiles add per video `x_preliminary` (under 48 hours old), `comment_rate`, `comment_rate_x`, `funnel` (the
+  code word a caption asks for), `breakout`, `viral` and `why[]`, plus `median_comment_rate` per profile. Price unchanged.
+- `analyze_reference` adds `source.funnel.asked_in` (`caption`, `speech` or `screen`).
+
+### Fixed
+
+- `analyze_reference` finds the comment code word in the caption, the speech or the on-screen text, not only in repeated comments,
+  and reads a silent presenter under an off-screen narrator as a voice-over rather than a call. Stored analyses read correctly too.
+- A `word_title` with more than six entries and a `chat_window` with more than six beats no longer fail when a run resumes.
+
+## [0.55.1] - 2026-11-12
+
+### Fixed
+
+- `make_voice`, `preview_stills`, `render_film` and `make_film_hero` take `attempt`, as the other paid tools do. The same
+  arguments and attempt return the run already started, whatever its state; to repeat a failed run, pass `attempt` + 1.
+  Before, a repeat with the same arguments always returned the first run, a failed one too.
+
 ## [0.55.0] - 2026-11-11
 
 ### Added

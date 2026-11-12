@@ -39,7 +39,8 @@ export function referenceAnalysisMarkdown(analysis: ReferenceAnalysis): string {
     lines.push("", `- Author: ${author ? `[@${author.handle}](${author.url})${author.name ? ` ${quote(author.name, 60)}` : ""}` : "—"} · ` +
       `followers ${number(source.author_followers)} · published ${source.published_at?.slice(0, 10) ?? "—"}`);
     if (source.caption) lines.push(`- Post caption: ${quote(source.caption.text, 200)}`);
-    lines.push(`- Code word: ${source.code_word_guess ? quote(source.code_word_guess) : "none"} · comment funnel: ${source.funnel?.comment_keyword ? "yes" : "no"}`);
+    lines.push(`- Code word: ${source.code_word_guess ? quote(source.code_word_guess) : "none"} · comment funnel: ${source.funnel?.comment_keyword ? "yes" : "no"}` +
+      `${source.funnel?.asked_in?.length ? ` (asked in the ${source.funnel.asked_in.join(", ")})` : ""}`);
   }
   const language = profile?.transcript_language ?? data?.transcript_language;
   const hook = profile?.hook ?? data?.hook;

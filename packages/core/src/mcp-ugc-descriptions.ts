@@ -1,5 +1,5 @@
 import { CAPTION_STYLE_ALIASES } from "./skills.js";
-import { type TEMPLATE_KIND_IDS, TEMPLATE_KINDS, TEMPLATE_SIZES, templateDataText, type TemplateKind } from "./templates/index.js";
+import { offeredTemplateKinds, type TEMPLATE_KIND_IDS, TEMPLATE_SIZES, templateDataText, type TemplateKind } from "./templates/index.js";
 import { MAX_OVERLAYS_AT_ONCE } from "./ugc-layers.js";
 import { SCRIPT_LENGTH_DESCRIPTION } from "./voices.js";
 
@@ -30,12 +30,19 @@ const TEMPLATE_GISTS: Record<(typeof TEMPLATE_KIND_IDS)[number], string | null> 
   race: null,
   hand_title: "handwritten; mark.word: index from 0",
   word_fill: "one word whose letters show your clip",
+  cover_story: "a magazine cover, the presenter standing in front of its huge masthead; free",
+  series_frame: "9:16 only; a numbered list page, each item's clip (or the presenter's take) in its look in turn, a blur dissolve between " +
+    "items, on items.at or evenly (each 1.2 s at least, ui 2.4 s), looping back to the first unless loop false",
+  comment_cta: "9:16 only; closes a video: the code typed and sent in a comment field, the handle's dm, then follow tapped, on lines.at " +
+    "or evenly; act names the lines dm and follow land on; labels needed for a script not in Latin letters; loop true ends on the first frame",
+  backdrop: "the presenter in front of a new backdrop: style swap|wall|gallery|sticker|doodle|glass|pop_out|vertigo; notes on wall only, " +
+    "picture on swap or gallery only; free",
 };
 
 const SIZE_FIELD = `, size? ${TEMPLATE_SIZES.join("|")}`;
 
 /** The templates catalog in fewer words: every kind's data fields as the full catalog names them. */
-export function compactTemplateCatalogText(kinds: readonly TemplateKind[] = TEMPLATE_KINDS): string {
+export function compactTemplateCatalogText(kinds: readonly TemplateKind[] = offeredTemplateKinds()): string {
   const sized = kinds.every(kind => templateDataText(kind).includes(SIZE_FIELD));
   const data = (kind: TemplateKind) => (sized ? templateDataText(kind).replace(SIZE_FIELD, "") : templateDataText(kind));
   return "Graphic templates { id, kind, anchor, cover_words?, placement?, transition?, data }, on any script run; price unchanged, a covered " +
@@ -45,7 +52,7 @@ export function compactTemplateCatalogText(kinds: readonly TemplateKind[] = TEMP
     "A media field is { asset_id } of a ready asset of that type. An inner quote is a string of words inside the template's own, after the previous " +
     "one, its beat on their first word, not under an insert or full-frame template; without one, clicks and steps spread evenly. A template " +
     "on the caption band hides captions. A full-frame one hides the presenter, overlays and over templates and never meets a wipe or zoom " +
-    `insert. At most ${MAX_OVERLAYS_AT_ONCE} overlays and over templates at once, not overlapping. template_theme sets their look. Kinds: ` +
+    `insert${kinds.some(kind => kind.cutout) ? " (a cover_story or backdrop keeps the presenter in front)" : ""}. At most ${MAX_OVERLAYS_AT_ONCE} overlays and over templates at once, not overlapping. template_theme sets their look. Kinds: ` +
     kinds.map(kind => {
       const gist = kind.kind in TEMPLATE_GISTS ? TEMPLATE_GISTS[kind.kind as keyof typeof TEMPLATE_GISTS] : kind.description;
       return `${kind.kind} (${kind.placements.join("|")})${gist === null ? "" : `: ${gist}`}; data ${data(kind)}`;
@@ -71,7 +78,7 @@ export const MCP_UGC_DESCRIPTIONS = {
     "else charon), has no word timings or audio tags, and refuses preset and catalog voices, voice_id, captions=true, segments and " +
     "inserts before any charge.",
   caption_style: CAPTION_STYLE_TEXT,
-  templates: compactTemplateCatalogText(),
+  templates: compactTemplateCatalogText(offeredTemplateKinds()),
   caption_emphasis: "Script words or phrases to emphasise, every occurrence, matched as an insert quote. An item is the quote or " +
     "{ quote, look }: punch (a lead-in line over a large glowing keyword), pill (alone in a pill), color (accent colour) or box (soft " +
     "accent box). Without look: punch draws punch, hormozi and accent color, others larger in their highlight colour. Needs " +

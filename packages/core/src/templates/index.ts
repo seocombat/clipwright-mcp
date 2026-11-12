@@ -8,6 +8,9 @@ import { callout } from "./callout.js";
 import { chatWindow, chatWindowV1 } from "./chat-window.js";
 import { checklist } from "./checklist.js";
 import { compare, compareV1, compareV2 } from "./compare.js";
+import { backdrop } from "./backdrop.js";
+import { coverStory } from "./cover-story.js";
+import { isPresenterMatteEnabled } from "../presenter-matte.js";
 import { endCard } from "./end-card.js";
 import { lowerThird, lowerThirdV1 } from "./lower-third.js";
 import { notification, notificationV1 } from "./notification.js";
@@ -17,6 +20,8 @@ import { pointerChips } from "./pointer-chips.js";
 import { chart } from "./chart.js";
 import { handTitle } from "./hand-title.js";
 import { race } from "./race.js";
+import { isSeriesFrameEnabled, SERIES_FRAME_DISABLED_MESSAGE, seriesFrame } from "./series-frame.js";
+import { COMMENT_CTA_DISABLED_MESSAGE, commentCta, isCommentCtaEnabled } from "./comment-cta.js";
 import { progress } from "./progress.js";
 import { quote } from "./quote.js";
 import { rating } from "./rating.js";
@@ -58,8 +63,18 @@ export interface TemplateKind<D extends z.ZodObject = z.ZodObject> {
   firstBeatAtStart?: true;
   /** It fills the frame at medium, so large draws as medium, and says so (#1128). */
   fillsFrame?: true;
+  /** A full frame the presenter stands in front of, cut out of the take, instead of one that hides them (#1428). */
+  cutout?: true;
   /** Media fields, each `{ asset_id }`, and what each takes; they pin as `<id>.<slot>` (A1). */
   slots: Readonly<Record<string, TemplateSlot>>;
+  /** The most media it pins, where a slot sits in each element of a list; absent is one per slot. */
+  maxMedia?: number;
+  /** The formats it is drawn in; absent is every format. */
+  aspects?: readonly string[];
+  /** Its own beat frames from each beat's spoken frame (none for a beat without a quote) and its span, with what they move. */
+  timing?(data: z.infer<D>, beats: readonly (number | undefined)[], duration: number, fps: number, id: string): { moments: number[]; warnings: string[] };
+  /** Refusals its data earns in this run beyond its schema: the script's language, whether it covers the script's last words. */
+  check?(data: z.infer<D>, context: { language: string; endsScript: boolean }): { path: (string | number)[]; message: string }[];
   /** Whether captions are hidden while it shows: it sits in the caption spot. */
   hidesCaptions(data: z.infer<D>): boolean;
   /** Drawn on full-frame insert frames too; other over-presenter kinds step aside there. */
@@ -75,10 +90,21 @@ export interface TemplateKind<D extends z.ZodObject = z.ZodObject> {
 }
 
 export const TEMPLATE_KINDS: readonly TemplateKind[] = [tag, lowerThird, endCard, titleCard, quote, stat, callout, checklist, phoneCall, compare,
-  notification, progress, rating, chatWindow, videoGrid, wordTitle, phoneScreen, terminal, pointerChips, chart, race, handTitle, wordFill] as unknown as readonly TemplateKind[];
+  notification, progress, rating, chatWindow, videoGrid, wordTitle, phoneScreen, terminal, pointerChips, chart, race, handTitle, wordFill,
+  coverStory, seriesFrame, commentCta, backdrop] as unknown as readonly TemplateKind[];
 export const TEMPLATE_KIND_IDS = ["tag", "lower_third", "end_card", "title_card", "quote", "stat", "callout", "checklist", "phone_call", "compare",
   "notification", "progress", "rating", "chat_window", "video_grid", "word_title", "phone_screen", "terminal", "pointer_chips", "chart", "race",
-  "hand_title", "word_fill"] as const;
+  "hand_title", "word_fill", "cover_story", "series_frame", "comment_cta", "backdrop"] as const;
+/** Kinds behind a switch, each with the reason it is refused while off. */
+const SWITCHED_KINDS: Readonly<Record<string, { on: (env?: Record<string, string | undefined>) => boolean; off: string }>> = {
+  series_frame: { on: isSeriesFrameEnabled, off: SERIES_FRAME_DISABLED_MESSAGE },
+  comment_cta: { on: isCommentCtaEnabled, off: COMMENT_CTA_DISABLED_MESSAGE },
+};
+/** The kinds a request may name today: every kind whose switch is on, and a kind that cuts the presenter out only while that is on (#1428).
+ *  The catalog, the tool's kind list and admission read it. */
+export function offeredTemplateKinds(env?: Record<string, string | undefined>, kinds: readonly TemplateKind[] = TEMPLATE_KINDS): readonly TemplateKind[] {
+  return kinds.filter(kind => (SWITCHED_KINDS[kind.kind]?.on(env) ?? true) && (!kind.cutout || isPresenterMatteEnabled(env)));
+}
 /** Earlier versions of kinds a frozen timeline may still name, each with its own footprint (A8, #819). The phone's version 2 (#857 S5) and the
  *  five kinds' version 2 (#1119) only add optional fields, and compare's version 3 (#1159) one reveal, so earlier versions keep their geometry. */
 export const TEMPLATE_KIND_HISTORY: readonly TemplateKind[] = [{ ...phoneCall, kindVersion: 1 } as TemplateKind,
@@ -120,6 +146,11 @@ export { CHART_EMS, CHART_TYPES, chartEms } from "./chart.js";
 export { RACE_EMS, raceEms } from "./race.js";
 export { HAND_MARKS, HAND_TITLE_EMS } from "./hand-title.js";
 export { WORD_FILL_EMS } from "./word-fill.js";
+export { BACKDROP_NOTES_STYLES, BACKDROP_PICTURE_STYLES, BACKDROP_STYLES, type BackdropStyle } from "./backdrop.js";
+export { isSeriesFrameEnabled, SERIES_ASPECT, SERIES_FRAME_DISABLED_MESSAGE, SERIES_ITEM_FLOOR_SEC, SERIES_ITEM_LOOKS, SERIES_ITEMS, SERIES_LOOP_FRAMES,
+  SERIES_ONE_COLUMN_MAX, seriesFrameMoments } from "./series-frame.js";
+export { COMMENT_CTA_DISABLED_MESSAGE, commentCtaActLines, commentCtaMoments, commentCtaSchedule, CTA_ASPECT, CTA_FUNNEL, CTA_ITEMS, CTA_LABELS, CTA_LINE_GAP,
+  CTA_LINES, CTA_LOOP_FRAMES, isCommentCtaEnabled } from "./comment-cta.js";
 export { templateMedia, type TemplateSlot } from "./slot.js";
 
 /** Every value at a dotted path of a kind's data, one per element where the path crosses or ends in a list, with its own path; an absent last
@@ -194,6 +225,11 @@ export function templateMoments(kind: TemplateKind, data: unknown, tokens: reado
   { moments: number[]; warnings: string[] } {
   const lexical = words.filter(word => !/^\p{P}+$/u.test(word.word)), duration = span.endFrame - span.startFrame;
   const beats = templateMomentWords(kind, data, tokens, range), from = kind.beatsFrom ?? TEMPLATE_ENTER_FRAMES + 1, warnings: string[] = [];
+  if (kind.timing) {
+    for (const beat of beats) if (beat.refusal) throw new Error(`template beat ${beat.path.join(".")} ${beat.refusal}`);
+    return kind.timing(data as never, beats.map(beat => (beat.word === undefined ? undefined
+      : Math.max(0, Math.round(lexical[beat.word]!.startSec * fps) - span.startFrame))), duration, fps, id);
+  }
   let before: number | undefined;
   const moments = beats.map((beat, index) => {
     if (beat.refusal) throw new Error(`template beat ${beat.path.join(".")} ${beat.refusal}`);
@@ -214,8 +250,31 @@ export function templateMoments(kind: TemplateKind, data: unknown, tokens: reado
   });
   return { moments, warnings };
 }
+/** The most values a dotted path of a kind's data holds: each list it crosses or ends in multiplies by its most elements. */
+function mostValuesAt(schema: z.ZodType, keys: readonly string[]): number {
+  const def = schema._zod.def as { type: string; innerType?: z.ZodType; element?: z.ZodType };
+  if (def.type === "optional") return mostValuesAt(def.innerType!, keys);
+  if (def.type === "array") {
+    const { maxItems } = z.toJSONSchema(schema, { unrepresentable: "any" }) as { maxItems?: number };
+    if (maxItems === undefined) throw new Error(`a template list has no most length (${keys.join(".")})`);
+    return maxItems * mostValuesAt(def.element!, keys);
+  }
+  if (!keys.length) return 1;
+  const [key, ...rest] = keys as [string, ...string[]], inner = def.type === "object" ? (schema as z.ZodObject).shape[key] : undefined;
+  if (!inner) throw new Error(`a template quote names no field ${keys.join(".")}`);
+  return mostValuesAt(inner as z.ZodType, rest);
+}
+/** The most beats a kind freezes, as `templateMomentWords` lists them: every value of its quotes, or each element of its spread list. */
+function mostBeatsOf(kind: TemplateKind): number {
+  const at = (field: string) => mostValuesAt(kind.data, field.split("."));
+  return Math.max(kind.spreads ? at(kind.spreads) : 0, (kind.quotes ?? []).reduce((sum, field) => sum + at(field), 0));
+}
+const FROZEN_KINDS = [...TEMPLATE_KINDS, ...TEMPLATE_KIND_HISTORY];
+/** The most moments and pins one frozen template holds: the largest any kind, current or in a frozen timeline's history, admits (#1425 T6). */
+export const MAX_MOMENTS_PER_TEMPLATE = Math.max(1, ...FROZEN_KINDS.map(mostBeatsOf));
+export const MAX_MEDIA_PER_TEMPLATE = Math.max(1, ...FROZEN_KINDS.map(kind => kind.maxMedia ?? Object.keys(kind.slots).length));
 /** The most pins a run's templates take: each template's slots. */
-export const MAX_TEMPLATE_MEDIA = MAX_TEMPLATES * Math.max(...TEMPLATE_KINDS.map(kind => Object.keys(kind.slots).length));
+export const MAX_TEMPLATE_MEDIA = MAX_TEMPLATES * MAX_MEDIA_PER_TEMPLATE;
 
 /** Every way a kind draws: each placement with its sample, then each value of each enum field over the sample at its first placement;
  * the composition declares motion phases for each, and the media test checks them. */
@@ -231,11 +290,14 @@ export function templateVariants(kind: TemplateKind): { key: string; placement: 
 
 /** Every media slot the templates fill, in item then slot order: what admission pins and every source walker reads (#778 S3a(ii)). */
 export function templateMediaOf(templates: readonly { id: string; kind: string; data: Record<string, unknown> }[] | undefined):
-  { index: number; id: string; slot: string; asset_id: string; media_type: "image" | "video"; cover?: number | undefined }[] {
-  return (templates ?? []).flatMap((item, index) => Object.entries(TEMPLATE_KINDS.find(kind => kind.kind === item.kind)?.slots ?? {}).flatMap(([slot, takes]) => {
-    const media = item.data[slot] as { asset_id?: unknown } | undefined;
-    return typeof media?.asset_id === "string" ? [{ index, id: item.id, slot, asset_id: media.asset_id, media_type: takes.type, cover: takes.cover }] : [];
-  }));
+  { index: number; id: string; slot: string; path?: string; asset_id: string; media_type: "image" | "video"; cover?: number | undefined }[] {
+  // A slot inside each element of a list (`items.clip`) pins once per element, as `items_0_clip`: a slot name has no dots (A1).
+  return (templates ?? []).flatMap((item, index) => Object.entries(TEMPLATE_KINDS.find(kind => kind.kind === item.kind)?.slots ?? {}).flatMap(([slot, takes]) =>
+    templateFieldValues(item.data, slot).flatMap(({ path, value }) => {
+      const media = value as { asset_id?: unknown } | undefined;
+      return typeof media?.asset_id === "string" ? [{ index, id: item.id, slot: path.join("_"), ...(path.length > 1 ? { path: path.join(".") } : {}),
+        asset_id: media.asset_id, media_type: takes.type, cover: takes.cover }] : [];
+    })));
 }
 
 const RANGES = (pairs: number[]) => pairs.flatMap((value, index): [number, number][] => (index % 2 ? [] : [[value, pairs[index + 1]!]]));
@@ -363,7 +425,7 @@ export function templateDataText(kind: TemplateKind): string {
 }
 
 /** The `templates` description: the gate, the text rules and one catalog line per kind, all from the registry. */
-export function templateCatalogText(kinds: readonly TemplateKind[] = TEMPLATE_KINDS): string {
+export function templateCatalogText(kinds: readonly TemplateKind[] = offeredTemplateKinds()): string {
   return "Graphic templates, each { id, kind, anchor, cover_words?, placement?, transition?, data }. On any script run. Templates never " +
     "change the price: every run is billed by its parts as list_prices states them, and a presenter a template covers is still " +
     "presenter time. Ids are unique across inserts, overlays, layout_windows " +
@@ -374,6 +436,7 @@ export function templateCatalogText(kinds: readonly TemplateKind[] = TEMPLATE_KI
     "is spread evenly. A beat spoken before its template has entered moves just after the enter, with a warning. A template that meets the caption band hides captions while it shows; one elsewhere, such as a small one at the top, " +
     "leaves them. A full-frame template also hides the presenter, overlays " +
     "and over-presenter templates while it shows, never meets a wipe or zoom insert, and the covered presenter is billed. " +
+    kinds.filter(kind => kind.cutout).map(kind => `A ${kind.kind} keeps the presenter in front of it, drawn as a full frame otherwise. `).join("") +
     `At most ${MAX_OVERLAYS_AT_ONCE} overlays and over-presenter templates show at once, on footprints that do not ` +
     "overlap. template_theme sets the look of them all. Kinds: " +
     kinds.map(kind => `${kind.kind} (${kind.placements.join("|")}): ${kind.description}; data ${templateDataText(kind)}`).join(". ") + ".";
@@ -389,6 +452,7 @@ export interface TemplateCheckInput {
   script?: string | undefined;
   segments?: unknown;
   aspect_ratio?: string | undefined;
+  image?: unknown;
   presenter_framing?: PresenterFraming | undefined;
   actor_id?: string | undefined;
   inserts?: readonly (AnchoredItem & { transition?: string | undefined })[] | undefined;
@@ -405,7 +469,14 @@ export interface TemplateCheckInput {
   caption_position?: LayerCheckInput["caption_position"];
   caption_place?: LayerCheckInput["caption_place"];
   presenter_place?: LayerCheckInput["presenter_place"];
+  framing?: unknown;
+  interview?: unknown;
+  presenter_gaze?: unknown;
+  end_hold_s?: unknown;
 }
+
+/** The fields that make a run more than one plain take: a kind that cuts the presenter out of the take draws on a plain take only (#1428). */
+const MORE_THAN_A_TAKE = ["inserts", "overlays", "layout_windows", "framing", "call", "interview", "presenter_gaze", "end_hold_s", "shots"] as const;
 
 /** Every refusal of `templates`, `template_theme` and `template_sounds` against the run, named by path; empty when they render (D4, D5, D6, D8, D10, A5, A6). */
 export function templateRefusals(input: TemplateCheckInput, kinds: readonly TemplateKind[] = TEMPLATE_KINDS): LayerRefusal[] {
@@ -460,13 +531,25 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
     if (owner !== undefined) refusals.push({ path: at("id"), message: `id "${item.id}" is already used in ${owner}: ids are unique across inserts, overlays, layout_windows and templates` });
     used.set(item.id, "templates");
     const kind = kinds.find(entry => entry.kind === item.kind);
-    if (!kind) { refusals.push({ path: at("kind"), message: `unknown template kind "${item.kind}": use one of ${kinds.map(entry => entry.kind).join(", ")}` }); continue; }
+    if (!kind) {
+      refusals.push({ path: at("kind"), message: `unknown template kind "${item.kind}": use one of ${offeredTemplateKinds(undefined, kinds).map(entry => entry.kind).join(", ")}` });
+      continue;
+    }
+    const switched = SWITCHED_KINDS[kind.kind];
+    if (switched && !switched.on()) { refusals.push({ path: at("kind"), message: switched.off }); continue; }
+    // A kind drawn in one format is refused in any other before money, never moved to it (rule 4); with an image the format follows the image.
+    if (kind.aspects && (input.aspect_ratio === undefined ? input.image !== undefined : !kind.aspects.includes(input.aspect_ratio))) {
+      refusals.push({ path: input.aspect_ratio === undefined ? at("kind") : ["aspect_ratio"], message: `${kind.kind} is drawn in ${kind.aspects.join(" or ")} only: ` +
+        `pass aspect_ratio ${kind.aspects[0]}${input.aspect_ratio === undefined ? " with image" : ""}, or use another template kind` });
+    }
     const parsed = kind.data.safeParse(item.data);
     if (!parsed.success) {
       for (const issue of parsed.error.issues) refusals.push({ path: at("data", ...issue.path.map(String)), message: `${item.kind}: ${issue.message}` });
       continue;
     }
     const placement = item.placement ?? kind.placements[0]!;
+    const beyond = kind.cutout ? MORE_THAN_A_TAKE.filter(field => input[field] !== undefined) : [];
+    if (beyond.length) refusals.push({ path: at("kind"), message: `${item.kind} takes a plain script run, without ${beyond.join(", ")}` });
     if (!kind.placements.includes(placement)) refusals.push({ path: at("placement"), message: `${item.kind} takes placement ${kind.placements.join(" or ")}, not ${placement}` });
     if (item.transition !== undefined && placement !== "full") refusals.push({ path: at("transition"), message: "transition works on a full-frame template only" });
     for (const [field, limit] of Object.entries(kind.text)) for (const { path, value } of templateFieldValues(parsed.data, field)) {
@@ -475,6 +558,9 @@ export function templateRefusals(input: TemplateCheckInput, kinds: readonly Temp
     }
     const range = layerWordRange(tokens, item);
     if (typeof range === "string") { refusals.push({ path: at("anchor"), message: `template "${item.id}": ${range}` }); continue; }
+    for (const why of kind.check?.(parsed.data, { language, endsScript: range.coverWord >= tokens.length }) ?? []) {
+      refusals.push({ path: at("data", ...why.path), message: why.message });
+    }
     const beats = templateMomentWords(kind, parsed.data, tokens, range);
     for (const beat of beats) if (beat.refusal) refusals.push({ path: at("data", ...beat.path), message: `template "${item.id}" ${beat.path.join(".")} ${beat.refusal}` });
     const footprints = framings.map(framing => templateFootprint({ kind: item.kind, placement, data: parsed.data as Record<string, unknown> }, aspect, kinds,

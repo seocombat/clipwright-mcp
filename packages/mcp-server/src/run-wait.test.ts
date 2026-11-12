@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 import { ClipwrightClient } from "@clipwright/sdk";
-import { AI_DISCLOSURE_TEXT, PRESENTER_ENGINE_LABELS, quoteFaceless, type QuoteResponse, type RunRead } from "@clipwright/core";
+import { AI_DISCLOSURE_TEXT, cutoutTemplateLines, PRESENTER_ENGINE_LABELS, quoteFaceless, type QuoteResponse, type RunRead } from "@clipwright/core";
 
 import { formatGetRun, RUN_RETRY_AFTER_SECONDS, RUN_WAIT_MAX_SECONDS } from "./format.js";
 import { facelessQuoteMarkdown, RUN_DISPLAY_HINT, terminalRunMarkdown, ugcQuoteMarkdown } from "./run-display.js";
@@ -121,6 +121,14 @@ describe("get_run waits on the server (#1000, #1036)", () => {
 });
 
 describe("display_markdown on quotes and finished runs (#1000)", () => {
+  /** Mutant (Codex r2 on #1428 S2): name every template line by one fixed name, and a backdrop reads as a cover story on the quote. */
+  it("names each free template line by its own kind, counted in pieces", () => {
+    const lines = cutoutTemplateLines([{ kind: "cover_story" }, { kind: "backdrop" }, { kind: "backdrop" }]);
+    const shown = ugcQuoteMarkdown({ ...UGC_QUOTE, price_lines: [...UGC_QUOTE.price_lines!, ...lines] });
+    expect(shown).toContain("| Cover story, presenter in front | 1 × 0 | 0 |");
+    expect(shown).toContain("| Backdrop, presenter in front | 2 × 0 | 0 |");
+  });
+
   it("quote_ugc shows the price, the length, what it covers and every warning word for word, with no engine name", async () => {
     vi.spyOn(ClipwrightClient.prototype, "quoteUgc").mockResolvedValue(UGC_QUOTE);
     const { client, close } = await connected();

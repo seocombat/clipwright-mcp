@@ -67,7 +67,7 @@ describe("no beat lands before its template has entered (owner 23.10)", () => {
   it("plays a word_title's first entry on its first frame whatever its quote, with no warning, and the later entries on their words", () => {
     const words = [{ text: "own", at: "four" }, { text: "identity", at: "six" }];
     expect(beats("word_title", { words })).toEqual({ moments: [0, 60], warnings: [] });
-    expect(TEMPLATE_KINDS.filter(entry => entry.firstBeatAtStart).map(entry => entry.kind)).toEqual(["word_title", "race"]);
+    expect(TEMPLATE_KINDS.filter(entry => entry.firstBeatAtStart).map(entry => entry.kind)).toEqual(["word_title", "race", "series_frame", "comment_cta"]);
   });
 
   it("holds every kind with beats to a first beat frame after its enter", () => {

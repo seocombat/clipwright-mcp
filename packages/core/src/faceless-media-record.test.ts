@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as coreBarrel from "./index.js";
 import { facelessMediaRecord, storedObject, type FacelessMediaRecord, type StoredObject } from "./faceless-media-record.js";
+import { MAX_TEMPLATES, SERIES_ITEMS, templateMediaOf } from "./templates/index.js";
 import { TEMPLATE_SOUNDS } from "./templates/sounds.js";
 
 const sha = (seed: string) => seed.repeat(64).slice(0, 64);
@@ -109,6 +110,19 @@ describe("the media record of a faceless run", () => {
     ["settings without the site hash", (record: Loose) => { delete record.settings.lambda_site_sha256; }],
   ])("refuses %s", (_what, change) => {
     expect(refused(altered(change))).toBe(true);
+  });
+
+  /** Mutant: cap the record's template media below what admission pins, and a run whose templates fill every slot fails its record after the
+   *  paid render (#1425 T6). */
+  it("keeps every template media admission pins, and refuses one more", () => {
+    // The pins of the most templates of the kind with the most slots, counted by the walker admission uses, not by the cap under test.
+    const pins = templateMediaOf(Array.from({ length: MAX_TEMPLATES }, (_, template) => ({ id: `s${template}`, kind: "series_frame",
+      data: { items: Array.from({ length: SERIES_ITEMS.max }, () => ({ name: "x", clip: { asset_id: `ast_${"1".repeat(32)}` } })) } })));
+    const filled = (count: number) => altered(record => { record.template_media = Array.from({ length: count }, (_, at) =>
+      ({ template_id: pins[at % pins.length]!.id, slot: pins[at % pins.length]!.slot, media: stored("video", "3", 4101) })); });
+    expect(pins).toHaveLength(MAX_TEMPLATES * SERIES_ITEMS.max);
+    expect(facelessMediaRecord.parse(filled(pins.length))).toEqual(filled(pins.length));
+    expect(refused(filled(pins.length + 1))).toBe(true);
   });
 
   it("takes `null` for the two settings a run may leave out, and for a shot that does not move", () => {

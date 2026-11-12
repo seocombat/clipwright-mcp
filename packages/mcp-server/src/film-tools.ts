@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ClipwrightApiError, type ClipwrightClient } from "@clipwright/sdk";
-import { checkFilmInput, createFilmDraftInput, filmDraftId, filmHeroInput, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL,
+import { agentRetryShape, checkFilmInput, createFilmDraftInput, filmDraftId, filmHeroInput, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL,
   OWN_STILLS_SINGLE_MAX, putFilmFilesInput, runId, type FilmRun } from "@clipwright/core";
 
 import { withFailureReport, type McpToolResponse } from "./format.js";
@@ -123,6 +123,9 @@ export async function stdioModes(client: Pick<ClipwrightClient, "getFilmGuide" |
   return { ownAgent, explainer: sold };
 }
 
+/** The same arguments and attempt are the same run, a failed one too: a repeat needs its own attempt. */
+const REPEAT_RUN = " The same arguments and attempt return the run already started, whatever its state; to repeat a failed run, pass attempt + 1 (attempt 2 after the first), which starts a new run, charged as its quote says.";
+
 export type FilmToolsTiming ={ pollMs?: number; sleep?: (ms: number) => Promise<void>; fetchImpl?: typeof fetch };
 
 export function registerFilmDraftTools(server: McpServer, client: ClipwrightClient, timing: FilmToolsTiming = {}): void {
@@ -158,26 +161,26 @@ export function registerFilmDraftTools(server: McpServer, client: ClipwrightClie
     description: QUOTE_VOICE_DESCRIPTION + GUIDE_FIRST, inputSchema: filmVoiceInput.shape },
   async (input) => withFailureReport(async () => ({ content: [text(await client.quoteVoice(input))] })));
   server.registerTool("make_voice", { title: "Make a film voice", annotations: { readOnlyHint: false, destructiveHint: false },
-    description: MAKE_VOICE_DESCRIPTION + GUIDE_FIRST, inputSchema: filmVoiceInput.shape },
-  async (input) => withFailureReport(async () => waited(await client.makeVoice(input))));
+    description: MAKE_VOICE_DESCRIPTION + REPEAT_RUN + GUIDE_FIRST, inputSchema: { ...filmVoiceInput.shape, ...agentRetryShape } },
+  async ({ attempt, ...input }) => withFailureReport(async () => waited(await client.makeVoice(input, { attempt }))));
   server.registerTool("quote_stills", { title: "Quote film stills", annotations: { readOnlyHint: true, destructiveHint: false },
     description: QUOTE_STILLS_DESCRIPTION + GUIDE_FIRST, inputSchema: filmStillsInput.shape },
   async (input) => withFailureReport(async () => ({ content: [text(await client.quoteStills(input))] })));
   server.registerTool("preview_stills", { title: "See film stills", annotations: { readOnlyHint: false, destructiveHint: false },
-    description: PREVIEW_STILLS_DESCRIPTION + GUIDE_FIRST, inputSchema: filmStillsInput.shape },
-  async (input) => withFailureReport(async () => waited(await client.previewStills(input))));
+    description: PREVIEW_STILLS_DESCRIPTION + REPEAT_RUN + GUIDE_FIRST, inputSchema: { ...filmStillsInput.shape, ...agentRetryShape } },
+  async ({ attempt, ...input }) => withFailureReport(async () => waited(await client.previewStills(input, { attempt }))));
   server.registerTool("quote_render", { title: "Quote a film render", annotations: { readOnlyHint: true, destructiveHint: false },
     description: QUOTE_RENDER_DESCRIPTION + GUIDE_FIRST, inputSchema: filmRenderInput.shape },
   async (input) => withFailureReport(async () => ({ content: [text(await client.quoteRender(input))] })));
   server.registerTool("render_film", { title: "Render the film", annotations: { readOnlyHint: false, destructiveHint: false },
-    description: RENDER_FILM_DESCRIPTION + GUIDE_FIRST, inputSchema: filmRenderInput.shape },
-  async (input) => withFailureReport(async () => runAnswer(await client.renderFilm(input), fetchImpl)));
+    description: RENDER_FILM_DESCRIPTION + REPEAT_RUN + GUIDE_FIRST, inputSchema: { ...filmRenderInput.shape, ...agentRetryShape } },
+  async ({ attempt, ...input }) => withFailureReport(async () => runAnswer(await client.renderFilm(input, { attempt }), fetchImpl)));
   server.registerTool("quote_film_hero", { title: "Quote a film hero", annotations: { readOnlyHint: true, destructiveHint: false },
     description: QUOTE_FILM_HERO_DESCRIPTION + GUIDE_FIRST, inputSchema: filmHeroInput.shape },
   async (input) => withFailureReport(async () => ({ content: [text(await client.quoteFilmHero(input))] })));
   server.registerTool("make_film_hero", { title: "Make a film hero", annotations: { readOnlyHint: false, destructiveHint: false },
-    description: MAKE_FILM_HERO_DESCRIPTION + GUIDE_FIRST, inputSchema: filmHeroInput.shape },
-  async (input) => withFailureReport(async () => runAnswer(await client.makeFilmHero(input), fetchImpl)));
+    description: MAKE_FILM_HERO_DESCRIPTION + REPEAT_RUN + GUIDE_FIRST, inputSchema: { ...filmHeroInput.shape, ...agentRetryShape } },
+  async ({ attempt, ...input }) => withFailureReport(async () => runAnswer(await client.makeFilmHero(input, { attempt }), fetchImpl)));
   server.registerTool("get_film_run", { title: "Read a film run", annotations: { readOnlyHint: true, destructiveHint: false },
     description: GET_FILM_RUN_DESCRIPTION + GUIDE_FIRST, inputSchema: { run_id: runId } },
   async ({ run_id }) => withFailureReport(async () => waited(await client.getFilmRun(run_id))));

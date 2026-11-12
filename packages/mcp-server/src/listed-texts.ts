@@ -1,6 +1,6 @@
 import {
   ASSET_LIST_MAX_LIMIT, ASSET_TOOL_PAGE, CANDIDATE_CHARGE_TEXT, CREATOR_PROFILE_CREDITS, MAX_OVERLAYS_AT_ONCE, MUSIC_BED_CREDITS, REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS,
-  REVISION_CHARGE_TEXT, SCENE_CREDITS, SCRIPT_LENGTH_DESCRIPTION, TEMPLATE_KINDS, TREND_GALLERY_DAYS, TREND_PAGE_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_PER_HOUR, TREND_SEARCH_REELS,
+  REVISION_CHARGE_TEXT, SCENE_CREDITS, SCRIPT_LENGTH_DESCRIPTION, offeredTemplateKinds, TREND_GALLERY_DAYS, TREND_PAGE_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_PER_HOUR, TREND_SEARCH_REELS,
 } from "@clipwright/core";
 
 // Every price here comes from its core constant, so a listed price can neither drift from nor be swapped against the charge.
@@ -33,7 +33,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "before any charge. Filter by language, gender, age, use_case and model; an unknown value is refused with the allowed ones. " +
     "Play preview_url before a paid render; it expires. Free.",
   analyze_creator: "Profile an Instagram or TikTok creator from a profile or video link: latest 12 videos with views and " +
-    "x_median, followers and cadence. YouTube is refused. Charged once it succeeds; a private or empty account, or any " +
+    "x_median, labels breakout (3×, 10,000 views, 24 h) and viral (10×), x_preliminary under 48 h, comment_rate, the caption's " +
+    "funnel code word and why[] for those that took off; followers and cadence. YouTube is refused. Charged once it succeeds; a private or empty account, or any " +
     "failure, costs nothing. 30 new profiles per hour. Within an hour the same link, or a handle link of a creator already " +
     "profiled, answers the same profile, free. Poll " +
     "get_creator_profile when it says so.",
@@ -167,7 +168,7 @@ export const LISTED_FIELDS: Record<string, Record<string, string>> = {
     script: "The words the actor says; required unless segments supplies them. " +
       `${SCRIPT_LENGTH_DESCRIPTION.slice(0, SCRIPT_LENGTH_DESCRIPTION.indexOf(". ") + 1)} Spaces, audio tags and stress marks count.`,
     templates: "Price unchanged, a covered presenter still billed. " +
-      `Kinds: ${TEMPLATE_KINDS.map(kind => kind.kind).join(", ")}. Data and limits per kind: describe_tool.`,
+      `Kinds: ${offeredTemplateKinds().map(kind => kind.kind).join(", ")}. Data and limits per kind: describe_tool.`,
     tts_model: "Speech model; omitted, the voice's own. gemini-3.8-flash-tts speaks only its own voices and refuses voice_id, " +
       "captions, segments and inserts before any charge.",
     voice: "A list_voices name (presets sarah | george | eric | daria_ru_female); another is refused before any charge. Omitted: " +

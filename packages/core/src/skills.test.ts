@@ -219,8 +219,10 @@ describe("live shots: the stored input reads what admission may write (#1103)", 
   it("pins every media slot a template kind declares", () => {
     const pin = (slot: string) => ({ insert_id: "t1", slot, asset_id: `ast_${"a".repeat(32)}`, key: "k", sha256: "b".repeat(64), bytes: 1,
       kind: "image", media_type: "image/png", width: 1, height: 1 });
-    const slots = contract.TEMPLATE_KINDS.flatMap(kind => Object.keys(kind.slots));
-    expect(slots).toContain("cell_1");
+    // A slot inside a list's elements pins once per element, as `items_<index>_clip`; the last index is the longest name.
+    const slots = contract.TEMPLATE_KINDS.flatMap(kind => Object.keys(kind.slots).map(slot =>
+      (slot.includes(".") ? slot.replace(".", `_${(kind.maxMedia ?? 1) - 1}_`) : slot)));
+    expect(slots).toEqual(expect.arrayContaining(["cell_1", "items_16_clip"]));
     for (const slot of slots) expect(contract.pinnedInsertAsset.safeParse(pin(slot)).success, slot).toBe(true);
   });
 });

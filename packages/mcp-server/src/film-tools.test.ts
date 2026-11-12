@@ -175,7 +175,8 @@ describe("the run tools as a client calls them (#1337)", () => {
     for (const name of ["quote_film_hero", "make_film_hero"]) {
       const tool = tools.find(t => t.name === name)!;
       expect(Object.keys(tool.inputSchema.properties ?? {}).sort())
-        .toEqual(["character_details", "character_reference", "mascot_id", "script", "voice_run_id"]);
+        .toEqual(name === "make_film_hero" ? ["attempt", "character_details", "character_reference", "mascot_id", "script", "voice_run_id"]
+          : ["character_details", "character_reference", "mascot_id", "script", "voice_run_id"]);
       expect(tool.inputSchema.required ?? []).toEqual([]);
     }
     expect(tools.find(t => t.name === "make_film_hero")!.description).toMatch(/per pose published.*mascot_id/s);

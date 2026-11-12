@@ -38,7 +38,14 @@ describe("quote_ugc's shorter MCP texts", () => {
 
   it("names every kind's data fields as the full catalog does, and the size every kind takes", () => {
     const compact = compactTemplateCatalogText();
+    expect(compact).not.toContain("series_frame");
+    expect(compact).not.toContain("cover_story (");
+    expect(compact).not.toContain("comment_cta");
+    expect(compact).not.toContain("backdrop (");
+    // Kinds behind a switch that is off here (#1425, #1428, #1437) join the text with their switch.
+    const switched = new Set(["series_frame", "cover_story", "comment_cta", "backdrop"]);
     for (const kind of TEMPLATE_KINDS) {
+      if (switched.has(kind.kind)) continue;
       expect(templateDataText(kind)).toContain(", size? small|medium|large");
       expect(compact, kind.kind).toContain(`${kind.kind} (${kind.placements.join("|")})`);
       expect(compact, kind.kind).toContain(templateDataText(kind).replace(", size? small|medium|large", ""));

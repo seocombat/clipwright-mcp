@@ -5,7 +5,7 @@ import { mcpUgcInputShape, offeredUgcInputShape } from "../contract-dispositions
 import { faceBillingUnitsOf, freezeResolvedTimeline } from "../resolved-timeline.js";
 import { scriptInsertsTimelineFixture } from "../__fixtures__/long-form-timeline.fixture.js";
 import { ASPECT_RATIOS } from "../skills.js";
-import { calloutParts, contrastRatio, TEMPLATE_KIND_IDS, TEMPLATE_KINDS, TEMPLATE_PRESETS, TEMPLATE_SIZES, templateCatalogText, templateFaceWarnings, templateFootprint,
+import { calloutParts, contrastRatio, offeredTemplateKinds, TEMPLATE_KIND_IDS, TEMPLATE_KINDS, TEMPLATE_PRESETS, TEMPLATE_SIZES, templateCatalogText, templateFaceWarnings, templateFootprint,
   templateFieldValues, templateKindAt, templateMediaOf, templateMoments, templateRefusals, templateSizeWarnings, templateTheme, textUnits, withTemplateField,
   type TemplateKind } from "./index.js";
 import { callout } from "./callout.js";
@@ -48,11 +48,16 @@ describe("the catalog registry (#778 S3 D2, conformance)", () => {
     // A string field is text with a limit or an inner quote, at any depth (#778 S3b(i)).
     expect([...new Set([...Object.keys(kind.text), ...(kind.quotes ?? [])].map(key => key.split(".")[0]!))].sort()).toEqual(strings.sort());
     expect(Object.keys(kind.text).filter(key => (kind.quotes ?? []).includes(key))).toEqual([]);
-    expect(Object.keys(kind.slots).sort()).toEqual(media.sort());
-    // The sample fills every text field and every inner quote, so the media test can show each one drawn.
+    expect(Object.keys(kind.slots).filter(key => !key.includes(".")).sort()).toEqual(media.sort());
+    // A slot inside a list's elements (series_frame's `items.clip`) takes `{ asset_id }` there.
+    for (const key of Object.keys(kind.slots).filter(slot => slot.includes("."))) {
+      expect(templateFieldValues(kind.sample, key).some(({ value }) => (value as { asset_id?: unknown } | undefined)?.asset_id !== undefined), key).toBe(true);
+    }
+    // The sample fills every text field and every inner quote, so the media test can show each one drawn; a field of a list's elements
+    // that only some elements take (a ui item's prompt) is filled in one of them at least.
     expect([...Object.keys(kind.text), ...(kind.quotes ?? [])].filter(key => {
       const values = templateFieldValues(kind.sample, key);
-      return !values.length || values.some(({ value }) => typeof value !== "string");
+      return !values.some(({ value }) => typeof value === "string");
     })).toEqual([]);
     expect(kind.placements.length).toBeGreaterThan(0);
     expect(Number.isSafeInteger(kind.kindVersion) && kind.kindVersion > 0).toBe(true);
@@ -190,7 +195,10 @@ describe("one registry, two schemas (D3)", () => {
 
   it("describes every kind with its fields and limits from the registry", () => {
     const text = templateCatalogText();
-    for (const kind of TEMPLATE_KINDS) expect(text).toContain(`${kind.kind} (${kind.placements.join("|")}): ${kind.description}`);
+    for (const kind of offeredTemplateKinds()) expect(text).toContain(`${kind.kind} (${kind.placements.join("|")}): ${kind.description}`);
+    // A kind behind a switch is in the catalog only while it is on.
+    expect(text).not.toContain("series_frame");
+    expect(templateCatalogText(offeredTemplateKinds({ CLIPWRIGHT_SERIES_FRAME: "1" }))).toContain("series_frame (full): ");
     expect(text).toContain("data text ≤ 32, position? top|center|bottom, size? small|medium|large");
     expect(text).toContain("data name ≤ 28, role? ≤ 36, side left|right, style? clean_bar|side_rule|soft_pill|mask_reveal, size? small|medium|large");
     expect(text).toContain("data title ≤ 48, chip? ≤ 32, logo? {asset_id} image, size? small|medium|large");
@@ -220,7 +228,7 @@ describe("sizes and the reference tag (owner 2026-10-22)", () => {
     expect([Math.round(pill.height * 1920), Math.round((pill.top + pill.height / 2) * 1920), Math.round(pill.width * 1080)]).toEqual([147, 1268, 972]);
     expect([tag.hidesCaptions({ text: "x" }), tag.hidesCaptions({ text: "x", position: "top" })]).toEqual([true, false]);
     // A full-frame picture kind fills a tall frame at medium (#1128): large is the same frame-high size, small a quarter less, and it says so.
-    const filling = ["compare", "phone_screen", "video_grid"];
+    const filling = ["backdrop", "comment_cta", "compare", "cover_story", "phone_screen", "series_frame", "video_grid"];
     expect(TEMPLATE_KINDS.filter(kind => kind.fillsFrame).map(kind => kind.kind).sort()).toEqual(filling);
     expect(templateSizeWarnings({ templates: [{ id: "g", kind: "video_grid", data: { size: "large" } }, { id: "t", kind: "terminal", data: { size: "large" } },
       { id: "c", kind: "compare", data: { size: "medium" } }] })).toEqual(["template \"g\" is drawn at medium: a video_grid already fills the frame there, " +
@@ -417,6 +425,31 @@ describe("the first full-frame kinds and media slots (#778 S3a(ii))", () => {
     expect(hookOf("c".repeat(64)).hash).not.toBe(hookOf("d".repeat(64)).hash);
     expect(() => freezeResolvedTimeline({ ...content, templates: [{ id: "h", kind: "title_card", kindVersion: 1, placement: "full", preset: "clean_light",
       startFrame: 0, endFrame: 1, data: {}, media: [{ ...media, key: "runs/other/layers/h.logo.image" }] }] })).toThrow("invalid template interval or identity");
+  });
+
+  /** Mutant: cap a frozen template's beats or pins below what a kind admits, and a long series, a long title or a full chat fails to freeze
+   *  after the paid take (#1425 T6). */
+  it("freezes as many beats and pins as its kind admits: a series of 17 clips, a title of 8 words, a chat of 8 beats", () => {
+    const { hash: _hash, ...content } = scriptInsertsTimelineFixture();
+    const tokens = Array.from({ length: 40 }, (_, at) => `w${at}`), words = tokens.map((word, at) => ({ word, startSec: at }));
+    const span = { startFrame: 0, endFrame: content.outputFrames };
+    const kindOf = (id: string) => TEMPLATE_KINDS.find(kind => kind.kind === id)!;
+    const cases = [
+      { kind: "series_frame", data: { title: "17 tools", items: Array.from({ length: 17 }, (_, at) => ({ name: `Tool ${at}`, clip: { asset_id: `ast_${at.toString(16).padStart(32, "0")}` } })) } },
+      { kind: "word_title", data: { words: Array.from({ length: 8 }, (_, at) => ({ text: `word${at}` })) } },
+      { kind: "chat_window", data: { prompt: "p", answer: { text: "a" }, table: { columns: ["x", "y"], rows: Array.from({ length: 4 }, () => ({ cells: ["1", "2"] })) },
+        replies: Array.from({ length: 3 }, (_, at) => ({ title: `r${at}` })) } },
+    ];
+    const frozen = cases.map(({ kind, data }, index) => {
+      const { moments } = templateMoments(kindOf(kind), data, tokens, { startWord: 0, coverWord: tokens.length }, words, 25, span, kind);
+      const media = templateMediaOf([{ id: kind, kind, data }]).map(entry => ({ slot: entry.slot, key: `runs/${content.runId}/layers/${kind}.${entry.slot}.mp4`,
+        sha256: index.toString(16).repeat(64), bytes: 9, width: 360, height: 640, contentType: "video/mp4" as const }));
+      return { id: kind, kind, kindVersion: kindOf(kind).kindVersion, placement: "full" as const, preset: "clean_light", ...span, data, moments,
+        ...(media.length ? { media } : {}) };
+    });
+    expect(frozen.map(template => [template.id, template.moments.length, template.media?.length ?? 0]))
+      .toEqual([["series_frame", 17, 17], ["word_title", 8, 0], ["chat_window", 8, 0]]);
+    for (const template of frozen) expect(freezeResolvedTimeline({ ...content, templates: [template] }).templates![0]).toEqual(template);
   });
 
   it("draws a full-frame kind's content inside the frame, and fills the whole frame for collisions", () => {

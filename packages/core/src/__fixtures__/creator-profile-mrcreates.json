@@ -1,0 +1,206 @@
+{
+ "profile_id": "crp_f2c4eb8a6ce449b0ae45fd17f3771c4b",
+ "note": "analyze_creator profile of @mrcreates.ai as stored 2026-11-11 (creator-dossier-parity R1); read back read-only, no new source call",
+ "warnings": [
+  "shares: unknown for 12 of 12 videos; null there"
+ ],
+ "profile": {
+  "author": {
+   "url": "https://www.instagram.com/mrcreates.ai/",
+   "name": "M Rohmanudin | AI & Content Strategist",
+   "handle": "mrcreates.ai",
+   "platform": "instagram",
+   "followers": 23132
+  },
+  "videos": [
+   {
+    "top": false,
+    "url": "https://www.instagram.com/reel/DfmXu4Co8Cc/",
+    "likes": 115,
+    "views": 10152,
+    "shares": null,
+    "caption": {
+     "text": "Run Claude Code for free ​\n\nFreeLLMAPI is a free GitHub repo that stacks the free tiers of 34 AI providers behind one key, so Claude Code runs on free models like Gemini, Qwen and DeepSeek. \n\nNot real Claude, but great for side projects. Comment \"FREE\" and I'll send you the repo.\n\n#claudecode #claud",
+     "truncated": true
+    },
+    "comments": 52,
+    "x_median": 0.9,
+    "posted_at": "2026-11-11T11:27:42.000Z",
+    "duration_s": 39.44499969482422
+   },
+   {
+    "top": false,
+    "url": "https://www.instagram.com/reel/DflaB-TK5-0/",
+    "likes": 39,
+    "views": 3672,
+    "shares": null,
+    "caption": {
+     "text": "Videos in minutes, not hours ​\n\nStoryCutz turns one sentence into a finished video: pick a template, pick a voice, type your idea. Need a change? \n\nJust type it. Comment \"CUTZ\" and I'll send you the link.\n\n#storycutz #aivideo #videoediting #contentcreator #reels",
+     "truncated": false
+    },
+    "comments": 28,
+    "x_median": 0.3,
+    "posted_at": "2026-11-11T02:28:01.000Z",
+    "duration_s": 39.61600112915039
+   },
+   {
+    "top": false,
+    "url": "https://www.instagram.com/reel/DfkPKX4oE5H/",
+    "likes": 164,
+    "views": 10496,
+    "shares": null,
+    "caption": {
+     "text": "Test your idea on 100 buyers ​\nFounder is a free GitHub repo with 11 Claude skills: a board, a CFO, a marketing director and a consumer panel of 100 buyer agents that tests your business before you spend a dollar. Comment \"FOUNDER\" and I'll send you the link.\nRepo: github.com/Jakeschincariol/founder",
+     "truncated": true
+    },
+    "comments": 152,
+    "x_median": 0.9,
+    "posted_at": "2026-11-10T15:33:54.000Z",
+    "duration_s": 52.82099914550781
+   },
+   {
+    "top": false,
+    "url": "https://www.instagram.com/reel/DfjaG36hhso/",
+    "likes": 109,
+    "views": 8407,
+    "shares": null,
+    "caption": {
+     "text": "Claude now makes AI videos 🎬\n\nFable 5.2 just launched, and Higgsfield MCP in Claude gives new users 3 days of free, unlimited access to all video models. Comment \"FABLE\" and I'll send you the setup link.\n\n@higgsfield.ai #HiggsfieldCreator #claudeai #aivideo #aitools",
+     "truncated": false
+    },
+    "comments": 79,
+    "x_median": 0.7,
+    "posted_at": "2026-11-10T07:49:06.000Z",
+    "duration_s": 41.91999816894531
+   },
+   {
+    "top": true,
+    "url": "https://www.instagram.com/reel/DfgiBYTIUmV/",
+    "likes": 760,
+    "views": 48768,
+    "shares": null,
+    "caption": {
+     "text": "17 effects. Zero editing. ​\nEvery effect in this video was built by Claude: orbit, frame break, green screen, paper cut, doodle boil, cover story, glass type and 10 more. \n\nYou describe it, and Claude codes it into your video. Comment \"LIST\" and I'll send you the full list in your DMs.\n\n#claudeai #v",
+     "truncated": true
+    },
+    "comments": 1260,
+    "x_median": 4.1,
+    "posted_at": "2026-11-09T05:01:38.000Z",
+    "duration_s": 24.91699981689453
+   },
+   {
+    "top": false,
+    "url": "https://www.instagram.com/reel/DfUZUreo0Mg/",
+    "likes": 153,
+    "views": 9812,
+    "shares": null,
+    "caption": {
+     "text": "You don’t have to be on camera to give your content a recognizable face. 👀\n\nYour own mascot can do the talking.\n\nIn this video, I break down a 6-step workflow: define your character, create its expressions, prepare the assets, add your script and voice-over, and bring everything into an animated vid",
+     "truncated": true
+    },
+    "comments": 298,
+    "x_median": 0.8,
+    "posted_at": "2026-11-06T22:28:01.000Z",
+    "duration_s": 37.20500183105469
+   },
+   {
+    "top": false,
+    "url": "https://www.instagram.com/reel/DfZRbVHI1aE/",
+    "likes": 91,
+    "views": 9158,
+    "shares": null,
+    "caption": {
+     "text": "Likes, but no new followers? 🤔\n\nYour profile might be leaking them. Claude in Chrome audited my Instagram profile and every post, and showed exactly where people were leaving. Setup takes a minute, and the extension is free.\n\n💬 Comment \"PROMPT\" for the exact prompt.\n\n#claudeai #instagramprofile #gro",
+     "truncated": true
+    },
+    "comments": 160,
+    "x_median": 0.8,
+    "posted_at": "2026-11-06T12:59:50.000Z",
+    "duration_s": 27.625999450683594
+   },
+   {
+    "top": false,
+    "url": "https://www.instagram.com/reel/DfO9mW3o95X/",
+    "likes": 200,
+    "views": 13342,
+    "shares": null,
+    "caption": {
+     "text": "Your next motion graphic could start with a better prompt. 🎬\n\nIn this video, I walk through three resources:\n→ Prompt Motion\n→ AI x Leaders\n→ Promptslove\n\nFind an example you like, understand the prompt behind it, and adapt it to your own message, colours, and style.\n\nStart with one short scene. Ref",
+     "truncated": true
+    },
+    "comments": 109,
+    "x_median": 1.1,
+    "posted_at": "2026-11-06T00:06:36.000Z",
+    "duration_s": 36.26599884033203
+   },
+   {
+    "top": false,
+    "url": "https://www.instagram.com/reel/DfWlZw8o9JT/",
+    "likes": 208,
+    "views": 15898,
+    "shares": null,
+    "caption": {
+     "text": "Give me 30 seconds: this is how Claude grew my account to 10K in one week. ⏱️\n\nIt's literally a conversation:\n• \"How do I set this up?\"\n• Claude desktop → one folder → one prompt\n• It installs and tests every tool, then says \"I'm ready\"\n• Send your voice, from your mic or ElevenLabs\n\nThen the secret",
+     "truncated": true
+    },
+    "comments": 304,
+    "x_median": 1.3,
+    "posted_at": "2026-11-05T13:22:42.000Z",
+    "duration_s": 34.388999938964844
+   },
+   {
+    "top": false,
+    "url": "https://www.instagram.com/reel/DfRbfcAoFYQ/",
+    "likes": 305,
+    "views": 18577,
+    "shares": null,
+    "caption": {
+     "text": "I used to spend 4 hours editing one reel. Now it takes one sentence. ⏱️\n\nClaude is my video editor now:\n→ cuts the awkward pauses\n→ finds the best moments\n→ adds captions and animations\n\nAll I do is say what I want. \"Make it cinematic.\" Done.\n\n💬 Comment \"EDIT\" and I'll send you the guide.\n➕ Follow @",
+     "truncated": true
+    },
+    "comments": 641,
+    "x_median": 1.6,
+    "posted_at": "2026-11-04T08:47:42.000Z",
+    "duration_s": 32.724998474121094
+   },
+   {
+    "top": true,
+    "url": "https://www.instagram.com/reel/DfOIdysIeyu/",
+    "likes": 730,
+    "views": 79777,
+    "shares": null,
+    "caption": {
+     "text": "Claude gets a lot more useful when it can work with your tools.\n\nHere are the 5 MCPs from this video:\n\n🔎 Perplexity — search the web and research topics.\n🌐 Playwright — navigate websites, fill forms, and test browser workflows.\n📄 Firecrawl — turn web pages into data AI can use.\n🎬 HyperFrames — creat",
+     "truncated": true
+    },
+    "comments": 428,
+    "x_median": 6.7,
+    "posted_at": "2026-11-03T08:01:03.000Z",
+    "duration_s": 36.992000579833984
+   },
+   {
+    "top": true,
+    "url": "https://www.instagram.com/reel/DfKFK7RJdjl/",
+    "likes": 32018,
+    "views": 1177252,
+    "shares": null,
+    "caption": {
+     "text": "Stop paying for AI editing tutorials. Everything you need is already here.\n\nI broke down my entire AI video editing workflow, from the exact prompts to the GitHub repos that make it possible.\n\nNo complicated editing software. Just AI tools, the right workflow, and your creativity.\n\nComment **EDITOR*",
+     "truncated": true
+    },
+    "comments": 23978,
+    "x_median": 98.8,
+    "posted_at": "2026-11-02T00:16:00.000Z",
+    "duration_s": 83.6259994506836
+   }
+  ],
+  "cadence": {
+   "span_days": 9.5,
+   "last_posted_at": "2026-11-11T11:27:42.000Z",
+   "videos_per_week": 8.1
+  },
+  "measured_at": "2026-11-11T22:22:30.901Z",
+  "median_views": 11919,
+  "videos_with_views": 12
+ }
+}

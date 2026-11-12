@@ -95,6 +95,7 @@ export * from "./face-billing.js";
 export * from "./long-form-pricing.js";
 export * from "./parts-pricing.js";
 export * from "./music.js";
+export * from "./presenter-matte.js";
 export * from "./media-timebase.js";
 export * from "./billing-terms.js";
 
@@ -111,6 +112,8 @@ export * from "./generations.js";
 export * from "./generations-output.js";
 export * from "./reference-profile.js";
 export * from "./reference-lyrics.js";
+export * from "./caption-funnel.js";
+export * from "./reference-voice-over.js";
 export * from "./reference-staging.js";
 export * from "./reference-text-spans.js";
 export * from "./reference-voice.js";

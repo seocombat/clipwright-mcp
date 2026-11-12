@@ -26,9 +26,11 @@ import { CAPTION_POSITION_VERTICAL } from "./caption-geometry.js";
 import { CALL_PHONE_DEFAULTS, CALL_SPEAKERS, CALL_STAGE_MAX_ENTER_SEC, CALL_STAGE_MAX_LEAD_SEC, CALL_STAGE_SIDES, callRefusals, DEFAULT_CALL_VOICES, MAX_CALL_CHARS,
   MAX_CALL_LINE_CHARS, MAX_CALL_LINES, MAX_CALL_SEC } from "./ugc-call.js";
 import { INTERVIEW_GAZES, INTERVIEW_LISTENING, interviewRefusals, MAX_INTERVIEW_TURNS, MAX_PRESENTER_GAZE } from "./ugc-interview.js";
-import { editSoundRefusals, editSounds, hasFullFrameTemplate, MAX_TEMPLATE_MEDIA, MAX_TEMPLATES, TEMPLATE_KIND_IDS, TEMPLATE_PLACEMENTS, templateCatalogText, templateRefusals,
+import { editSoundRefusals, editSounds, hasFullFrameTemplate, MAX_TEMPLATE_MEDIA, MAX_TEMPLATES, offeredTemplateKinds, type TEMPLATE_KIND_IDS, TEMPLATE_PLACEMENTS, templateCatalogText, templateRefusals,
   templateSceneItems, templateSounds, templateTheme } from "./templates/index.js";
 import { callout } from "./templates/callout.js";
+import { backdrop } from "./templates/backdrop.js";
+import { coverStory } from "./templates/cover-story.js";
 import { chatWindow } from "./templates/chat-window.js";
 import { checklist } from "./templates/checklist.js";
 import { compare } from "./templates/compare.js";
@@ -51,6 +53,8 @@ import { terminal } from "./templates/terminal.js";
 import { titleCard } from "./templates/title-card.js";
 import { videoGrid } from "./templates/video-grid.js";
 import { wordTitle } from "./templates/word-title.js";
+import { seriesFrame } from "./templates/series-frame.js";
+import { commentCta } from "./templates/comment-cta.js";
 import {
   cutToNothingError,
   DEFAULT_TTS_MODEL,
@@ -548,13 +552,15 @@ export const ugcTemplate = z.discriminatedUnion("kind", [templateItem({ ...tag, 
   templateItem({ ...phoneScreen, kind: "phone_screen" as const }), templateItem({ ...terminal, kind: "terminal" as const }),
   templateItem({ ...pointerChips, kind: "pointer_chips" as const }), templateItem({ ...chart, kind: "chart" as const }),
   templateItem({ ...race, kind: "race" as const }), templateItem({ ...handTitle, kind: "hand_title" as const }),
-  templateItem({ ...wordFill, kind: "word_fill" as const })]);
+  templateItem({ ...wordFill, kind: "word_fill" as const }), templateItem({ ...coverStory, kind: "cover_story" as const }),
+  templateItem({ ...seriesFrame, kind: "series_frame" as const }), templateItem({ ...commentCta, kind: "comment_cta" as const }),
+  templateItem({ ...backdrop, kind: "backdrop" as const })]);
 export type UgcTemplate = z.infer<typeof ugcTemplate>;
 /** The slim MCP item: `data` is any object here, the catalog sits in the description and the server checks it strictly (D3). */
 export const mcpUgcTemplate = z.object({ ...templateEnvelope, place: z.record(z.string(), z.unknown()).optional().describe(TEMPLATE_PLACE),
-  kind: z.enum(TEMPLATE_KIND_IDS),
+  kind: z.enum(offeredTemplateKinds().map(kind => kind.kind) as unknown as typeof TEMPLATE_KIND_IDS),
   data: z.record(z.string(), z.unknown()).describe("The kind's fields, as its catalog line in templates names them.") }).strict();
-export const TEMPLATES_DESCRIPTION = templateCatalogText();
+export const TEMPLATES_DESCRIPTION = templateCatalogText(offeredTemplateKinds());
 
 const callVoice = z.string().regex(VOICE_NAME_PATTERN, "a call voice is a voice name from list_voices").optional();
 /** The call phone's measured place and rise (#914 D1e): the run maps `rect_face` onto our presenter's face when it finds one, else uses `rect`. */

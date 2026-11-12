@@ -8,6 +8,7 @@ import { MOTION_STYLE_UNUSED_WARNING, motionStyleAsked, motionStyleHasCanvas, mo
 import { MAX_SCENES, sceneRefusals } from "./ugc-scenes.js";
 import { MAX_MOVES, moveRefusals, MOVES_DESCRIPTION, ugcMove } from "./moves.js";
 import { MAX_TEMPLATE_MEDIA, MAX_TEMPLATES, templateRefusals } from "./templates/index.js";
+import { needsPresenterCutout } from "./presenter-matte.js";
 import { assetId } from "./asset-identity.js";
 import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
 import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MAX_SHOTS, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_MIN_SELECTED_SECONDS,
@@ -157,12 +158,23 @@ export function facelessMotionStyleWarnings(input: { motion_style?: Parameters<t
   return motionStyleAsked(input) && !motionStyleHasCanvas({ ...input, captions: input.captions !== false }) ? [MOTION_STYLE_UNUSED_WARNING] : [];
 }
 
+/** Template kinds make_faceless refuses: a series plays the presenter's take where an item names no clip, and a faceless video has no presenter. */
+export const MAKE_UGC_ONLY_TEMPLATE_KINDS: readonly string[] = ["series_frame", "comment_cta"];
+
 /** Templates over the pictures (#1113): kinds on the script's words; a slot may show the account's own picture or clip (asset_id), as on make_ugc. */
 function refuseTemplates(input: { script: string; templates?: z.infer<typeof ugcTemplate>[] | undefined }, context: z.RefinementCtx) {
   if (!input.templates) return;
+  for (const [index, item] of input.templates.entries()) if (MAKE_UGC_ONLY_TEMPLATE_KINDS.includes(item.kind)) {
+    context.addIssue({ code: customIssue, path: ["templates", index, "kind"], message: `${item.kind} is a make_ugc template; use another kind here` });
+  }
   for (const { path, message } of templateRefusals({ script: input.script, templates: input.templates, aspect_ratio: "9:16" })) {
     context.addIssue({ code: customIssue, path, message });
   }
+  // A faceless video has no presenter to stand in front of a cover (#1428).
+  input.templates.forEach((item, index) => {
+    if (needsPresenterCutout([item])) context.addIssue({ code: customIssue, path: ["templates", index, "kind"],
+      message: `${item.kind} stands the presenter in front of it and needs make_ugc; use another kind here` });
+  });
 }
 
 /** Action shots (#1113): a moving clip from the picture under the named words, on those words, instead of the still. */

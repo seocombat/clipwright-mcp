@@ -7,7 +7,7 @@ import { MAX_INSERTS } from "./skills.js";
 import { place } from "./scene-place.js";
 import { resolvedDesign } from "./design.js";
 import { LAYER_ENTERS, LAYER_EXITS, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS, SPLIT_MEDIA_SHARE, SPLIT_MEDIA_SIDES } from "./ugc-layers.js";
-import { MAX_TEMPLATES, TEMPLATE_PLACEMENTS, TEMPLATE_SOUND_BEATS } from "./templates/index.js";
+import { MAX_MEDIA_PER_TEMPLATE, MAX_MOMENTS_PER_TEMPLATE, MAX_TEMPLATES, TEMPLATE_PLACEMENTS, TEMPLATE_SOUND_BEATS } from "./templates/index.js";
 import { FRAMING_SIZES, MAX_FRAMING } from "./ugc-framing.js";
 import { LIVE_SHOT_KINDS } from "./live-shot-kinds.js";
 
@@ -61,13 +61,13 @@ export const resolvedTimelineTemplate = z.object({ id: z.string().min(1).max(64)
   transition: z.enum(["wipe", "flash", "zoom"]).optional(),
   /** Its place as admitted (#973 S4); absent draws the kind's own rect and keeps the hash of every template frozen before it. */
   place: place.optional(),
-  /** Each beat's frame from its start, resolved from the words (#778 S3b(i)); absent when the kind has none. */
-  moments: z.array(frame).min(1).max(6).optional(),
+  /** Each beat's frame from its start, resolved from the words (#778 S3b(i)); absent when the kind has none. As many as any kind admits (#1425 T6). */
+  moments: z.array(frame).min(1).max(MAX_MOMENTS_PER_TEMPLATE).optional(),
   /** The sound of each beat it plays, frozen at admission (#778 S3c); absent plays none, as every run before S3c. */
   sounds: z.partialRecord(z.enum(TEMPLATE_SOUND_BEATS), z.string().regex(/^[a-z][a-z0-9_]{0,31}$/)).optional(),
   /** The pinned bytes of each media slot (#778 S3a(ii)); absent when the template has none. */
   media: z.array(z.object({ slot: z.string().min(1).max(32), key: z.string().min(1), sha256: digest, bytes: positive, width: positive, height: positive,
-    contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]) }).strict()).min(1).max(4).optional() }).strict();
+    contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]) }).strict()).min(1).max(MAX_MEDIA_PER_TEMPLATE).optional() }).strict();
 const contentSchema = z.object({ version: z.literal(1), mode: z.enum(["segments", "script_inserts"]),
   runId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/), accountId: z.string().min(1).max(200), inputHash: digest,
   fps: z.literal(CANVAS_FPS), outputFrames: positive, fullSpeechDurationSec: z.number().positive().finite(),

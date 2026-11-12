@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { CAPTION_FUNNEL_MAX_CHARS, captionFunnelWord } from "./caption-funnel.js";
 import { CREATOR_CAPTION_MAX_CHARS, CREATOR_PLATFORMS, CREATOR_TOP_X, creatorAuthorUrl, medianOf, xToMedian, type CreatorPlatform } from "./creator-profile.js";
 import { quoteThirdParty as quote } from "./markdown-quote.js";
 import { REFERENCE_WAIT_MAX_SECONDS } from "./reference-analysis.js";
@@ -67,7 +68,7 @@ export const TREND_SEARCH_DEFAULT_DAYS = 7;
 /** The narrowest window: the last 24 hours. */
 export const TREND_SEARCH_MIN_DAYS = 1;
 export const TREND_SEARCH_MAX_DAYS = 365;
-export const TREND_FUNNEL_MAX_CHARS = 24;
+export const TREND_FUNNEL_MAX_CHARS = CAPTION_FUNNEL_MAX_CHARS;
 /** A creator's usual comment rate needs this many of their videos with both counts. */
 export const TREND_COMMENT_NORM_MIN_VIDEOS = 3;
 export const TREND_REASONS_MAX = 3;
@@ -338,28 +339,8 @@ export function trendCoverUrl(raw: string | null | undefined): string | null {
   return url.protocol === "https:" && url.username === "" && url.password === "" && url.port === "" && onHost ? url.href : null;
 }
 
-const FUNNEL_VERB = /(?<![\p{L}\p{N}])(?:comment|type|drop|dm|message|send|reply|write|напиши|напишите|пиши|пишите|оставь|оставьте|отправь|отправьте)(?![\p{L}\p{N}])/gu;
-const FUNNEL_FILLER = /^(?:[\s:\-–—]+|(?:me|us|the|a|word|below|down|in|comments?|слово|в|комментариях|комментарии|директ|личку)(?![\p{L}\p{N}]))*/u;
-const FUNNEL_QUOTED = /^["'“”‘’«»]([\p{L}\p{N}][\p{L}\p{N}-]{0,22})["'“”‘’«»]/u;
-const FUNNEL_CAPS = /^(\p{Lu}[\p{Lu}\p{N}]{1,22})(?![\p{L}\p{N}])/u;
-const FUNNEL_ANY = /^(?:anything|any word|any emoji|что угодно|любое слово)(?![\p{L}\p{N}])/u;
-
-/** The word a caption asks viewers to comment or DM ("comment GUIDE", "DM me 'plan'"), upper case; "any" for any word; else `null`. */
-export function trendFunnelWord(caption: string | null | undefined): string | null {
-  if (typeof caption !== "string") return null;
-  const lower = caption.toLowerCase();
-  // Lower case keeps every offset of these scripts; a caption it would reshape is read no further.
-  if (lower.length !== caption.length) return null;
-  for (const verb of lower.matchAll(FUNNEL_VERB)) {
-    const from = verb.index + verb[0].length;
-    const skip = FUNNEL_FILLER.exec(lower.slice(from, from + 80))?.[0].length ?? 0;
-    const rest = caption.slice(from + skip, from + skip + 40);
-    if (FUNNEL_ANY.test(lower.slice(from + skip, from + skip + 40))) return "any";
-    const word = FUNNEL_QUOTED.exec(rest)?.[1] ?? FUNNEL_CAPS.exec(rest)?.[1];
-    if (word !== undefined) return word.toUpperCase();
-  }
-  return null;
-}
+/** The word a caption asks viewers to comment or DM, upper case; "any" for any word; else `null`. */
+export const trendFunnelWord = captionFunnelWord;
 
 const DAY_MS = 86_400_000, HOUR_MS = 3_600_000;
 const oneDecimal = (value: number) => Math.round(value * 10) / 10;

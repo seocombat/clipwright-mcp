@@ -214,7 +214,7 @@ describe("a card's cover and funnel word (#917)", () => {
     ['Comment "guide" and I will send it', "GUIDE"], ["Comment “plan” below 👇", "PLAN"], ["comment GUIDE for the template", "GUIDE"],
     ["DM me SCRIPT to get it", "SCRIPT"], ["Type the word YES in the comments", "YES"], ["Drop a 🔥 or comment anything", "ANY"],
     ["Напиши «СМЕТА» в директ", "СМЕТА"], ["Комментируй ниже", null], ["Comment below what you think", null], ["COMMENT BELOW", null],
-    ["Send this to a friend", null], ["#bathroom #DIY", null], [null, null],
+    ["Send this to a friend", null], ["#bathroom #DIY", null], [null, null], ["Comment **EDITOR** for the repos", "EDITOR"], ["comment *plan* below", "PLAN"],
   ])("reads %j as %j", (caption, word) => {
     expect(trendFunnelWord(caption)).toBe(word === "ANY" ? "any" : word);
   });

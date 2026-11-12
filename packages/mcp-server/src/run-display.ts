@@ -10,10 +10,14 @@ const FACELESS_FPS = 25;
 const ERROR_CHARS = 300;
 const PART_NAMES: Readonly<Record<PartsLine["unit"], string>> = {
   face_second: "Presenter on screen", second: "Voice and render", still: "Live avatar on a call", track: "Music", scene: "Scenes made for the video",
+  template: "Template, presenter in front",
 };
+/** Units counted in pieces, not seconds. */
+const COUNTED = new Set<PartsLine["unit"]>(["still", "track", "template"]);
 
 const credits = (value: number | null | undefined) => (value === null || value === undefined ? "—" : value.toLocaleString("en-US"));
 const seconds = (value: number) => `${Math.round(value * 10) / 10} s`;
+const sentence = (label: string) => `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
 /** A server reason on one line, quoted, with no pipe or backtick to break the table around it. */
 const quoted = (text: string) => {
   const line = text.replace(/\s+/g, " ").replace(/[|`]/g, "/").trim(), chars = Array.from(line);
@@ -27,8 +31,9 @@ const table = (rows: readonly (readonly [string, string, string])[]) =>
 
 export function ugcQuoteMarkdown(quote: QuoteResponse): string {
   const long = quote.long_form_pricing;
-  const parts = quote.price_lines?.map((line) => [PART_NAMES[line.unit] ?? line.unit,
-    `${line.unit === "still" || line.unit === "track" ? line.quantity : `${line.quantity} s`} × ${line.unit_credits}`, line.credits] as const)
+  // Each template line names its own kind; the other units have one name each.
+  const parts = quote.price_lines?.map((line) => [line.unit === "template" ? sentence(line.label) : PART_NAMES[line.unit] ?? line.unit,
+    `${COUNTED.has(line.unit) ? line.quantity : `${line.quantity} s`} × ${line.unit_credits}`, line.credits] as const)
     ?? (long ? [[PART_NAMES.face_second, `${long.estimatedFaceSeconds} s × ${long.rateCreditsPerFaceSecond}`,
       long.estimatedFaceSeconds * long.rateCreditsPerFaceSecond] as const] : []);
   // The rows add up to the quoted total: what the minimum adds is a row of its own.

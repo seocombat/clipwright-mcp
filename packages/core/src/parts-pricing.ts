@@ -60,7 +60,7 @@ export const PARTS_DURATION_TARIFF: DurationPartsTariff = Object.freeze({
 /** One line of an itemized price: what was counted, how many, at what rate, and the product. */
 export const partsLineSchema = z.object({
   label: z.string().min(1),
-  unit: z.enum(["face_second", "second", "still", "track", "scene"]),
+  unit: z.enum(["face_second", "second", "still", "track", "scene", "template"]),
   quantity: z.number().int().nonnegative(),
   unit_credits: z.number().int().nonnegative(),
   credits: z.number().int().nonnegative(),

@@ -109,6 +109,8 @@ export const analyzeReferenceRequest = z.strictObject({
 export type AnalyzeReferenceRequest = z.infer<typeof analyzeReferenceRequest>;
 
 const count = z.number().int().nonnegative().nullable();
+/** Where an author asks for a comment word (#1422). */
+export const REFERENCE_FUNNEL_ASKED_IN = ["caption", "speech", "screen"] as const;
 /** Instagram's caption limit; a longer one (TikTok allows 4000) is cut and says so. */
 export const REFERENCE_CAPTION_MAX_CHARS = 2200;
 const authorMedian = z.strictObject({ views: z.number().nonnegative().nullable(), ratio: z.number().nonnegative().nullable(),
@@ -139,9 +141,13 @@ export const referenceSource = z.strictObject({
   comments_read: z.number().int().nonnegative().nullable(),
   top_comments: z.array(z.strictObject({ text: z.string().min(1).max(300), likes: count })).max(50),
   code_words: z.array(z.strictObject({ word: z.string().min(1).max(24), count: z.number().int().min(2) })),
-  code_word_guess: z.string().min(1).max(24).nullable().describe("The code word commenters repeat most, or null."),
-  funnel: z.strictObject({ comment_keyword: z.boolean().describe("True when at least 3 commenters and a tenth of the comments read write the same word."),
-    word: z.string().min(1).max(24).nullable() }).nullable().describe("A comment-keyword funnel; null when the comments read are unknown."),
+  code_word_guess: z.string().min(1).max(24).nullable()
+    .describe("The code word the author asks viewers to comment, else the one commenters repeat most; null when neither."),
+  funnel: z.strictObject({ comment_keyword: z.boolean().describe("True when the author asks viewers to comment or send a word (in the caption, the "
+    + "spoken words or on screen), or at least 3 commenters and a tenth of the comments read write the same word."),
+  word: z.string().min(1).max(24).nullable(),
+  asked_in: z.array(z.enum(REFERENCE_FUNNEL_ASKED_IN)).describe("Where the author asks for the word; empty when only the comments show it.") })
+    .nullable().describe("A comment-keyword funnel; null when the comments read are unknown and the author asks for no word."),
 });
 export type ReferenceSource = z.infer<typeof referenceSource>;
 

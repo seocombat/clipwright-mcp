@@ -8,9 +8,9 @@ import {
 const capabilities: CapabilityProfile = {
     v: 1, content_digest: 'a'.repeat(64), executors: [
         { skill: 'make_ugc', configured: true, qualified: true, enabled: true, profiles: ['ugc-native-v1'], features: ['exact_script', 'actor', 'voice'],
-            formats: [{ aspect_ratio: '9:16', resolution: '1080p' }], field_dispositions: { captions: 'warned', look: 'warned' } },
+            formats: [{ aspect_ratio: '9:16', resolution: '720p' }, { aspect_ratio: '9:16', resolution: '1080p' }], field_dispositions: { captions: 'warned', look: 'warned' } },
         { skill: 'make_faceless', configured: true, qualified: true, enabled: true, profiles: ['faceless-native-v1'], features: ['exact_script', 'voice', 'word_anchors', 'scene_images', 'captions'],
-            formats: [{ aspect_ratio: '9:16', resolution: '1080p' }], field_dispositions: {} },
+            formats: [{ aspect_ratio: '9:16', resolution: '720p' }, { aspect_ratio: '9:16', resolution: '1080p' }], field_dispositions: {} },
     ],
 };
 
@@ -115,8 +115,28 @@ describe('workflow script and semantic readiness', () => {
         expect(validateWorkflowPlan({ ...plan, method: { ...plan.method, capability_digest: 'b'.repeat(64) } }, capabilities).issues.map(issue => issue.kind)).toContain('capability_pin_changed');
     });
     it('refuses unsupported native output settings even without requested_format', () => {
+        const snapshot = structuredClone(capabilities);
+        snapshot.executors[0]!.formats = [{ aspect_ratio: '9:16', resolution: '1080p' }];
         const brief = { ...document().brief, native: { skill: 'make_ugc', input: { script: document().brief.script, resolution: '720p' } } };
-        expect(checkWorkflowBrief('ugc-faq-answer', brief, capabilities).issues.map(issue => issue.kind)).toContain('unsupported_format');
+        expect(checkWorkflowBrief('ugc-faq-answer', brief, snapshot).issues.map(issue => issue.kind)).toContain('unsupported_format');
+    });
+    // #1464: a workflow run follows the #911 rule, so silence is 720p and an explicit 1080p stays 1080p.
+    it('offers 9:16 at 720p and at 1080p from every method', () => {
+        for (const method of WORKFLOW_METHODS) expect(method.output.formats).toEqual([{ aspect_ratio: '9:16', resolution: '720p' }, { aspect_ratio: '9:16', resolution: '1080p' }]);
+    });
+    it.each(['ugc-faq-answer', 'faceless-explainer'])('reads a %s plan that names no resolution as 720p', methodId => {
+        const plan = document(methodId), native = plan.brief.native!;
+        const at = (requested: string, input: object = native.input) => checkWorkflowBrief(methodId, { ...plan.brief, native: { ...native, input },
+            requested_format: { aspect_ratio: '9:16', resolution: requested } }, capabilities).issues.map(issue => issue.kind);
+        expect(at('720p')).toEqual([]);
+        expect(at('1080p')).toContain('format_mismatch');
+        expect(at('1080p', { ...native.input, resolution: '1080p' })).toEqual([]);
+    });
+    it.each([['ugc-faq-answer', 0], ['faceless-explainer', 1]] as const)('refuses a silent %s plan on an executor that offers only 1080p', (methodId, executor) => {
+        const snapshot = structuredClone(capabilities), brief = document(methodId).brief, native = brief.native!;
+        snapshot.executors[executor]!.formats = [{ aspect_ratio: '9:16', resolution: '1080p' }];
+        expect(checkWorkflowBrief(methodId, brief, snapshot).issues.map(issue => issue.kind)).toContain('unsupported_format');
+        expect(checkWorkflowBrief(methodId, { ...brief, native: { ...native, input: { ...native.input, resolution: '1080p' } } }, snapshot).issues).toEqual([]);
     });
     it('names a 4k native resolution with its refusal (#1189)', () => {
         const brief = { ...document().brief, native: { skill: 'make_ugc', input: { script: document().brief.script, resolution: '4k' } } };

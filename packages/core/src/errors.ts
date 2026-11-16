@@ -36,6 +36,32 @@ export const insufficientCreditsError = z.object({
 });
 export type InsufficientCreditsError = z.infer<typeof insufficientCreditsError>;
 
+/** The call's reserve is above the `max_credits` it was sent with (#942): nothing was reserved or started. */
+export const maxCreditsExceededError = z.object({
+  error: z.object({
+    code: z.literal("max_credits_exceeded"),
+    message: z.string().min(1),
+    /** The most this run could be charged: the same total its quote names. */
+    hold_credits: z.number().int().positive(),
+    /** The ceiling the call was sent with. */
+    max_credits: z.number().int().nonnegative(),
+  }),
+});
+export type MaxCreditsExceededError = z.infer<typeof maxCreditsExceededError>;
+
+export function maxCreditsExceededBody(args: { holdCredits: number; maxCredits: number }): MaxCreditsExceededError {
+  return maxCreditsExceededError.parse({
+    error: {
+      code: "max_credits_exceeded",
+      message: `This call reserves ${args.holdCredits} credits, above its max_credits of ${args.maxCredits}. ` +
+        "Nothing was charged and no run was created. Ask the person to approve the higher amount and retry with max_credits " +
+        `of at least ${args.holdCredits}, or change the request to cost less.`,
+      hold_credits: args.holdCredits,
+      max_credits: args.maxCredits,
+    },
+  });
+}
+
 /** The account carries an unpaid debt. A separate code because an indebted account may */
 /** still hold a balance, so "insufficient credits" would be false. Buying credits clears it. */
 export const debtOutstandingError = z.object({
@@ -439,6 +465,10 @@ const BARE_ERROR_CODES = [
   "own_agent_disabled",
   "own_agent_marking_pending",
   "paid_render_disabled",
+  "proposal_expired",
+  "proposal_not_found",
+  "proposal_not_ready",
+  "proposal_stale",
   "payload_too_large",
   "reference_analysis_disabled",
   "reference_analysis_limited",
@@ -453,6 +483,7 @@ const BARE_ERROR_CODES = [
   "run_not_found",
   "source_aspect_mismatch",
   "source_not_usable",
+  "take_frames_limited",
   "trend_page_unavailable",
   "trend_search_limited",
   "trend_search_not_found",
@@ -487,6 +518,7 @@ export const API_ERROR_CODES: readonly string[] = [
   unknownFieldError.shape.error.shape.code.value,
   scriptEncodingLostError.shape.error.shape.code.value,
   insufficientCreditsError.shape.error.shape.code.value,
+  maxCreditsExceededError.shape.error.shape.code.value,
   debtOutstandingError.shape.error.shape.code.value,
   accountNotAdmittedError.shape.error.shape.code.value,
   editConflictError.shape.error.shape.code.value,

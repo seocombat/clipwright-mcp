@@ -27,9 +27,25 @@ export const supportReply = z.object({
 });
 export type SupportReply = z.infer<typeof supportReply>;
 
+export const accountPlan = z.object({
+  id: z.string(),
+  interval: z.enum(["month", "year"]),
+  /** The end of the paid billing period: the plan renews then, unless `cancel_at_period_end`. */
+  renews_at: z.string().datetime().nullable(),
+  cancel_at_period_end: z.boolean(),
+});
+export type AccountPlan = z.infer<typeof accountPlan>;
+
 export const account = z.object({
   account_id: z.string(),
+  /** Everything a new run can spend: the monthly plan credits plus the credits that never expire. */
   balance_credits: z.number().int().nonnegative(),
+  /** The monthly part of `balance_credits`, spent first; what is left when the month ends does not roll over. */
+  plan_credits: z.number().int().nonnegative().optional(),
+  /** The part of `balance_credits` that never expires: packs, the trial and gifts. */
+  pack_credits: z.number().int().nonnegative().optional(),
+  /** The monthly plan, or null without one; absent from a server older than plans. */
+  plan: accountPlan.nullable().optional(),
   debt_credits: z.number().int().nonnegative(),
   holds_credits: z.number().int().nonnegative(),
   /** UNEXPIRED only: an expired grant is not in the balance and does not mislead in the list. */

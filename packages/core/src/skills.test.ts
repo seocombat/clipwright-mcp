@@ -1,14 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  admittedUgcResolution,
   makeUgcInput,
   MAX_ACTOR_SEGMENTS,
+  resolveResolution,
   MAX_INSERTS,
   MAX_NARRATED_ACTOR_SHOTS,
   MAX_SCRIPT_CHARS,
   MAX_SEGMENTS,
 } from "@clipwright/core";
-import { facelessQuoteResponse, offeredFacelessInputShape } from "./faceless-public.js";
+import { facelessQuoteResponse, facelessRunFrame, offeredFacelessInputShape } from "./faceless-public.js";
 import { RESOLVED_TIMELINE_MAX_SLOTS } from "./long-form-profile.js";
 import * as contract from "./index.js";
 
@@ -104,16 +106,82 @@ describe("live shots (#1103)", () => {
     expect(contract.isNarratedUgcInput({ shots: input.shots })).toBe(true);
   });
 
-  /** Mutants: drop a shot refinement, and an action shot goes to the vendor with no action, or a talking shot with a product. */
-  it("refuses an action-less acting shot, setup or product on a talking shot, and duplicate ids", () => {
+  /** Mutants: drop a shot refinement, and an action shot goes to the vendor with no action, or a talking shot with a framing or a cast. */
+  it("refuses an action-less acting shot, framing or a cast on a talking shot, and duplicate ids", () => {
     const accepted = (shots: unknown[]) => makeUgcInput.safeParse({ script, shots }).success;
     expect(accepted([shot({ kind: "action" })])).toBe(false);
     expect(accepted([shot({ kind: "talking_action" })])).toBe(false);
-    expect(accepted([shot({ kind: "talking", setup: "a café" })])).toBe(false);
-    expect(accepted([shot({ kind: "talking", product: { placement: "hand" } })])).toBe(false);
-    expect(accepted([shot({ kind: "talking", product: true })])).toBe(false);
+    expect(accepted([shot({ kind: "talking", framing: "wide" })])).toBe(false);
+    expect(accepted([shot({ kind: "talking", cast: [{ asset_id: `ast_${"1".repeat(32)}`, role: "friend" }] })])).toBe(false);
     expect(accepted([shot({ kind: "talking" }), shot({ kind: "talking" })])).toBe(false);
     expect(accepted(Array.from({ length: contract.MAX_LIVE_SHOTS + 1 }, (_, index) => ({ ...shot({ kind: "talking" }), id: `s${index}` })))).toBe(false);
+  });
+});
+
+describe("live shots: a talking shot's pose (#1536)", () => {
+  const script = "One two three four five six seven eight nine ten.";
+  const talking = (id: string, quote: string, extra: Record<string, unknown> = {}) => ({ id, kind: "talking", anchor: { quote }, ...extra });
+  const parse = (shots: unknown[]) => makeUgcInput.safeParse({ script, shots });
+
+  /** Mutants: one of the three refusals kept, and the pose the client wrote never reaches the run. */
+  it("takes start, product and setup on a talking shot, and keeps them in the parsed shot", () => {
+    const pose = { start: "she holds the mug raised to the camera", product: { placement: "hand" }, setup: "at the train window seat" };
+    const parsed = parse([talking("t1", "One", pose)]);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data!.shots![0]).toMatchObject(pose);
+    for (const field of ["start", "product", "setup"] as const) expect(parse([talking("t1", "One", { [field]: pose[field] })]).success).toBe(true);
+    expect(parse([talking("t1", "One", { start: "she holds nothing" })]).success).toBe(false);
+  });
+
+  /** Mutants: a talking shot read as posed with nothing named, or a pose without product read as plain; `product: false` names no pose. */
+  it("calls a talking shot posed only when it names a start, a setup or a product placement", () => {
+    expect(contract.talkingPose({ kind: "talking" })).toBe(false);
+    expect(contract.talkingPose({ kind: "talking", product: false })).toBe(false);
+    expect(contract.talkingPose({ kind: "talking", start: "she holds it" })).toBe(true);
+    expect(contract.talkingPose({ kind: "talking", setup: "at a desk" })).toBe(true);
+    expect(contract.talkingPose({ kind: "talking", product: true })).toBe(true);
+    expect(contract.talkingPose({ kind: "talking_action", start: "she holds it" })).toBe(false);
+  });
+
+  /** Mutants: a posed talking shot left out of its setup's one picture (two placements in one place), or a plain talking shot filled with */
+  /** a product and so turned into a pose the client did not ask for. */
+  it("holds a posed talking shot to its setup's one placement, as a talking_action shot, and leaves a plain one alone", () => {
+    const acting = (id: string, extra: Record<string, unknown>) => ({ id, kind: "talking_action", action: "points", anchor: { quote: "three" }, ...extra });
+    expect(parse([talking("t1", "One", { product: { placement: "hand" } }), acting("a1", { product: { placement: "beside" } })]).success).toBe(false);
+    expect(parse([talking("t1", "One", { product: { placement: "hand" } }), acting("a1", { setup: "at a desk", product: { placement: "beside" } })])
+      .success).toBe(true);
+    const shots = parse([acting("a1", { product: { placement: "hand" } }), talking("plain", "five"), talking("posed", "seven", { start: "she smiles" }),
+      talking("held", "nine", { setup: "on a bench", product: { placement: "beside" } }), talking("bench", "ten", { setup: "on a  bench" })]).data!.shots!;
+    const settled = contract.settleShotProducts(shots);
+    expect(Object.fromEntries(settled.shots.map(shot => [shot.id, contract.liveShotProductPlacement(shot) ?? null])))
+      .toEqual({ a1: "hand", plain: null, posed: "hand", held: "beside", bench: "beside" });
+    expect(settled.warnings).toHaveLength(2);
+  });
+});
+
+describe("live shots without talking poses: an account off the ad epic's list (#1539)", () => {
+  const script = "One two three four five six seven eight nine ten.";
+  const talking = (extra: Record<string, unknown>) => ({ id: "t1", kind: "talking", anchor: { quote: "One" }, ...extra });
+  const issues = (shots: unknown[]) => contract.makeUgcInputWithoutTalkingPoses.safeParse({ script, shots }).error?.issues
+    .map(issue => `${issue.path.join(".")}: ${issue.message}`) ?? [];
+
+  /** Mutants: one refusal dropped, its words or order changed, or the setup check counting talking shots, and an account off the list */
+  /** gets a request through, or a refusal unlike main's. The lines are main's, byte for byte (2938a86b7). */
+  it("refuses setup, start and product on a talking shot with main's words, in main's order, and takes a plain talking shot", () => {
+    expect(issues([talking({ setup: "a café", framing: "wide", start: "she sits", product: true })])).toEqual([
+      "shots.0.setup: setup works on talking_action and action shots",
+      "shots.0.framing: framing works on talking_action and action shots",
+      "shots.0.start: start works on talking_action and action shots",
+      "shots.0.product: a talking shot shows no product; use talking_action, or an actor view holding it (create_actor holding)",
+    ]);
+    expect(issues([talking({ product: { placement: "hand" } })]))
+      .toEqual(["shots.0.product: a talking shot shows no product; use talking_action, or an actor view holding it (create_actor holding)"]);
+    expect(issues([talking({})])).toEqual([]);
+    const acting = (id: string, product: unknown) => ({ id, kind: "action", action: "types", anchor: { quote: "five" }, setup: "at a desk", product });
+    expect(issues([acting("a1", true), { ...acting("a2", { placement: "beside" }), anchor: { quote: "nine" } }])).toEqual([
+      "shots: talking_action and action shots of one setup share one picture, so they show the product the same way: name one product " +
+      "placement for them (a shot that names none takes it), or give them different setups"]);
+    expect(makeUgcInput.safeParse({ script, shots: [talking({ start: "she sits" })] }).success).toBe(true);
   });
 });
 
@@ -133,18 +201,15 @@ describe("live shots: the product in the hand or beside the actor (#1146)", () =
       .toEqual(["hand", "beside", undefined, undefined]);
   });
 
-  /** Mutants: the setup compared raw, or a product-less shot let into a product setup, and one place shows the product moving or vanishing. */
-  it("refuses Wan shots of one setup that place the product differently, but not shots of different setups or a talking shot", () => {
+  /** Mutants: the setup compared raw, or an explicit "no product" read as unnamed, and one place shows the product moving or vanishing. */
+  it("refuses Wan shots of one setup that name different placements, but not shots of different setups or a talking shot", () => {
     expect(accepted([acting("s1", { setup: "at a desk", product: { placement: "hand" } }),
       acting("s2", { setup: " at a  desk", product: { placement: "beside" } })])).toBe(false);
-    expect(accepted([acting("s1", { setup: "at a desk", product: true }), acting("s2", { setup: "at a desk" })])).toBe(false);
-    expect(accepted([acting("s1", { product: true }), acting("s2", {})])).toBe(false);
+    expect(accepted([acting("s1", { setup: "at a desk", product: true }), acting("s2", { setup: "at a desk", product: false })])).toBe(false);
     // Mixed kinds (Codex r3): a talking_action shot is held to its setup's placement as an action shot is, either way round.
     const speaking = (id: string, extra: Record<string, unknown>) => ({ ...acting(id, extra), kind: "talking_action" });
     expect(accepted([speaking("s1", { setup: "at a desk", product: true }), acting("s2", { setup: "at a desk", product: { placement: "beside" } })]))
       .toBe(false);
-    expect(accepted([speaking("s1", { setup: "at a desk", product: true }), acting("s2", { setup: "at a desk" })])).toBe(false);
-    expect(accepted([acting("s1", { product: { placement: "beside" } }), speaking("s2", {})])).toBe(false);
     expect(accepted([speaking("s1", { product: { placement: "hand" } }), speaking("s2", { product: { placement: "beside" } })])).toBe(false);
     expect(accepted([acting("s1", { setup: "at a desk", product: { placement: "hand" } }),
       acting("s2", { setup: "in a park", product: { placement: "beside" } }), acting("s3", { setup: "in a car" })])).toBe(true);
@@ -155,9 +220,68 @@ describe("live shots: the product in the hand or beside the actor (#1146)", () =
   it("words each refusal with what to do instead", () => {
     const messages = (shots: unknown[]) => makeUgcInput.safeParse({ script, shots }).error?.issues.map(issue => issue.message) ?? [];
     expect(messages([acting("s1", { setup: "at a desk", product: true }), acting("s2", { setup: "at a desk", product: { placement: "beside" } })]))
-      .toEqual([expect.stringMatching(/one product placement \(or none\), or give them different setups$/)]);
-    expect(messages([{ id: "s1", kind: "talking", anchor: { quote: "One" }, product: true }]))
-      .toEqual(["a talking shot shows no product; use talking_action, or an actor view holding it (create_actor holding)"]);
+      .toEqual([expect.stringMatching(/name one product placement for them \(a shot that names none takes it\), or give them different setups$/)]);
+    expect(messages([{ id: "s1", kind: "talking", anchor: { quote: "One" }, setup: "at a desk", product: true },
+      { id: "s2", kind: "talking", anchor: { quote: "five" }, setup: "at a desk", product: { placement: "beside" } }]))
+      .toEqual([expect.stringMatching(/name one product placement for them \(a shot that names none takes it\), or give them different setups$/)]);
+  });
+
+  /** The live quote of 14.11: a shot that names no product shares its setup's picture, so it is let in and takes the placement named there. */
+  it("lets a shot with no product into a setup whose other shot names one (the 14.11 refusal)", () => {
+    const speaking = (id: string, extra: Record<string, unknown>) => ({ ...acting(id, extra), kind: "talking_action" });
+    expect(accepted([speaking("s1", {}), acting("s2", { product: { placement: "hand" } }), speaking("s3", {})])).toBe(true);
+    expect(accepted([acting("s1", { setup: "at a desk", product: true }), acting("s2", { setup: "at a desk" })])).toBe(true);
+    expect(accepted([acting("s1", { product: { placement: "beside" } }), speaking("s2", {})])).toBe(true);
+  });
+
+  /** Mutants: the placement not copied, a talking shot or another setup filled, an explicit false overwritten, or a fill left unnamed. */
+  it("settles each unnamed shot to its setup's placement and names the shots in a warning", () => {
+    const speaking = (id: string, extra: Record<string, unknown>) => ({ ...acting(id, extra), kind: "talking_action" });
+    const talking = { id: "t1", kind: "talking", anchor: { quote: "five" } };
+    const shots = [speaking("s1", {}), acting("s2", { product: { placement: "hand" } }), speaking("s3", {}), talking,
+      acting("p1", { setup: "in a park" }), acting("d1", { setup: "at a desk", product: false }), acting("d2", { setup: "at a desk" }),
+      acting("b1", { setup: "on a bench", product: { placement: "beside" } }), acting("b2", { setup: " on a  bench" })];
+    const settled = contract.settleShotProducts(makeUgcInput.parse({ script, shots }).shots!);
+    expect(Object.fromEntries(settled.shots.map(shot => [shot.id, contract.liveShotProductPlacement(shot) ?? null]))).toEqual({
+      s1: "hand", s2: "hand", s3: "hand", t1: null, p1: null, d1: null, d2: null, b1: "beside", b2: "beside" });
+    expect(settled.shots.find(shot => shot.id === "d1")!.product).toBe(false);
+    expect(settled.warnings).toEqual([
+      "shots \"s1\", \"s3\": no product placement was given, so the product is shown in the actor's hand there, as in shot \"s2\" of the " +
+        "same setup; give a shot its own setup to show it otherwise",
+      "shot \"b2\": no product placement was given, so the product is shown beside the actor there, as in shot \"b1\" of the same setup; " +
+        "give a shot its own setup to show it otherwise"]);
+    expect(makeUgcInput.safeParse({ script, shots: settled.shots }).success).toBe(true);
+    expect(contract.settleShotProducts(settled.shots).warnings).toEqual([]);
+  });
+
+  /** Codex r2: every form a source shot names its product in, in the photo's own setting and in a named setup, either kind as source. */
+  /** Mutants: true read as no product (the boolean form lost), a form mapped to the other placement, or its fill left unnamed. */
+  const SOURCE_FORMS = [[true, "hand", "in the actor's hand"], [{ placement: "hand" }, "hand", "in the actor's hand"],
+    [{ placement: "beside" }, "beside", "beside the actor"]] as const;
+  const SETUPS = [[undefined, undefined], ["at a café table", " at a  café table"]] as const;
+  for (const [product, placement, where] of SOURCE_FORMS) {
+    for (const [setup, sameSetup] of SETUPS) {
+      for (const sourceKind of ["action", "talking_action"] as const) {
+        it(`a ${sourceKind} source naming ${JSON.stringify(product)} in ${setup ?? "the photo's setting"} fills its setup's other shots`, () => {
+          const at = (extra: Record<string, unknown>) => setup === undefined ? extra : { ...extra, setup: extra.setup ?? setup };
+          const shots = [acting("t1", at({ setup: sameSetup })), { ...acting("src", at({ product })), kind: sourceKind },
+            { ...acting("t2", at({})), kind: "talking_action" }, acting("other", { setup: "in a park" })];
+          const settled = contract.settleShotProducts(makeUgcInput.parse({ script, shots }).shots!);
+          expect(Object.fromEntries(settled.shots.map(shot => [shot.id, contract.liveShotProductPlacement(shot) ?? null])))
+            .toEqual({ t1: placement, src: placement, t2: placement, other: null });
+          expect(settled.warnings).toEqual([`shots "t1", "t2": no product placement was given, so the product is shown ${where} there, as in ` +
+            "shot \"src\" of the same setup; give a shot its own setup to show it otherwise"]);
+        });
+      }
+    }
+  }
+
+  /** Mutant: the setup read off the target raw, and a shot spelled with other spaces is left out of its own setup. */
+  it("fills a shot of the same setup spelled with other spaces, one shot named alone", () => {
+    const settled = contract.settleShotProducts(makeUgcInput.parse({ script, shots: [acting("src", { setup: "on a bench", product: true }),
+      acting("t1", { setup: "on  a bench " })] }).shots!);
+    expect(settled.warnings).toEqual(["shot \"t1\": no product placement was given, so the product is shown in the actor's hand there, as in " +
+      "shot \"src\" of the same setup; give a shot its own setup to show it otherwise"]);
   });
 
   /** Mutant: the new refinement applied to stored runs differently; a run admitted before #1146 must still read back. */
@@ -284,6 +408,9 @@ describe("makeUgcInput — script length gate", () => {
       // A styled film's beat and length bounds (#1338): the style runtime's drawing bounds, refused before money; the price is the film's.
       "FILM_BEAT_MAX_SEC",
       "FILM_STYLED_MAX_SEC",
+      // An edit's bounds (render_edit): a longer cut or hold is refused before money, and the cut is one flat price, never per second.
+      "OWN_EDIT_MAX_SECONDS",
+      "FILM_EDIT_MAX_HOLD_SEC",
       // The trend search window's upper bound (#1394): how old a found reel may be, priced per search, never a render length.
       "TREND_SEARCH_MAX_DAYS",
     ];
@@ -556,5 +683,34 @@ describe("server instructions offer the explainer only where it is sold", () => 
       vi.unstubAllEnvs();
       vi.resetModules();
     }
+  });
+});
+
+describe("resolution pinned at admission (#911)", () => {
+  const script = "Missed calls cost you renters";
+  it("pins 720p for a short video the client names no resolution for, and keeps a named one", () => {
+    expect(admittedUgcResolution(makeUgcInput.parse({ script }))).toBe("720p");
+    expect(admittedUgcResolution(makeUgcInput.parse({ script, resolution: "1080p" }))).toBe("1080p");
+  });
+
+  it("pins 720p for a long-form video too, and keeps its named 1080p", () => {
+    const inserts = { script, inserts: [{ id: "a", media_url: "https://example.com/a.png", media_type: "image", anchor: { startWord: 0, endWord: 1 } }],
+      broll_policy: "anyone" };
+    expect(admittedUgcResolution(makeUgcInput.parse(inserts))).toBe("720p");
+    expect(admittedUgcResolution(makeUgcInput.parse({ ...inserts, resolution: "1080p" }))).toBe("1080p");
+  });
+
+  it("reads a faceless run's frame from its pinned resolution, and 1080×1920 for a run or revision stored without one", () => {
+    expect(facelessRunFrame({ input_mode: "script", resolution: "720p" })).toEqual({ width: 720, height: 1280 });
+    expect(facelessRunFrame({ input_mode: "script", resolution: "1080p" })).toEqual({ width: 1080, height: 1920 });
+    expect(facelessRunFrame({ input_mode: "revision" })).toEqual({ width: 1080, height: 1920 });
+    expect(facelessRunFrame(null)).toEqual({ width: 1080, height: 1920 });
+    expect(offeredFacelessInputShape.resolution.safeParse("4k").success).toBe(false);
+  });
+
+  it("reads a stored run without a resolution at the 1080p it was admitted at, and dev at 720p", () => {
+    expect(resolveResolution(undefined, false)).toBe("1080p");
+    expect(resolveResolution(undefined, true)).toBe("720p");
+    expect(resolveResolution("720p", false)).toBe("720p");
   });
 });

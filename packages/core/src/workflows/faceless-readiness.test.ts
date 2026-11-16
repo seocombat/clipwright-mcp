@@ -3,7 +3,7 @@ import { queryWorkflowMethod, validateWorkflowPlan, workflowPlanDocument, type C
 
 const capabilities: CapabilityProfile = { v: 1, content_digest: "a".repeat(64), executors: [{
   skill: "make_faceless", configured: true, qualified: true, enabled: true, profiles: ["faceless-native-v1"],
-  features: ["exact_script", "voice", "word_anchors", "scene_images"], formats: [{ aspect_ratio: "9:16", resolution: "1080p" }],
+  features: ["exact_script", "voice", "word_anchors", "scene_images"], formats: [{ aspect_ratio: "9:16", resolution: "720p" }, { aspect_ratio: "9:16", resolution: "1080p" }],
   field_dispositions: {},
 }] };
 
@@ -37,4 +37,24 @@ it.each(["absent", "warned", "stored", "rejected", "implemented"])("requires a m
   const result = validateWorkflowPlan(document, snapshot);
   expect(result.issues.filter(issue => issue.kind === "placement_preflight_required")).toHaveLength(disposition === "implemented" ? 0 : 1);
   expect(result.ready).toBe(disposition === "implemented");
+});
+
+/** #1466 repair. Mutant: approve a protected area on a plan whose film never measures one, and the bought run fails at zero after its spend. */
+it.each(["faceless-explainer", "product-image-story"])("refuses a protected area on a %s plan in format explainer before approval", methodId => {
+  const snapshot = structuredClone(capabilities), executor = snapshot.executors[0]!;
+  executor.features.push("protected_product_area");
+  executor.field_dispositions.protected_product_area = "implemented";
+  const descriptor = queryWorkflowMethod(methodId, snapshot)!.descriptor, script = descriptor.example.brief.script!;
+  const quote = methodId === "product-image-story" ? "ceramic mug" : "moisture helps the seed";
+  const document = (format?: "explainer") => workflowPlanDocument.parse({ v: 1,
+    method: { method_id: descriptor.id, version: descriptor.version, content_digest: descriptor.content_digest, capability_digest: snapshot.content_digest },
+    brief: { ...descriptor.example.brief, native: { skill: "make_faceless", input: { input_mode: "script", script, duration_seconds: 30, ...(format ? { format } : {}) } } },
+    beats: descriptor.example.beats, claims: [],
+    assets: [{ instance_id: "original", asset_id: `upl_${"1".repeat(32)}`, content_digest: "b".repeat(64),
+      provenance: "owner_supplied", rights: "owner_authorized", purpose: "product_proof", anchor: { quote },
+      protected_area: { x: .45, y: .45, width: .05, height: .05 } }],
+  });
+  expect(validateWorkflowPlan(document(), snapshot).issues).toEqual([]);
+  expect(validateWorkflowPlan(document("explainer"), snapshot).issues).toEqual([expect.objectContaining({
+    kind: "placement_preflight_required", path: "assets.original.protected_area", message: expect.stringContaining("film") })]);
 });

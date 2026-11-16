@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ClipwrightApiError, type ClipwrightClient } from "@clipwright/sdk";
-import { agentRetryShape, checkFilmInput, createFilmDraftInput, filmDraftId, filmHeroInput, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL,
-  OWN_STILLS_SINGLE_MAX, putFilmFilesInput, runId, type FilmRun } from "@clipwright/core";
+import { agentRetryShape, checkFilmInput, createFilmDraftInput, filmDraftId, filmEditInput, filmHeroInput, OWN_EDIT_MAX_SECONDS, TAKE_FRAMES_PER_HOUR, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL,
+  OWN_STILLS_SINGLE_MAX, putFilmFilesInput, runId, takeCheckInput, takeFramesInput, type FilmRun } from "@clipwright/core";
 
 import { withFailureReport, type McpToolResponse } from "./format.js";
 import { fetchImage, IMAGE_BUDGET_MS, type ImageBlock } from "./images.js";
@@ -43,7 +43,26 @@ export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published, after quote_
   "A person's photo is drawn as a cartoon unless character_details ask for a photoreal look; a photoreal hero keeps a still face. " +
   "A run that publishes no pose charges nothing. Returns at once; call get_film_run until it is succeeded: it shows the poses as one picture, " +
   "look at it before any stills. Then pass hero.mascot_id to create_film_draft: every later film uses it with no pose made or charged again.";
-export const GET_FILM_RUN_DESCRIPTION = "Free. One stills, voice, render or hero run: its state, credits, warnings and what it delivered. " +
+export const QUOTE_EDIT_DESCRIPTION = "Free. What render_edit would hold for this edit list, and film_sec: how long the cut runs. Checks every " +
+  "clip, window, voice piece and caption first and names what is wrong. Show it and wait for the go-ahead.";
+export const RENDER_EDIT_DESCRIPTION = "Paid once per delivered cut, after quote_edit. Cuts windows of your own delivered generate_video clips " +
+  "(run_id) or video assets (asset_id) back to back, holds the last frame for hold seconds, lays the make_voice take (whole at voice.at, or " +
+  "its sentences as voice.pieces on the seconds their pictures start) and burns in captions: one vertical 9:16 720p MP4 at 25 fps, up to " +
+  `${OWN_EDIT_MAX_SECONDS} s. A clip off 9:16 is shown whole with bars, never cropped. An edit that fails costs nothing. Returns at once; ` +
+  "call get_film_run until it is succeeded (video_url) or failed.";
+export const TAKE_FRAMES_DESCRIPTION = "Free. Your generate_video clip (run_id) or video asset (asset_id) as contact sheets: frames at fps (8 to " +
+  "read the whole take, 12 to 24 on a contact), each labelled with its second, 8 to a row, at most 96 frames a call and " +
+  `${TAKE_FRAMES_PER_HOUR} calls an hour. from and to narrow the ` +
+  "seconds; crop (x, y, w, h, shares of the frame) enlarges one part, such as a hand on the product. Look at every frame: a hand that passes " +
+  "through the product, a lid that lifts before it is touched, a product that changes shape. Waits up to 45 s and returns the sheets as pictures.";
+export const QUOTE_TAKE_CHECK_DESCRIPTION = "Free. What check_take would hold for this clip. Show it and wait for the go-ahead.";
+export const CHECK_TAKE_DESCRIPTION = "Paid per delivered verdict, after quote_take_check. Judges your generate_video clip (run_id) or video " +
+  "asset (asset_id) frame by frame against direction, the shot's part of the prompt you made it with (up to 1500 characters): each defect with its code, the seconds it shows, its " +
+  "repair level (asset: a new first frame or reference; action: the prompt's steps; camera: the framing; roll: the same prompt again) and " +
+  "whole_take when it cannot be cut out, then clean: the windows without defects, 0.5 s or longer, to cut from. product_image: the product as it " +
+  "really is; moves: the seconds a hand meets the product, looked at first. A check that fails costs nothing. Waits up to 45 s; an unfinished " +
+  "run names get_film_run to call.";
+export const GET_FILM_RUN_DESCRIPTION = "Free. One stills, voice, render, edit, hero, take frames or take check run: its state, credits, warnings and what it delivered. " +
   "Waits up to 45 s for an unfinished run to end; call it again while it is still working. A delivered stills run answers its " +
   "pictures again, at no charge.";
 export const GET_FILM_GUIDE_DESCRIPTION = "Free. Read this first, before any other film tool: the explainer guide (each step's tool, the rules the " +
@@ -75,6 +94,12 @@ export async function waitForFilmRun(client: Pick<ClipwrightClient, "getFilmRun"
  *  hero as its pose sheet (#1371). `note` says what did not come as a picture; the run's text keeps every link and finding either way (#1372). */
 export async function stillPictures(run: FilmRun, fetchImpl?: typeof fetch): Promise<{ images: ImageBlock[]; note: string | null }> {
   if (run.state !== "succeeded") return { images: [], note: null };
+  if (run.take_frames) {
+    const urls = run.take_frames.sheets.map(sheet => sheet.image_url), deadline = Date.now() + IMAGE_BUDGET_MS;
+    const images = (await Promise.all(urls.map(url => fetchImage(url, { ...(fetchImpl ? { fetchImpl } : {}), deadline })))).filter(i => i !== null);
+    return { images, note: images.length === urls.length ? null : `${urls.length - images.length} of ${urls.length} sheets did not load: call ` +
+      "get_film_run with this run_id to read them again, at no charge." };
+  }
   const stills = run.stills, heroSheet = run.hero?.sheet_url;
   if (!stills) {
     if (!heroSheet) return { images: [], note: null };
@@ -128,7 +153,11 @@ const REPEAT_RUN = " The same arguments and attempt return the run already start
 
 export type FilmToolsTiming ={ pollMs?: number; sleep?: (ms: number) => Promise<void>; fetchImpl?: typeof fetch };
 
-export function registerFilmDraftTools(server: McpServer, client: ClipwrightClient, timing: FilmToolsTiming = {}): void {
+/** The ad tools a customer's own agent cuts and audits takes with, listed only where get_ad_guide is (the ad epic's accounts). */
+export const AD_DIY_TOOLS = ["quote_edit", "render_edit", "take_frames", "quote_take_check", "check_take"] as const;
+
+/** `adDiy`: list the ad tools too (AD_DIY_TOOLS); off, the film tools stay as they were. */
+export function registerFilmDraftTools(server: McpServer, client: ClipwrightClient, timing: FilmToolsTiming = {}, adDiy = false): void {
   const { fetchImpl, ...wait } = timing;
   const waited = async (run: FilmRun) => runAnswer(await waitForFilmRun(client, run, wait), fetchImpl);
   server.registerTool("create_film_draft", {
@@ -181,9 +210,32 @@ export function registerFilmDraftTools(server: McpServer, client: ClipwrightClie
   server.registerTool("make_film_hero", { title: "Make a film hero", annotations: { readOnlyHint: false, destructiveHint: false },
     description: MAKE_FILM_HERO_DESCRIPTION + REPEAT_RUN + GUIDE_FIRST, inputSchema: { ...filmHeroInput.shape, ...agentRetryShape } },
   async ({ attempt, ...input }) => withFailureReport(async () => runAnswer(await client.makeFilmHero(input, { attempt }), fetchImpl)));
+  if (adDiy) registerAdDiyTools(server, client, waited, fetchImpl);
   server.registerTool("get_film_run", { title: "Read a film run", annotations: { readOnlyHint: true, destructiveHint: false },
     description: GET_FILM_RUN_DESCRIPTION + GUIDE_FIRST, inputSchema: { run_id: runId } },
   async ({ run_id }) => withFailureReport(async () => waited(await client.getFilmRun(run_id))));
+  registerFilmGuideTools(server, client);
+}
+
+function registerAdDiyTools(server: McpServer, client: ClipwrightClient, waited: (run: FilmRun) => Promise<McpToolResponse>, fetchImpl?: typeof fetch): void {
+  server.registerTool("quote_edit", { title: "Quote an edit", annotations: { readOnlyHint: true, destructiveHint: false },
+    description: QUOTE_EDIT_DESCRIPTION, inputSchema: filmEditInput.shape },
+  async (input) => withFailureReport(async () => ({ content: [text(await client.quoteEdit(input))] })));
+  server.registerTool("render_edit", { title: "Render an edit", annotations: { readOnlyHint: false, destructiveHint: false },
+    description: RENDER_EDIT_DESCRIPTION + REPEAT_RUN, inputSchema: { ...filmEditInput.shape, ...agentRetryShape } },
+  async ({ attempt, ...input }) => withFailureReport(async () => runAnswer(await client.renderEdit(input, { attempt }), fetchImpl)));
+  server.registerTool("take_frames", { title: "See a take's frames", annotations: { readOnlyHint: false, destructiveHint: false },
+    description: TAKE_FRAMES_DESCRIPTION + REPEAT_RUN, inputSchema: { ...takeFramesInput.shape, ...agentRetryShape } },
+  async ({ attempt, ...input }) => withFailureReport(async () => waited(await client.takeFrames(input, { attempt }))));
+  server.registerTool("quote_take_check", { title: "Quote a take check", annotations: { readOnlyHint: true, destructiveHint: false },
+    description: QUOTE_TAKE_CHECK_DESCRIPTION, inputSchema: takeCheckInput.shape },
+  async (input) => withFailureReport(async () => ({ content: [text(await client.quoteTakeCheck(input))] })));
+  server.registerTool("check_take", { title: "Check a take", annotations: { readOnlyHint: false, destructiveHint: false },
+    description: CHECK_TAKE_DESCRIPTION + REPEAT_RUN, inputSchema: { ...takeCheckInput.shape, ...agentRetryShape } },
+  async ({ attempt, ...input }) => withFailureReport(async () => waited(await client.checkTake(input, { attempt }))));
+}
+
+function registerFilmGuideTools(server: McpServer, client: ClipwrightClient): void {
   server.registerTool("get_film_guide", { title: "Read the film guide", annotations: { readOnlyHint: true, destructiveHint: false },
     description: GET_FILM_GUIDE_DESCRIPTION, inputSchema: {} },
   async () => withFailureReport(async () => ({ content: [text(await client.getFilmGuide())] })));

@@ -7,10 +7,11 @@ import { planSemanticInserts } from '../semantic-inserts.js';
 import { resolveFacelessCustomerAnchors } from '../faceless-customer-anchors.js';
 import type { FacelessSceneAnchor } from '../faceless-public.js';
 import { FIELD_DISPOSITIONS } from '../contract-dispositions.js';
-import { makeUgcInputShape } from '../skills.js';
+import { admittedUgcResolution, DEFAULT_RESOLUTION, makeUgcInputShape } from '../skills.js';
 import { referenceProfileWarnings } from '../reference-profile.js';
 import { queryWorkflowMethod } from './catalog.js';
 import { workflowProductReferenceWarnings } from './product-references.js';
+import { enforcesVisualBeats, filmDirectionIssues } from './film-directions.js';
 
 export type WorkflowReadiness = { ready: boolean; issues: WorkflowIssue[]; warnings: string[] };
 const result = (issues: WorkflowIssue[], warnings: string[]): WorkflowReadiness => ({ ready: issues.length === 0, issues, warnings });
@@ -80,13 +81,17 @@ export function checkWorkflowBrief(methodId: string, input: unknown, capabilitie
         else {
             const native = brief.native.input;
             if (!('script' in native) || native.script !== brief.script) add('script_mismatch', 'brief.native.input.script', 'Native execution must use the exact accepted script. Brief mode and segmented narration cannot replace it.');
-            const format = brief.native.skill === 'make_ugc' ? { aspect_ratio: brief.native.input.aspect_ratio ?? '9:16', resolution: brief.native.input.resolution ?? '1080p' }
-                : { aspect_ratio: '9:16', resolution: '1080p' };
+            // Silence is the resolution admission pins (#911, #1464): 720p for either executor.
+            const format = brief.native.skill === 'make_ugc' ? { aspect_ratio: brief.native.input.aspect_ratio ?? '9:16', resolution: admittedUgcResolution(brief.native.input) }
+                : { aspect_ratio: '9:16', resolution: brief.native.input.resolution ?? DEFAULT_RESOLUTION };
             if (!descriptor.output.formats.some(actual => actual.aspect_ratio === format.aspect_ratio && actual.resolution === format.resolution)) {
                 add('unsupported_format', 'brief.native.input', 'Native output settings contradict this method output profile.');
             }
             if (brief.requested_format && (format.aspect_ratio !== brief.requested_format.aspect_ratio || format.resolution !== brief.requested_format.resolution)) {
                 add('format_mismatch', 'brief.requested_format', 'The requested format must match the effective native output settings.');
+            }
+            if (!executor?.formats.some(actual => actual.aspect_ratio === format.aspect_ratio && actual.resolution === format.resolution)) {
+                add('unsupported_format', 'brief.native.input', 'Native output settings are not available right now.');
             }
             for (const path of nativeTransportPaths(brief.native)) add('unbound_native_source', `brief.native.input.${path}`, 'Use stable asset bindings; native transport URLs are resolved only by launch preflight.');
             if (brief.native.skill === 'make_ugc') {
@@ -95,9 +100,6 @@ export function checkWorkflowBrief(methodId: string, input: unknown, capabilitie
                     settings.framing !== undefined) &&
                     (!executor?.features.includes('long_form') || ['warned', 'rejected', 'stored'].includes(executor.field_dispositions.long_form ?? ''))) {
                     add('missing_capability', 'brief.native.input', 'Segments, inserts, overlays, layout windows and framing require native long-form qualification, which is not available right now.');
-                }
-                if (!executor?.formats.some(actual => actual.aspect_ratio === format.aspect_ratio && actual.resolution === format.resolution)) {
-                    add('unsupported_format', 'brief.native.input', 'Native output settings are not available right now.');
                 }
                 for (const [field, disposition] of Object.entries(FIELD_DISPOSITIONS)) {
                     if ((disposition.kind === 'rejected' || executor?.field_dispositions[field] === 'rejected') && nativeFieldRequested(settings, field, 'make_ugc')) {
@@ -149,7 +151,7 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
         const role = method.descriptor.script_rules.structure.indexOf(beat.role);
         if (role < 0 || (!revisits && role < previousRole)) add('invalid_method_structure', `beats.${beat.id}.role`, 'Beat roles must follow this method script structure in order.');
         previousRole = role;
-        if (beat.visual !== undefined && method.descriptor.binding.kind === 'native') {
+        if (beat.visual !== undefined && method.descriptor.binding.kind === 'native' && !(beat.required && enforcesVisualBeats(method.descriptor))) {
             if (beat.required) add('unsupported_visual_directive', `beats.${beat.id}`, 'The native binding does not enforce authored visual directions.');
             else warnings.push(`Visual direction for beat ${beat.id} is advisory; the executor chooses its actual layout.`);
         }
@@ -175,7 +177,10 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
         if (instances.has(asset.instance_id)) add('duplicate_instance', 'assets', 'Each asset placement needs its own instance ID.');
         instances.add(asset.instance_id);
         if (asset.rights === 'unresolved') add('unresolved_rights', `assets.${asset.instance_id}`, 'Asset rights are unresolved.');
-        if (asset.protected_area !== undefined) {
+        // An explainer film shows a picture as its agent places it, and no measure of a protected area exists there (#1466), whatever the method.
+        if (asset.protected_area !== undefined && faceless && document.brief.native?.skill === 'make_faceless' && document.brief.native.input.format === 'explainer') {
+            add('placement_preflight_required', `assets.${asset.instance_id}.protected_area`, 'An explainer film does not measure a protected area; remove it.');
+        } else if (asset.protected_area !== undefined) {
             const executor = faceless ? capabilities.executors.find(item => item.skill === 'make_faceless') : undefined;
             if (!executor?.configured || !executor.qualified || !executor.enabled || !executor.features.includes('protected_product_area') ||
                 executor.field_dispositions.protected_product_area !== 'implemented') {
@@ -185,6 +190,7 @@ export function validateWorkflowPlan(input: unknown, capabilities: CapabilityPro
         if (asset.purpose !== 'illustration' && asset.provenance === 'generated_illustration') add('unsupported_proof', `assets.${asset.instance_id}`, 'Generated illustration cannot establish product or UI proof.');
     }
     if (method.descriptor.required_inputs.includes('assets') && document.assets.length === 0) add('missing_method_input', 'assets', 'This method requires supplied asset bindings.');
+    issues.push(...filmDirectionIssues(method.descriptor, document));
     if (method.descriptor.id === 'product-image-story' && document.assets.length > 0 && !document.assets.some(asset => asset.purpose === 'product_proof' && asset.provenance !== 'generated_illustration')) {
         add('missing_product_proof', 'assets', 'This method requires original product proof; illustrative assets cannot replace it.');
     }

@@ -8,6 +8,7 @@ import type { ClipwrightClient } from "@clipwright/sdk";
 // `mcpUgcInputShape`, not the full shape: fields the server rejects must not
 // be offered to a caller who would get a 400 for using them.
 import {
+  adGuideQuery,
   mcpUgcInputShape,
   type MakeUgcInputArgs,
   actorDefaultsInput,
@@ -33,6 +34,7 @@ import {
   voicesQueryShape,
   motionMovesQuery,
   agentRetryShape,
+  maxCreditsField,
   runId,
   MAKE_UGC_DESCRIPTION,
   MAKE_UGC_AGENT_PROTOCOL,
@@ -96,8 +98,9 @@ import {
   ACCEPTED_UGC_FIELDS,
   rejectedFields,
   unknownFields,
+  FAILED_STATE,
 } from "@clipwright/core";
-import { formatGetRun, type McpToolResponse, RUN_WAIT_MAX_SECONDS, withFailureReport } from "./format.js";
+import { failedRepeatNote, formatGetRun, type McpToolResponse, RUN_WAIT_MAX_SECONDS, withFailureReport } from "./format.js";
 import { facelessQuoteMarkdown, RUN_DISPLAY_HINT, ugcQuoteMarkdown } from "./run-display.js";
 import { registerWorkflowTools } from './workflow-tools.js';
 import { registerFilmDraftTools } from "./film-tools.js";
@@ -127,7 +130,14 @@ export interface CreateServerOptions {
   ownAgent?: boolean;
   /** Whether the API sells the explainer format, as stdio asks it at start; omitted, the server's own flag decides (the hosted server). */
   explainer?: boolean;
+  /** Lists get_ad_guide (#1539 P3) for an account it is offered to; off, the tool list and instructions stay as they are. */
+  adGuide?: boolean;
 }
+
+export const GET_AD_GUIDE_DESCRIPTION = "Free. Read it before you write an ad with make_ugc: the word → device catalogue (which list_moves " +
+  "names fit which words), the hook, poses, live shots by action, captions, hands and timeline, and density. Then the method for making " +
+  "the ad yourself shot by shot: product and hero sheets, location, state stills, a motion test, the shot list, takes, a frame audit, " +
+  "repair, and the edit with render_edit. section reads one part: ugc, or one step of making the ad yourself.";
 
 /** What `upload_image` answers a path on a server that reads no files; the tool list stays the same on both transports. */
 export const REMOTE_UPLOAD_REFUSAL =
@@ -262,10 +272,12 @@ function uploadNextAction(upload: { width: number; height: number; expires_at: s
 /** so tool registration is testable without a stdio process. */
 export function createServer(client: ClipwrightClient, options: CreateServerOptions = { fileAccess: "local" }): McpServer {
   const ownAgent = options.ownAgent === true;
-  const server = new McpServer({ name: "clipwright", version: packageVersion() }, { instructions: mcpServerInstructions({ ownAgent, explainer: options.explainer }) });
+  const server = new McpServer({ name: "clipwright", version: packageVersion() }, { instructions: mcpServerInstructions({ ownAgent, explainer: options.explainer,
+    adGuide: options.adGuide }) });
   answerInvalidArguments(server);
   registerWorkflowTools(server, client);
-  if (ownAgent) registerFilmDraftTools(server, client);
+  // The ad tools (render_edit, take_frames, check_take) go only where get_ad_guide is offered: the ad epic's accounts.
+  if (ownAgent) registerFilmDraftTools(server, client, {}, options.adGuide === true);
 
   // tools/list publishes the full schema; an empty schema leaves agents guessing.
   server.registerTool(
@@ -285,8 +297,8 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         const { attempt, ...input } = args;
         // Return right after start (state≈"queued"), without waiting. Template data is checked strictly by the server (#778 S3, D3).
         const run = await client.startUgc(input as MakeUgcInputArgs, { attempt });
-        // Same formatter as `get_run`, so warnings reach the agent at once.
-        return formatGetRun(run);
+        // Same formatter as `get_run`, so warnings reach the agent at once; a new start is never failed, so a failed one is a repeat.
+        return run.state === FAILED_STATE ? failedRepeatNote(formatGetRun(run), attempt) : formatGetRun(run);
       }),
   );
 
@@ -329,7 +341,10 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "it. A field named in `withheld` is null on every shot. planned=false is a normal answer, not an " +
         "error: the run has no shots to show, and editable.state with editable.reason says why. " +
         "editable.media_available_until is how long the media of the run are stored. paid_edits.enabled " +
-        "says whether a video can be made from an edit; while it is false, none can.",
+        "says whether a video can be made from an edit; while it is false, none can. For an ad with live shots, " +
+        "live_shots lists each shot's takes with the check's codes, whether it was accepted or refused, and which " +
+        "take the video uses. finished_check names what the check of the finished ad found: each code " +
+        "(PRODUCT_JUMP, CAPTION_MISSING, ...) with the second it shows at; the same findings are in the run's warnings.",
       inputSchema: { run_id: runId },
     },
     async ({ run_id }) =>
@@ -361,8 +376,9 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     document: byDocument.shape.document.optional()
       .describe("The whole edited document, as the run's draft holds it; retimes, deletions and uploads go this way."),
   };
-  const revisionOf = ({ changes, document }: { changes?: unknown; document?: unknown }): RevisionRequest =>
-    revisionRequest.parse({ ...(changes === undefined ? {} : { changes }), ...(document === undefined ? {} : { document }) });
+  const revisionOf = ({ changes, document, max_credits }: { changes?: unknown; document?: unknown; max_credits?: number | undefined }): RevisionRequest =>
+    revisionRequest.parse({ ...(changes === undefined ? {} : { changes }), ...(document === undefined ? {} : { document }),
+      ...(max_credits === undefined ? {} : { max_credits }) });
 
   server.registerTool(
     "quote_revision",
@@ -393,7 +409,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "original has a limit on revisions running at once and on revisions failed or unfinished, and paid edits " +
         "of it close some days after it finished; a refusal names which. While paid edits are closed it answers " +
         "editing_disabled and charges nothing. Poll the new run with get_run; once it succeeded it is editable under its own run_id."),
-      inputSchema: { ...revisionShape, ...agentRetryShape },
+      inputSchema: { ...revisionShape, max_credits: maxCreditsField, ...agentRetryShape },
     },
     async ({ run_id, attempt, ...request }) =>
       withFailureReport(async () => formatGetRun(await client.startRevision(run_id, revisionOf(request), { attempt }))),
@@ -440,7 +456,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "An original has a limit on candidates running at once and on candidates failed or " +
         "unfinished, apart from its revisions; a refusal names which. While shot candidates are closed it answers " +
         "editing_disabled and charges nothing. Poll the new run with get_run; once it succeeded, its candidate.preview_url shows what was made."),
-      inputSchema: candidateShape,
+      inputSchema: { ...candidateShape, max_credits: maxCreditsField },
     },
     async ({ run_id, ...request }) =>
       withFailureReport(async () => formatGetRun(await client.createCandidate(run_id, candidateOf(request)))),
@@ -465,7 +481,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     "not, never, without and the like are refused. For a sequence, pass the previous clip's continuity.end_state as continues_from " +
     "and repeat light word for word. A shot that breaks a rule is refused before any charge.";
   // Strict objects: an unknown key is refused at the tool, not stripped. The clip's mode rules run in the handler.
-  const imageTool = generateImageRequest, imageRunTool = generateImageRequest.extend(agentRetryShape);
+  const imageTool = z.strictObject(generateImageRequest.shape), imageRunTool = imageTool.extend(agentRetryShape);
   const videoTool = z.strictObject(generateVideoRequest.shape), videoRunTool = videoTool.extend(agentRetryShape);
 
   server.registerTool(
@@ -1145,7 +1161,9 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     description:
       "Read this account's credits. Free, spends nothing. debt_credits above zero means make_ugc " +
       "is refused with debt_outstanding whatever the balance, until the account buys credits; " +
-      "with no debt, balance_credits is what a new run can spend. holds_credits are reserved for " +
+      "with no debt, balance_credits is what a new run can spend: plan_credits, this month's plan credits that runs spend " +
+      "first and that do not roll over, plus pack_credits, which never expire. plan names the monthly plan, when it renews " +
+      "and whether it ends then, or is null. holds_credits are reserved for " +
       "runs still in progress and settle when they finish. grants lists unexpired credit grants. " +
       "support_replies lists Clipwright's replies to this account's support requests and send_feedback, newest first; " +
       "request_id is the feedback_id send_feedback returned. " +
@@ -1154,6 +1172,17 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   }, async () => withFailureReport(async () => ({
     content: [{ type: "text", text: JSON.stringify(await client.getAccount()) }],
   })));
+
+  if (options.adGuide === true) {
+    server.registerTool("get_ad_guide", {
+      title: "Read the ad guide",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: GET_AD_GUIDE_DESCRIPTION,
+      inputSchema: adGuideQuery.shape,
+    }, async (query) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.getAdGuide(query)) }],
+    })));
+  }
 
   server.registerTool("list_prices", {
     title: "List prices",

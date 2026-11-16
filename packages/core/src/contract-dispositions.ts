@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { makeUgcInputShape, mcpCaptionPlace, mcpLiveShots, mcpPresenterGaze, mcpPresenterPlace, mcpUgcCall, mcpUgcInterview, mcpUgcOverlay, mcpUgcScene,
+import { AD_END_HOLD_WARNING, makeUgcInputShape, mcpCaptionPlace, mcpLiveShots, mcpPresenterGaze, mcpPresenterPlace, mcpUgcCall, mcpUgcInterview, mcpUgcOverlay, mcpUgcScene,
   mcpUgcTemplate } from "./skills.js";
 import { MCP_UGC_DESCRIPTIONS } from "./mcp-ugc-descriptions.js";
 import { interviewWarnings } from "./ugc-interview.js";
-import { MAX_TEMPLATES, mcpTemplateSounds, templateFaceWarnings, templateMediaOf, templateSceneItems, templateSizeWarnings, type TemplateItem } from "./templates/index.js";
+import { commentCtaFitWarnings, MAX_TEMPLATES, mcpTemplateSounds, seriesFitWarnings, templateFaceWarnings, templateMediaOf, templateSceneItems, templateSizeWarnings, type TemplateItem } from "./templates/index.js";
 import { framingWarnings } from "./ugc-framing.js";
 import { MAX_OVERLAYS, placeWarnings } from "./ugc-layers.js";
 import { callWarnings } from "./ugc-call.js";
@@ -14,6 +14,8 @@ import { MAX_SCENES, SCENES_DISABLED_MESSAGE } from "./ugc-scenes.js";
 import { MOTION_STYLE_UNUSED_WARNING, motionStyleAsked, motionStyleHasCanvas } from "./motion-styles.js";
 import { AD_PAUSE_TRIM_WARNING } from "./ad-pause-trim.js";
 import { isPresenterMatteEnabled, needsPresenterCutout, PRESENTER_MATTE_DISABLED_MESSAGE } from "./presenter-matte.js";
+import { SCENE_DIRECTOR_DISABLED_MESSAGE, SCENE_UNUSED_WARNING, sceneDirectorAccounts } from "./scene-bible.js";
+import { SCENE_PROPOSAL_DISABLED_MESSAGE } from "./scene-proposal.js";
 
 /** Disposition registry for `make_ugc` input fields: every field must have a recorded */
 /** decision. The type guards completeness; tests at each effect boundary prove truth. */
@@ -134,6 +136,12 @@ export const FIELD_DISPOSITIONS = {
   // Each shot drawn by its kind's engine and cut into the timeline as an actor take (#1103), gated by its switch.
   shots: { kind: "implemented", provenBy: "composition" },
   product_asset_id: { kind: "implemented", provenBy: "composition" },
+  // One scene written into every live shot's prompt (#1491), gated by its switch; on a video without shots it is named in warnings[].
+  scene: { kind: "implemented", provenBy: "egress" },
+  // An accepted quote proposal (#1491 S6): admission expands it into the fields above, gated by the scene director's switch.
+  proposal: { kind: "implemented", provenBy: "admission" },
+  // The quote's choice to propose no scene; on a paid call, the choice to add no free move (#1517).
+  propose: { kind: "implemented", provenBy: "admission" },
   character: {
     kind: "rejected",
     message:
@@ -155,6 +163,8 @@ export const FIELD_DISPOSITIONS = {
   // Applied by composition and gated by `CLIPWRIGHT_COMPOSE`, like `image` is gated
   // by `CLIPWRIGHT_REMOTE_FETCH`.
   background: { kind: "implemented", provenBy: "composition" },
+  // The call's spend ceiling (#942): admission refuses a hold above it before anything is reserved.
+  max_credits: { kind: "implemented", provenBy: "admission" },
 
   // Only a synchronous refusal reaches the caller: a subscriber stops polling, and
   // `warnings[]` arrive through the very `get_run` channel it abandoned.
@@ -198,6 +208,8 @@ export interface ContractFlags {
   scenes?: boolean;
   /** Motion styles (#1123); absent means off. */
   motionStyles?: boolean;
+  /** The scene director (#1491), on for at least one account; absent means off. */
+  sceneDirector?: boolean;
 }
 
 /** Motion styles have their own switch and draw only where composition does (#1123). */
@@ -249,6 +261,7 @@ export function contractFlagsFromEnv(
     ...(isLiveShotsEnabled(env) ? { liveShots: true } : {}),
     ...(isScenesEnabled(env) ? { scenes: true } : {}),
     ...(isMotionStylesEnabled(env) ? { motionStyles: true } : {}),
+    ...(sceneDirectorAccounts(env) !== null ? { sceneDirector: true } : {}),
   };
 }
 
@@ -354,9 +367,9 @@ export function resolveDispositions(
     actor_id: flags.remoteFetch ? FIELD_DISPOSITIONS.actor_id : {
       kind: "rejected", message: "actor_id is temporarily disabled (remote media fetch is off); omit it to use the default actor",
     },
-    // A face hint for `image` means nothing without `image`, so it switches off with it.
+    // actor_gender names the face in `image` or picks a catalogue actor (an actor_id), so it switches off with both.
     actor_gender: flags.remoteFetch ? FIELD_DISPOSITIONS.actor_gender : {
-      kind: "rejected", message: "actor_gender is temporarily disabled together with image (remote media fetch is off); omit both to use the default actor",
+      kind: "rejected", message: "actor_gender is temporarily disabled together with image and actor_id (remote media fetch is off); omit it to use the default actor",
     },
     // With composition off nothing can apply a background, so the field is rejected.
     background: flags.compose ? FIELD_DISPOSITIONS.background : COMPOSE_DISABLED,
@@ -364,6 +377,8 @@ export function resolveDispositions(
       kind: "rejected", message: "visible_ai_label is not available right now; omit it",
     },
     music: flags.music === true ? FIELD_DISPOSITIONS.music : { kind: "rejected", message: MUSIC_DISABLED_MESSAGE },
+    scene: flags.sceneDirector === true ? FIELD_DISPOSITIONS.scene : { kind: "rejected", message: SCENE_DIRECTOR_DISABLED_MESSAGE },
+    proposal: flags.sceneDirector === true ? FIELD_DISPOSITIONS.proposal : { kind: "rejected", message: SCENE_PROPOSAL_DISABLED_MESSAGE },
   };
 }
 
@@ -548,8 +563,10 @@ export function dispositionWarnings(
   if (motionStyleAsked(styled) && !motionStyleHasCanvas({ captions: input.captions === true, templates: scene.templates,
     scenes: Array.isArray(input.scenes) ? input.scenes : undefined })) warnings.push(MOTION_STYLE_UNUSED_WARNING);
   if (input.pause_trim_source === "ad_default") warnings.push(AD_PAUSE_TRIM_WARNING);
-  warnings.push(...templateFaceWarnings(input), ...templateSizeWarnings(input), ...framingWarnings(input), ...callWarnings(input),
-    ...placeWarnings(input, framing => templateSceneItems(scene, framing)), ...interviewWarnings(input));
+  if (input.end_hold_source === "ad_default") warnings.push(AD_END_HOLD_WARNING);
+  if (input.scene !== undefined && !(Array.isArray(input.shots) && input.shots.length > 0)) warnings.push(SCENE_UNUSED_WARNING);
+  warnings.push(...templateFaceWarnings(input), ...templateSizeWarnings(input), ...seriesFitWarnings(input), ...commentCtaFitWarnings(input), ...framingWarnings(input),
+    ...callWarnings(input), ...placeWarnings(input, framing => templateSceneItems(scene, framing)), ...interviewWarnings(input));
   return warnings;
 }
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ACTOR_FULL_PORTRAIT_FACE_HEIGHT, ACTOR_WIDE_PORTRAIT_FACE_HEIGHT, actorIdScope } from "./account-actors.js";
 import { expectedVendorFrame } from "./aspect.js";
 import { sharpCropOf } from "./scene-place.js";
-import { actorId, ASPECT_RATIOS, DEFAULT_RESOLUTION, RESOLUTIONS, type AspectRatio } from "./skills.js";
+import { ACTOR_FOR_GENDER, actorId, ASPECT_RATIOS, LEGACY_RUN_RESOLUTION, RESOLUTIONS, type AspectRatio } from "./skills.js";
 import { defaultVoiceOf, DEFAULT_VOICE_PRESET, speaksOwnVoices, VOICE_PRESETS } from "./voices.js";
 
 export const ACTORS_PATH = "/v1/actors";
@@ -42,6 +42,25 @@ export const DEFAULT_ACTOR_SOURCE: AspectSource = { width: 432, height: 768, ori
 export const DEFAULT_ACTOR = { gender: "male" as Gender };
 export const DEFAULT_ACTOR_GENDER = DEFAULT_ACTOR.gender;
 export type DefaultActor = { gender: Gender };
+/** actor_gender without image or actor_id becomes that gender's catalogue actor, named in warnings[] (rule 3): quote and run read the same input. */
+export function settleActorGender<T extends { actor_gender?: Gender | undefined; actor_id?: string | undefined; image?: string | undefined;
+  person?: string | undefined }>(input: T): { input: T; warnings: string[] } {
+  const gender = input.actor_gender;
+  if (gender === undefined || input.image !== undefined || input.actor_id !== undefined || input.person !== undefined) return { input, warnings: [] };
+  const { actor_gender: _gender, ...rest } = input;
+  const actorId = ACTOR_FOR_GENDER[gender];
+  return { input: { ...rest, actor_id: actorId } as T, warnings: [`actor_gender ${gender}: the presenter is ${actorId}, a ${gender} actor ` +
+    "from list_actors; pass actor_id to pick another"] };
+}
+
+export const DEFAULT_PRESENTER_WARNING =
+  "no presenter was chosen: the default presenter is a man; pass actor_gender, or actor_id from list_actors, to pick another";
+/** With no presenter named the default actor, a man, presents: said in warnings[] with how to pick another. */
+export function defaultPresenterWarnings(input: { image?: string | undefined; actor_id?: string | undefined; actor_gender?: Gender | undefined;
+  person?: string | undefined }): string[] {
+  return input.image === undefined && input.actor_id === undefined && input.actor_gender === undefined && input.person === undefined
+    ? [DEFAULT_PRESENTER_WARNING] : [];
+}
 export interface ActorDescription extends DefaultActor { actor_id?: string; version?: number }
 
 export function actorForInput(
@@ -150,7 +169,7 @@ function presenterPlaceSoftness(input: { presenter_place?: { face_height: number
   const place = input.presenter_place, asset = pin?.asset, view = renderedPresenterFraming(pin);
   const largest = view === "full" ? ACTOR_FULL_PORTRAIT_FACE_HEIGHT
     : view === "wide" && pin?.actor_id !== undefined && actorIdScope(pin.actor_id) === "account" ? ACTOR_WIDE_PORTRAIT_FACE_HEIGHT : undefined;
-  const aspect = ASPECT_RATIOS.find(ratio => ratio === asset?.aspect_ratio), resolution = RESOLUTIONS.find(entry => entry === input.resolution) ?? DEFAULT_RESOLUTION;
+  const aspect = ASPECT_RATIOS.find(ratio => ratio === asset?.aspect_ratio), resolution = RESOLUTIONS.find(entry => entry === input.resolution) ?? LEGACY_RUN_RESOLUTION;
   if (!place || largest === undefined || !asset?.width || !aspect) return undefined;
   const sharp = sharpCropOf(asset.width, expectedVendorFrame(resolution, aspect).width);
   if (place.face_height / largest <= sharp) return undefined;

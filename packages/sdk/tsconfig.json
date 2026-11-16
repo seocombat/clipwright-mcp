@@ -4,6 +4,10 @@
     "lib": ["ES2023", "DOM"],
     "rootDir": "src",
     "outDir": "dist",
+    "removeComments": true,
+    // ОТЛИЧИЕ ОТ БАЗЫ: пакет публикуется в npm, комментарии и карты остаются в репозитории.
+    "sourceMap": false,
+    "declarationMap": false,
     "types": ["node"]
   },
   "include": ["src"],

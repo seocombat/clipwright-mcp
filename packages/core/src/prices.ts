@@ -15,11 +15,12 @@ import { PARTS_FACE_TARIFF, PRESENTER_ENGINE_LABELS, SCENE_CREDITS, SHOT_CREDITS
 import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS } from "./reference-analysis.js";
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
 import {
-  TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_CREDITS, TREND_PAGE_WINDOW_SECONDS, TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_REELS,
+  TREND_FREE_PAGES_PER_DAY, TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_REELS,
 } from "./trend-search.js";
 import { isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
 import { isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
-  OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND } from "./own-agent-price.js";
+  OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_EDIT_CREDITS,
+  OWN_EDIT_MAX_SECONDS, OWN_TAKE_CHECK_CREDITS } from "./own-agent-price.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
 export const PRICES_PATH = "/v1/public/prices";
@@ -74,6 +75,9 @@ const paid = (entry: Paid): PriceEntry => ({
   formula: "formula" in entry ? entry.formula : null,
   minimum_credits: entry.minimum_credits ?? null, quote_tool: entry.quote_tool, notes: entry.notes ?? null,
 });
+
+/** Billed routes that start a run held at 0 credits: they admit with a key and a ceiling like any run, and the list prices them at 0. */
+export const FREE_RUN_ROUTES: ReadonlySet<string> = new Set(["POST /v1/take-frames"]);
 
 /** Every free MCP tool and the route it calls. */
 const FREE_TOOLS: Readonly<Record<string, string>> = {
@@ -150,6 +154,20 @@ function generationEntries(): PriceEntry[] {
   });
 }
 
+/** The ad tools' entries (render_edit, check_take, take_frames). They serve only the ad epic's accounts, which read the price from the quote,
+ *  so the public list leaves them out until the epic opens to everyone. */
+export const AD_DIY_PRICES: readonly PriceEntry[] = Object.freeze([
+  paid({ tool: "render_edit", route: "POST /v1/film-edits", quote_tool: "quote_edit", unit: "call", credits: OWN_EDIT_CREDITS,
+    notes: `One cut of your own clips with your voice and captions, up to ${OWN_EDIT_MAX_SECONDS} s, vertical 720p. Charged only for a ` +
+      "delivered cut; an edit that fails costs nothing." }),
+  paid({ tool: "check_take", route: "POST /v1/take-checks", quote_tool: "quote_take_check", unit: "call", credits: OWN_TAKE_CHECK_CREDITS,
+    notes: "One of your clips judged frame by frame against the prompt it was made with: each defect with its seconds and how to repair " +
+      "it, and the clean windows. Charged only for a delivered verdict; a check that fails costs nothing." }),
+  { action: "take_frames", tool: "take_frames", route: "POST /v1/take-frames", variant: null, lines: [{ label: null, unit: "call" as const, credits: 0 }],
+    formula: null, minimum_credits: null, quote_tool: null,
+    notes: "Free: one of your clips as contact sheets, each frame labelled with its second, up to 96 frames a call." },
+]);
+
 function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false, music = false, explainer = false,
   ownAgent = false): PriceEntry[] {
   const unit = EDIT_UNIT_PRICES;
@@ -160,8 +178,9 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
       variant: engine === "heygen" ? "HeyGen presenter" : "OmniHuman presenter", quote_tool: "quote_ugc", minimum_credits: parts.minimumCredits,
       lines: [{ label: PRESENTER_ENGINE_LABELS[engine], unit: "face_second", credits: parts.presenterCreditsPerSecond[engine] },
         // Live shots are sold only while they can be ordered (#1103).
-        ...(liveShots ? SHOT_ENGINES.map((shot): PriceEntryLine => ({ label: SHOT_ENGINE_LABELS[shot], unit: "face_second", credits: shotRates[shot] }))
-          : []),
+        // Each engine the listed tariff prices; the Omni shot is listed with its tariff (#1535).
+        ...(liveShots ? SHOT_ENGINES.flatMap((shot): PriceEntryLine[] => shotRates[shot] === undefined ? []
+          : [{ label: SHOT_ENGINE_LABELS[shot], unit: "face_second", credits: shotRates[shot] }]) : []),
         { label: "production (voice and render)", unit: "second", credits: parts.productionCreditsPerSecond },
         { label: "live avatar on a call", unit: "still", credits: parts.liveAvatarStillCredits },
         // Scenes are sold only while they can be ordered (#1107).
@@ -190,12 +209,11 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         "default, each with its x to its creator's median views. The same price for one platform or both. " +
         "Held at the start and charged once it succeeds, a mix that reaches only one platform included; no reel found, or a failed search, costs nothing. " +
         "The same query again within an hour answers the same search for free. " +
-        `Every account gets ${TREND_FREE_SEARCHES_PER_MONTH} free searches each calendar month; a failed one does not count.` }),
-    paid({ tool: "find_trends", route: "POST /v1/trend-searches", variant: "next page", unit: "call", credits: TREND_PAGE_CREDITS,
-      quote_tool: "quote_trends", notes: `The next places of a finished search: up to ${TREND_SEARCH_REELS} more creators per platform, ` +
-        `up to ${TREND_SEARCH_MAX_PAGES} pages with the first, started within ${TREND_PAGE_WINDOW_SECONDS / 3600} hours of the search. ` +
-        "Never free. Held at the start and charged once it finds new reels; no new reel, or a failed page, costs nothing. " +
-        "A page already made opens again for free." }),
+        `Every account gets ${TREND_FREE_SEARCHES_PER_MONTH} free searches each calendar month; a failed one does not count. ` +
+        `A finished search's next pages are free for ${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search: up to ` +
+        `${TREND_SEARCH_REELS} more creators per platform each, up to ${TREND_SEARCH_MAX_PAGES} pages with the first, ` +
+        `${TREND_FREE_PAGES_PER_DAY} free pages a day per account; past them a page costs ${TREND_PAGE_PAID_CREDITS} credits, ` +
+        "charged once it finds new reels." }),
     paid({ tool: "make_faceless", route: "POST /v1/skills/make_faceless/run", quote_tool: "quote_faceless",
       lines: [{ label: "generated picture", unit: "image", credits: FACELESS_IMAGE_CREDITS },
         { label: "opening clip", unit: "clip", credits: FACELESS_OPENER_CREDITS },

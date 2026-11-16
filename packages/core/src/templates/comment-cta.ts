@@ -78,12 +78,12 @@ export function commentCtaSchedule(moments: readonly number[], code: string, act
 
 const seconds = (frames: number, fps: number) => `${(frames / fps).toFixed(1)} s`;
 
-/** Each line's first frame from the template's start: the first on frame 0, a quoted line on its words, the rest spread evenly before the
- *  follow's tap; a line keeps `CTA_LINE_GAP` after the one before, and what that moves or what the funnel loses is named. */
-export function commentCtaMoments(value: Data, beats: readonly (number | undefined)[], duration: number, fps: number, id: string):
-  { moments: number[]; warnings: string[] } {
-  const count = value.lines.length, warnings: string[] = [], room = duration - (value.loop ? CTA_LOOP_FRAMES : 0);
-  const spread = Math.max(0, room - CTA_FUNNEL.tap - CTA_FUNNEL.settle);
+/** Each line's first frame: the first on frame 0, a quoted line on its words, the rest spread before the follow's tap, each `CTA_LINE_GAP`
+ *  after the one before. Acts past its words run on, asking `frames` up to `most` (#1457); past `most` the tap is cut; every move is named. */
+export function commentCtaMoments(value: Data, beats: readonly (number | undefined)[], duration: number, fps: number, id: string, most = duration):
+  { moments: number[]; warnings: string[]; frames?: number } {
+  const count = value.lines.length, warnings: string[] = [], loop = value.loop ? CTA_LOOP_FRAMES : 0, limit = Math.max(duration, most);
+  const spread = Math.max(0, duration - loop - CTA_FUNNEL.tap - CTA_FUNNEL.settle);
   const anchors = Array.from({ length: count + 1 }, (_, index) => (index === 0 ? 0 : index === count ? spread : beats[index]));
   const targets: number[] = [0];
   for (let from = 0; from < count;) {
@@ -94,21 +94,37 @@ export function commentCtaMoments(value: Data, beats: readonly (number | undefin
     if (to < count) targets[to] = anchors[to]!;
     from = to;
   }
-  const moments: number[] = [];
+  const moments: number[] = [], rushed: number[] = [];
   for (const [index, target] of targets.entries()) {
     const earliest = index === 0 ? 0 : moments[index - 1]! + CTA_LINE_GAP;
-    moments.push(Math.max(target, earliest));
+    // A gap that would run past the frames it may reach gives way: the line starts on its own frame and the one before it is cut short (#1425).
+    if (earliest >= limit) {
+      moments.push(Math.min(limit - 1, Math.max(target, moments[index - 1]! + 1)));
+      rushed.push(index);
+      continue;
+    }
+    moments.push(Math.min(limit - 1, Math.max(target, earliest)));
     if (target < earliest && beats[index] !== undefined) {
       warnings.push(`template "${id}" lines.${index}.at "${value.lines[index]!.at}" is spoken too close after the line before it: the line starts ` +
         `${seconds(earliest - target, fps)} later`);
     }
   }
-  const { tap } = commentCtaSchedule(moments, value.code, commentCtaActLines(value.lines)), need = tap + CTA_FUNNEL.settle;
+  if (rushed.length) {
+    warnings.push(`template "${id}": ${rushed.map(index => `lines.${index}`).join(" and ")} ${rushed.length === 1 ? "starts" : "start"} less than ` +
+      `${seconds(CTA_LINE_GAP, fps)} after the line before, too near the template's end to wait: the line before ${rushed.length === 1 ? "it" : "each"} is cut short`);
+  }
+  // The tap settles, and the last line has its gap to build its words, before the loop.
+  const { tap } = commentCtaSchedule(moments, value.code, commentCtaActLines(value.lines));
+  const need = Math.max(tap + CTA_FUNNEL.settle, moments.at(-1)! + CTA_LINE_GAP), frames = Math.max(duration, Math.min(need + loop, limit));
+  const room = frames - loop;
+  if (frames > duration) {
+    warnings.push(`template "${id}" runs ${seconds(frames - duration, fps)} past its words so that its comment, message and follow play to the end`);
+  }
   if (need > room) {
     warnings.push(`template "${id}": the call to action has ${seconds(room, fps)} and its comment, message and follow need ${seconds(need, fps)}, ` +
       `so ${tap >= room ? "the follow button is not tapped on screen" : "the tap on the follow button is cut short"}`);
   }
-  return { moments, warnings };
+  return { moments, warnings, ...(frames > duration ? { frames } : {}) };
 }
 
 /** Why the data cannot stand in this run, beyond its schema: labels the script's language needs, a loop that would not end the video. */
@@ -134,8 +150,10 @@ export const commentCta: TemplateKind<typeof data> = {
     "word by word on its at quote (the rest spread evenly), the accent words marked; a comment field types code letter by letter and sends it " +
     "with a tick; the handle's message dm arrives on the line with act dm (else the middle line), and a follow pill with the avatar pops on " +
     "the line with act follow (else the last) and is tapped to following; labels set the field's hint and the button's two words, needed when " +
-    "the script is not in Latin letters (English otherwise); loop true dissolves the last frames into the video's first frame, so the video " +
-    "loops, and needs the template to cover the script's last words",
+    "the script is not in Latin letters (English otherwise); when its words are shorter than the comment, message and follow need, the call to " +
+    "action runs on past them and the next template starts later, or, at the end of the video, the video holds its last frame past the last word " +
+    "until the follow is tapped; loop true dissolves the last frames into the video's first frame, so the video loops, and needs the template to " +
+    "cover the script's last words",
   placements: ["full"],
   aspects: [CTA_ASPECT],
   data,
@@ -146,7 +164,7 @@ export const commentCta: TemplateKind<typeof data> = {
   firstBeatAtStart: true,
   fillsFrame: true,
   slots: { avatar: { type: "image", cover: 1 } },
-  timing: (value, beats, duration, fps, id) => commentCtaMoments(value, beats, duration, fps, id),
+  timing: (value, beats, duration, fps, id, most) => commentCtaMoments(value, beats, duration, fps, id, most),
   check: (value, context) => commentCtaRefusals(value, context),
   hidesCaptions: () => true,
   onInserts: false,

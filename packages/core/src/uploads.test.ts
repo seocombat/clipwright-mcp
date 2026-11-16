@@ -82,7 +82,7 @@ describe("caps and codes are declared by the contract", () => {
   it("the daily window, link lifetime and cap are the published numbers", () => {
     expect(UPLOAD_WINDOW_SECONDS).toBe(24 * 60 * 60);
     expect(UPLOAD_URL_TTL_SECONDS).toBe(24 * 60 * 60);
-    expect(UPLOAD_DAILY_CAP).toBe(20);
+    expect(UPLOAD_DAILY_CAP).toBe(200);
   });
 
   it("the three upload refusal codes are in the code registry", () => {

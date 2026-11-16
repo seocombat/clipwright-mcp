@@ -4,7 +4,7 @@ import { z } from "zod";
 export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
 /** Uploads per account over a sliding day; a link lives one day. */
-export const UPLOAD_DAILY_CAP = 20;
+export const UPLOAD_DAILY_CAP = 200;
 export const UPLOAD_WINDOW_SECONDS = 86_400;
 export const UPLOAD_URL_TTL_SECONDS = 86_400;
 /** As long as a run's media (`RENDER_RETENTION_DAYS`): a draft may name an upload on the run's first day. */
@@ -129,7 +129,7 @@ export const UPLOAD_IMAGE_DESCRIPTION =
   `${UPLOAD_OBJECT_RETENTION_DAYS} days. For ` +
   "workflow assets the upload_id is both asset_id and content_digest: the SHA-256 of the original " +
   "bytes. Set `aspect_ratio` EXPLICITLY to match the picture. For a file on your disk while this server is remote, " +
-  "use create_upload. Free; 20 uploads per day per account, at most 30 url downloads per hour.";
+  "use create_upload. Free; 200 uploads per day per account, at most 30 url downloads per hour.";
 
 export const CREATE_UPLOAD_DESCRIPTION =
   "Upload a LOCAL PNG or JPEG (up to 10 MB) through a one-time presigned PUT; use it when this server is remote and " +
@@ -139,7 +139,7 @@ export const CREATE_UPLOAD_DESCRIPTION =
   "PUT finished, the upload_id works as a generation reference (quote_image says how); before that it answers " +
   "upload_not_finished. Call get_upload to confirm and to " +
   "read content_digest, width and height; other tools that take an upload_id need that call first. Use the " +
-  "upload_id within 24 hours. Free; counts toward 20 uploads per day.";
+  "upload_id within 24 hours. Free; counts toward 200 uploads per day.";
 
 export const GET_UPLOAD_DESCRIPTION =
   "Read one upload by upload_id: a freshly signed https url, content_digest, media_type, bytes, width, height and " +

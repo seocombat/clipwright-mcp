@@ -4,6 +4,7 @@ import {
   type FaceBillingInterval, type PartsFaceTariff, type PresenterEngine, type ShotEngine, type TakeEngine,
 } from "./face-billing.js";
 import { unionFaceFrames } from "./long-form-pricing.js";
+import type { Resolution } from "./skills.js";
 
 // Parts prices: one tariff for short and long make_ugc.
 // parts-v2: the HeyGen second 12 → 9; parts-v1, long-form-v1 and 30 a second stay with their snapshots.
@@ -24,22 +25,56 @@ export const PRESENTER_ENGINE_LABELS: Readonly<Record<PresenterEngine, string>> 
   heygen: "presenter, HeyGen Avatar IV", omnihuman: "presenter, OmniHuman 2.0",
 });
 
-/** Credits per second of a live shot (#1103), by the shot kind's engine: the actor speaking while acting, and acting under voice-over. */
-export const SHOT_CREDITS_PER_SECOND: Readonly<Record<ShotEngine, number>> = Object.freeze({ shot_talking_action: 30, shot_action: 30 });
+type MethodShotEngine = "shot_omni" | "shot_seedance" | "shot_omni_no_text" | "shot_seedance_no_text";
+/** A method ad's live-shot second by model and by the video's resolution (#1539 C4). A shot with no text in frame costs less at 720p; */
+/** at 1080p it costs as one with text. */
+export const METHOD_SHOT_CREDITS_PER_SECOND: Readonly<Record<Exclude<Resolution, "4k">, Readonly<Record<MethodShotEngine, number>>>> = Object.freeze({
+  "720p": Object.freeze({ shot_omni: 20, shot_omni_no_text: 12, shot_seedance: 89, shot_seedance_no_text: 42 }),
+  "1080p": Object.freeze({ shot_omni: 20, shot_omni_no_text: 20, shot_seedance: 217, shot_seedance_no_text: 217 }),
+});
+/** Credits per second of a live shot (#1103), by the shot kind's engine: the actor speaking while acting, and acting under voice-over; */
+/** a silent shot on Gemini Omni 1.2 (#1535); the method ad's at 720p, its resolution (#1539 C4). */
+export const SHOT_CREDITS_PER_SECOND: Readonly<Record<ShotEngine, number>> = Object.freeze({ shot_talking_action: 30, shot_action: 30,
+  ...METHOD_SHOT_CREDITS_PER_SECOND["720p"] });
 export const SHOT_ENGINE_LABELS: Readonly<Record<ShotEngine, string>> = Object.freeze({
   shot_talking_action: "live shot, speaking while acting", shot_action: "live shot, acting under voice-over",
+  shot_omni: "live shot, Gemini Omni 1.2", shot_seedance: "live shot, Seedance 2.5",
+  shot_omni_no_text: "live shot, Gemini Omni 1.2, no text in frame", shot_seedance_no_text: "live shot, Seedance 2.5, no text in frame",
 });
 const TAKE_ENGINE_LABELS: Readonly<Record<TakeEngine, string>> = { ...PRESENTER_ENGINE_LABELS, ...SHOT_ENGINE_LABELS };
 
 /** The long-form run's tariff, frozen at admission like long-form-v1 before it. */
 export const PARTS_FACE_TARIFF: PartsFaceTariff = Object.freeze({
   version: 3, pricingVersion: PARTS_PRICING_VERSION, presenterCreditsPerSecond: PRESENTER_CREDITS_PER_SECOND,
-  shotCreditsPerSecond: SHOT_CREDITS_PER_SECOND,
+  shotCreditsPerSecond: Object.freeze({ shot_talking_action: SHOT_CREDITS_PER_SECOND.shot_talking_action, shot_action: SHOT_CREDITS_PER_SECOND.shot_action }),
   productionCreditsPerSecond: PRODUCTION_CREDITS_PER_SECOND, liveAvatarStillCredits: LIVE_AVATAR_STILL_CREDITS,
   minimumCredits: DELIVERED_VIDEO_MINIMUM_CREDITS, rounding: "ceil_aggregate_seconds", failurePolicy: "verified_delivery_only",
 } as const);
 
-/** The face tariffs new runs are admitted on, as a LIST: public text walks it, so another tariff cannot ship silently. */
+/** parts-v3 (#1535): parts-v2 and the Omni live-shot second. Runs admitted on it keep it; new ones with an Omni shot go on parts-v4. */
+export const PARTS_OMNI_PRICING_VERSION = "parts-v3";
+export const PARTS_OMNI_FACE_TARIFF: PartsFaceTariff = Object.freeze({ ...PARTS_FACE_TARIFF, pricingVersion: PARTS_OMNI_PRICING_VERSION,
+  shotCreditsPerSecond: Object.freeze({ shot_talking_action: SHOT_CREDITS_PER_SECOND.shot_talking_action,
+    shot_action: SHOT_CREDITS_PER_SECOND.shot_action, shot_omni: SHOT_CREDITS_PER_SECOND.shot_omni }) });
+
+/** parts-v4 (#1539 C4): parts-v3 with the method ad's four live-shot seconds at the video's resolution, frozen with the run. */
+export const PARTS_METHOD_PRICING_VERSION = "parts-v4";
+export function partsMethodFaceTariff(resolution: Resolution): PartsFaceTariff {
+  // make_ugc refuses 4k (#1189), so a 4k second has no price to freeze.
+  if (resolution === "4k") throw new RangeError("no method shot second at 4k");
+  return Object.freeze({ ...PARTS_OMNI_FACE_TARIFF, pricingVersion: PARTS_METHOD_PRICING_VERSION,
+    shotCreditsPerSecond: Object.freeze({ ...PARTS_OMNI_FACE_TARIFF.shotCreditsPerSecond!, ...METHOD_SHOT_CREDITS_PER_SECOND[resolution] }) });
+}
+/** The tariff a long-form run is admitted on: a run with an Omni shot on the one that prices Omni and Seedance seconds at its resolution. */
+export const partsFaceTariffFor = (omni: boolean, resolution: Resolution): PartsFaceTariff =>
+  (omni ? partsMethodFaceTariff(resolution) : PARTS_FACE_TARIFF);
+
+/** One pre-production (#1539 C4): its stills and storyboard, charged once a still is published, also when the video is never ordered. */
+/** A repeat on the same pictures costs nothing. */
+export const PRE_PRODUCTION_CREDITS = 270;
+
+/** The face tariffs new runs are admitted on, as a LIST: public text walks it, so another tariff cannot ship silently. parts-v3 joins it */
+/** once the Omni shot is sold to every account. */
 export const FACE_BILLING_TARIFFS: readonly PartsFaceTariff[] = Object.freeze([PARTS_FACE_TARIFF]);
 
 /** A short run's tariff: one take, so the presenter is in every second of the video. Its failures keep the short run's outcomes. */
@@ -137,14 +172,18 @@ export function calculatePartsCharge(measure: PartsMeasure, tariffInput: PartsFa
 }
 
 /** A short video's price: the presenter is in every second of its one take. Rounding is the legacy rule: whole seconds, at least one. */
+/** `heldSec` is the still the video holds past its take (#1452): production seconds, never the presenter's, since it is no vendor work. */
 export function calculateDurationPartsCharge(durationSec: number, engine: PresenterEngine, tariffInput: DurationPartsTariff,
-  delivered: boolean): PartsCharge {
+  delivered: boolean, heldSec = 0): PartsCharge {
   const tariff = durationPartsTariffSchema.parse(tariffInput);
   if (!Number.isFinite(durationSec) || durationSec < 0) throw new RangeError("duration must be a finite, non-negative number of seconds");
+  if (!Number.isFinite(heldSec) || heldSec < 0 || heldSec > durationSec) throw new RangeError("the held still must lie within the video");
   const seconds = BigInt(Math.max(1, Math.ceil(durationSec)));
-  const lines = [line(PRESENTER_ENGINE_LABELS[engine], "face_second", seconds, tariff.presenterCreditsPerSecond[engine]),
+  // Rounded to the microsecond first: 9.4 − 2.4 is 7.000000000000001 in floating point and must not bill an eighth second.
+  const take = heldSec === 0 ? seconds : BigInt(Math.max(1, Math.ceil(Number((durationSec - heldSec).toFixed(6)))));
+  const lines = [line(PRESENTER_ENGINE_LABELS[engine], "face_second", take, tariff.presenterCreditsPerSecond[engine]),
     line("production (voice and render)", "second", seconds, tariff.productionCreditsPerSecond)];
-  return settle(lines, tariff.minimumCredits, delivered, 0, Number(seconds));
+  return settle(lines, tariff.minimumCredits, delivered, 0, Number(take));
 }
 
 /** What a delivered parts-tariff video records about its price. */

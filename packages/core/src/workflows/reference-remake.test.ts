@@ -13,6 +13,7 @@ import { TEMPLATE_KINDS, templateFaceWarnings, templateMoments } from '../templa
 import { FRAMING_SCALE } from '../ugc-framing.js';
 import { admissionScene, faceZone, frameCanvasOf, layerWordRange, overlayFootprints, overlayRect, rectsOverlap } from '../ugc-layers.js';
 import { listVoices } from '../voice-listing.js';
+import { referenceRemake } from './methods/reference-remake.js';
 import { compileReferenceRemake, queryWorkflowMethod, referenceProfileWarnings, validateWorkflowPlan, workflowPlanDocument, workflowPlanDocumentRead,
     type CapabilityProfile, type ReferenceAssetFacts, type WorkflowPlanDocument } from './index.js';
 
@@ -24,7 +25,7 @@ const SCRIPT = 'Every missed call is a lost deal. Your receptionist sleeps, take
     'a cleaning, and it handles everything, the time, the price, the confirmation text. Small businesses miss a third of their calls. Not anymore. ' +
     'Set it up in ten minutes and stop losing deals while you sleep.';
 const ugc = (features: string[] = []) => ({ skill: 'make_ugc', configured: true, qualified: true, enabled: true, profiles: ['ugc-native-v1'],
-    features: ['exact_script', 'actor', 'voice', ...features], formats: [{ aspect_ratio: '9:16' as const, resolution: '1080p' as const }],
+    features: ['exact_script', 'actor', 'voice', ...features], formats: [{ aspect_ratio: '9:16' as const, resolution: '720p' as const }, { aspect_ratio: '9:16' as const, resolution: '1080p' as const }],
     field_dispositions: { captions: 'implemented' as const, caption_style: 'implemented' as const, templates: 'implemented' as const } });
 const capabilities = (features: string[] = []): CapabilityProfile => ({ v: 1, content_digest: 'c'.repeat(64), executors: [ugc(features)] });
 const request = (extra: Record<string, unknown> = {}) => ({ reference_profile: structuredClone(PROFILE), script: SCRIPT, actor_id: 'actor_marcus', voice: 'sarah', ...extra });
@@ -1228,7 +1229,11 @@ describe('the remake places the call phone by the reference\'s measured staging 
         // without them, the digests hold.
         const beforeFit = (result: ReturnType<typeof compileReferenceRemake>) => {
             if (result.kind !== 'compiled') return result;
-            const copy = structuredClone(result), input = native(copy.document) as { inserts?: { fit?: string }[]; templates?: { kind: string; data: unknown }[];
+            const copy = structuredClone(result);
+            // #1464: the method's card offers 720p beside 1080p, which moves only its pin.
+            expect(copy.document.method.content_digest).toBe(referenceRemake.content_digest);
+            copy.document.method.content_digest = 'aedecd3beda09830de0ab34ec955bab980ce9e87d2b89d7223b606ba00c9fea4';
+            const input = native(copy.document) as { inserts?: { fit?: string }[]; templates?: { kind: string; data: unknown }[];
                 caption_emphasis?: unknown[] };
             for (const insert of input.inserts ?? []) { expect(insert.fit).toBe('auto'); delete insert.fit; }
             const click = (input.templates!.find(item => item.kind === 'checklist')!.data as { clicks: { quote: string }[] }).clicks[0]!;

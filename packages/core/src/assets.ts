@@ -266,12 +266,12 @@ export function assetKey(accountId: string, id: string, sha256: string, mediaTyp
 }
 
 const gigabytes = (bytes: number): string => `${bytes / 1e9} GB`;
-const STORAGE_TERMS = `${gigabytes(ASSET_TRIAL_MAX_BYTES)}, or ${gigabytes(ASSET_ACCOUNT_MAX_BYTES)} once it has bought credits`;
+const STORAGE_TERMS = `${gigabytes(ASSET_TRIAL_MAX_BYTES)}, or ${gigabytes(ASSET_ACCOUNT_MAX_BYTES)} once it has bought credits, as a pack or a plan`;
 
 /** The asset_cap_exceeded text: the account's own ceilings, and on a bytes refusal below 20 GB what raises it. */
 export function assetCapMessage(cap: "count" | "bytes", usage: { count: number; bytes: number }, maxBytes: number): string {
   const raise = cap === "bytes" && maxBytes < ASSET_ACCOUNT_MAX_BYTES
-    ? ` Buying credits once raises this account's storage ceiling to ${gigabytes(ASSET_ACCOUNT_MAX_BYTES)}.` : "";
+    ? ` Buying credits once, as a pack or a plan, raises this account's storage ceiling to ${gigabytes(ASSET_ACCOUNT_MAX_BYTES)}.` : "";
   return `This account keeps ${usage.count} assets and ${usage.bytes} bytes; its ceiling is ${ASSET_ACCOUNT_MAX_COUNT} assets and ` +
     `${gigabytes(maxBytes)} (${maxBytes} bytes).${raise}`;
 }

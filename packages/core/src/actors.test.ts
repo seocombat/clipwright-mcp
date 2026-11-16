@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ACTORS_PATH, actorItemPath, CREATE_ACTOR_QUOTE_PATH, CREATE_ACTOR_RUN_PATH, presenterViewWarnings, renderedPresenterFraming } from "./actors.js";
+import { ACTORS_PATH, actorItemPath, CREATE_ACTOR_QUOTE_PATH, CREATE_ACTOR_RUN_PATH, defaultPresenterWarnings, presenterViewWarnings,
+  renderedPresenterFraming, settleActorGender } from "./actors.js";
 import { API_ENDPOINTS } from "./endpoints.js";
-import { makeUgcInput } from "./skills.js";
+import { ACTOR_FOR_GENDER, makeUgcInput } from "./skills.js";
 
 describe("personal actor paths have one source", () => {
   it("the client constants are declared in the endpoint registry", () => {
@@ -35,6 +36,38 @@ describe("actor selection", () => {
 
   it.each(["", "../anna", "https://example.com", "actor_" ])("rejects malformed actor ID %j", (actor_id) => {
     expect(makeUgcInput.safeParse({ script: "Hello", actor_id }).success).toBe(false);
+  });
+});
+
+/** The live quote of 14.11 asked actor_gender female with no photo; it now gets that gender's catalogue actor, named in warnings[]. */
+describe("actor_gender without image picks a catalogue actor", () => {
+  /** Mutants: the gender's actor swapped, actor_gender kept beside actor_id (refused on re-parse), or the pick left unnamed. */
+  it.each([["female", "actor_anna"], ["male", "actor_alex"]] as const)("%s becomes %s, as if actor_id were passed", (gender, actorId) => {
+    const settled = settleActorGender(makeUgcInput.parse({ script: "Hello", actor_gender: gender }));
+    expect(settled.input).toMatchObject({ actor_id: actorId });
+    expect(settled.input).not.toHaveProperty("actor_gender");
+    expect(makeUgcInput.safeParse(settled.input).success).toBe(true);
+    expect(settled.warnings).toEqual([`actor_gender ${gender}: the presenter is ${actorId}, a ${gender} actor from list_actors; ` +
+      "pass actor_id to pick another"]);
+    expect(ACTOR_FOR_GENDER[gender]).toBe(actorId);
+  });
+
+  /** Mutant: the photo's gender hint replaced by a catalogue actor, and the customer's face lost. */
+  it("leaves image with actor_gender, and a body without actor_gender, unchanged", () => {
+    for (const body of [{ script: "Hello", image: "https://example.com/a.png", actor_gender: "female" as const }, { script: "Hello" },
+      { script: "Hello", actor_id: "actor_maya" }]) {
+      const input = makeUgcInput.parse(body);
+      expect(settleActorGender(input)).toEqual({ input, warnings: [] });
+    }
+  });
+
+  /** Mutants: the line on every body, or none with no presenter named. */
+  it("names the default man only when no presenter field is given", () => {
+    expect(defaultPresenterWarnings({})).toEqual([
+      "no presenter was chosen: the default presenter is a man; pass actor_gender, or actor_id from list_actors, to pick another"]);
+    for (const named of [{ actor_id: "actor_anna" }, { image: "https://example.com/a.png" }, { actor_gender: "female" as const }, { person: "a barista" }]) {
+      expect(defaultPresenterWarnings(named)).toEqual([]);
+    }
   });
 });
 

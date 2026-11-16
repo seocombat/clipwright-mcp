@@ -3,12 +3,13 @@ import { editSummaryWire, revisionBilling, revisionPriceLine } from "./edit-bill
 import { editDocument } from "./edit-document.js";
 import { shotChange } from "./edit-operations.js";
 import { EDIT_MAX_SHOTS } from "./edit-rules.js";
+import { maxCreditsField } from "./max-credits.js";
 import { runId } from "./runs.js";
 
 /** A revision asks for exactly one of: the whole document, or a list of shot changes over the run as it is. */
 export const revisionRequest = z.union([
-  z.strictObject({ document: editDocument }),
-  z.strictObject({ changes: z.array(shotChange).min(1).max(EDIT_MAX_SHOTS) }),
+  z.strictObject({ document: editDocument, max_credits: maxCreditsField }),
+  z.strictObject({ changes: z.array(shotChange).min(1).max(EDIT_MAX_SHOTS), max_credits: maxCreditsField }),
 ]);
 export type RevisionRequest = z.infer<typeof revisionRequest>;
 

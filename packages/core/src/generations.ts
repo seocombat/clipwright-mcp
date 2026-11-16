@@ -2,6 +2,7 @@ import { z } from "zod";
 import { assetId } from "./assets.js";
 import { generationShot, shotIssues } from "./generation-shot.js";
 import { GENERATION_KINDS } from "./generations-output.js";
+import { maxCreditsField } from "./max-credits.js";
 import { runId } from "./runs.js";
 import { uploadId } from "./uploads.js";
 
@@ -11,10 +12,10 @@ export const GENERATE_IMAGE_RUN_PATH = "/v1/skills/generate_image/run";
 export const GENERATE_VIDEO_QUOTE_PATH = "/v1/skills/generate_video/quote";
 export const GENERATE_VIDEO_RUN_PATH = "/v1/skills/generate_video/run";
 
-export const GENERATION_IMAGE_MODELS = ["seedream-5.0-flash", "flare"] as const;
+export const GENERATION_IMAGE_MODELS = ["seedream-5.0-flash", "flare", "gemini-3-pro-image", "gemini-nano-banana-2.1"] as const;
 export const GENERATION_VIDEO_MODELS = [
   "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5", "kling-3.0", "kling-4.0", "kling-4.0-flash",
-  "gemini-omni-flash-1.1",
+  "gemini-omni-flash-1.1", "gemini-omni-flash-1.2",
 ] as const;
 export type GenerationImageModel = (typeof GENERATION_IMAGE_MODELS)[number];
 export type GenerationVideoModel = (typeof GENERATION_VIDEO_MODELS)[number];
@@ -36,6 +37,7 @@ export type GenerationVideoAspect = (typeof GENERATION_VIDEO_ASPECTS)[number];
 export type GenerationResolution = (typeof GENERATION_RESOLUTIONS)[number];
 export type GenerationVideoMode = (typeof GENERATION_VIDEO_MODES)[number];
 
+/** The references a model takes unless its capability names more. */
 export const GENERATION_MAX_REFERENCES = 4;
 export const GENERATION_VIDEO_FPS = 24;
 export const GENERATION_PROMPT_MAX_CHARS = 5000;
@@ -59,25 +61,32 @@ export interface GenerationVideoRow {
   /** Credits per second of the requested duration. */
   unit_credits: number;
   measured: boolean;
+  /** A live take with references passed on this row (rule 4); reference mode is offered on such rows only. */
+  reference?: true;
   /** Told in `warnings[]` on every request that lands here (rule 3): what the measured output differs in. */
   warning?: string;
 }
 
 export interface GenerationImageCapability {
   kind: "image";
+  /** The references a request may carry, measured live; absent means `GENERATION_MAX_REFERENCES`. */
+  max_references?: number;
   rows: readonly GenerationImageRow[];
 }
 
 export interface GenerationVideoCapability {
   kind: "video";
   fps: number;
-  /** Whether each mode was measured live; an unmeasured mode is refused like an unmeasured row. */
+  /** Whether each mode was measured live; an unmeasured mode is refused like an unmeasured row. `reference` is set when at least */
+  /** one row is marked `reference`, and a reference request is refused on every other row. */
   modes: Readonly<Record<GenerationVideoMode, boolean>>;
   duration_s: { min: number; max: number };
   /** The only lengths a model takes when it is not every whole second of the range. */
   duration_values?: readonly number[];
   /** `false` where first_frame mode takes no last_frame; absent, it takes one. */
   last_frame?: false;
+  /** The longest clip that takes a last_frame, where it is shorter than `duration_s.max`. */
+  last_frame_max_s?: number;
   rows: readonly GenerationVideoRow[];
 }
 
@@ -102,7 +111,7 @@ function video(resolution: GenerationResolution, short: number, long: number,
 }
 
 const HEVC10 = { codec: "hevc", pix_fmt: "yuv420p10le" } as const;
-const SEEDANCE_2_0_MODES = { text: true, first_frame: true, reference: false } as const;
+const SEEDANCE_2_0_MODES = { text: true, first_frame: true, reference: true } as const;
 const DRAFT_480P = {
   "9:16": "480p draft is 496x864 (2.1% off 9:16), as the model renders it; we do not crop it",
   "16:9": "480p draft is 864x496 (2.0% off 16:9), as the model renders it; we do not crop it",
@@ -119,83 +128,106 @@ function only(rows: GenerationVideoRow[], aspect: GenerationVideoAspect, change:
   return rows.map((row) => (row.aspect_ratio === aspect ? { ...row, ...change } : row));
 }
 
+/** The vertical row of a pair, where the live take with references was made. */
+const referenceVertical = (rows: GenerationVideoRow[]): GenerationVideoRow[] => only(rows, "9:16", { reference: true });
+
 /** The one table of models, shapes and prices. */
 export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
   "seedream-5.0-flash": {
     kind: "image",
-    rows: [image("9:16", 1440, 2560, 3, true), image("16:9", 2560, 1440, 3, true), image("1:1", 2048, 2048, 3, true)],
+    rows: [image("9:16", 1440, 2560, 5, true), image("16:9", 2560, 1440, 5, true), image("1:1", 2048, 2048, 5, true)],
   },
   flare: {
     kind: "image",
-    rows: [image("9:16", 1008, 1792, 4, true), image("16:9", 1792, 1008, 4), image("1:1", 1024, 1024, 4)],
+    rows: [image("9:16", 1008, 1792, 6, true), image("16:9", 1792, 1008, 6), image("1:1", 1024, 1024, 6)],
+  },
+  // An editor of up to 14 pictures (product, person, place, prop); 9:16 is 0.8% off, inside the 2% match.
+  "gemini-3-pro-image": {
+    kind: "image",
+    max_references: 14,
+    rows: [image("9:16", 1536, 2752, 38, true), image("16:9", 2752, 1536, 38, true), image("1:1", 2048, 2048, 38, true)],
+  },
+  "gemini-nano-banana-2.1": {
+    kind: "image",
+    max_references: 14,
+    rows: [image("9:16", 768, 1376, 21, true), image("16:9", 1376, 768, 21, true), image("1:1", 1024, 1024, 21, true)],
   },
   "seedance-2.0": {
     kind: "video",
     fps: GENERATION_VIDEO_FPS,
     modes: SEEDANCE_2_0_MODES,
     duration_s: { min: 4, max: 15 },
-    rows: [...draft480p(12),
-      ...video("720p", 720, 1280, 24, H264, { vertical: true, horizontal: true }),
-      ...video("1080p", 1080, 1920, 59, H264, { vertical: true, horizontal: true })],
+    rows: [...referenceVertical(draft480p(18)),
+      ...referenceVertical(video("720p", 720, 1280, 38, H264, { vertical: true, horizontal: true })),
+      ...video("1080p", 1080, 1920, 94, H264, { vertical: true, horizontal: true })],
   },
   "seedance-2.0-mini": {
     kind: "video",
     fps: GENERATION_VIDEO_FPS,
-    modes: { text: true, first_frame: true, reference: true },
+    modes: SEEDANCE_2_0_MODES,
     duration_s: { min: 4, max: 15 },
-    rows: [...draft480p(3),
-      ...video("720p", 720, 1280, 7, H264, { vertical: true, horizontal: true })],
+    rows: [...referenceVertical(draft480p(5)),
+      ...referenceVertical(video("720p", 720, 1280, 11, H264, { vertical: true, horizontal: true }))],
   },
   "seedance-2.0-fast": {
     kind: "video",
     fps: GENERATION_VIDEO_FPS,
     modes: SEEDANCE_2_0_MODES,
     duration_s: { min: 4, max: 15 },
-    rows: [...draft480p(9), ...video("720p", 720, 1280, 20, H264, { vertical: true, horizontal: true })],
+    rows: [...referenceVertical(draft480p(15)),
+      ...referenceVertical(video("720p", 720, 1280, 31, H264, { vertical: true, horizontal: true }))],
   },
   "seedance-2.5": {
     kind: "video",
     fps: GENERATION_VIDEO_FPS,
-    modes: { text: false, first_frame: true, reference: false },
+    modes: { text: false, first_frame: true, reference: true },
     duration_s: { min: 4, max: 30 },
     // 2.5 renders a true 480x854.
-    rows: [...video("480p", 480, 854, 17, H264, { vertical: true, horizontal: true }),
-      ...video("720p", 720, 1280, 37, H264, { vertical: true, horizontal: true }),
-      ...video("1080p", 1080, 1920, 90, HEVC10, { vertical: true },
+    rows: [...referenceVertical(video("480p", 480, 854, 26, H264, { vertical: true, horizontal: true })),
+      ...referenceVertical(video("720p", 720, 1280, 59, H264, { vertical: true, horizontal: true })),
+      ...video("1080p", 1080, 1920, 143, HEVC10, { vertical: true },
         "seedance-2.5 at 1080p is HEVC 10-bit (yuv420p10le); some browsers and editors do not play it")],
   },
   "kling-3.0": {
     kind: "video",
     fps: GENERATION_VIDEO_FPS,
-    modes: { text: true, first_frame: true, reference: false },
+    modes: { text: true, first_frame: true, reference: true },
     duration_s: { min: 3, max: 15 },
-    rows: video("720p", 720, 1280, 12, H264, { vertical: true, horizontal: true }),
+    rows: referenceVertical(video("720p", 720, 1280, 19, H264, { vertical: true, horizontal: true })),
   },
   "kling-4.0": {
     kind: "video",
     fps: GENERATION_VIDEO_FPS,
-    modes: { text: true, first_frame: true, reference: false },
+    modes: { text: true, first_frame: true, reference: true },
     duration_s: { min: 3, max: 30 },
-    rows: [...video("720p", 720, 1280, 23, H264, { vertical: true, horizontal: true }),
-      ...video("1080p", 1080, 1920, 34, H264, { vertical: true, horizontal: true })],
+    rows: [...referenceVertical(video("720p", 720, 1280, 36, H264, { vertical: true, horizontal: true })),
+      ...video("1080p", 1080, 1920, 53, H264, { vertical: true, horizontal: true })],
   },
   "kling-4.0-flash": {
     kind: "video",
     fps: GENERATION_VIDEO_FPS,
-    modes: { text: true, first_frame: true, reference: false },
+    modes: { text: true, first_frame: true, reference: true },
     duration_s: { min: 3, max: 20 },
     last_frame: false,
-    rows: video("720p", 720, 1280, 14, H264, { vertical: true, horizontal: true }),
+    rows: referenceVertical(video("720p", 720, 1280, 22, H264, { vertical: true, horizontal: true })),
   },
   // 360p 9:16 is not yet seen live.
   "gemini-omni-flash-1.1": {
     kind: "video",
     fps: GENERATION_VIDEO_FPS,
-    modes: { text: true, first_frame: true, reference: false },
+    modes: { text: true, first_frame: true, reference: true },
     duration_s: { min: 4, max: 10 },
     duration_values: [4, 6, 8, 10],
-    rows: [...only(video("360p", 360, 640, 13, H264), "16:9", { measured: true }),
-      ...video("720p", 720, 1280, 13, H264, { vertical: true, horizontal: true })],
+    rows: [...only(video("360p", 360, 640, 20, H264), "16:9", { measured: true }),
+      ...referenceVertical(video("720p", 720, 1280, 20, H264, { vertical: true, horizontal: true }))],
+  },
+  "gemini-omni-flash-1.2": {
+    kind: "video",
+    fps: GENERATION_VIDEO_FPS,
+    modes: { text: true, first_frame: true, reference: true },
+    duration_s: { min: 3, max: 15 },
+    last_frame_max_s: 10,
+    rows: referenceVertical(video("720p", 720, 1280, 12, H264, { vertical: true, horizontal: true })),
   },
 });
 
@@ -227,13 +259,23 @@ export function withNoTextClause(promptText: string, options: { hasReference: bo
   return `${promptText}\n${GENERATION_NO_TEXT_CLAUSE}`;
 }
 
+const imageMaxReferences = (model: GenerationImageModel): number =>
+  GENERATION_CAPABILITIES[model].max_references ?? GENERATION_MAX_REFERENCES;
+
 /** No `visible_ai_label`: an unknown key is refused, never passed to the provenance policy (D12). */
 export const generateImageRequest = z.strictObject({
   prompt,
   keep_text: keepText,
   model: z.enum(GENERATION_IMAGE_MODELS),
   aspect_ratio: z.enum(GENERATION_IMAGE_ASPECTS),
-  references: z.array(generationReference).max(GENERATION_MAX_REFERENCES).optional(),
+  references: z.array(generationReference).max(Math.max(...GENERATION_IMAGE_MODELS.map(imageMaxReferences))).optional()
+    .describe("Pictures the image is made from; each model takes up to its max_references (list_generation_models)."),
+  max_credits: maxCreditsField,
+}).superRefine((request, context) => {
+  const most = imageMaxReferences(request.model);
+  if ((request.references?.length ?? 0) > most) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["references"], message: `${request.model} takes up to ${most} references` });
+  }
 });
 export type GenerateImageRequest = z.infer<typeof generateImageRequest>;
 
@@ -248,13 +290,15 @@ export const generateVideoRequest = z.strictObject({
   model: z.enum(GENERATION_VIDEO_MODELS),
   mode: z.enum(GENERATION_VIDEO_MODES),
   aspect_ratio: z.enum(GENERATION_VIDEO_ASPECTS),
-  resolution: z.enum(GENERATION_RESOLUTIONS),
+  // Every video model has a measured 720p row in both aspects, so the default always lands on one (#911).
+  resolution: z.enum(GENERATION_RESOLUTIONS).default("720p").describe("The clip's resolution; omitted means 720p. Rows and prices per resolution: list_generation_models."),
   duration_s: z.number().int().positive().safe(),
   first_frame: generationReference.optional(),
   last_frame: generationReference.optional(),
   references: z.array(generationReference).min(1).max(GENERATION_MAX_REFERENCES).optional(),
   /** Compiled into the prompt's first line; the price does not depend on it. */
   camera: z.enum(GENERATION_CAMERAS).optional().describe(GENERATION_CAMERA_DESCRIPTION),
+  max_credits: maxCreditsField,
 }).superRefine((request, context) => {
   const issue = (path: string, message: string) => context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
   const capability = GENERATION_CAPABILITIES[request.model];
@@ -266,6 +310,9 @@ export const generateVideoRequest = z.strictObject({
   }
   if (request.mode === "first_frame" && request.first_frame === undefined) issue("first_frame", "first_frame mode requires first_frame");
   if (request.last_frame !== undefined && capability.last_frame === false) issue("last_frame", `${request.model} takes no last_frame`);
+  if (request.last_frame !== undefined && capability.last_frame_max_s !== undefined && request.duration_s > capability.last_frame_max_s) {
+    issue("last_frame", `${request.model} takes a last_frame up to ${capability.last_frame_max_s} seconds`);
+  }
   if (request.mode !== "first_frame") {
     if (request.first_frame !== undefined) issue("first_frame", "first_frame is only accepted in first_frame mode");
     if (request.last_frame !== undefined) issue("last_frame", "last_frame is only accepted in first_frame mode");
@@ -299,8 +346,10 @@ export function findCapabilityRow(request: GenerationRequest): GenerationMatch |
     const { min, max } = capability.duration_s;
     if (!capability.modes[request.mode] || request.duration_s < min || request.duration_s > max) return null;
     if (request.last_frame !== undefined && capability.last_frame === false) return null;
+    if (request.last_frame !== undefined && request.duration_s > (capability.last_frame_max_s ?? max)) return null;
     if (capability.duration_values && !capability.duration_values.includes(request.duration_s)) return null;
     const row = capability.rows.find((one) => one.aspect_ratio === request.aspect_ratio && one.resolution === request.resolution);
+    if (request.mode === "reference" && row?.reference !== true) return null;
     return row?.measured ? { kind: "video", model: request.model, capability, row } : null;
   }
   const capability = GENERATION_CAPABILITIES[request.model];
@@ -344,6 +393,7 @@ const listedRow = z.strictObject({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   unit_credits: z.number().int().positive(),
+  reference: z.literal(true).optional().describe("Present on a clip row that takes reference mode; other rows refuse it."),
 });
 
 /** One offered model: vendors are not named, and only measured modes and rows are shown. */
@@ -374,11 +424,12 @@ export function listGenerationModels(): ListedGenerationModel[] {
       const rows = capability.rows.filter((row) => row.measured)
         .map(({ aspect_ratio, width, height, unit_credits }) => ({ aspect_ratio, resolution: null, width, height, unit_credits }));
       return rows.length === 0 ? [] : [{ model, kind: "image", unit: "image", modes: null, duration_s: null,
-        max_references: GENERATION_MAX_REFERENCES, rows }];
+        max_references: imageMaxReferences(model as GenerationImageModel), rows }];
     }
     const modes = GENERATION_VIDEO_MODES.filter((mode) => capability.modes[mode]);
     const rows = capability.rows.filter((row) => row.measured)
-      .map(({ aspect_ratio, resolution, width, height, unit_credits }) => ({ aspect_ratio, resolution, width, height, unit_credits }));
+      .map(({ aspect_ratio, resolution, width, height, unit_credits, reference }) => ({ aspect_ratio, resolution, width, height, unit_credits,
+        ...(reference && capability.modes.reference ? { reference } : {}) }));
     return rows.length === 0 || modes.length === 0 ? [] : [{ model, kind: "video", unit: "second", modes,
       duration_s: { ...capability.duration_s },
       ...(capability.duration_values ? { duration_values: [...capability.duration_values] } : {}),

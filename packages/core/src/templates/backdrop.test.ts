@@ -53,11 +53,16 @@ describe("backdrop", () => {
       .toEqual([{ path: ["templates", 0, "kind"], message: "backdrop takes a plain script run, without inserts" }]);
     expect(makeUgcInput.safeParse({ script, templates: [item({ style: "doodle", title: "WOW" })], end_hold_s: 1 }).error?.issues.map(issue => issue.message))
       .toContain("backdrop takes a plain script run, without end_hold_s");
-    // A faceless video has no presenter to stand in front.
-    const faceless = makeFacelessInput.safeParse({ input_mode: "script", duration_seconds: 30,
+    // A faceless video stands the subject of its picture in front instead (#1438), behind the same switch.
+    const faceless = () => makeFacelessInput.safeParse({ input_mode: "script", duration_seconds: 30,
       script: `${script} The rest of the words follow it for long enough to be a faceless script that reads well.`,
-      templates: [item({ style: "glass", title: "CLEAR" })] });
-    expect(faceless.error?.issues.map(issue => issue.message).join("\n")).toContain("backdrop stands the presenter in front of it and needs make_ugc");
+      templates: [item({ style: "glass", title: "CLEAR" })] }).error?.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`) ?? [];
+    try {
+      vi.stubEnv("CLIPWRIGHT_PRESENTER_MATTE", "1");
+      expect(faceless()).toEqual([]);
+      vi.stubEnv("CLIPWRIGHT_PRESENTER_MATTE", "");
+      expect(faceless()).toEqual([`templates.0.kind: ${PRESENTER_MATTE_DISABLED_MESSAGE}`]);
+    } finally { vi.unstubAllEnvs(); }
   });
 
   /** Mutants: let the kind through with the switch off, or hide it with the switch on. */

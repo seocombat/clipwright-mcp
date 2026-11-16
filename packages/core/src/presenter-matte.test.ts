@@ -93,11 +93,15 @@ describe("cover_story", () => {
     expect(cutoutTemplateLines([{ ...cover, kind: "tag" }])).toEqual([]);
   });
 
-  /** Mutant: accept the cover on a faceless video, which has no presenter to stand in front of it. */
-  it("is refused on make_faceless", () => {
+  /** Mutant: keep refusing the cover on a faceless video, which stands the subject of its picture in front instead (#1438). */
+  it("is taken on make_faceless", () => {
     const script = "The cover of my story is here and the rest of the words follow it for long enough to be a faceless script that reads well.";
-    const parsed = makeFacelessInput.safeParse({ input_mode: "script", script, duration_seconds: 30, templates: [cover] });
-    expect(parsed.success).toBe(false);
-    expect(parsed.error?.issues.map(issue => issue.message).join("\n")).toContain("cover_story stands the presenter in front of it");
+    const parsed = () => makeFacelessInput.safeParse({ input_mode: "script", script, duration_seconds: 30, templates: [cover] });
+    try {
+      vi.stubEnv("CLIPWRIGHT_PRESENTER_MATTE", "1");
+      expect(parsed().error?.issues.map(issue => issue.message) ?? []).toEqual([]);
+      vi.stubEnv("CLIPWRIGHT_PRESENTER_MATTE", "");
+      expect(parsed().error?.issues.map(issue => issue.message)).toEqual([PRESENTER_MATTE_DISABLED_MESSAGE]);
+    } finally { vi.unstubAllEnvs(); }
   });
 });

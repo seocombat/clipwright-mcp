@@ -11,6 +11,7 @@ export * from '../contracts/v1/workflow-dto.js';
 export * from './catalog.js';
 export * from './validate.js';
 export * from './product-references.js';
+export * from './film-directions.js';
 export * from './reference-remake.js';
 export type { RemakeChoice, RemakeChoiceSlot, RemakeChooser } from './remake-chooser.js';
 export { referenceProfileWarnings } from '../reference-profile.js';

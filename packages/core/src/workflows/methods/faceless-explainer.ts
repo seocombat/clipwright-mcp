@@ -2,7 +2,7 @@ import { defineWorkflowMethod, nativeLimitations, nativeQa, verticalOutput } fro
 
 const script = 'A seed needs three simple things to begin growing. First, moisture helps the seed take in water. Next, suitable warmth supports its early growth. Finally, air allows the living seed to breathe. The exact conditions depend on the plant. Check the instructions for your seed before you start. Keep the steps in that order and watch for the first small root. Once it sprouts, move it to a bright window and keep the soil lightly damp.';
 export const facelessExplainer = defineWorkflowMethod({
-    id: 'faceless-explainer', version: 1, content_digest: 'b25b3d717779efc0744d53cf2fb28a4f06b8dc30bdd38010774d2b2cf9e06ef9', authoring_status: 'ready', title: 'Explain a topic in an ordered sequence',
+    id: 'faceless-explainer', version: 1, content_digest: 'a14163b14041d4f3293501dd0ef5f46fc0cda541482dacd52db0cf7695d2cbbb', authoring_status: 'ready', title: 'Explain a topic in an ordered sequence',
     purpose: 'Make one topic or supplied list understandable through an opening, ordered explanation and takeaway.',
     required_inputs: ['audience', 'message', 'topic', 'script'], required_features: ['exact_script', 'voice', 'word_anchors'],
     script_rules: { structure: ['opening', 'ordered_points', 'takeaway'], instructions: [
@@ -10,7 +10,7 @@ export const facelessExplainer = defineWorkflowMethod({
         'Freeze the narration before launch. Separate a target length from the measured output and do not promise exact final frames before speech.',
     ] },
     binding: { kind: 'native', skill: 'make_faceless', profile: 'faceless-native-v1', visual_beats: 'advisory' }, output: verticalOutput,
-    limitations: [...nativeLimitations, 'The native profile is 9:16 at 1080p with an animated opening clip and image scenes.',
+    limitations: [...nativeLimitations, 'The native profile is 9:16 at 720p, or 1080p when named, with an animated opening clip and image scenes.',
         'Duration, captions and voice follow the current faceless checks. This binding does not accept arbitrary scene layouts.'], qa_policy: nativeQa,
     example: { brief: { audience: 'First-time gardeners', message: 'Explain seed germination', topic: 'Three needs of a germinating seed', script,
         native: { skill: 'make_faceless', input: { input_mode: 'script', script, duration_seconds: 30 } } },

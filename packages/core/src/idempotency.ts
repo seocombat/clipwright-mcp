@@ -6,7 +6,7 @@ import { candidateRequest } from "./edit-candidate.js";
 import { revisionRequest } from "./edit-revision.js";
 import { makeFacelessInput } from "./faceless-public.js";
 import { generateImageRequest, generateVideoRequest } from "./generations.js";
-import { filmHeroInput, filmRenderInput, filmStillsInput, filmVoiceInput } from "./own-agent-runs.js";
+import { filmEditInput, filmHeroInput, filmRenderInput, filmStillsInput, filmVoiceInput, takeCheckInput, takeFramesInput } from "./own-agent-runs.js";
 import type { OwnAgentSkill } from "./own-agent-price.js";
 import { runId } from "./runs.js";
 import { measuredVideoSize, type RunVideo } from "./video-size.js";
@@ -94,7 +94,9 @@ export function generationIdempotencyKeyFor(skill: "generate_image" | "generate_
 
 /** The key of an own-agent run (#1337): the client, the skill and its parsed request, so a retry of the same ask is the same run. */
 export function ownAgentIdempotencyKeyFor(skill: OwnAgentSkill, request: unknown, clientId: string): string {
-  const schema = skill === "film_stills" ? filmStillsInput : skill === "film_voice" ? filmVoiceInput : skill === "film_hero" ? filmHeroInput : filmRenderInput;
+  const schema = skill === "film_stills" ? filmStillsInput : skill === "film_voice" ? filmVoiceInput : skill === "film_hero" ? filmHeroInput
+    : skill === "film_edit" ? filmEditInput : skill === "film_take_frames" ? takeFramesInput : skill === "film_take_check" ? takeCheckInput
+    : filmRenderInput;
   return createHash("sha256").update(clientId + JSON.stringify(canonicalize({ skill, request: schema.parse(request) }))).digest("hex");
 }
 
@@ -112,11 +114,13 @@ export function uploadRequestIdempotencyKeyFor(kind: "import" | "intent", input:
     .digest("hex");
 }
 
-/** What identifies an asset creation: role, name and source; inline base64 by its digest, and the confirmation is no part. */
-export function assetRequestIdentity(input: unknown): unknown {
+/** What identifies an asset creation: role, name and source; inline base64 by its bytes' digest, and the confirmation is no part. */
+/** `legacy` digests the base64 text instead, as keys minted before 2026-11-16 did: padding then made one picture two requests. */
+export function assetRequestIdentity(input: unknown, legacy = false): unknown {
   const { source, role, name, analysis_only } = createAssetRequest.parse(input);
-  const named = "base64" in source
-    ? { base64_sha256: createHash("sha256").update(source.base64).digest("hex"), media_type: source.media_type } : source;
+  const named = !("base64" in source) ? source : legacy
+    ? { base64_sha256: createHash("sha256").update(source.base64).digest("hex"), media_type: source.media_type }
+    : { sha256: createHash("sha256").update(Buffer.from(source.base64, "base64")).digest("hex"), media_type: source.media_type };
   // Named only when set, so every key minted before analysis_only stays the same.
   return { kind: "asset", role, name, source: named, ...(analysis_only ? { analysis_only } : {}) };
 }

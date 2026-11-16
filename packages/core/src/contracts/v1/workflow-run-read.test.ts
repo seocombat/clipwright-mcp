@@ -53,3 +53,11 @@ it('rejects impossible word/frame placement intervals but accepts a nearest-fram
     expect(workflowAssetPlacementRead.safeParse({ ...placement, end_frame: 166 }).success).toBe(false);
     expect(workflowAssetPlacementRead.parse({ ...placement, end_frame: 167 })).toMatchObject({ start_frame: 167, end_frame: 167 });
 });
+/** #1466. Mutant: leave the film's shown frame undeclared, so the document says nothing of a field the outcome returns, and any value reads. */
+it('declares an explainer film\'s shown frame inside its placement interval', () => {
+    const placement = { instance_id: 'first', asset_id: 'upl_example', source_digest: digest,
+        first_word: 20, end_word: 23, shot_id: 'p1', start_frame: 167, end_frame: 192, normalized_sha256: digest, width: 1080, height: 1920 };
+    expect(workflowAssetPlacementRead.parse({ ...placement, shown_frame: 180 })).toMatchObject({ shown_frame: 180 });
+    expect(workflowAssetPlacementRead.parse(placement)).not.toHaveProperty('shown_frame');
+    for (const shown of [166, 193, 180.5, '180']) expect(workflowAssetPlacementRead.safeParse({ ...placement, shown_frame: shown }).success).toBe(false);
+});

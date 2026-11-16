@@ -6,39 +6,51 @@ import { OWN_STILLS_SINGLE_MAX, parseApiFailure, putFilmFilesInput, type FilmRun
 import type { ClipwrightClient } from "@clipwright/sdk";
 import { listTools } from "./remote.js";
 import { ClipwrightApiError } from "@clipwright/sdk";
-import { FILM_POLL_MS, FILM_WAIT_MS, ownAgentOpenFor, registerFilmDraftTools, stdioModes, stillPictures, waitForFilmRun } from "./film-tools.js";
+import { AD_DIY_TOOLS, FILM_POLL_MS, FILM_WAIT_MS, ownAgentOpenFor, registerFilmDraftTools, stdioModes, stillPictures, waitForFilmRun } from "./film-tools.js";
 
 // #1291 F2, #1337: the «own agent» film tools are listed only where the mode is offered, so the public tool list is unchanged before launch.
 
-const FILM_TOOLS = ["check_film", "create_film_draft", "get_film_draft", "get_film_guide", "get_film_kit", "get_film_run", "make_film_hero", "make_voice", "preview_stills",
-  "put_film_files", "quote_film_hero", "quote_render", "quote_stills", "quote_voice", "render_film"];
+const FILM_TOOLS = ["check_film", "check_take", "create_film_draft", "get_film_draft", "get_film_guide", "get_film_kit", "get_film_run", "make_film_hero",
+  "make_voice", "preview_stills", "put_film_files", "quote_edit", "quote_film_hero", "quote_render", "quote_stills", "quote_take_check", "quote_voice",
+  "render_edit", "render_film", "take_frames"];
 
 describe("the film tools (#1291 F2, #1337)", () => {
   /** Mutant: register them unconditionally, and every client sees tools the API refuses. */
   it("are listed with the mode on and absent with it off", async () => {
-    const off = (await listTools({ fileAccess: "refuse" })).map(tool => tool.name);
+    const off = (await listTools({ fileAccess: "refuse", adGuide: true })).map(tool => tool.name);
     expect(off.filter(name => FILM_TOOLS.includes(name))).toEqual([]);
-    const on = (await listTools({ fileAccess: "refuse", ownAgent: true })).map(tool => tool.name);
+    const on = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).map(tool => tool.name);
     expect(on.filter(name => FILM_TOOLS.includes(name)).sort()).toEqual(FILM_TOOLS);
     expect(on.length).toBe(off.length + FILM_TOOLS.length);
   });
 
+  // Mutant: the ad tools listed to every account of the mode, before the owner sets their prices and the live acceptance passes.
+  it("list the ad tools only where get_ad_guide is offered", async () => {
+    const mode = (await listTools({ fileAccess: "refuse", ownAgent: true })).map(tool => tool.name);
+    expect(mode.filter(name => (AD_DIY_TOOLS as readonly string[]).includes(name))).toEqual([]);
+    expect(mode.filter(name => FILM_TOOLS.includes(name)).sort()).toEqual(FILM_TOOLS.filter(name => !(AD_DIY_TOOLS as readonly string[]).includes(name)));
+    const epic = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).map(tool => tool.name);
+    expect(epic.filter(name => (AD_DIY_TOOLS as readonly string[]).includes(name)).sort()).toEqual([...AD_DIY_TOOLS].sort());
+  });
+
   it("offer the draft's schema: a draft id, a base revision and the sound markup", async () => {
-    const put = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(tool => tool.name === "put_film_files")!;
+    const put = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).find(tool => tool.name === "put_film_files")!;
     expect(put.inputSchema.required).toEqual(expect.arrayContaining(["draft_id", "base_revision"]));
     expect(Object.keys(put.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["files", "cues", "sfx", "captions"]));
   });
 
   /** #1356. Mutants: a film tool whose listed text does not send the agent to the guide, or a guide tool that does not say to read it first. */
   it("send the agent to get_film_guide from every other film tool, and the guide says to read it first", async () => {
-    const tools = (await listTools({ fileAccess: "refuse", ownAgent: true })).filter(tool => FILM_TOOLS.includes(tool.name));
-    for (const tool of tools.filter(t => t.name !== "get_film_guide")) expect(tool.description, tool.name).toMatch(/get_film_guide/);
+    const tools = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).filter(tool => FILM_TOOLS.includes(tool.name));
+    // An edit cuts the account's clips, not a film draft: the explainer guide is not its manual.
+    for (const tool of tools.filter(t => !["get_film_guide", "quote_edit", "render_edit", "take_frames", "quote_take_check", "check_take"].includes(t.name)))
+      expect(tool.description, tool.name).toMatch(/get_film_guide/);
     expect(tools.find(t => t.name === "get_film_guide")!.description).toMatch(/^Free\. Read this first/);
   });
 
   /** #1356 C4. Mutants: a schema or a tool text that says only "replaces", and the agent resends every anchor, sound and caption on each patch. */
   it("say that cues, sfx and captions left out of a patch keep the draft's", async () => {
-    const put = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(tool => tool.name === "put_film_files")!;
+    const put = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).find(tool => tool.name === "put_film_files")!;
     // Field guidance is describe_tool's and the REST schema's: both read it from core.
     for (const field of ["cues", "sfx", "captions"] as const) expect(putFilmFilesInput.shape[field].description, field).toMatch(/omitted, the draft's stay/);
     expect(put.description).toMatch(/cues, sfx and captions[^.]*omitted[^.]*kept/);
@@ -61,7 +73,7 @@ describe("the film tools (#1291 F2, #1337)", () => {
   it("check_film is read-only, forwards the revision, the voice and unsaved changes, and answers the check", async () => {
     const sent: unknown[] = [];
     const api = { checkFilm: async (id: string, request: unknown) => { sent.push([id, request]); return { ok: true, refusals: [] }; } };
-    const listed = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(tool => tool.name === "check_film")!;
+    const listed = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).find(tool => tool.name === "check_film")!;
     expect(listed.annotations?.readOnlyHint).toBe(true);
     expect(listed.inputSchema.required).toEqual(expect.arrayContaining(["draft_id", "revision", "voice_run_id"]));
     expect(listed.description).toMatch(/^Free and instant\./);
@@ -86,9 +98,9 @@ const run = (state: string, over: Partial<FilmRun> = {}): FilmRun => ({ run_id: 
 async function callFilmTool(name: string, args: Record<string, unknown>, reads: FilmRun[], started: FilmRun,
   fetchImpl: typeof fetch = (async () => new Response(new Uint8Array([7]))) as unknown as typeof fetch) {
   const api = { previewStills: async () => started, makeVoice: async () => started, renderFilm: async () => started, makeFilmHero: async () => started,
-    getFilmRun: async () => reads.shift()! };
+    renderEdit: async () => started, takeFrames: async () => started, checkTake: async () => started, getFilmRun: async () => reads.shift()! };
   const server = new McpServer({ name: "film-test", version: "0.0.0" });
-  registerFilmDraftTools(server, api as unknown as ClipwrightClient, { pollMs: 0, sleep: async () => undefined, fetchImpl });
+  registerFilmDraftTools(server, api as unknown as ClipwrightClient, { pollMs: 0, sleep: async () => undefined, fetchImpl }, true);
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair(), client = new Client({ name: "film-test", version: "0.0.0" });
   await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
   try { return (await client.callTool({ name, arguments: args })).content as { type: string; text?: string; data?: string }[]; }
@@ -134,7 +146,7 @@ describe("the run tools as a client calls them (#1337)", () => {
     expect([JSON.parse(waited[0]!.text!).state, reads.length, waited.map(c => c.type)]).toEqual(["succeeded", 0, ["text", "image"]]);
     const later = [run("generating")], done = await callFilmTool("get_film_run", { run_id: "run_s" }, [drawn, ...later], run("queued"));
     expect([JSON.parse(done[0]!.text!).state, later.length]).toEqual(["succeeded", 1]);
-    const tool = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(t => t.name === "get_film_run")!;
+    const tool = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).find(t => t.name === "get_film_run")!;
     expect(tool.description).toMatch(/Waits up to 45 s/);
   });
 
@@ -171,16 +183,61 @@ describe("the run tools as a client calls them (#1337)", () => {
   it("make_film_hero answers at once with the call to poll, and its schema names every source of the hero", async () => {
     const hero = await callFilmTool("make_film_hero", { character_details: "A round mint cactus" }, [], run("queued", { skill: "film_hero" }));
     expect(JSON.parse(hero[0]!.text!).poll).toEqual({ tool: "get_film_run", arguments: { run_id: "run_s" }, retry_after_seconds: 5 });
-    const tools = await listTools({ fileAccess: "refuse", ownAgent: true });
+    const tools = await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true });
     for (const name of ["quote_film_hero", "make_film_hero"]) {
       const tool = tools.find(t => t.name === name)!;
       expect(Object.keys(tool.inputSchema.properties ?? {}).sort())
-        .toEqual(name === "make_film_hero" ? ["attempt", "character_details", "character_reference", "mascot_id", "script", "voice_run_id"]
-          : ["character_details", "character_reference", "mascot_id", "script", "voice_run_id"]);
+        .toEqual(name === "make_film_hero" ? ["attempt", "character_details", "character_reference", "mascot_id", "max_credits", "script", "voice_run_id"]
+          : ["character_details", "character_reference", "mascot_id", "max_credits", "script", "voice_run_id"]);
       expect(tool.inputSchema.required ?? []).toEqual([]);
     }
     expect(tools.find(t => t.name === "make_film_hero")!.description).toMatch(/per pose published.*mascot_id/s);
     expect(tools.find(t => t.name === "make_film_hero")!.description).toMatch(/With mascot_id alone, completes that saved mascot/);
+  });
+
+  // Mutants: render_edit not answering at once with the poll, its schema missing a field of the edit list, or its text hiding the charge rule.
+  it("render_edit answers at once with the call to poll, and quote_edit and render_edit take the whole edit list", async () => {
+    const edit = await callFilmTool("render_edit", { clips: [{ run_id: "run_clip", from: 0, to: 2 }] }, [], run("queued", { skill: "film_edit" }));
+    expect(JSON.parse(edit[0]!.text!).poll).toEqual({ tool: "get_film_run", arguments: { run_id: "run_s" }, retry_after_seconds: 5 });
+    const tools = await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true });
+    for (const name of ["quote_edit", "render_edit"]) {
+      const tool = tools.find(t => t.name === name)!;
+      expect(Object.keys(tool.inputSchema.properties ?? {}).sort())
+        .toEqual([...name === "render_edit" ? ["attempt"] : [], "captions", "clips", "hold", "max_credits", "voice"]);
+      expect(tool.inputSchema.required).toEqual(["clips"]);
+    }
+    expect(tools.find(t => t.name === "render_edit")!.description).toMatch(/^Paid once per delivered cut, after quote_edit\..*never cropped.*costs nothing/s);
+  });
+});
+
+describe("a take's audit as a client calls it", () => {
+  const sheets = [1, 2].map(i => ({ image_url: `https://r2.test/sheet${i}.png`, from: (i - 1) * 3, to: i * 3 - 0.125, frames: 24 }));
+  // Mutants: take_frames answering before the run ends, or with its sheets as links only, and the agent sees no frame.
+  it("take_frames waits for the run and returns every sheet as a picture", async () => {
+    const fetched: string[] = [];
+    const content = await callFilmTool("take_frames", { run_id: "run_clip" }, [run("generating", { skill: "film_take_frames" }),
+      run("succeeded", { skill: "film_take_frames", take_frames: { fps: 8, frames: 48, sheets } })], run("queued", { skill: "film_take_frames" }),
+    fetchedBy(fetched));
+    expect(content.map(c => c.type)).toEqual(["text", "image", "image"]);
+    expect(fetched).toEqual(["https://r2.test/sheet1.png", "https://r2.test/sheet2.png"]);
+  });
+
+  // Mutants: check_take answering at once without the verdict, its schema dropping a field, or its text hiding the charge rule.
+  it("check_take waits for the verdict, and both check tools take the take, its direction, the product and the moves", async () => {
+    const verdict = { duration_sec: 8, findings: [{ code: "HANDLING", level: "action" as const, from: 2.5, to: 3.1, whole_take: false, why: null }],
+      clean: [{ from: 0, to: 2.5 }, { from: 3.1, to: 8 }] };
+    const content = await callFilmTool("check_take", { run_id: "run_clip", direction: "A hand lifts the jar." },
+      [run("succeeded", { skill: "film_take_check", take_check: verdict })], run("queued", { skill: "film_take_check" }));
+    expect(JSON.parse(content[0]!.text!).take_check).toEqual(verdict);
+    const tools = await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true });
+    for (const name of ["quote_take_check", "check_take"]) {
+      expect(Object.keys(tools.find(t => t.name === name)!.inputSchema.properties ?? {}).sort())
+        .toEqual(["asset_id", ...name === "check_take" ? ["attempt"] : [], "direction", "max_credits", "moves", "product_image", "run_id"]);
+    }
+    expect(Object.keys(tools.find(t => t.name === "take_frames")!.inputSchema.properties ?? {}).sort())
+      .toEqual(["asset_id", "attempt", "crop", "fps", "from", "max_credits", "run_id", "to"]);
+    expect(tools.find(t => t.name === "check_take")!.description).toMatch(/^Paid per delivered verdict, after quote_take_check\..*costs nothing/s);
+    expect(tools.find(t => t.name === "take_frames")!.description).toMatch(/^Free\..*at most 96 frames/s);
   });
 });
 
@@ -272,7 +329,7 @@ describe("a stills run read again (#1372 C2)", () => {
     expect(first.map(c => c.type)).toEqual(["text", "image"]);
     expect(Buffer.from(second[1]!.data!, "base64").toString()).toBe("https://r2.test/sheet.png");
     expect([second, started]).toEqual([first, []]);
-    const tool = (await listTools({ fileAccess: "refuse", ownAgent: true })).find(t => t.name === "get_film_run")!;
+    const tool = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).find(t => t.name === "get_film_run")!;
     expect(tool.description).toMatch(/pictures again.*no charge/);
   });
 
@@ -282,7 +339,7 @@ describe("a stills run read again (#1372 C2)", () => {
     const fetched: string[] = [], fetchImpl = (async (url: string) => { fetched.push(url); return new Response(new Uint8Array([1])); }) as unknown as typeof fetch;
     expect((await stillPictures(hero("https://r2.test/hero-sheet.png"), fetchImpl)).images.map(i => i.type)).toEqual(["image"]);
     expect([(await stillPictures(hero(null), fetchImpl)).images, fetched]).toEqual([[], ["https://r2.test/hero-sheet.png"]]);
-    expect((await listTools({ fileAccess: "refuse", ownAgent: true })).find(t => t.name === "make_film_hero")!.description).toMatch(/look at it before .*stills/i);
+    expect((await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).find(t => t.name === "make_film_hero")!.description).toMatch(/look at it before .*stills/i);
   });
 });
 

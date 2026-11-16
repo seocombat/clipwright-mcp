@@ -1,4 +1,5 @@
-import { detectScriptFamily, GOOGLE_TTS_MODEL, type TtsModelId } from "./voices.js";
+import { isEnglishScript, measuredPaceOf, VOICE_PACE } from "./voice-pace.js";
+import { DEFAULT_TTS_MODEL, detectScriptFamily, GOOGLE_TTS_MODEL, type TtsModelId } from "./voices.js";
 
 /** Speech pacing: 2–4 words per second. */
 export const WORDS_PER_SECOND_MIN = 2;
@@ -58,9 +59,30 @@ const measuredLanguageOf = (voice: string | undefined): string | undefined => {
   return language !== undefined && Object.hasOwn(LATIN_LANGUAGE_PACE, language) ? language : undefined;
 };
 
-/** An ESTIMATE from the script's pace, not a fact: the charge follows the measured duration. Given `pace`, a take cut with pause_trim */
-/** reads 9% faster and Latin script in a language measured above is timed by characters; any other take is timed by words as before. */
+/** A pause-trimmed English take on a measured voice (#1520), fitted on 37 delivered takes of 23 scripts: the voice's words/s inside a sentence */
+/** times this many characters, plus a pause at each break. Held out by script it missed by 4.4% on average, where 2.6 words/s missed by 10%. */
+export const MEASURED_VOICE_CHARS_PER_WORD = 5.77;
+export const SENTENCE_BREAK_SEC = 0.62;
+
+/** Sentence ends followed by more speech; a one-word sentence ("Claude.") runs into the next without a pause. */
+export function sentenceBreaks(script: string): number {
+  const sentences = script.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+  return sentences.slice(0, -1).filter(sentence => countWords(sentence) >= 2).length;
+}
+
+/** The trimmed English take's seconds on a voice measured on its model, or undefined when that is not the take. */
+function measuredVoiceSec(script: string, model: TtsModelId | undefined, pace: SpeechPace | undefined): number | undefined {
+  const measured = pace?.pauseTrim ? measuredPaceOf(pace.voice) : undefined;
+  if (!measured || (model ?? DEFAULT_TTS_MODEL) !== VOICE_PACE.model || !isEnglishScript(script, detectScriptFamily(script) === "latin")) return undefined;
+  const chars = Array.from(script.replace(/\s+/g, " ").trim()).length;
+  return Math.max(1, Math.ceil(chars / (measured.words_per_second * MEASURED_VOICE_CHARS_PER_WORD) + SENTENCE_BREAK_SEC * sentenceBreaks(script) - 1e-9));
+}
+
+/** An ESTIMATE, not a fact: the charge follows the measured duration. A trimmed English take on a measured voice is timed by it; else */
+/** pause_trim reads 9% faster, a measured Latin language is timed by characters and any other take by words as before. */
 export function estimateDurationSec(script: string, model?: TtsModelId, pace?: SpeechPace): number {
+  const voiced = measuredVoiceSec(script, model, pace);
+  if (voiced !== undefined) return voiced;
   const trim = pace?.pauseTrim ? PAUSE_TRIM_PACE_FACTOR : 1;
   const language = measuredLanguageOf(pace?.voice);
   if (language !== undefined && detectScriptFamily(script) === "latin") {

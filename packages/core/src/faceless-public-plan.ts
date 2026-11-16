@@ -87,6 +87,8 @@ export type FacelessPublicPlan = {
   captionPhrases: z.infer<typeof phrase>[];
   /** Present only past `FACELESS_IMAGE_MAX_FRAMES`: the longest IMAGE shot this plan was made under. */
   imageMaxFrames?: number;
+  /** Present only when positive: frames the last picture holds past the narration's tail, so a template plays out (#1462). */
+  endHoldFrames?: number;
   shots: Array<{
     id: string; mediaType: "video" | "image"; startFrame: number; endFrame: number;
     beatIds: string[]; visualPrompts: string[]; phase: FacelessPublicStory["beats"][number]["phase"];
@@ -107,7 +109,9 @@ export type FacelessPublicPlanOptions = { keepBeats?: ReadonlySet<number>;
   /** Word ranges whose shot may last at most `maxFrames` (an action shot's clip, #1113); a shot over them that runs longer is not planned. */
   capFrames?: ReadonlyArray<{ first: number; end: number; maxFrames: number }>;
   /** The longest IMAGE shot, from `FACELESS_IMAGE_MAX_FRAMES` up: a narration longer than its plan keeps its pictures and holds each longer. */
-  imageMaxFrames?: number };
+  imageMaxFrames?: number;
+  /** Frames the video runs past its narration's tail, the last picture held, so a series or call to action plays out (#1462). */
+  endHoldFrames?: number };
 
 /** Speech boundaries and planner cuts share the native nearest-frame clock. */
 export const facelessSpeechFrame = (seconds: number): number => Math.round(seconds * 25);
@@ -121,11 +125,13 @@ export function planPublicFacelessStory(
   }
   const imageMaxFrames = options.imageMaxFrames ?? FACELESS_IMAGE_MAX_FRAMES;
   if (!Number.isSafeInteger(imageMaxFrames) || imageMaxFrames < FACELESS_IMAGE_MAX_FRAMES) throw new Error("invalid IMAGE duration ceiling");
+  const endHoldFrames = options.endHoldFrames ?? 0;
+  if (!Number.isSafeInteger(endHoldFrames) || endHoldFrames < 0) throw new Error("invalid end hold");
   const story = parseFacelessPublicStory(input, input.script);
   const style = parseCutStyle(inputStyle);
   assertStoryboardWords(story.script, words);
   const speechEnd = story.narrationStartFrame + words.at(-1)!.endSec * 25;
-  if (speechEnd > outputFrames + 1e-9 || outputFrames - speechEnd > 12.5 + 1e-9 ||
+  if (speechEnd > outputFrames + 1e-9 || outputFrames - speechEnd > 12.5 + endHoldFrames + 1e-9 ||
       story.narrationStartFrame + words[0]!.startSec * 25 > 125) throw new Error("speech duration outside public output bounds");
   const phases = { setup: 0, development: 1, climax: 2, resolution: 3 };
   const ids = new Set<string>();
@@ -184,7 +190,8 @@ export function planPublicFacelessStory(
     for (let start = 0; start < end; start++) {
       const prior = states[start];
       const duration = nodes[end]!.frame - nodes[start]!.frame;
-      if (!prior || duration < FACELESS_IMAGE_MIN_FRAMES || duration > imageMaxFrames) continue;
+      // The last picture also holds the end; its own words keep to the usual bound.
+      if (!prior || duration < FACELESS_IMAGE_MIN_FRAMES || duration > imageMaxFrames + (end === final ? endHoldFrames : 0)) continue;
       // The shot speaks words (nodes[start].afterWord, nodes[end].afterWord]; one holding a capped range keeps to its cap.
       if (options.capFrames?.some(range => duration > range.maxFrames && range.first <= nodes[end]!.afterWord &&
         range.end > nodes[start]!.afterWord + 1)) continue;
@@ -223,5 +230,5 @@ export function planPublicFacelessStory(
   });
   return { version: "faceless_public_v1", outputFrames, script: story.script, words: words.map(w => ({ ...w })),
     narrationStartFrame: story.narrationStartFrame, captionPhrases,
-    ...(imageMaxFrames > FACELESS_IMAGE_MAX_FRAMES ? { imageMaxFrames } : {}), shots };
+    ...(imageMaxFrames > FACELESS_IMAGE_MAX_FRAMES ? { imageMaxFrames } : {}), ...(endHoldFrames > 0 ? { endHoldFrames } : {}), shots };
 }

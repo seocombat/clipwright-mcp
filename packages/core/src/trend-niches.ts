@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 import {
-  findTrendsRequest, TREND_PAGE_CREDITS, TREND_PLATFORMS, TREND_SEARCH_DEFAULT_DAYS, TREND_SEARCH_MAX_DAYS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_MIN_DAYS,
+  findTrendsRequest, TREND_FREE_PAGES_PER_DAY, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_PLATFORMS, TREND_SEARCH_DEFAULT_DAYS, TREND_SEARCH_MAX_DAYS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_MIN_DAYS,
   trendPage, trendSearchId, type FindTrendsRequest, type TrendReel,
 } from "./trend-search.js";
+import { maxCreditsField } from "./max-credits.js";
 
 /** Saved niches (#1201): up to three topics an account keeps, the first its primary. A trend search that names no keywords searches */
 /** the primary one. Saving and reading them is free. */
@@ -68,7 +69,10 @@ export const findTrendsInput = z.strictObject({
     .describe(`Reels posted within this many days: ${TREND_SEARCH_MIN_DAYS} is the last 24 hours, ${TREND_SEARCH_DEFAULT_DAYS} by default, ` +
       `at most ${TREND_SEARCH_MAX_DAYS}.`),
   search_id: trendSearchId.optional().describe("With page: a next page of this finished search, its next_page. Pass nothing else with it."),
-  page: trendPage.optional().describe(`With search_id: the page to make, from 2 to ${TREND_SEARCH_MAX_PAGES}; ${TREND_PAGE_CREDITS} credits each, never free.`),
+  page: trendPage.optional().describe(`With search_id: the page to make, from 2 to ${TREND_SEARCH_MAX_PAGES}; free for ` +
+    `${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, up to ${TREND_FREE_PAGES_PER_DAY} a day per account, ` +
+    `then ${TREND_PAGE_PAID_CREDITS} credits each.`),
+  max_credits: maxCreditsField,
 });
 export type FindTrendsInput = z.input<typeof findTrendsInput>;
 
@@ -79,7 +83,8 @@ export function trendPageTarget(input: z.infer<typeof findTrendsInput>):
   { ok: true; target: { searchId: string; page: number } | null } | { ok: false; message: string } {
   const { search_id: searchId, page, ...search } = input;
   if (searchId === undefined && page === undefined) return { ok: true, target: null };
-  if (searchId === undefined || page === undefined || Object.values(search).some((value) => value !== undefined)) {
+  // The ceiling is the call's own term, not a search field: a page takes it too.
+  if (searchId === undefined || page === undefined || Object.entries(search).some(([key, value]) => key !== "max_credits" && value !== undefined)) {
     return { ok: false, message: TREND_PAGE_FIELDS_MESSAGE };
   }
   return { ok: true, target: { searchId, page } };
@@ -93,7 +98,7 @@ export function resolveFindTrends(input: z.infer<typeof findTrendsInput>, primar
   { ok: true; request: FindTrendsRequest; fromNiche: boolean } | { ok: false; message: string } {
   // A page's fields never start a search: `trendPageTarget` reads them first.
   if (input.search_id !== undefined || input.page !== undefined) return { ok: false, message: TREND_PAGE_FIELDS_MESSAGE };
-  const named = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
+  const named = Object.fromEntries(Object.entries(input).filter(([key, value]) => key !== "max_credits" && value !== undefined));
   const fromNiche = input.keywords === undefined;
   if (fromNiche && primary === null) return { ok: false, message: TREND_NICHE_REQUIRED_MESSAGE };
   const language = fromNiche ? input.language ?? primary!.language ?? undefined : input.language;

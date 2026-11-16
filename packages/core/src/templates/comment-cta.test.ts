@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { dispositionWarnings } from "../contract-dispositions.js";
 import { makeFacelessInput } from "../faceless-public.js";
 import { lexicalTokens } from "../semantic-inserts.js";
 import { makeUgcInput, mcpUgcTemplate } from "../skills.js";
@@ -47,13 +48,13 @@ describe("comment call to action contract", () => {
     expect(templateDataText(commentCta)).toContain("lines 2–6 of {text ≤ 32, accent? ≤ 24, act? dm|follow, at? inner quote}");
   });
 
-  it("is drawn in 9:16 only, and a faceless video refuses it", () => {
+  /** Mutant: keep refusing it on a faceless video, which it needs no presenter for (#1438). */
+  it("is drawn in 9:16 only, and on a faceless video too", () => {
     switchOn();
     expect(refusals({ templates: [cta()], aspect_ratio: "16:9" }))
       .toEqual(["aspect_ratio: comment_cta is drawn in 9:16 only: pass aspect_ratio 9:16, or use another template kind"]);
     const parsed = makeFacelessInput.safeParse({ input_mode: "script", script, duration_seconds: 30, templates: [cta()] });
-    expect(parsed.success ? [] : parsed.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`))
-      .toEqual(["templates.0.kind: comment_cta is a make_ugc template; use another kind here"]);
+    expect(parsed.success ? [] : parsed.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`)).toEqual([]);
   });
 
   /** Mutant: drop the label check, and a Russian video's comment field and follow button read English. */
@@ -80,6 +81,38 @@ describe("comment call to action contract", () => {
     expect(refusals({ templates: [cta({ loop: true, lines: unquoted }, { cover_words: 12 })] })).toEqual(["templates.0.data.loop: comment_cta loop " +
       "ends the video on its first frame: the template must cover the script's last words, or drop loop"]);
     expect(refusals({ templates: [cta({ lines: unquoted }, { cover_words: 12 })] })).toEqual([]);
+  });
+
+  /** #1457: before payment, a call to action that runs on is named with the time it adds. Mutants: drop the warning (the longer video unnamed);
+   *  say the video runs on for one in the middle (it does not grow there). */
+  it("names, before payment, a call to action whose acts outlast its sentence, with the video's new length at the end", () => {
+    switchOn();
+    const quoted = [{ text: "Comment \"LIST\"", at: "Comment" }, { text: "and I'll send", at: "send" },
+      { text: "the full list", act: "dm" as const, at: "list straight" }, { text: "Follow", act: "follow" as const, at: "messages" }];
+    const run = (data: Record<string, unknown>, extra: Record<string, unknown>, more: Record<string, unknown> = {}) =>
+      dispositionWarnings(makeUgcInput.parse({ script, ...more, templates: [cta(data, extra)] })).filter(warning => warning.startsWith("template \"cta\""));
+    // "follow" is word 21 of 24 at 2.6 a second: 7.7 s from "Comment" to the end, its tap settled and the loop at 8.2 s.
+    expect(run({ loop: true }, {})).toEqual(["template \"cta\": its sentence gives about 7.7 s and its comment, message and follow need about " +
+      "0.4 s more; the video runs 0.4 s past its last word so every act of template \"cta\" plays, the follow button tapped; " +
+      "lengthen the sentence to keep the call to action on it"]);
+    const middle = run({ lines: quoted }, { anchor: { quote: "Comment list below and I will send the full list straight to your messages." },
+      cover_words: undefined });
+    expect(middle).toEqual(["template \"cta\": its sentence gives about 5.4 s and its comment, message and follow need about 0.8 s more; " +
+      "the call to action will run on past it and the next template starts later; lengthen the sentence to keep the call to action on it"]);
+    expect(run({ lines: unquoted }, {})).toEqual([]);
+  });
+
+  /** #1462. Mutant: name the video's new length only for one on the last word, and one whose run-on passes the script's end is said to fit. */
+  it("names, before payment, the video's new length for a call to action whose run-on passes the script's last word", () => {
+    switchOn();
+    const lastWords = [{ text: "Comment \"LIST\"", at: "Comment" }, { text: "Follow", act: "follow" as const, at: "follow" }];
+    const warnings = dispositionWarnings(makeUgcInput.parse({ script, templates: [cta({ lines: lastWords },
+      { anchor: { quote: "Comment list below and I will send the full list straight to your messages. Don't forget to follow" }, cover_words: undefined })] }))
+      .filter(warning => warning.startsWith("template \"cta\""));
+    // Its words end before "for more.", two words at 2.6 a second, 0.8 s; its acts run 1.1 s past them, 0.4 s past the script's end.
+    expect(warnings).toEqual(["template \"cta\": its sentence gives about 7.0 s and its comment, message and follow need about 1.1 s more; " +
+      "the video runs 0.4 s past its last word so every act of template \"cta\" plays, the follow button tapped; " +
+      "lengthen the sentence to keep the call to action on it"]);
   });
 
   it("pins its avatar as an image slot", () => {
@@ -118,6 +151,22 @@ describe("comment call to action pace", () => {
     expect(crowded.warnings).toEqual(["template \"c\" lines.1.at \"send\" is spoken too close after the line before it: the line starts 0.2 s later"]);
   });
 
+  /** Mutant: keep the gap when it runs past the template's end, and a line's frame lies outside the template, where the composition refuses
+   *  the whole video (#1425). */
+  it("starts a line the gap would push past the end on its own frame instead, and names the lines before it as cut short", () => {
+    const late = commentCtaMoments(value(), [undefined, 80, undefined, 85], 90, 25, "c");
+    expect(late.moments).toEqual([0, 80, 83, 85]);
+    expect(late.warnings).toContain("template \"c\": lines.2 and lines.3 start less than 0.4 s after the line before, too near the template's end to wait: " +
+      "the line before each is cut short");
+    // Lines with no frame of their own left share the last one, still inside the template.
+    expect(commentCtaMoments(value(), [undefined, 87, undefined, 89], 90, 25, "c").moments).toEqual([0, 87, 88, 89]);
+    expect(commentCtaMoments(value(), [undefined, 89, undefined, 89], 90, 25, "c").moments).toEqual([0, 89, 89, 89]);
+    // Codex r1: a line spoken before the one ahead of it has moved still starts after it, so every line becomes current in turn.
+    expect(commentCtaMoments(value(), [undefined, 75, 76, 77], 90, 25, "c").moments).toEqual([0, 75, 85, 86]);
+    // A word that rounds onto the template's end frame starts its line on the last frame, still inside.
+    expect(commentCtaMoments(value(), [undefined, 90, undefined, 90], 90, 25, "c").moments).toEqual([0, 89, 89, 89]);
+  });
+
   /** Mutant: drop the warning, and a voice too short for the funnel silently loses the tap on the follow button. */
   it("names a follow tap the template's time does not reach", () => {
     const two = value({ lines: [{ text: "a" }, { text: "b" }] });
@@ -127,6 +176,37 @@ describe("comment call to action pace", () => {
     const lost = commentCtaMoments(value({ lines: [{ text: "a" }, { text: "b" }], loop: true }), [], 40, 25, "c");
     expect(lost.moments).toEqual([0, 10]);
     expect(lost.warnings[0]).toMatch(/has 1\.2 s .* so the follow button is not tapped on screen$/);
+  });
+
+  /** #1457, owner 12.11: the tap is never dropped for lack of time. Mutants: keep the old `room` (no frames asked, the tap lost); ask frames
+   *  past `most` (a beat outside the video); drop the run-on line (the longer video unnamed). */
+  it("runs on past its words until the follow is tapped and settles, up to the frames it may reach, and names it", () => {
+    const loop = value({ lines: [{ text: "a" }, { text: "b" }], loop: true });
+    // Typing LIST ends on 18, the send on 24, the message on 32, the follow on 40, its tap on 58, settled on 70, the loop's 10 after.
+    expect(commentCtaMoments(loop, [], 40, 25, "c", 200)).toEqual({ moments: [0, 10], frames: 80,
+      warnings: ["template \"c\" runs 1.6 s past its words so that its comment, message and follow play to the end"] });
+    // Up to the frames it may reach: 70 frames give the page 60, the tap cut short, and that is named.
+    const capped = commentCtaMoments(loop, [], 40, 25, "c", 70);
+    expect([capped.frames, capped.warnings[1]]).toEqual([70, "template \"c\": the call to action has 2.4 s and its comment, message and follow " +
+      "need 2.8 s, so the tap on the follow button is cut short"]);
+    // Words that give the funnel its time ask nothing more.
+    expect(commentCtaMoments(loop, [], 80, 25, "c", 200)).toEqual({ moments: [0, 20], warnings: [] });
+  });
+
+  /** Mutant: give way to the template's end instead of the frames it may reach, and lines spoken late are cut short though the video runs on. */
+  it("keeps each line's gap when it may run on, instead of cutting the line before short", () => {
+    const late = commentCtaMoments(value(), [undefined, 80, undefined, 85], 90, 25, "c", 300);
+    // "send" on 80, the message line 10 after, the follow 10 after that; its tap on 118 and settled on 130.
+    expect([late.moments, late.frames]).toEqual([[0, 80, 90, 100], 130]);
+    expect(late.warnings).toEqual(["template \"c\" lines.3.at \"follow\" is spoken too close after the line before it: the line starts 0.6 s later",
+      "template \"c\" runs 1.6 s past its words so that its comment, message and follow play to the end"]);
+  });
+
+  /** Mutant: count only the tap, and a line after the follow's starts in the template's last frames, gone before its words build. */
+  it("gives a line after the follow's its gap before the page ends", () => {
+    const after = value({ lines: [{ text: "a" }, { text: "b", act: "follow" }, { text: "c", at: "c" }] });
+    // The follow's tap settles on 70; the last line, spoken on 62, keeps its 10 frames to 72.
+    expect(commentCtaMoments(after, [undefined, undefined, 62], 64, 25, "c", 200)).toMatchObject({ moments: [0, 31, 62], frames: 72 });
   });
 
   it("freezes its moments from the words through templateMoments, the first line on frame 0", () => {

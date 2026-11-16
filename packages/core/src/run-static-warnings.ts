@@ -14,7 +14,7 @@ import { buildSpeechModelWarnings, buildVoiceWarnings, TTS_MODELS, ttsModelBefor
 import { buildActorGenderWarnings, buildVoiceActorMatchWarnings, presenterViewWarnings, renderedPresenterFraming, type Gender } from "./actors.js";
 import { resolveAspectRatio, upscaleWarning } from "./aspect.js";
 import { pictureQualityWarnings, videoHoldWarnings } from "./ugc-video-media.js";
-import { DEFAULT_RESOLUTION } from "./skills.js";
+import { LEGACY_RUN_RESOLUTION } from "./skills.js";
 import {
   parseRunPreflight,
   sourceNotProbedWarning,
@@ -64,7 +64,7 @@ function aspectFactWarnings(
   const resolution = resolveAspectRatio({ requested: input.aspect_ratio, source });
   // A refusal is unreachable here: a run with a format conflict is refused before insert (400).
   if (resolution.kind !== "resolved") return [];
-  const upscale = upscaleWarning(source, input.resolution ?? DEFAULT_RESOLUTION, resolution.aspectRatio);
+  const upscale = upscaleWarning(source, input.resolution ?? LEGACY_RUN_RESOLUTION, resolution.aspectRatio);
   return [...resolution.warnings, ...(upscale === null ? [] : [upscale])];
 }
 
@@ -180,6 +180,8 @@ function ugcRunWarnings(
     ...storedStrings((storedInput as { move_warnings?: unknown }).move_warnings),
     // What the saved script voice changed in a direct run's script (#1203), pinned as the quote said it.
     ...storedStrings((storedInput as { voice_warnings?: unknown }).voice_warnings),
+    // What admission settled in the request (a shot's product placement, the presenter), pinned as the quote said it.
+    ...storedStrings((storedInput as { request_warnings?: unknown }).request_warnings),
   ];
 }
 

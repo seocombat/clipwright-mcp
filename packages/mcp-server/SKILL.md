@@ -426,6 +426,16 @@ nor `voice`, the male voice `george` speaks and `warnings[]` says so. Pass
 `actor_gender` or a `voice`. With `actor_id` the voice follows the actor's gender.
 Checked 2026-10-31.
 
+**Pick the presenter before the quote.** With no `image`, `actor_id` or
+`actor_gender`, the default presenter is a man, and `warnings[]` says so. When
+the script speaks as a woman, pass `actor_gender: "female"` (that gender's
+catalog actor, named in `warnings[]`) or an `actor_id` from `list_actors`.
+
+**A shot with no `product` takes its setup's placement.** Shots of one setup
+share one picture, so a `talking_action` or `action` shot that names no product
+shows it where another shot of the same setup names it, and `warnings[]` names
+those shots. Two different placements in one setup are refused.
+
 **`voice_pace` does nothing on `eleven_v4`, the default model of presets and
 catalog voices.** The voice speaks at its own pace, and the run's `warnings[]`
 says so; the quote does not. To change pace, pick a voice by `words_per_second`
@@ -604,6 +614,15 @@ bought while a debt stands clear the debt first; the run still needs enough
 credits of its own, so a purchase equal to the debt clears it and adds nothing to
 the balance. Quote the debt figure and say that a purchase adds to the balance
 only the part that exceeds the debt; this refusal does not report the balance.
+
+Every paid tool takes an optional `max_credits`: the most the call may cost. A
+run is never charged more, even when its measured cost comes out higher.
+Pass the total the human agreed to from the quote. A call that reserves more
+is refused with `max_credits_exceeded` (402), carrying `hold_credits` (what the
+call reserves) and `max_credits`; nothing is charged and no run is made.
+Show the human `hold_credits` and repeat the call only after they approve that
+amount, with `max_credits` of at least it, or change the request to cost less.
+At or above the hold the call runs as usual.
 
 `account_not_admitted` (403) is not a money refusal and carries no numbers: the
 account has no access. Buying credits does not lift it; contact support. Promise

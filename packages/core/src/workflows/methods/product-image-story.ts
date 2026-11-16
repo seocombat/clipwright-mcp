@@ -2,7 +2,7 @@ import { defineWorkflowMethod, nativeLimitations, nativeQa, verticalOutput } fro
 
 const script = 'This ceramic mug is shown in the supplied photograph. Start with its overall shape, then look at the wide handle in the second view. These pictures show the actual item, while the opening animation is only an illustration. Check the visible details against the supplied images. If a detail is not shown, ask for another photograph rather than guessing what it looks like.';
 export const productImageStory = defineWorkflowMethod({
-    id: 'product-image-story', version: 1, content_digest: 'f073ff5a7147a5f95add0ae90f168dc9e99ba1e2430daedbf84bfbb7e9abfa16', authoring_status: 'ready', title: 'Tell a product story with supplied images',
+    id: 'product-image-story', version: 1, content_digest: 'f86d2afcb2a6e94d706c9240482787f9425b36a4795d51cc9d0c53048af68640', authoring_status: 'ready', title: 'Tell a product story with supplied images',
     purpose: 'Bind original product images to the exact words describing visible facts, preserving the distinction between proof and illustration.',
     required_inputs: ['audience', 'message', 'product', 'script', 'assets'], required_features: ['exact_script', 'voice', 'word_anchors', 'scene_images'],
     script_rules: { structure: ['product_context', 'visible_fact', 'image_evidence', 'decision'], instructions: [

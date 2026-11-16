@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SHOT_OPERATION_MODES, shotId, shotOperation } from "./edit-operations.js";
+import { maxCreditsField } from "./max-credits.js";
 import { runCandidate, runId, runState } from "./runs.js";
 
 /** One generated picture or clip for one shot. `take` makes a deliberate retry a new run; the same take replays the first. */
@@ -7,6 +8,7 @@ export const candidateRequest = z.strictObject({
   shot_id: shotId,
   operation: shotOperation,
   take: z.number().int().positive().safe(),
+  max_credits: maxCreditsField,
 });
 export type CandidateRequest = z.infer<typeof candidateRequest>;
 

@@ -11,11 +11,11 @@ import { TEMPLATE_KINDS, templateDataText } from "./templates/index.js";
 /** The full text each shorter MCP text was written from (#1045): a change to it fails here until its MCP text says the same. */
 const WRITTEN_FROM: Record<keyof typeof MCP_UGC_DESCRIPTIONS, string> = {
   script: "88b8571a4dfdb711", tts_model: "d219950201eba850", caption_style: "7e5ac74a91d2f231", templates: "d769223a46f3e7ff",
-  caption_emphasis: "bfa2c9ec4722ca2f", voice: "73b578402af2880d", actor_id: "ecf5a12b89539b24", voice_id: "1c0134d77b71bb6a",
-  broll_policy: "65c93e6540eb6296", overlays: "4b5ac21d7b17f1a4", image: "b97912c680ba6699", framing: "604e412f563f4d38",
-  actor_gender: "779a80e8a5de8d2a", aspect_ratio: "23f56f8973a4a61e", caption_mode: "a43a7d15ec6ca984", visible_ai_label: "588db58fe25ab7c3",
-  layout_windows: "aa2c4128ace9e9c3", end_hold_s: "6205bf9c125980e9", edit_sounds: "a38d00d12782b585", inserts: "850f94ad8dfae1f0",
-  segments: "9c9e4a016e7268f6", captions: "27f01afb9b1e5469", caption_position: "026b79d879181fd8", person: "0184780e3a758f03",
+  caption_emphasis: "bfa2c9ec4722ca2f", voice: "20b2c74a3dd259ec", actor_id: "ecf5a12b89539b24", voice_id: "1c0134d77b71bb6a",
+  broll_policy: "65c93e6540eb6296", overlays: "b3edaef679b505b4", image: "b97912c680ba6699", framing: "604e412f563f4d38",
+  actor_gender: "16457d6f9dfb05b4", aspect_ratio: "23f56f8973a4a61e", caption_mode: "a43a7d15ec6ca984", visible_ai_label: "588db58fe25ab7c3",
+  layout_windows: "aa2c4128ace9e9c3", end_hold_s: "9aab3cf2685950db", edit_sounds: "a38d00d12782b585", inserts: "c1ba8938b921f270",
+  segments: "25aef00c5f961d6c", captions: "27f01afb9b1e5469", caption_position: "026b79d879181fd8", person: "0184780e3a758f03",
   name: "1e4a75614df3d9f4", look: "c351607e2609d76e",
 };
 const digest = (text: string): string => createHash("sha256").update(text).digest("hex").slice(0, 16);

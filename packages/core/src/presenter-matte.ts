@@ -30,6 +30,13 @@ export function cutoutTemplateLines(templates: unknown): PartsLine[] {
   });
 }
 
+/** A faceless run's line when the subject of the picture under a template's words could not be cut out (#1438): drawn with the picture as a
+ *  photo inside it, or, with no picture there, without one. */
+export function pictureCutoutMissingWarning(id: string, photo = true): string {
+  return `template "${id}" was drawn without the subject of its picture cut out: ` +
+    (photo ? "the picture shows as a photo inside the template" : "the template shows without the picture");
+}
+
 /** The run's line when the presenter could not be cut out: the template is drawn, with the take as a photo in it or without it, and the run says so. */
 export function presenterCutoutMissingWarning(id: string, photo = true): string {
   return `template "${id}" was drawn without the presenter cut out: ` +

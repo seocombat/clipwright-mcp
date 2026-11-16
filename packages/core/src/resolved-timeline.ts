@@ -10,6 +10,7 @@ import { LAYER_ENTERS, LAYER_EXITS, LAYOUT_WINDOW_KINDS, MAX_LAYOUT_WINDOWS, MAX
 import { MAX_MEDIA_PER_TEMPLATE, MAX_MOMENTS_PER_TEMPLATE, MAX_TEMPLATES, TEMPLATE_PLACEMENTS, TEMPLATE_SOUND_BEATS } from "./templates/index.js";
 import { FRAMING_SIZES, MAX_FRAMING } from "./ugc-framing.js";
 import { LIVE_SHOT_KINDS } from "./live-shot-kinds.js";
+import { SHOT_MODELS } from "./face-billing.js";
 
 // The long-form timeline a render freezes: the run writes it, the editor reads it.
 
@@ -26,7 +27,8 @@ const actorSlot = z.object({ ...interval, kind: z.literal("actor"), requestHash:
   /** The actor's view the take is rendered from (#972); absent keeps the hash of every take frozen before it. */
   gaze: z.enum(["camera", "left", "right"]).optional(),
   /** The live shot the take draws (#1103): its id in the input and its kind; absent is the presenter's usual take, which keeps every hash before it. */
-  shot: z.object({ id: z.string().min(1).max(64), kind: z.enum(LIVE_SHOT_KINDS) }).strict().optional() }).strict();
+  /** `model` (#1535): a silent shot drawn on Gemini Omni 1.2; absent keeps the hash of every take frozen before it. */
+  shot: z.object({ id: z.string().min(1).max(64), kind: z.enum(LIVE_SHOT_KINDS), model: z.enum(SHOT_MODELS).optional() }).strict().optional() }).strict();
 const mediaSlot = z.object({ ...interval, kind: z.literal("media"), key: z.string().min(1), sha256: digest,
   bytes: positive, width: positive, height: positive, durationSec: z.number().positive().finite(),
   mediaType: z.enum(["image", "video"]), contentType: z.enum(["image/png", "image/jpeg", "video/mp4"]),
@@ -88,6 +90,8 @@ const contentSchema = z.object({ version: z.literal(1), mode: z.enum(["segments"
   call: audioArtifact.extend({ startFrame: frame, endFrame: positive }).strict().optional(),
   /** The talking takes' crop (#910 S4d, #924), frozen so a resume asks for the same takes; absent keeps the hash and crops nothing. */
   talkingCrop: z.object({ k: z.number().positive().finite(), anchor: z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]) }).strict().optional(),
+  /** The end hold a series that ends the script asked past end_hold_s (#1452), frozen so a resume holds the same; absent keeps the hash. */
+  endHoldFrames: positive.optional(),
 }).strict().superRefine((value, context) => {
   if (value.call) {
     const gap = value.slots.filter(slot => slot.kind === "live" || slot.kind === "hold");
@@ -232,7 +236,8 @@ export function faceBillingUnitsOf(timeline: ResolvedTimelineContent) {
     unitId: slot.kind === "live" ? `live:${slot.position}` : `segment:${slot.position}`,
     requestHash: slot.requestHash, audioDurationSec: (slot.endFrame - slot.startFrame) / timeline.fps,
     faceIntervals: [{ startFrame: slot.startFrame, endFrame: slot.endFrame }], ...(slot.kind === "live" ? { optional: true as const } : {}),
-    ...(slot.kind === "actor" && slot.shot ? { shot: slot.shot.kind } : {}) }] : []);
+    ...(slot.kind === "actor" && slot.shot ? { shot: slot.shot.kind } : {}),
+    ...(slot.kind === "actor" && slot.shot?.model ? { shotModel: slot.shot.model } : {}) }] : []);
 }
 
 /** Where a run's resolved timeline is stored, and the most bytes it may take there. */

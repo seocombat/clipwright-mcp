@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -211,9 +213,26 @@ describe("asset keys (#884)", () => {
     const analysis = { source, role: "other", name: "Ad", analysis_only: true };
     expect(assetRequestIdempotencyKeyFor(analysis, "c")).not.toBe(assetRequestIdempotencyKeyFor(confirmed, "c"));
     expect(assetRequestIdentity(confirmed)).toEqual({ kind: "asset", role: "other", name: "Ad",
-      source: { base64_sha256: expect.stringMatching(/^[a-f0-9]{64}$/), media_type: "image/png" } });
+      source: { sha256: expect.stringMatching(/^[a-f0-9]{64}$/), media_type: "image/png" } });
     const bytes = new Uint8Array([1, 2, 3]);
     expect(assetBytesIdempotencyKeyFor({ role: "other", name: "Ad", bytes, analysis_only: true }, "c"))
       .not.toBe(assetBytesIdempotencyKeyFor({ role: "other", name: "Ad", bytes }, "c"));
+  });
+
+  // A client's mail (2026-11-16): the schema takes base64 with or without its padding, and the text's digest made one picture two assets.
+  it("keys inline base64 by its bytes: padded and unpadded text of one picture is one key, other bytes another", () => {
+    const asset = (base64: string) => ({ source: { base64, media_type: "image/png" as const }, role: "other", name: "Ad", rights_confirmed: true });
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d]);
+    const padded = bytes.toString("base64");
+    expect(padded).toMatch(/=$/);
+    const unpadded = padded.replace(/=+$/, "");
+    expect(assetRequestIdempotencyKeyFor(asset(unpadded), "c")).toBe(assetRequestIdempotencyKeyFor(asset(padded), "c"));
+    expect(assetRequestIdentity(asset(padded))).toEqual({ kind: "asset", role: "other", name: "Ad",
+      source: { sha256: createHash("sha256").update(bytes).digest("hex"), media_type: "image/png" } });
+    const other = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0e]).toString("base64");
+    expect(assetRequestIdempotencyKeyFor(asset(other), "c")).not.toBe(assetRequestIdempotencyKeyFor(asset(padded), "c"));
+    // The text's digest, as keys minted before the fix hold it, stays what it was.
+    expect(assetRequestIdentity(asset(padded), true)).toEqual({ kind: "asset", role: "other", name: "Ad",
+      source: { base64_sha256: createHash("sha256").update(padded).digest("hex"), media_type: "image/png" } });
   });
 });

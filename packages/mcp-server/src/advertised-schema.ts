@@ -182,7 +182,11 @@ function advertise(tools: readonly Tool[]): Tool[] {
       listed.add(node);
     }
     if (twin !== undefined && isSchema(schema.properties)) {
-      schema.properties = Object.fromEntries(Object.entries(schema.properties).map(([key, field]) => [key, typeShape(field)]));
+      // A marked text stays on the twin as on its quote: the agent calls the paid tool too, and its text says to read the marks.
+      schema.properties = Object.fromEntries(Object.entries(schema.properties).map(([key, field]) => {
+        const marked = isSchema(field) && typeof field.description === "string" && MARKED_FIELD.test(field.description);
+        return [key, marked ? { ...(typeShape(field) as Schema), description: field.description } : typeShape(field)];
+      }));
       // Open at the root to save bytes: the server parses the call against the full schema and names an unknown field.
       delete schema.additionalProperties;
     }
@@ -200,6 +204,8 @@ function advertise(tools: readonly Tool[]): Tool[] {
       // Any other field text is describe_tool's (#1142): names, types and values are listed, guidance is read on demand.
       if (depth === 0 || typeof node.description !== "string" || pointers.has(node) || listed.has(node)) return;
       if (depth > 1 || !MARKED_FIELD.test(node.description)) delete node.description;
+      // A mark stays on its own field, not behind a $ref an agent may not follow (34 bytes, measured 2026-11-16).
+      else pointers.add(node);
     });
     const { execution, ...rest } = tool;
     const body = listedDescription(tool);

@@ -3,9 +3,11 @@ export * from "./design.js";
 export * from "./skill-theme.js";
 export * from "./skill-theme-explainer.js";
 export * from "./own-agent-price.js";
+export * from "./film-directions.js";
 export * from "./film-styles.js";
 export * from "./film-drafts.js";
 export * from "./film-guide.js";
+export * from "./ad-guide.js";
 export * from "./own-agent-runs.js";
 export * from "./script-voice.js";
 export * from "./ugc-layers.js";
@@ -49,6 +51,7 @@ export * from "./video-size.js";
 // Refusal bodies: the error shape is contract too, and once a 402 carries numbers it no
 // longer follows from the status code.
 export * from "./errors.js";
+export * from "./max-credits.js";
 export * from "./script-integrity.js";
 // Rate limit: the 429 shape and header names, the same kind of contract as the refusal
 // bodies above.
@@ -103,14 +106,19 @@ export * from "./voice-preview-approval.js";
 export * from "./face-delivery.js";
 export * from "./ugc-delivery.js";
 export * from "./faceless-public-plan.js";
+export * from "./faceless-direction-summary.js";
+export { assertStoryboardWords } from "./faceless-storyboard.js";
 export * from "./faceless-media-record.js";
 export * from "./edit.js";
 export * from "./workflows/index.js";
 export * from "./output-provenance.js";
 export * from "./generation-shot.js";
+export * from "./scene-bible.js";
+export * from "./scene-proposal.js";
 export * from "./generations.js";
 export * from "./generations-output.js";
 export * from "./reference-profile.js";
+export * from "./reference-bring.js";
 export * from "./reference-lyrics.js";
 export * from "./caption-funnel.js";
 export * from "./reference-voice-over.js";

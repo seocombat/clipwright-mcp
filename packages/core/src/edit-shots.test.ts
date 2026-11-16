@@ -82,7 +82,7 @@ describe("the shots view of a run", () => {
     const product = readdirSync(src).filter(name => name.endsWith(".ts") && !name.endsWith(".test.ts"));
     expect(product).toContain("edit-faceless.ts");
     for (const name of product) expect(readFileSync(new URL(name, src), "utf8").includes("__fixtures__"), name).toBe(false);
-    const build = JSON.parse(readFileSync(new URL("../tsconfig.json", import.meta.url), "utf8")) as { exclude: string[] };
+    const build = JSON.parse(readFileSync(new URL("../tsconfig.json", import.meta.url), "utf8").replace(/^\s*\/\/.*$/gm, "")) as { exclude: string[] };
     expect(build.exclude).toContain("src/__fixtures__/**");
   });
 

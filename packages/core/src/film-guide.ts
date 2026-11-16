@@ -16,6 +16,7 @@ export const FILM_KIT_FILES = [
   "src/lib/ui.tsx",
   "src/lib/objects.tsx",
   "src/lib/product.tsx",
+  "src/lib/depth.tsx",
   "src/Film.tsx",
   "src/types.ts",
   "src/theme.ts",

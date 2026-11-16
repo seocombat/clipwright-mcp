@@ -139,6 +139,8 @@ describe("create_actor input stays TEXTUAL", () => {
     "from_actor_id",
     "gender",
     "holding",
+    // #942: a number, the call's spend ceiling; it carries no image.
+    "max_credits",
     "name",
     "portrait",
     "quality",
@@ -148,7 +150,7 @@ describe("create_actor input stays TEXTUAL", () => {
 
   /** #975: `style_reference` is a photo that may show a person; only an asset id, whose faces the worker gates against, never copies. */
   /** #1095: `portrait` is the account's own rights-confirmed image of the presenter, an asset id; the worker checks one face and framing. */
-  it("there are EXACTLY TWELVE keys, all read from the schema", () => {
+  it("there are EXACTLY THIRTEEN keys, all read from the schema", () => {
     expect(Object.keys(createActorInput.shape).sort()).toEqual(TEXT_ONLY_KEYS);
   });
 
@@ -689,7 +691,7 @@ describe("an actor derived from an actor", () => {
   it("the unknown-field refusal names the view fields", () => {
     expect(refusal(createActorInput.safeParse({ ...DERIVED, prop: "mic" }))).toBe(
       "unknown field(s) prop: create_actor accepts description, gender, approximate_age, name, quality, aspect_ratios, " +
-        "from_actor_id, framing, holding, setting, style_reference, portrait");
+        "from_actor_id, framing, holding, setting, style_reference, portrait, max_credits");
   });
 
   it("the stored input reads only with the source admission resolved and each picture it found", () => {
@@ -864,7 +866,7 @@ describe("an actor from an own portrait image", () => {
   it("the unknown-field refusal names portrait, and an image link points to it", () => {
     expect(refusal(createActorInput.safeParse({ ...IMPORTED, prop: "mic" }))).toBe(
       "unknown field(s) prop: create_actor accepts description, gender, approximate_age, name, quality, aspect_ratios, " +
-        "from_actor_id, framing, holding, setting, style_reference, portrait");
+        "from_actor_id, framing, holding, setting, style_reference, portrait, max_credits");
     expect(refusal(createActorInput.safeParse({ ...VALID, image: "https://example.com/a.png" }))).toMatch(/portrait: \{ asset_id \}/);
   });
 });

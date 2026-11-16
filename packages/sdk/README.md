@@ -37,7 +37,8 @@ the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/pa
 The five native methods are `ugc-product-intro`, `ugc-faq-answer`,
 `faceless-explainer`, `product-image-story` and `reference-remake`, where the server lists
 them as available. `website-proof-demo` and `kinetic-launch`
-remain `execution_blocked`; catalog availability grants no account permission.
+are `execution_blocked` unless the server lists their version 2, which runs as an
+explainer film; catalog availability grants no account permission.
 Use the method and capability pins from the method response in the document.
 
 Preparation, saving, approval and quoting never call one another or launch a
@@ -148,8 +149,11 @@ speaks only its own voices and refuses `captions: true` before any charge.
 Without `voice` or `voice_id`, the voice follows the actor's gender: `sarah` for
 a woman, `george` for a man. `actor_id` brings its catalog gender; with `image`,
 pass `actor_gender` (`"female"` or `"male"`). An `image` without `actor_gender`
-gets `george` and a warning. `actor_gender` next to `actor_id` or without
-`image` is refused before any charge. With `tts_model: "gemini-3.8-flash-tts"`
+gets `george` and a warning. Without `image`, `actor_gender` picks that
+gender's catalog actor (`actor_anna` or `actor_alex`) as if you passed its
+`actor_id`, and `warnings[]` names it. `actor_gender` next to `actor_id` or
+`person` is refused before any charge. With no presenter named, the default
+presenter is a man, and `warnings[]` says so. With `tts_model: "gemini-3.8-flash-tts"`
 the defaults are `kore` for a woman and `charon` otherwise.
 
 `getRunShots(runId)` reads the shots of a finished video: for each shot its span

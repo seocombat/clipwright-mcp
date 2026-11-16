@@ -30,13 +30,23 @@ export type PresenterEngine = (typeof PRESENTER_ENGINES)[number];
 const tariffCredits = z.number().int().nonnegative().max(2_147_483_647);
 export const presenterRatesSchema = z.object({ heygen: tariffCredits.positive(), omnihuman: tariffCredits.positive() }).strict().readonly();
 
-/** The engines that draw a live shot (#1103), by the shot kind they serve: talking_action and action (product included). */
-export const SHOT_ENGINES = ["shot_talking_action", "shot_action"] as const;
+/** Live-shot engines (#1103): talking_action and action; silent shots on Gemini Omni 1.2 (#1535) and Seedance 2.5 (#1539 C4), each also */
+/** with no text in frame (`_no_text`) at its own second. */
+export const SHOT_ENGINES = ["shot_talking_action", "shot_action", "shot_omni", "shot_seedance", "shot_omni_no_text", "shot_seedance_no_text"] as const;
 export type ShotEngine = (typeof SHOT_ENGINES)[number];
 /** Every engine a face unit may be charged at. */
 export const TAKE_ENGINES = [...PRESENTER_ENGINES, ...SHOT_ENGINES] as const;
 export type TakeEngine = (typeof TAKE_ENGINES)[number];
-export const shotRatesSchema = z.object({ shot_talking_action: tariffCredits.positive(), shot_action: tariffCredits.positive() }).strict().readonly();
+/** The model engines are absent on every snapshot admitted before them, which then prices no such shot. */
+export const shotRatesSchema = z.object({ shot_talking_action: tariffCredits.positive(), shot_action: tariffCredits.positive(),
+  shot_omni: tariffCredits.positive().optional(), shot_seedance: tariffCredits.positive().optional(),
+  shot_omni_no_text: tariffCredits.positive().optional(), shot_seedance_no_text: tariffCredits.positive().optional() }).strict().readonly();
+/** The model a live shot's unit was frozen to draw on (#1535); absent is the shot kind's own engine. */
+export const SHOT_MODELS = ["omni", "seedance", "omni_no_text", "seedance_no_text"] as const;
+export type ShotModel = (typeof SHOT_MODELS)[number];
+/** The engine a unit frozen to a model is charged at, whatever route drew it. */
+export const SHOT_MODEL_ENGINE: Readonly<Record<ShotModel, ShotEngine>> = Object.freeze({ omni: "shot_omni", seedance: "shot_seedance",
+  omni_no_text: "shot_omni_no_text", seedance_no_text: "shot_seedance_no_text" });
 
 /** A parts tariff: presenter seconds by engine, plus every second of the video, plus each live-avatar still. */
 export const partsFaceTariffSchema = z.object({
@@ -76,6 +86,8 @@ const unitSchema = z.object({
   optional: z.literal(true).optional(),
   /** A live shot's kind (#1103), frozen with the plan; absent is the presenter's usual take. Its witness row must agree with it. */
   shot: z.enum(LIVE_SHOT_KINDS).optional(),
+  /** A silent shot drawn on Gemini Omni 1.2 (#1535), frozen with the plan: it is charged at `shot_omni`. */
+  shotModel: z.enum(SHOT_MODELS).optional(),
 }).strict().readonly();
 
 const planShape = {
@@ -101,6 +113,9 @@ export const faceBillingPlanContentSchema = z.object(planShape).strict()
 export const faceBillingPlanSchema = z.object({ ...planShape, hash }).strict()
   .refine(validPlan, { message: "plan unit ids must be unique and intervals within output" }).readonly();
 
+/** The steps a live shot may be delivered simplified to (#1560). */
+export const SIMPLIFIED_STEPS = ["head", "card"] as const;
+
 export const faceBillingAcceptanceSchema = z.object({
   operationId: identifier,
   unitId: identifier,
@@ -121,6 +136,9 @@ export const faceBillingFactsSchema = z.object({
   unknownUnitIds: z.array(identifier).readonly(),
   /** Read from the vendor witnesses at settlement, never frozen: the engine each accepted unit's operation was sent to. */
   acceptedEngines: z.record(identifier, z.enum(TAKE_ENGINES)).readonly().optional(),
+  /** Read at settlement, never frozen (#1560): a live shot delivered simplified, as the presenter talking (charged as a presenter's */
+  /** seconds) or as a still card, whose seconds charge no presenter. */
+  simplifiedUnits: z.record(identifier, z.enum(SIMPLIFIED_STEPS)).readonly().optional(),
 }).strict().readonly();
 
 export const faceBillingOutcomeSchema = z.discriminatedUnion("runState", [

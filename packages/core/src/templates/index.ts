@@ -20,7 +20,9 @@ import { pointerChips } from "./pointer-chips.js";
 import { chart } from "./chart.js";
 import { handTitle } from "./hand-title.js";
 import { race } from "./race.js";
-import { isSeriesFrameEnabled, SERIES_FRAME_DISABLED_MESSAGE, seriesFrame } from "./series-frame.js";
+import { CANVAS_FPS } from "../media-timebase.js";
+import { estimateWordsPerSecond, PAUSE_TRIM_PACE_FACTOR } from "../pacing.js";
+import { isSeriesFrameEnabled, SERIES_FRAME_DISABLED_MESSAGE, SERIES_MAX_FRAMES, seriesFrame } from "./series-frame.js";
 import { COMMENT_CTA_DISABLED_MESSAGE, commentCta, isCommentCtaEnabled } from "./comment-cta.js";
 import { progress } from "./progress.js";
 import { quote } from "./quote.js";
@@ -71,8 +73,10 @@ export interface TemplateKind<D extends z.ZodObject = z.ZodObject> {
   maxMedia?: number;
   /** The formats it is drawn in; absent is every format. */
   aspects?: readonly string[];
-  /** Its own beat frames from each beat's spoken frame (none for a beat without a quote) and its span, with what they move. */
-  timing?(data: z.infer<D>, beats: readonly (number | undefined)[], duration: number, fps: number, id: string): { moments: number[]; warnings: string[] };
+  /** Its own beat frames from each beat's spoken frame (none for a beat without a quote) and its span, with what they move; `frames` when it
+   *  runs on past its span, never past `most` (#1425). */
+  timing?(data: z.infer<D>, beats: readonly (number | undefined)[], duration: number, fps: number, id: string, most: number):
+    { moments: number[]; warnings: string[]; frames?: number };
   /** Refusals its data earns in this run beyond its schema: the script's language, whether it covers the script's last words. */
   check?(data: z.infer<D>, context: { language: string; endsScript: boolean }): { path: (string | number)[]; message: string }[];
   /** Whether captions are hidden while it shows: it sits in the caption spot. */
@@ -148,7 +152,7 @@ export { HAND_MARKS, HAND_TITLE_EMS } from "./hand-title.js";
 export { WORD_FILL_EMS } from "./word-fill.js";
 export { BACKDROP_NOTES_STYLES, BACKDROP_PICTURE_STYLES, BACKDROP_STYLES, type BackdropStyle } from "./backdrop.js";
 export { isSeriesFrameEnabled, SERIES_ASPECT, SERIES_FRAME_DISABLED_MESSAGE, SERIES_ITEM_FLOOR_SEC, SERIES_ITEM_LOOKS, SERIES_ITEMS, SERIES_LOOP_FRAMES,
-  SERIES_ONE_COLUMN_MAX, seriesFrameMoments } from "./series-frame.js";
+  SERIES_MAX_FRAMES, SERIES_ONE_COLUMN_MAX, seriesFitWarnings, seriesFrameMoments, seriesLeastFrames } from "./series-frame.js";
 export { COMMENT_CTA_DISABLED_MESSAGE, commentCtaActLines, commentCtaMoments, commentCtaSchedule, CTA_ASPECT, CTA_FUNNEL, CTA_ITEMS, CTA_LABELS, CTA_LINE_GAP,
   CTA_LINES, CTA_LOOP_FRAMES, isCommentCtaEnabled } from "./comment-cta.js";
 export { templateMedia, type TemplateSlot } from "./slot.js";
@@ -221,14 +225,22 @@ export const TEMPLATE_BEAT_GAP = 6;
 /** Each beat's frame from the template's start, frozen in the timeline; the renderer reads frames only (D11). A beat spoken before the kind's
  * `beatsFrom` moves there, the beats after it keep `TEMPLATE_BEAT_GAP`, and each move is a warning. */
 export function templateMoments(kind: TemplateKind, data: unknown, tokens: readonly string[], range: WordRange,
-  words: readonly { word: string; startSec: number }[], fps: number, span: { startFrame: number; endFrame: number }, id = "template"):
-  { moments: number[]; warnings: string[] } {
+  words: readonly { word: string; startSec: number }[], fps: number, span: { startFrame: number; endFrame: number }, id = "template",
+  most = span.endFrame): { moments: number[]; warnings: string[]; frames?: number } {
   const lexical = words.filter(word => !/^\p{P}+$/u.test(word.word)), duration = span.endFrame - span.startFrame;
   const beats = templateMomentWords(kind, data, tokens, range), from = kind.beatsFrom ?? TEMPLATE_ENTER_FRAMES + 1, warnings: string[] = [];
+  // The composition refuses a beat outside its template, and with it every template (#1425): such a template is refused here, at the freeze.
+  // A kind that runs on past its span (`frames`) stays within `most`, the last frame the freeze lets it reach.
+  const inside = (result: { moments: number[]; warnings: string[]; frames?: number }) => {
+    const length = result.frames ?? duration;
+    if (!Number.isSafeInteger(length) || length < duration || span.startFrame + length > Math.max(most, span.endFrame) ||
+        result.moments.some(moment => !Number.isSafeInteger(moment) || moment < 0 || moment >= length)) throw new Error("a beat lies outside the template's frames");
+    return result;
+  };
   if (kind.timing) {
     for (const beat of beats) if (beat.refusal) throw new Error(`template beat ${beat.path.join(".")} ${beat.refusal}`);
-    return kind.timing(data as never, beats.map(beat => (beat.word === undefined ? undefined
-      : Math.max(0, Math.round(lexical[beat.word]!.startSec * fps) - span.startFrame))), duration, fps, id);
+    return inside(kind.timing(data as never, beats.map(beat => (beat.word === undefined ? undefined
+      : Math.max(0, Math.round(lexical[beat.word]!.startSec * fps) - span.startFrame))), duration, fps, id, Math.max(most, span.endFrame) - span.startFrame));
   }
   let before: number | undefined;
   const moments = beats.map((beat, index) => {
@@ -248,7 +260,40 @@ export function templateMoments(kind: TemplateKind, data: unknown, tokens: reado
     }
     return moved;
   });
-  return { moments, warnings };
+  return inside({ moments, warnings });
+}
+
+/** Kinds that run on past their words and, at the video's end, hold its last frame until they have played (#1452, #1457). */
+export const HOLDING_TEMPLATE_KINDS: readonly string[] = ["series_frame", "comment_cta"];
+
+/** What the video's held frame lets a template finish, as the line naming the video's new length says it. */
+export function heldTemplateReason(template: { id: string; kind: string; data: unknown }): string {
+  return template.kind === "comment_cta" ? `every act of template "${template.id}" plays, the follow button tapped`
+    : `all ${(template.data as { items: unknown[] }).items.length} items of template "${template.id}" show`;
+}
+
+/** Before payment (#1457): a call to action whose acts take longer than its sentence, by the script's pace, is named with the time it runs on. */
+export function commentCtaFitWarnings(input: { script?: unknown; templates?: unknown; pause_trim?: unknown }): string[] {
+  if (typeof input.script !== "string" || !Array.isArray(input.templates)) return [];
+  const tokens = lexicalTokens(input.script), trimmed = typeof input.pause_trim === "object" && input.pause_trim !== null;
+  const pace = estimateWordsPerSecond(input.script) * (trimmed ? PAUSE_TRIM_PACE_FACTOR : 1);
+  const words = tokens.map((word, at) => ({ word, startSec: at / pace }));
+  return (input.templates as Partial<AnchoredItem & { kind: string; data: unknown }>[]).flatMap(item => {
+    const data = item.kind === "comment_cta" && item.anchor ? commentCta.data.safeParse(item.data).data : undefined;
+    const range = data ? layerWordRange(tokens, item as AnchoredItem) : undefined, id = String(item.id);
+    if (!data || range === undefined || typeof range === "string") return [];
+    const span = { startFrame: Math.round((range.startWord / pace) * CANVAS_FPS), endFrame: Math.round((range.coverWord / pace) * CANVAS_FPS) };
+    let frames: number | undefined;
+    try { frames = templateMoments(commentCta as TemplateKind, data, tokens, range, words, CANVAS_FPS, span, id, span.endFrame + SERIES_MAX_FRAMES).frames; }
+    catch { return []; }
+    if (frames === undefined) return [];
+    const spoken = (span.endFrame - span.startFrame) / CANVAS_FPS, more = ((frames - span.endFrame + span.startFrame) / CANVAS_FPS).toFixed(1);
+    // One whose run-on passes the script's last word holds the video's end as well (#1462).
+    const past = span.startFrame + frames - Math.round((tokens.length / pace) * CANVAS_FPS);
+    return [`template "${id}": its sentence gives about ${spoken.toFixed(1)} s and its comment, message and follow need about ${more} s more; ` +
+      `${past > 0 ? `the video runs ${(past / CANVAS_FPS).toFixed(1)} s past its last word so ${heldTemplateReason({ id, kind: "comment_cta", data })}`
+        : "the call to action will run on past it and the next template starts later"}; lengthen the sentence to keep the call to action on it`];
+  });
 }
 /** The most values a dotted path of a kind's data holds: each list it crosses or ends in multiplies by its most elements. */
 function mostValuesAt(schema: z.ZodType, keys: readonly string[]): number {

@@ -37,17 +37,25 @@ export const TREND_PLATFORMS = ["mix", ...CREATOR_PLATFORMS] as const;
 export type TrendPlatform = (typeof TREND_PLATFORMS)[number];
 export const trendPlatformsOf = (platform: TrendPlatform): CreatorPlatform[] => (platform === "mix" ? ["tiktok", "instagram"] : [platform]);
 export const TREND_SEARCH_MAX_REELS = TREND_SEARCH_REELS * CREATOR_PLATFORMS.length;
-/** A search's next places (#1393): each next page brings up to `TREND_SEARCH_REELS` new creators per platform searched for this price, */
-/** up to `TREND_SEARCH_MAX_PAGES` pages in all, the first included (100 places for a mix). */
-export const TREND_PAGE_CREDITS = 10;
+/** Next places (#1393): `TREND_SEARCH_REELS` new creators per platform a page, `TREND_SEARCH_MAX_PAGES` pages with the first. Free (#1512) up */
+/** to `TREND_FREE_PAGES_PER_DAY` an account a UTC day while free pages have room, else `TREND_PAGE_PAID_CREDITS`; the run's hold is the charge. */
+export const TREND_PAGE_CREDITS = 0;
+export const TREND_PAGE_PAID_CREDITS = 10;
+export const TREND_FREE_PAGES_PER_DAY = 10;
 export const TREND_SEARCH_MAX_PAGES = 5;
 /** A next page starts within this long after its search finished; a page already made answers again free at any time. */
 export const TREND_PAGE_WINDOW_SECONDS = 86_400;
 /** The places one page holds at most, the first page's too. */
 export const trendPagePlaces = (platform: TrendPlatform): number => trendPlatformsOf(platform).length * TREND_SEARCH_REELS;
 export const trendPage = z.number().int().min(2).max(TREND_SEARCH_MAX_PAGES);
-/** Said in a quote whenever the next pages come up: the free searches never cover them. */
-export const TREND_PAGE_PAID_WARNING = `credits: free searches cover a search's first page; each next page costs ${TREND_PAGE_CREDITS} credits`;
+/** Said in a next page's quote: what makes it free. */
+export const TREND_PAGE_FREE_WARNING = `credits: a search's next pages are free for ${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, ` +
+  `up to ${TREND_FREE_PAGES_PER_DAY} pages a day per account`;
+/** Why a next page costs its price: said in the quote and kept on the page. */
+export const TREND_FREE_PAGES_USED_UP_WARNING = `credits: this account's ${TREND_FREE_PAGES_PER_DAY} free next pages today are used up, ` +
+  `so this page costs ${TREND_PAGE_PAID_CREDITS} credits; they renew at 00:00 UTC`;
+export const TREND_FREE_PAGES_AT_CAPACITY_WARNING =
+  `credits: free next pages are at capacity right now, so this page costs ${TREND_PAGE_PAID_CREDITS} credits`;
 /** A creator whose median is under this is new: x says little, so the reel gets no medal and ranks by views per hour. */
 export const TREND_NEW_CREATOR_MEDIAN = 1000;
 /** A new creator's x from here up shows as ">100×". */
@@ -266,8 +274,9 @@ export const trendSearchAnswer = z.strictObject({
     page: trendPage,
     credits_estimate: z.number().int().nonnegative(),
     available_until: z.string().datetime(),
-  }).nullable().default(null).describe(`The search's next page while one can start: up to ${TREND_SEARCH_REELS} new creators per platform for ` +
-    `${TREND_PAGE_CREDITS} credits; pass search_id and page to find_trends. null when this is not the newest page made, after ` +
+  }).nullable().default(null).describe(`The search's next page while one can start: up to ${TREND_SEARCH_REELS} new creators per platform, ` +
+    `free up to ${TREND_FREE_PAGES_PER_DAY} pages a day per account, then ${TREND_PAGE_PAID_CREDITS} credits (quote_trends says which); ` +
+    `pass search_id and page to find_trends. null when this is not the newest page made, after ` +
     `${TREND_SEARCH_MAX_PAGES} pages, when the platforms have no more reels or ${TREND_PAGE_WINDOW_SECONDS / 3600} h after the search.`),
   created_at: z.string().datetime(),
   finished_at: z.string().datetime().nullable(),
@@ -673,7 +682,8 @@ export function trendSearchMarkdown(answer: TrendSearchAnswer): string {
 function nextPageLine(answer: Pick<TrendSearchAnswer, "next_page" | "parent_search_id" | "search_id" | "platform">): string | null {
   const next = answer.next_page;
   if (next === null) return null;
-  return `More: up to ${trendPagePlaces(answer.platform)} more places for ${next.credits_estimate} credits until ` +
+  const price = next.credits_estimate === 0 ? "free" : `for ${next.credits_estimate} credits`;
+  return `More: up to ${trendPagePlaces(answer.platform)} more places ${price} until ` +
     `${next.available_until.slice(0, 16).replace("T", " ")} UTC: find_trends with search_id ${answer.parent_search_id ?? answer.search_id} and page ${next.page}, ` +
     "quoted first with quote_trends.";
 }
@@ -685,8 +695,11 @@ export const FIND_TRENDS_DESCRIPTION =
   "the same call with another sort reorders the same search for free within the hour. A weak result (under two reels that took off) " +
   "lists suggested_wordings: search again with one. With no keywords it searches the primary saved niche (trend_niches). " +
   `A finished search has gallery_url, a page with covers to share for ${TREND_GALLERY_DAYS} days. ` +
-  `next_page: up to ${TREND_SEARCH_REELS} more places per platform for ${TREND_PAGE_CREDITS} credits (search_id and page, nothing else), up to ` +
-  `${TREND_SEARCH_MAX_PAGES} pages; charged only when it finds new reels.`;
+  `next_page: up to ${TREND_SEARCH_REELS} more places per platform (search_id and page, nothing else), up to ` +
+  `${TREND_SEARCH_MAX_PAGES} pages, free for ${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, up to ` +
+  `${TREND_FREE_PAGES_PER_DAY} pages a day per account; past that ${TREND_PAGE_PAID_CREDITS} credits a page.`;
 
 export const QUOTE_TRENDS_DESCRIPTION = `Price find_trends: 0 when the same query from the last hour would answer or a free search applies ` +
-  `(${TREND_FREE_SEARCHES_PER_MONTH} a month; free_searches_left). With search_id and page: a next page, ${TREND_PAGE_CREDITS} credits, never free. Free.`;
+  `(${TREND_FREE_SEARCHES_PER_MONTH} a month; free_searches_left). With search_id and page: a next page, free for ` +
+  `${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, up to ${TREND_FREE_PAGES_PER_DAY} pages a day per account, ` +
+  `else ${TREND_PAGE_PAID_CREDITS} credits; warnings say why. Free.`;

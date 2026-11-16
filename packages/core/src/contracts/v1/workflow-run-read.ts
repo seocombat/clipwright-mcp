@@ -9,7 +9,10 @@ export const workflowAssetPlacementRead = z.looseObject({
     instance_id: z.string().min(1), asset_id: z.string().min(1), source_digest: workflowDigest,
     first_word: frame, end_word: frame, shot_id: z.string().min(1), start_frame: frame, end_frame: frame,
     normalized_sha256: workflowDigest, width: z.number().int().positive().safe(), height: z.number().int().positive().safe(),
-}).refine(value => value.end_word > value.first_word && value.end_frame >= value.start_frame, 'Placement interval must be ordered');
+    /** An explainer film's picture (#1466): the delivery frame of the still that showed it on its words. */
+    shown_frame: frame.optional(),
+}).refine(value => value.end_word > value.first_word && value.end_frame >= value.start_frame &&
+    (value.shown_frame === undefined || (value.shown_frame >= value.start_frame && value.shown_frame <= value.end_frame)), 'Placement interval must be ordered');
 export type WorkflowAssetPlacementRead = z.infer<typeof workflowAssetPlacementRead>;
 /** `approved_plan` is the purchased document without `brief.reference_profile` (#1035); `receipt.content_digest` covers the full one. */
 export const workflowRunOutcomeRead = workflowOutcomeRead.extend({

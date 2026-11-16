@@ -9,6 +9,7 @@ import {
   editingNotPricedError,
   editInvalidError,
   insufficientCreditsError,
+  maxCreditsExceededError,
   runNotEditableError,
   type BareApiErrorCode,
 } from "./errors.js";
@@ -38,6 +39,15 @@ export interface InsufficientCreditsFailure {
   message: string;
   balanceCredits: number;
   requiredCredits: number;
+}
+
+/** The call's reserve is above the ceiling it was sent with. Terminal for this ceiling: a person approves a higher one. */
+export interface MaxCreditsExceededFailure {
+  kind: "max_credits_exceeded";
+  status: number;
+  message: string;
+  holdCredits: number;
+  maxCredits: number;
 }
 
 /** Outstanding debt. Terminal; buying credits clears it, since incoming credits pay debt first. */
@@ -148,6 +158,7 @@ export interface ClientFailure extends WorkflowDiagnostics {
 export type ApiFailure =
   | RateLimitedFailure
   | InsufficientCreditsFailure
+  | MaxCreditsExceededFailure
   | DebtOutstandingFailure
   | NotAdmittedFailure
   | EditConflictFailure
@@ -320,6 +331,7 @@ function safeJson(bodyText: string | undefined): unknown {
 const BEHAVIOURAL_CODES = new Set<string>([
   rateLimitedError.shape.error.shape.code.value,
   insufficientCreditsError.shape.error.shape.code.value,
+  maxCreditsExceededError.shape.error.shape.code.value,
   debtOutstandingError.shape.error.shape.code.value,
   // Recognized only on its own status, like the three above, so a cached body on a
   // 402 cannot tell the agent that buying credits is pointless.
@@ -390,6 +402,12 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
       balanceCredits: error.balance_credits,
       requiredCredits: error.required_credits,
     };
+  }
+
+  const overMax = status === 402 ? maxCreditsExceededError.safeParse(body) : undefined;
+  if (overMax?.success === true) {
+    const { error } = overMax.data;
+    return { kind: "max_credits_exceeded", status, message: error.message, holdCredits: error.hold_credits, maxCredits: error.max_credits };
   }
 
   const debt = status === 402 ? debtOutstandingError.safeParse(body) : undefined;
@@ -523,6 +541,9 @@ export interface AgentFailureReport {
   balance_credits?: number;
   required_credits?: number;
   debt_credits?: number;
+  /** What the call reserves and the ceiling it was sent with, on `max_credits_exceeded`. */
+  hold_credits?: number;
+  max_credits?: number;
   /** The stored version of a draft, on `edit_conflict`. */
   version?: number;
   /** Why a run has no draft, on `run_not_editable`; why paid edits are closed, on `editing_closed`. */
@@ -593,6 +614,20 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
           "the balance, then call again. Nothing was charged and no run was created.",
         balance_credits: failure.balanceCredits,
         required_credits: failure.requiredCredits,
+      };
+
+    case "max_credits_exceeded":
+      return {
+        ...base,
+        status: "FAILED",
+        code: "max_credits_exceeded",
+        retryable: false,
+        next_action:
+          `STOP. Do NOT retry unchanged: this call reserves ${failure.holdCredits} credits, above its max_credits of ` +
+          `${failure.maxCredits}. Ask the user to approve ${failure.holdCredits} credits, then repeat the call with max_credits ` +
+          "of at least that, or change the request to cost less. Nothing was charged and no run was created.",
+        hold_credits: failure.holdCredits,
+        max_credits: failure.maxCredits,
       };
 
     case "debt_outstanding":

@@ -25,6 +25,34 @@ const TOP_COMMENTS_SHOWN = 5;
 const number = (value: number | null | undefined) => (value === null || value === undefined ? "—" : value.toLocaleString("en-US"));
 const seconds = (value: number) => `${Math.round(value * 100) / 100}`;
 
+const BRING_NAMES: Readonly<Record<string, string>> = { screen_recording: "a screen recording", screenshot: "screenshots", product_photo: "product photos",
+  live_clip: "live clips" };
+
+/** The measured summary lines of a profile's card: shots, pace, music, sound events and what a remake needs brought. */
+function cardLines(profile: NonNullable<ReferenceAnalysis["reference_profile"]>, lines: string[]): void {
+  if (profile.shots?.length) {
+    const silent = profile.shots.filter(shot => shot.silent).map(shot => `${seconds(shot.start_s)}–${seconds(shot.end_s)} s`);
+    lines.push(`- Shots: ${profile.shots.length}, one every ${seconds(profile.source.duration_s / profile.shots.length)} s · silent shots: ` +
+      `${silent.length ? silent.join(", ") : "none"}`);
+  }
+  if (profile.pacing.effective_words_per_s !== undefined) lines.push(`- Pace over the whole reel: ${profile.pacing.effective_words_per_s} words/s`);
+  const tempo = profile.tempo;
+  if (tempo) {
+    const beat = tempo.bpm === null ? "no clear beat" : `${tempo.bpm} BPM, ${tempo.edit_on_beat ? "the edit follows the beat" : "the edit does not follow the beat"}` +
+      `${tempo.cuts_on_beat === null ? "" : ` (${Math.round(tempo.cuts_on_beat * 100)}% of cuts on a beat, ${Math.round((tempo.cuts_on_beat_by_chance ?? 0) * 100)}% by chance)`}`;
+    lines.push(`- Music: ${tempo.music_bed ? `a music bed, ${beat}` : "no music bed"}`);
+  }
+  if (profile.sound_events) {
+    const kinds = new Map<string, number>();
+    for (const event of profile.sound_events) kinds.set(event.kind, (kinds.get(event.kind) ?? 0) + 1);
+    lines.push(`- Sound events while nobody speaks: ${profile.sound_events.length ? [...kinds].map(([kind, count]) => `${kind} ${count}`).join(", ") : "none"}`);
+  }
+  if (profile.bring) {
+    lines.push(`- Bring for a remake: ${profile.bring.length ? profile.bring.map(item => `${BRING_NAMES[item.kind] ?? item.kind}, ${seconds(item.seconds)} s ` +
+      `(starting at ${item.at_s.map(seconds).join(", ")} s)`).join("; ") : "nothing; the rest is generated"}`);
+  }
+}
+
 /** The answer as a compact breakdown an agent shows as is (#990): numbers, hook, beats with times and key frames, speakers, top comments. */
 export function referenceAnalysisMarkdown(analysis: ReferenceAnalysis): string {
   const profile = analysis.reference_profile, data = analysis.data, source = analysis.source, lines: string[] = [];
@@ -47,6 +75,18 @@ export function referenceAnalysisMarkdown(analysis: ReferenceAnalysis): string {
   if (hook) lines.push(`- Hook (0–${seconds(hook.end_s)} s): ${quote(hook.text, 160)}${hook.caption ? ` · on screen ${quote(hook.caption, 80)}` : ""}`);
   if (language) lines.push(`- Spoken language: ${language}`);
   if (profile) {
+    // Layered (#1602): the card's lines, then one line per shot, then the beats in detail; measured values are plain, `~` marks a reading of the picture.
+    cardLines(profile, lines);
+    if (profile.shots?.length) {
+      lines.push("", "Shots, one line each (`~` marks how the picture was made as read off it; the rest is measured):", "",
+        "| Shot | Time | Made as | Cut in | Words |", "|---|---|---|---|---:|");
+      profile.shots.forEach((shot, index) => {
+        const made = shot.source ? `${shot.source.measured ? "" : "~"}${shot.source.kind.replace(/_/g, " ")} ${shot.source.confidence}` : "—";
+        const repeat = shot.same_clip_as != null ? `, repeats s${shot.same_clip_as}` : "";
+        lines.push(`| s${index} | ${seconds(shot.start_s)}–${seconds(shot.end_s)} s | ${made}${repeat} | ${shot.cut_in.replace(/_/g, " ")} | ` +
+          `${shot.words}${shot.silent ? " (silent)" : ""} |`);
+      });
+    }
     const keyFrames = new Map((analysis.frames?.key_frames ?? []).flatMap(frame => (frame.beat_index === null ? [] : [[frame.beat_index, frame.url] as const])));
     lines.push("", "| # | Time | Role | Speakers | Said | Graphics | Gaze | Key frame |", "|---:|---|---|---|---|---|---|---|");
     profile.beats.forEach((beat, index) => {

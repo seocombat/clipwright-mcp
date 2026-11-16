@@ -412,6 +412,12 @@ export function defaultVoiceOf(modelId: string | undefined, gender: Gender | und
   return { name, gender: voiceGender };
 }
 
+/** The voice whose pace times a take (#1520): the named one, else the model's default for the gender; a raw voice_id names none we measured. */
+export function pacedVoiceOf(input: { voice?: string | undefined; voice_id?: string | undefined }, modelId: string | undefined,
+  gender: Gender | undefined): string | undefined {
+  return input.voice ?? (input.voice_id === undefined ? defaultVoiceOf(modelId, gender).name : undefined);
+}
+
 /** Shape of a raw vendor `voice_id`, deliberately loose (16–32 alphanumerics): the format is */
 /** undocumented. A coarse input filter only; the run's free preflight checks existence. */
 export const VOICE_ID_PATTERN = /^[A-Za-z0-9]{16,32}$/;

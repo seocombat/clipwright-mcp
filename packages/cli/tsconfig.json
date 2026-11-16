@@ -3,8 +3,11 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    // ОТЛИЧИЕ ОТ БАЗЫ: пакет не публикуется, `.d.ts` некому читать.
+    // ОТЛИЧИЕ ОТ БАЗЫ: у пакета нет экспортов, `.d.ts` некому читать.
     "declaration": false,
+    "removeComments": true,
+    // ОТЛИЧИЕ ОТ БАЗЫ: пакет публикуется в npm, комментарии и карты остаются в репозитории.
+    "sourceMap": false,
     "types": [
       "node"
     ]

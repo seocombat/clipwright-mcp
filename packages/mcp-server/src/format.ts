@@ -38,6 +38,18 @@ export async function withFailureReport(
   }
 }
 
+/** A start answered with a failed run: the same arguments and attempt return the run they started, so the answer says how to start a new one */
+/** (#1551). The money of a run is untouched here; a new run is charged as its quote says. */
+export function failedRepeatNote(response: McpToolResponse, attempt: number | undefined): McpToolResponse {
+  const [block, ...rest] = response.content;
+  if (!block) return response;
+  const body = JSON.parse(block.text) as Record<string, unknown>;
+  const repeat = `These arguments already started this run, and it failed. To make the video again, call make_ugc with the same arguments and ` +
+    `attempt ${(attempt ?? 1) + 1}: that starts a new run, charged as its quote says.`;
+  const display = typeof body.display_markdown === "string" ? { display_markdown: `${body.display_markdown}\n\n${repeat}` } : {};
+  return { ...response, content: [{ type: "text", text: JSON.stringify({ ...body, repeat, ...display }) }, ...rest] };
+}
+
 /** What each run kind delivers and where a succeeded read names it: a picture's run is never "the video". */
 export const PENDING_RESULTS: Readonly<Record<Skill, { noun: string; field: string }>> = {
   make_ugc: { noun: "video", field: "video_url" },

@@ -3,12 +3,12 @@ import { editSummaryWire, revisionBilling } from "./edit-billing.js";
 import { editDocument } from "./edit-document.js";
 import { runId } from "./runs.js";
 import { uploadResponse } from "./uploads.js";
-import { MAX_URL_LENGTH, motionStyle, pinnedInsertAsset, ugcScene, ugcTemplate } from "./skills.js";
+import { MAX_URL_LENGTH, motionStyle, offeredResolution, pinnedInsertAsset, ugcScene, ugcTemplate } from "./skills.js";
 import { MOTION_STYLE_UNUSED_WARNING, motionStyleAsked, motionStyleHasCanvas, motionStyleRefusals } from "./motion-styles.js";
 import { MAX_SCENES, sceneRefusals } from "./ugc-scenes.js";
 import { MAX_MOVES, moveRefusals, MOVES_DESCRIPTION, ugcMove } from "./moves.js";
 import { MAX_TEMPLATE_MEDIA, MAX_TEMPLATES, templateRefusals } from "./templates/index.js";
-import { needsPresenterCutout } from "./presenter-matte.js";
+import { isPresenterMatteEnabled, needsPresenterCutout, PRESENTER_MATTE_DISABLED_MESSAGE } from "./presenter-matte.js";
 import { assetId } from "./asset-identity.js";
 import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
 import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MAX_SHOTS, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_MIN_SELECTED_SECONDS,
@@ -23,6 +23,10 @@ import { facelessSoundRefusals, facelessTemplateSounds, mcpTemplateSounds } from
 import { FACELESS_SHOT_TRANSITIONS, facelessActionShotRefusals } from "./faceless-action-shots.js";
 import { pauseTrim } from "./reference-voice.js";
 import { pinnedMascot } from "./mascots.js";
+import { filmDirections } from "./film-directions.js";
+import { maxCreditsField } from "./max-credits.js";
+import { FACELESS_SCENE_DESCRIPTION, sceneBible, sceneDirectionMark } from "./scene-bible.js";
+import { facelessProposeField, facelessSceneProposalAccept, sceneProposal } from "./scene-proposal.js";
 
 export const qualifiedImageUrl = uploadResponse.shape.url.max(MAX_URL_LENGTH).refine((value) => {
   const host = new URL(value).hostname.toLowerCase();
@@ -105,7 +109,22 @@ const common = {
   motion_style: motionStyle.optional(),
   format: z.enum(FACELESS_FORMATS).optional(),
   tier: z.enum(EXPLAINER_TIERS).optional(),
+  // No .default(): admission pins it, and a stored run without it is read as the 1080p it was rendered at (#911).
+  resolution: offeredResolution.optional().describe("Output resolution: 720p (720x1280) or 1080p (1080x1920). Omitted means 720p. " +
+    "The price does not depend on it."),
+  max_credits: maxCreditsField,
+  // make_ugc's scene (#1491); its posture is the main character's.
+  scene: sceneBible.optional(),
+  // quote_faceless's scene proposal (#1491), as on make_ugc: admission expands an accepted one into the fields above.
+  proposal: facelessSceneProposalAccept.optional(),
+  propose: facelessProposeField,
 };
+
+/** The frame a faceless run delivers: 720 by 1280 when admission pinned 720p (#911), else the 1080 by 1920 of every earlier run and every revision. */
+export function facelessRunFrame(storedInput: unknown): { width: number; height: number } {
+  const resolution = storedInput !== null && typeof storedInput === "object" ? (storedInput as { resolution?: unknown }).resolution : undefined;
+  return resolution === "720p" ? { width: 720, height: 1280 } : { width: 1080, height: 1920 };
+}
 
 /** The explainer (#1216) draws its own scene on every phrase, so the fields that place pictures, clips or graphics have no room in it. */
 export const EXPLAINER_OWN_FIELDS = ["style_reference", "transitions", "templates", "shots", "scenes", "moves", "motion_style", "music"] as const;
@@ -145,12 +164,24 @@ export function mascotFieldRefusals(input: Record<string, unknown>): { path: str
       .map(field => ({ path: [field], message: `mascot_id is the hero already made; omit ${field}` })),
   ];
 }
-/** A tier picks the explainer's level, so it means nothing on another format. */
+/** A tier picks the explainer's level, or a directed video's (#1573), so it means nothing on another run. */
 export const EXPLAINER_TIER_REFUSAL = "tier needs format explainer: it picks the explainer's level";
 function refuseExplainerFields(input: Record<string, unknown>, context: z.RefinementCtx) {
-  const tier = input.tier !== undefined && input.format !== "explainer" ? [{ path: ["tier"], message: EXPLAINER_TIER_REFUSAL }] : [];
-  for (const { path, message } of [...explainerFieldRefusals(input), ...mascotFieldRefusals(input), ...tier]) context.addIssue({ code: customIssue, path, message });
+  for (const { path, message } of [...explainerFieldRefusals(input), ...mascotFieldRefusals(input)]) context.addIssue({ code: customIssue, path, message });
 }
+/** The schema takes `tier` on any format; admission refuses it before any reserve unless the run is an explainer or directed. */
+export function facelessTierRefusal(input: { tier?: unknown; format?: unknown }, directed: boolean): string | null {
+  return input.tier !== undefined && input.format !== "explainer" && !directed ? EXPLAINER_TIER_REFUSAL : null;
+}
+/** A directed run's level: `standard` unless asked, so the cheaper level is never a surprise. */
+export function directedFacelessTier(input: { tier?: (typeof EXPLAINER_TIERS)[number] | undefined }): (typeof EXPLAINER_TIERS)[number] {
+  return input.tier ?? "standard";
+}
+/** Server-only: admission freezes a directed video's level and how the caller's pictures may be placed (#1573): `none` without pictures,
+ *  `keep` on their anchors, `by_meaning` where one plainly shows another sentence. A public body naming it is refused as an unknown field. */
+export const facelessDirectedMark = z.strictObject({ version: z.literal(1), tier: z.enum(EXPLAINER_TIERS),
+  pairing: z.enum(["none", "keep", "by_meaning"]) });
+export type FacelessDirectedMark = z.infer<typeof facelessDirectedMark>;
 
 /** The line a faceless quote and run name when a style has nothing to dress: captions off and no templates or scenes (#1123). */
 export function facelessMotionStyleWarnings(input: { motion_style?: Parameters<typeof motionStyleAsked>[0]["motion_style"]; captions?: boolean | undefined;
@@ -158,22 +189,17 @@ export function facelessMotionStyleWarnings(input: { motion_style?: Parameters<t
   return motionStyleAsked(input) && !motionStyleHasCanvas({ ...input, captions: input.captions !== false }) ? [MOTION_STYLE_UNUSED_WARNING] : [];
 }
 
-/** Template kinds make_faceless refuses: a series plays the presenter's take where an item names no clip, and a faceless video has no presenter. */
-export const MAKE_UGC_ONLY_TEMPLATE_KINDS: readonly string[] = ["series_frame", "comment_cta"];
-
-/** Templates over the pictures (#1113): kinds on the script's words; a slot may show the account's own picture or clip (asset_id), as on make_ugc. */
+/** Templates over the pictures (#1113): kinds on the script's words; a slot may show the account's own picture or clip (asset_id), as on make_ugc.
+ *  A cover or a backdrop stands the subject of the picture under its words in front (#1438); a series item without a clip shows that picture. */
 function refuseTemplates(input: { script: string; templates?: z.infer<typeof ugcTemplate>[] | undefined }, context: z.RefinementCtx) {
   if (!input.templates) return;
-  for (const [index, item] of input.templates.entries()) if (MAKE_UGC_ONLY_TEMPLATE_KINDS.includes(item.kind)) {
-    context.addIssue({ code: customIssue, path: ["templates", index, "kind"], message: `${item.kind} is a make_ugc template; use another kind here` });
-  }
   for (const { path, message } of templateRefusals({ script: input.script, templates: input.templates, aspect_ratio: "9:16" })) {
     context.addIssue({ code: customIssue, path, message });
   }
-  // A faceless video has no presenter to stand in front of a cover (#1428).
+  // A cover or a backdrop is behind the cut-out switch here too, refused by value before any reserve (#1438).
+  if (isPresenterMatteEnabled()) return;
   input.templates.forEach((item, index) => {
-    if (needsPresenterCutout([item])) context.addIssue({ code: customIssue, path: ["templates", index, "kind"],
-      message: `${item.kind} stands the presenter in front of it and needs make_ugc; use another kind here` });
+    if (needsPresenterCutout([item])) context.addIssue({ code: customIssue, path: ["templates", index, "kind"], message: PRESENTER_MATTE_DISABLED_MESSAGE });
   });
 }
 
@@ -201,6 +227,8 @@ const scriptShape = { ...common,
   moves: z.array(ugcMove).min(1).max(MAX_MOVES).optional(),
   // make_ugc's field (#1228): the narration's pauses are cut before its words are timed, so everything drawn on them follows the cut.
   pause_trim: z.union([z.literal(false), pauseTrim]).optional(),
+  // #1573: true pins every scene image to its anchor; otherwise a picture that plainly shows another sentence may move there, named in warnings[].
+  keep_anchors: z.boolean().optional(),
 };
 const scriptBase = z.object(scriptShape).strict();
 function refineScript(input: z.infer<typeof scriptBase>, context: z.RefinementCtx) {
@@ -232,8 +260,13 @@ const storedScriptInput = z.object({ ...scriptShape,
   insert_assets: z.array(pinnedInsertAsset).min(1).max(MAX_TEMPLATE_MEDIA + FACELESS_MAX_SHOTS).optional(),
   /** The mascot a run reuses, as admission read it (#1257). */
   mascot: pinnedMascot.optional(),
+  /** What the workflow method the run was launched from requires of its film (#1461). */
+  workflow_directions: filmDirections.optional(),
+  /** Set when admission froze the scene director for the run (#1491). */
+  scene_direction: sceneDirectionMark.optional(),
+  directed: facelessDirectedMark.optional(),
 }).strict().superRefine(refineScript);
-const briefInput = z.object({ ...common,
+const briefShape = { ...common,
   input_mode: z.literal("brief"),
   brief: z.string().trim().min(1).max(10_000),
   transitions: orPlainCuts(briefTransitions).optional(),
@@ -243,12 +276,17 @@ const briefInput = z.object({ ...common,
   scenes: z.never({ error: "scenes need input_mode script: they sit on the narration's words" }).optional(),
   moves: z.never({ error: "moves need input_mode script: they sit on the narration's words" }).optional(),
   pause_trim: z.never({ error: "pause_trim needs input_mode script" }).optional(),
-}).strict().superRefine((input, context) => {
+  keep_anchors: z.never({ error: "keep_anchors needs input_mode script: it keeps your scene_images on the words you anchored them to" }).optional(),
+};
+function refineBrief(input: z.infer<z.ZodObject<typeof briefShape>>, context: z.RefinementCtx) {
   refuseSounds(input, context);
   refuseExplainerFields(input, context);
   if (input.motion_style?.spans) context.addIssue({ code: customIssue, path: ["motion_style", "spans"],
     message: "motion_style spans need input_mode script: they sit on the narration's words; a brief takes style only" });
-});
+}
+const briefInput = z.object(briefShape).strict().superRefine(refineBrief);
+const storedBriefInput = z.object({ ...briefShape, scene_direction: sceneDirectionMark.optional(), directed: facelessDirectedMark.optional() })
+  .strict().superRefine(refineBrief);
 
 export const makeFacelessInput = z.discriminatedUnion("input_mode", [scriptInput, briefInput]);
 export type MakeFacelessInput = z.infer<typeof makeFacelessInput>;
@@ -263,7 +301,7 @@ export const facelessRevisionInput = z.strictObject({
 export type FacelessRevisionInput = z.infer<typeof facelessRevisionInput>;
 
 /** What a `make_faceless` run stores as its input: a generate request or a revision. */
-export const facelessStoredInput = z.discriminatedUnion("input_mode", [storedScriptInput, briefInput, facelessRevisionInput]);
+export const facelessStoredInput = z.discriminatedUnion("input_mode", [storedScriptInput, storedBriefInput, facelessRevisionInput]);
 export type FacelessStoredInput = z.infer<typeof facelessStoredInput>;
 
 /** Admission and the run validate accepted input without canonicalizing its narration again. */
@@ -346,15 +384,26 @@ export const offeredFacelessInputShape = {
     "rewrite into actions before asking. The hero: mascot_id, else your brand's mascot, free; else the character you name or one that fits " +
     `the script, its ${FACELESS_EXPLAINER_POSE_PICTURES} pose pictures at ${FACELESS_IMAGE_CREDITS} each on the quote. Priced as one film by tier; ` +
     "a film takes about half an hour. Without voice, an English script is read by our fastest voice."),
-  tier: common.tier.describe(`Format explainer only. 'standard' (default): ${tierPrice("standard")}. 'pro': more careful direction and ` +
-    `richer scenes, ${tierPrice("pro")}. Pose pictures are on top. quote_faceless names both totals: show them and let the user pick.`),
+  tier: common.tier.describe(`Format explainer: 'standard' (default): ${tierPrice("standard")}. 'pro': more careful direction and ` +
+    `richer scenes, ${tierPrice("pro")}. Pose pictures are on top. quote_faceless names both totals: show them and let the user pick. ` +
+    "Other formats, where your account has the two levels: 'standard' (default) is your story in pictures that move, with captions and " +
+    "sound and about a third of it live; 'pro' plays every shot as live footage. quote_faceless names both totals in tiers. " +
+    "Elsewhere tier is refused."),
   // No shape here keeps tools/list small, as for templates: the field is make_ugc's, which the client and the server check strictly.
   pause_trim: z.unknown().optional().describe("Script only: as make_ugc pause_trim, same default with templates, scenes, shots or format explainer."),
+  keep_anchors: scriptInput.shape.keep_anchors.describe("Script only, with scene_images. true keeps each picture on the words you anchored it to. " +
+    "Omitted or false: a picture that plainly shows another sentence of the script may be shown on that sentence instead; warnings[] names " +
+    "each move, and keep_anchors true keeps yours."),
   voice: common.voice
     .describe("Narration voice: a name from list_voices with skill=make_faceless (kind faceless_voice). " +
       `Omitted means ${DEFAULT_FACELESS_VOICE}; for an English explainer, the fastest voice. Choose a voice in the language of the narration: a voice reads any ` +
       "language, with the accent of its own. The API refuses an unknown name and a make_ugc voice before any charge. " +
       "A raw voice_id is not accepted here."),
+  resolution: common.resolution,
+  max_credits: common.max_credits,
+  scene: common.scene.describe(FACELESS_SCENE_DESCRIPTION),
+  proposal: common.proposal,
+  propose: common.propose,
 };
 
 const rejectedFacelessField = (key: string): string | undefined =>
@@ -391,6 +440,10 @@ export const facelessQuoteResponse = facelessQuote.extend({
   explainer_fit: z.strictObject({ fits: z.boolean(), reason: z.string(), rewrite: z.string().optional() }).optional(),
   /** An explainer's two levels on the same request: each one's total, and the level `totalCredits` is for. */
   explainer_tiers: z.strictObject({ tier: z.enum(EXPLAINER_TIERS), standard: z.number().int().positive(), pro: z.number().int().positive() }).optional(),
+  /** The two levels of a video that has them, on the same request and `max_credits`: each one's total, and the level `totalCredits` is for. */
+  tiers: z.strictObject({ tier: z.enum(EXPLAINER_TIERS), standard: z.number().int().positive(), pro: z.number().int().positive() }).optional(),
+  /** The scene the quote proposes and its options with their prices (#1491); absent where the quote proposes none. */
+  scene_proposal: sceneProposal.optional(),
   warnings: z.array(z.string()).default([]),
   contract_version: z.string().min(1),
 }).strict();

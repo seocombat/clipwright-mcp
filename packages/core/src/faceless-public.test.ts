@@ -31,6 +31,20 @@ it("validates accepted and stored generation input without rewriting its raw scr
 });
 
 describe("makeFacelessInput", () => {
+  // #1573: keep_anchors pins the customer's pictures to their anchors; a brief has no words to anchor to.
+  it("takes keep_anchors on a script, keeps it stored, and refuses it on a brief by name", () => {
+    expect(makeFacelessInput.parse({ ...script, keep_anchors: true }).keep_anchors).toBe(true);
+    expect(facelessContracts.facelessStoredInput.parse({ ...script, keep_anchors: false })).toMatchObject({ keep_anchors: false });
+    const refused = makeFacelessInput.safeParse({ ...brief, keep_anchors: true });
+    expect(refused.success).toBe(false);
+    expect(refused.error!.issues.map(issue => issue.message)).toContain(
+      "keep_anchors needs input_mode script: it keeps your scene_images on the words you anchored them to");
+    expect(() => makeFacelessInput.parse({ ...script, keep_anchors: "yes" })).toThrow();
+    const text = offeredFacelessInputShape.keep_anchors.description ?? "";
+    expect(text).toMatch(/^Script only, with scene_images\. true keeps each picture/);
+    expect(text).not.toMatch(/director|model|omni|gemini|CLIPWRIGHT|credit|cost/i);
+  });
+
   it("accepts script and brief modes and defaults captions on", () => {
     expect(makeFacelessInput.parse(script).captions).toBe(true);
     expect(makeFacelessInput.parse(brief).captions).toBe(true);
@@ -184,13 +198,30 @@ it("describes character_reference per format, in customer terms", () => {
 // or naming a model, an engine or a switch.
 describe("the explainer's tier", () => {
   const explainer = { input_mode: "script", script: "Open the app and tap save.", duration_seconds: 30, format: "explainer" };
-  it("is standard or pro on an explainer, and refused on any other format", () => {
+  // #1573: a directed video takes tier too, so the refusal on other formats moved to admission, which knows the account.
+  it("is standard or pro on an explainer or a directed video, and refused on any other run", () => {
     expect(makeFacelessInput.parse({ ...explainer, tier: "pro" }).tier).toBe("pro");
     expect(makeFacelessInput.parse(explainer).tier).toBeUndefined();
     expect(makeFacelessInput.safeParse({ ...explainer, tier: "max" }).success).toBe(false);
     const { format: _format, ...video } = explainer;
-    expect(makeFacelessInput.safeParse({ ...video, tier: "standard" }).error?.issues).toEqual([
-      expect.objectContaining({ path: ["tier"], message: facelessContracts.EXPLAINER_TIER_REFUSAL })]);
+    const asked = makeFacelessInput.parse({ ...video, tier: "pro" });
+    expect(asked.tier).toBe("pro");
+    expect(facelessContracts.facelessTierRefusal(asked, false)).toBe(facelessContracts.EXPLAINER_TIER_REFUSAL);
+    expect(facelessContracts.facelessTierRefusal(makeFacelessInput.parse({ ...video, tier: "standard" }), false))
+      .toBe(facelessContracts.EXPLAINER_TIER_REFUSAL);
+    expect(facelessContracts.facelessTierRefusal(makeFacelessInput.parse({ ...video, tier: "standard" }), true)).toBeNull();
+    expect(facelessContracts.facelessTierRefusal(asked, true)).toBeNull();
+    expect(facelessContracts.facelessTierRefusal(makeFacelessInput.parse({ ...explainer, tier: "pro" }), false)).toBeNull();
+    expect(facelessContracts.facelessTierRefusal(makeFacelessInput.parse(video), false)).toBeNull();
+    expect(facelessContracts.directedFacelessTier(makeFacelessInput.parse(video))).toBe("standard");
+    expect(facelessContracts.directedFacelessTier(asked)).toBe("pro");
+    expect(facelessContracts.directedFacelessTier(makeFacelessInput.parse({ ...video, tier: "standard" }))).toBe("standard");
+  });
+  it("describes the directed levels by what they give, with nothing of how", () => {
+    const text = offeredFacelessInputShape.tier.description ?? "";
+    expect(text).toContain("'standard' (default) is your story in pictures that move, with captions and sound and about a third of it live");
+    expect(text).toContain("'pro' plays every shot as live footage");
+    expect(text).not.toMatch(/director|omni|gemini|wan|model|CLIPWRIGHT|epic/i);
   });
   it("is described in customer terms with the prices billing charges", () => {
     const text = offeredFacelessInputShape.tier.description ?? "";

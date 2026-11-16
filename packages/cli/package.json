@@ -1,6 +1,6 @@
 {
   "name": "@clipwright/cli",
-  "version": "0.56.0",
+  "version": "0.61.0",
   "description": "Command-line client for the Clipwright UGC video API",
   "repository": { "type": "git", "url": "git+https://github.com/seocombat/clipwright-mcp.git", "directory": "packages/cli" },
   "keywords": [
@@ -27,7 +27,7 @@
     "clipwright-cli": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "dev": "tsx src/index.ts",
     "prepublishOnly": "npm run build"

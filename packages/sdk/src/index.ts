@@ -1,4 +1,9 @@
 import {
+  AD_GUIDE_PATH,
+  adGuide,
+  adGuideQuery,
+  type AdGuide,
+  type AdGuideQuery,
   createFilmDraftInput,
   type CreateFilmDraftInput,
   checkFilmInput,
@@ -25,6 +30,18 @@ import {
   FILM_HEROES_QUOTE_PATH,
   filmHeroInput,
   type FilmHeroInput,
+  FILM_EDITS_PATH,
+  FILM_EDITS_QUOTE_PATH,
+  filmEditInput,
+  type FilmEditRequest,
+  TAKE_CHECKS_PATH,
+  TAKE_CHECKS_QUOTE_PATH,
+  TAKE_FRAMES_PATH,
+  TAKE_FRAMES_QUOTE_PATH,
+  takeCheckInput,
+  takeFramesInput,
+  type TakeCheckRequest,
+  type TakeFramesRequest,
   FILM_RENDERS_PATH,
   FILM_RENDERS_QUOTE_PATH,
   FILM_RUN_PATH,
@@ -1068,9 +1085,46 @@ export class ClipwrightClient {
     return this.#startFilm("film_hero", FILM_HEROES_PATH, filmHeroInput.parse(request), opts);
   }
 
+  /** What cutting your clips, voice and captions into one edit would hold; spends no credits. */
+  async quoteEdit(request: FilmEditRequest): Promise<OwnAgentQuote> {
+    return this.#quoteFilm(FILM_EDITS_QUOTE_PATH, filmEditInput.parse(request));
+  }
+
+  /** Your clips, voice and captions cut into one vertical 720p video, charged only when delivered. Returns at once; read it with getFilmRun. */
+  async renderEdit(request: FilmEditRequest, opts?: StartUgcOptions): Promise<FilmRun> {
+    return this.#startFilm("film_edit", FILM_EDITS_PATH, filmEditInput.parse(request), opts);
+  }
+
+  /** How many frames and contact sheets takeFrames would draw of your clip; free. */
+  async quoteTakeFrames(request: TakeFramesRequest): Promise<OwnAgentQuote> {
+    return this.#quoteFilm(TAKE_FRAMES_QUOTE_PATH, takeFramesInput.parse(request));
+  }
+
+  /** Your clip's frames on contact sheets, each frame labelled with its second; free. Returns at once; read it with getFilmRun. */
+  async takeFrames(request: TakeFramesRequest, opts?: StartUgcOptions): Promise<FilmRun> {
+    return this.#startFilm("film_take_frames", TAKE_FRAMES_PATH, takeFramesInput.parse(request), opts);
+  }
+
+  /** What checking your clip against its prompt would hold; spends no credits. */
+  async quoteTakeCheck(request: TakeCheckRequest): Promise<OwnAgentQuote> {
+    return this.#quoteFilm(TAKE_CHECKS_QUOTE_PATH, takeCheckInput.parse(request));
+  }
+
+  /** Your clip judged frame by frame against its prompt, charged only for a delivered verdict. Returns at once; read it with getFilmRun. */
+  async checkTake(request: TakeCheckRequest, opts?: StartUgcOptions): Promise<FilmRun> {
+    return this.#startFilm("film_take_check", TAKE_CHECKS_PATH, takeCheckInput.parse(request), opts);
+  }
+
   /** The explainer guide, its method appendix and the scene kit's file list. Free. */
   async getFilmGuide(): Promise<FilmGuide> {
     return parseResponse(filmGuide, await this.#request(FILM_GUIDE_PATH, false), FILM_GUIDE_PATH, false);
+  }
+
+  /** The ad guide for make_ugc and for making the ad yourself, or one section of it. Free. */
+  async getAdGuide(query: AdGuideQuery = {}): Promise<AdGuide> {
+    const { section } = adGuideQuery.parse(query);
+    const path = section ? `${AD_GUIDE_PATH}?section=${encodeURIComponent(section)}` : AD_GUIDE_PATH;
+    return parseResponse(adGuide, await this.#request(path, false), path, false);
   }
 
   /** The scene kit's files with its reference film, or one of them. Free. */

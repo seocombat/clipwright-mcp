@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 import { ClipwrightClient } from "@clipwright/sdk";
-import { AI_DISCLOSURE_TEXT, cutoutTemplateLines, PRESENTER_ENGINE_LABELS, quoteFaceless, type QuoteResponse, type RunRead } from "@clipwright/core";
+import { AI_DISCLOSURE_TEXT, cutoutTemplateLines, PRESENTER_ENGINE_LABELS, quoteFaceless, SHOT_ENGINE_LABELS, type QuoteResponse, type RunRead } from "@clipwright/core";
 
 import { formatGetRun, RUN_RETRY_AFTER_SECONDS, RUN_WAIT_MAX_SECONDS } from "./format.js";
 import { facelessQuoteMarkdown, RUN_DISPLAY_HINT, terminalRunMarkdown, ugcQuoteMarkdown } from "./run-display.js";
@@ -121,12 +121,48 @@ describe("get_run waits on the server (#1000, #1036)", () => {
 });
 
 describe("display_markdown on quotes and finished runs (#1000)", () => {
+  /** #1491 S6. Mutants: the proposal left off the markdown, an option shown without its price, or no word on how to accept it. */
+  it("shows the proposed scene, each free addition and each option with its price, and how to pass the pick", () => {
+    const shown = ugcQuoteMarkdown({ ...UGC_QUOTE, scene_proposal: { state: "ready", id: "sp_00000000000000000001", expires_at: "2026-11-15T00:00:00Z",
+      scene: { place: "a white kitchen counter", posture: "standing" }, free: [{ what: "stat-count-up on \"72 degrees\"" }], base_credits: 420,
+      options: [{ id: "o1", what: "a live shot on \"Follow for more.\"", field: "shots", credits: 150, item: {} },
+        { id: "o2", what: "music made for the video", field: "music", credits: 60, item: "auto" }], notes: [] } });
+    for (const part of ["**Scene proposal** sp_00000000000000000001", "about 420 credits", "place: a white kitchen counter", "Free:",
+      "| o1 | “a live shot on \"Follow for more.\"” | +150 |", "| o2 | “music made for the video” | +60 |", "proposal { id, accept"])
+      expect(shown).toContain(part);
+    expect(ugcQuoteMarkdown({ ...UGC_QUOTE, scene_proposal: { state: "writing", retry_after_s: 15 } })).toContain("quote again in about 15 s");
+  });
+
+  /** #1491 integration. Mutant: quote_faceless's proposal left off its markdown, so the user never sees the options or their prices. */
+  it("shows a faceless quote's proposal the same way", () => {
+    const shown = facelessQuoteMarkdown({ ...FACELESS_QUOTE, scene_proposal: { state: "ready", id: "sp_00000000000000000002",
+      expires_at: "2026-11-15T00:00:00Z", scene: { place: "a wooden kitchen counter" }, free: [], base_credits: 171, notes: [],
+      options: [{ id: "o1", what: "an action shot on \"press the plunger\"", field: "shots", credits: 150, item: {} }] } });
+    for (const part of ["**Scene proposal** sp_00000000000000000002", "about 171 credits", "place: a wooden kitchen counter",
+      "| o1 | “an action shot on \"press the plunger\"” | +150 |", "proposal { id, accept"]) expect(shown).toContain(part);
+    expect(facelessQuoteMarkdown({ ...FACELESS_QUOTE, scene_proposal: { state: "unavailable", reason: "used up" } })).toContain("none: “used up”");
+  });
+
   /** Mutant (Codex r2 on #1428 S2): name every template line by one fixed name, and a backdrop reads as a cover story on the quote. */
   it("names each free template line by its own kind, counted in pieces", () => {
     const lines = cutoutTemplateLines([{ kind: "cover_story" }, { kind: "backdrop" }, { kind: "backdrop" }]);
     const shown = ugcQuoteMarkdown({ ...UGC_QUOTE, price_lines: [...UGC_QUOTE.price_lines!, ...lines] });
     expect(shown).toContain("| Cover story, presenter in front | 1 × 0 | 0 |");
     expect(shown).toContain("| Backdrop, presenter in front | 2 × 0 | 0 |");
+  });
+
+  /** Mutant (#1490): every presenter-second row named "Presenter on screen", and the acting rows read as three identical presenter rows. */
+  it("names each live-shot row by its kind, apart from the presenter row, with no engine name", () => {
+    const shown = ugcQuoteMarkdown({ ...UGC_QUOTE, price_lines: [
+      { label: "presenter, HeyGen Avatar IV", unit: "face_second", quantity: 11, unit_credits: 9, credits: 99 },
+      { label: SHOT_ENGINE_LABELS.shot_talking_action, unit: "face_second", quantity: 6, unit_credits: 30, credits: 180 },
+      { label: SHOT_ENGINE_LABELS.shot_action, unit: "face_second", quantity: 3, unit_credits: 30, credits: 90 },
+      { label: "production (voice and render)", unit: "second", quantity: 19, unit_credits: 1, credits: 19 },
+    ] });
+    expect(shown).toContain("| Presenter on screen | 11 s × 9 | 99 |");
+    expect(shown).toContain("| Live shot, speaking while acting | 6 s × 30 | 180 |");
+    expect(shown).toContain("| Live shot, acting under voice-over | 3 s × 30 | 90 |");
+    expect(shown).not.toMatch(/HeyGen|OmniHuman/);
   });
 
   it("quote_ugc shows the price, the length, what it covers and every warning word for word, with no engine name", async () => {

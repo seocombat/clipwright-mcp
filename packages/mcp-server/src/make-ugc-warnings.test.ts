@@ -32,6 +32,7 @@ const QUEUED_RUN = {
 
 let stub: Server;
 let baseUrl = "";
+let answer: Record<string, unknown> = QUEUED_RUN;
 
 beforeAll(async () => {
   stub = createHttpServer((req, res) => {
@@ -40,8 +41,8 @@ beforeAll(async () => {
       res.end(JSON.stringify({ error: { code: "not_found", message: `no stub for ${req.url}` } }));
       return;
     }
-    res.writeHead(202, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(QUEUED_RUN));
+    res.writeHead(answer === QUEUED_RUN ? 202 : 200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(answer));
   });
   await new Promise<void>((resolve) => stub.listen(0, "127.0.0.1", resolve));
   baseUrl = `http://127.0.0.1:${(stub.address() as AddressInfo).port}`;
@@ -53,7 +54,7 @@ afterAll(async () => {
   );
 });
 
-async function callMakeUgc(): Promise<Record<string, unknown>> {
+async function callMakeUgc(attempt?: number): Promise<Record<string, unknown>> {
   const sdkClient = new ClipwrightClient({ apiKey: "cw_test", baseUrl });
   const server = createServer(sdkClient);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -62,7 +63,7 @@ async function callMakeUgc(): Promise<Record<string, unknown>> {
   try {
     const result = await mcpClient.callTool({
       name: "make_ugc",
-      arguments: { script: "hello from the warnings case" },
+      arguments: { script: "hello from the warnings case", ...attempt ? { attempt } : {} },
     });
     const content = result.content as { type: string; text: string }[];
     return JSON.parse(content[0]?.text ?? "{}") as Record<string, unknown>;
@@ -89,5 +90,22 @@ describe("make_ugc delivers the run's warnings", () => {
     expect(payload["state"]).toBe("queued");
     expect(payload["video_url"]).toBeNull();
     expect(String(payload["next_action"])).toContain(QUEUED_RUN.run_id);
+    expect(payload["repeat"]).toBeUndefined();
+  });
+});
+
+/** Pilot 6 (#1551): the same body returned the failed run, and nothing said how to start a new one. Mutants: no note, a note on a fresh */
+/** start, or the next attempt miscounted. */
+describe("make_ugc answered with a failed run", () => {
+  it("says the arguments already ran and names the next attempt", async () => {
+    answer = { ...QUEUED_RUN, state: "failed", error: "the vendor failed the take", finished_at: new Date().toISOString(), credits_charged: 0 };
+    try {
+      const first = await callMakeUgc();
+      expect(first["status"]).toBe("FAILED");
+      expect(first["repeat"]).toBe("These arguments already started this run, and it failed. To make the video again, call make_ugc with the " +
+        "same arguments and attempt 2: that starts a new run, charged as its quote says.");
+      expect(String(first["display_markdown"])).toContain("attempt 2");
+      expect((await callMakeUgc(2))["repeat"]).toContain("attempt 3");
+    } finally { answer = QUEUED_RUN; }
   });
 });

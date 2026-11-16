@@ -9,7 +9,7 @@ export const OWN_AGENT_TARIFF = "own-agent-v2";
 /** The tariff of runs admitted before free stills: every still charged. */
 export const OWN_AGENT_TARIFF_V1 = "own-agent-v1";
 /** The run skills of the mode, each with its own unit. */
-export const OWN_AGENT_SKILLS = ["film_stills", "film_voice", "film_render", "film_hero"] as const;
+export const OWN_AGENT_SKILLS = ["film_stills", "film_voice", "film_render", "film_hero", "film_edit", "film_take_frames", "film_take_check"] as const;
 export type OwnAgentSkill = (typeof OWN_AGENT_SKILLS)[number];
 
 /** One still the agent saw, past the free ones. */
@@ -26,6 +26,12 @@ export const OWN_STILLS_MAX_PER_CALL = 24, OWN_FILM_MAX_SECONDS = 120, OWN_VOICE
 export const OWN_STILLS_SINGLE_MAX = 8;
 /** A hero's pose picture, priced as the done-for-you explainer's, and the poses a hero is made of. */
 export const OWN_HERO_POSE_CREDITS = FACELESS_IMAGE_CREDITS, OWN_HERO_POSES = FACELESS_EXPLAINER_POSE_PICTURES;
+/** An edit of the account's own clips, voice and captions into one cut, charged once per delivered cut up to OWN_EDIT_MAX_SECONDS long. */
+export const OWN_EDIT_CREDITS = 10, OWN_EDIT_MAX_SECONDS = 60;
+/** A take's frames on contact sheets (take_frames): free, at most this many frames a call, and this many calls an account starts an hour. */
+export const OWN_TAKE_FRAMES_MAX = 96, TAKE_FRAMES_PER_HOUR = 60, TAKE_FRAMES_WINDOW_SECONDS = 3600;
+/** A take judged frame by frame against its direction (check_take), charged once per delivered verdict. */
+export const OWN_TAKE_CHECK_CREDITS = 10;
 
 /** The prices a run's admission freezes; a run settles by its snapshot, never by today's constants. */
 export const ownAgentTerms = z.strictObject({
@@ -37,6 +43,10 @@ export const ownAgentTerms = z.strictObject({
   voice_credits_per_second: z.number().int().nonnegative(),
   /** A published hero pose; absent on terms frozen before the hero was sold, and a hero run without it is never charged. */
   pose_credits: z.number().int().nonnegative().optional(),
+  /** A delivered edit; absent on terms frozen before the edit was sold, and an edit run without it is never charged. */
+  edit_credits: z.number().int().nonnegative().optional(),
+  /** A delivered take verdict; absent on terms frozen before the check was sold, and a check run without it is never charged. */
+  take_check_credits: z.number().int().nonnegative().optional(),
   /** A draft's free stills and their rolling window: present exactly on the tariff that has them. */
   free_stills: z.number().int().nonnegative().optional(),
   free_stills_window_hours: z.number().int().positive().optional(),
@@ -46,7 +56,8 @@ export type OwnAgentTerms = z.infer<typeof ownAgentTerms>;
 
 export const ownAgentTermsNow = (): OwnAgentTerms => ({ tariff: OWN_AGENT_TARIFF, still_credits: OWN_STILL_CREDITS, render_credits: OWN_FILM_RENDER_CREDITS,
   included_seconds: OWN_FILM_INCLUDED_SECONDS, extra_second_credits: OWN_FILM_EXTRA_SECOND_CREDITS, voice_credits_per_second: OWN_VOICE_CREDITS_PER_SECOND,
-  pose_credits: OWN_HERO_POSE_CREDITS, free_stills: OWN_FREE_STILLS, free_stills_window_hours: OWN_FREE_STILLS_WINDOW_HOURS });
+  pose_credits: OWN_HERO_POSE_CREDITS, edit_credits: OWN_EDIT_CREDITS, take_check_credits: OWN_TAKE_CHECK_CREDITS, free_stills: OWN_FREE_STILLS,
+  free_stills_window_hours: OWN_FREE_STILLS_WINDOW_HOURS });
 
 /** Whether the mode is offered. */
 export const isOwnAgentEnabled = (env: Readonly<Record<string, string | undefined>>): boolean => env.CLIPWRIGHT_OWN_AGENT === "1";
@@ -79,19 +90,46 @@ export function ownHeroCredits(n: number, terms: OwnAgentTerms = ownAgentTermsNo
   return terms.pose_credits * n;
 }
 
+/** An edit of `s` seconds: one flat price up to the longest edit; terms that price no edit price none. */
+export function ownEditCredits(s: number, terms: OwnAgentTerms = ownAgentTermsNow()): number {
+  seconds(s, OWN_EDIT_MAX_SECONDS, "an edit");
+  if (terms.edit_credits === undefined) throw new Error("these terms price no edit");
+  return terms.edit_credits;
+}
+
 /** What a run of the mode delivered; a failed run delivered nothing, and is charged nothing. */
 export type OwnAgentDelivery =
   /** `free`: the stills granted free when the run was admitted; absent, none. */
   | { skill: "film_stills"; frames: number; free?: number }
   | { skill: "film_voice"; seconds: number }
   | { skill: "film_render"; seconds: number }
-  | { skill: "film_hero"; poses: number };
+  | { skill: "film_hero"; poses: number }
+  | { skill: "film_edit"; seconds: number }
+  /** `sheets`: the contact sheets drawn; free. */
+  | { skill: "film_take_frames"; sheets: number }
+  /** `checks`: the verdicts delivered, one a run. */
+  | { skill: "film_take_check"; checks: number };
+
+/** `n` take verdicts; terms that price no check price none. */
+export function ownTakeCheckCredits(n: number, terms: OwnAgentTerms = ownAgentTermsNow()): number {
+  if (n !== 0 && n !== 1) throw new Error(`${n} take verdicts is outside 0–1`);
+  if (terms.take_check_credits === undefined) throw new Error("these terms price no take check");
+  return terms.take_check_credits * n;
+}
+/** Contact sheets of a take: free under every terms, within the most one call draws. */
+export function ownTakeFramesCredits(sheets: number): number {
+  if (!Number.isSafeInteger(sheets) || sheets < 0 || sheets > OWN_TAKE_FRAMES_MAX) throw new Error(`${sheets} sheets is outside 0–${OWN_TAKE_FRAMES_MAX}`);
+  return 0;
+}
 
 /** The charge for a delivery under the run's frozen terms, never above what admission held: a measure past the hold is a defect, not a bill. */
 export function ownAgentCharge(delivery: OwnAgentDelivery, terms: OwnAgentTerms, heldCredits: number): number {
   const charge = delivery.skill === "film_stills" ? ownStillsCredits(delivery.frames, terms, delivery.free)
     : delivery.skill === "film_voice" ? ownVoiceCredits(delivery.seconds, terms)
-    : delivery.skill === "film_hero" ? ownHeroCredits(delivery.poses, terms) : ownFilmRenderCredits(delivery.seconds, terms);
+    : delivery.skill === "film_hero" ? ownHeroCredits(delivery.poses, terms)
+    : delivery.skill === "film_edit" ? ownEditCredits(delivery.seconds, terms)
+    : delivery.skill === "film_take_frames" ? ownTakeFramesCredits(delivery.sheets)
+    : delivery.skill === "film_take_check" ? ownTakeCheckCredits(delivery.checks, terms) : ownFilmRenderCredits(delivery.seconds, terms);
   if (!Number.isSafeInteger(heldCredits) || charge > heldCredits) throw new Error(`${delivery.skill} charge ${charge} is over its hold ${heldCredits}`);
   return charge;
 }

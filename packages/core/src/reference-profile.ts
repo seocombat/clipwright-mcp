@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REFERENCE_BRING_KINDS, referenceBringItem } from "./reference-bring.js";
 import { REFERENCE_GRAPHIC_KINDS, REFERENCE_SOURCE_KINDS, type REFERENCE_DESCRIBED_KINDS, type ReferenceGraphicKind, type ReferenceSourceKind } from "./reference-kinds.js";
 import { referenceStaging, stagingIssues, stagingRect } from "./reference-staging.js";
 import { referenceVoice } from "./reference-voice.js";
@@ -136,6 +137,42 @@ const referenceBeat = z.strictObject({
     .describe("Notable gestures in the beat, such as both hands toward the viewer at the call to action."),
 });
 
+/** How a shot is entered, read off the presenter's face on both sides of the cut (#1527): the same framing is a jump cut, another size a size change, */
+/** a face on one side only an insert; other when neither side shows a face. The first shot starts the reel. */
+export const REFERENCE_CUT_KINDS = ["start", "jump_cut", "size_change", "to_insert", "from_insert", "other"] as const;
+export const MAX_REFERENCE_SHOTS = 120;
+/** How a shot's picture was made (#1602): a person filmed on camera, camera footage without them, a generated clip, graphics drawn by software, */
+/** or a recorded screen. */
+export const REFERENCE_SHOT_SOURCES = ["live", "real_footage", "ai_video", "code_render", "screen_capture"] as const;
+export type ReferenceShotSource = (typeof REFERENCE_SHOT_SOURCES)[number];
+export const referenceShot = z.strictObject({
+  start_s: seconds, end_s: seconds,
+  beat_index: z.number().int().min(0).describe("The beat this shot overlaps most."),
+  words: z.number().int().min(0).describe("Spoken words that start inside the shot."),
+  silent: z.boolean().describe("true when no word is spoken in the shot: a visual beat with no words."),
+  cut_in: z.enum(REFERENCE_CUT_KINDS),
+  /** Optional since #1602, as is same_clip_as. */
+  source: z.strictObject({
+    kind: z.enum(REFERENCE_SHOT_SOURCES),
+    confidence: frac.describe("How sure the reading is, from 0 to 1."),
+    measured: z.boolean().describe("true when the picture's measured motion set the kind against what the picture looked like."),
+  }).optional().describe("How the shot's picture was made: live, real_footage, ai_video, code_render or screen_capture."),
+  same_clip_as: z.number().int().min(0).nullable().optional().describe("The index of an earlier shot that shows the same clip, such as a cold open repeated at the end."),
+});
+export type ReferenceShot = z.infer<typeof referenceShot>;
+
+/** The reel's music measured on its mix (#1602): tempo only over a bed with a clear beat, and whether the cuts follow it. */
+export const referenceTempo = z.strictObject({
+  music_bed: z.boolean().describe("true when music plays under most of the reel."),
+  bpm: z.number().positive().nullable().describe("The beat's tempo; null when there is no music bed or no clear beat, as under a drone or soft pads."),
+  cuts_on_beat: frac.nullable().describe("The share of cuts that land on a beat; null without a beat or a measured cut."),
+  cuts_on_beat_by_chance: frac.nullable().describe("The share of cuts a random edit would land on a beat at this tempo."),
+  edit_on_beat: z.boolean().describe("true when the edit follows the beat: at least 4 cuts, well above chance."),
+});
+export type ReferenceTempo = z.infer<typeof referenceTempo>;
+export const REFERENCE_SOUND_EVENT_KINDS = ["whoosh", "ding", "impact", "click", "pop", "hit", "typing"] as const;
+export const MAX_REFERENCE_SOUND_EVENTS = 120;
+
 export const referenceWord = z.strictObject({ text: z.string().min(1).max(64), start_s: seconds, end_s: seconds,
   speaker: z.string().min(1).max(40).optional().describe("The transcription's speaker label, such as speaker_0; absent when it gave none.") });
 export const referenceLanguage = z.string().regex(/^[a-z]{2,3}$/).nullable()
@@ -157,7 +194,10 @@ const profileHead = {
     emphasis_style: z.enum([...CAPTION_EMPHASIS_LOOKS, "none"]), hidden_under_graphics: z.boolean(),
     /** Optional since #973 S5: a profile without it parses, and the remake infers a layer under the captions from position. */
     box: stagingRect.optional().describe("The caption block's box, in shares of the frame.") }),
-  pacing: z.strictObject({ layer_change_every_s: z.number().positive(), face_share: frac }),
+  pacing: z.strictObject({ layer_change_every_s: z.number().positive(), face_share: frac,
+    /** Optional since #1527: a profile without a transcript, or written before it, has none. */
+    effective_words_per_s: z.number().min(0).optional()
+      .describe("Spoken words over the whole reel's length, pauses and silent shots included: the pace a word budget for this length needs.") }),
   palette: z.array(z.string().regex(/^#[0-9A-F]{6}$/)).max(8),
   music: text(200),
   unmapped: z.array(z.strictObject({ what: text(200), beat_index: z.number().int().min(0), suggested_substitute: text(200) })).max(40),
@@ -188,6 +228,17 @@ const profileTail = {
     .max(MAX_REFERENCE_SPELLINGS).optional()
     .describe("Names heard one way while the screen spells them another at the same time, such as heard Piggs Field, shown Higgsfield; " +
       "transcript and segments keep the heard words."),
+  /** Optional since #1527: a profile whose cuts were not measured, or written before it, has none. */
+  shots: z.array(referenceShot).max(MAX_REFERENCE_SHOTS).optional()
+    .describe("The reel cut by cut, measured on its frames: each shot's times, its words, whether it is silent and how it is cut into."),
+  /** Optional since #1602: a profile whose sound was not measured, or written before it, has neither. */
+  tempo: referenceTempo.optional(),
+  /** Optional since #1602: a profile written before it has none; an empty list means the remake needs nothing brought. */
+  bring: z.array(referenceBringItem).max(REFERENCE_BRING_KINDS.length).optional()
+    .describe("What a remake needs the user to bring, because the reel shows it and it is not generated: screen recordings, screenshots, product " +
+      "photos and live clips, each with its seconds and where it starts."),
+  sound_events: z.array(z.strictObject({ t_s: seconds, kind: z.enum(REFERENCE_SOUND_EVENT_KINDS) })).max(MAX_REFERENCE_SOUND_EVENTS).optional()
+    .describe("Sharp sounds measured on the mix while nobody speaks, such as a whoosh on a cut, in time order; sounds under speech are not listed."),
 };
 type ProfileBody = z.infer<z.ZodObject<typeof profileHead & typeof profileTail>>;
 function checkProfile(profile: ProfileBody, ctx: z.RefinementCtx): void {
@@ -233,6 +284,23 @@ function checkProfile(profile: ProfileBody, ctx: z.RefinementCtx): void {
   profile.unmapped.forEach((entry, index) => {
     if (entry.beat_index >= profile.beats.length) issue(["unmapped", index, "beat_index"], `there are ${profile.beats.length} beats`);
   });
+  // Shots tile the reel: the first starts it, each starts where the one before ends, and only the first is entered as the start.
+  profile.shots?.forEach((shot, index) => {
+    const before = profile.shots![index - 1];
+    if (shot.end_s <= shot.start_s) issue(["shots", index, "end_s"], "ends where or before the shot starts");
+    if (shot.end_s > duration) issue(["shots", index, "end_s"], `lies past the source's ${duration} s`);
+    else if (index === profile.shots!.length - 1 && shot.end_s < duration - 1e-6) issue(["shots", index, "end_s"], "the last shot ends with the reel");
+    if (before ? Math.abs(shot.start_s - before.end_s) > 1e-6 : shot.start_s !== 0) issue(["shots", index, "start_s"], before ? "does not start where the shot before ends" : "the first shot starts at 0");
+    if ((shot.cut_in === "start") !== (index === 0)) issue(["shots", index, "cut_in"], index ? "only the first shot is the start" : "the first shot is the start");
+    if (shot.beat_index >= profile.beats.length) issue(["shots", index, "beat_index"], `there are ${profile.beats.length} beats`);
+    if (shot.silent !== (shot.words === 0)) issue(["shots", index, "silent"], "a shot is silent exactly when it has no words");
+    if (shot.same_clip_as != null && shot.same_clip_as >= index) issue(["shots", index, "same_clip_as"], "names a shot that does not come before it");
+  });
+  profile.sound_events?.forEach((event, index) => {
+    if (event.t_s > duration) issue(["sound_events", index, "t_s"], `lies past the source's ${duration} s`);
+    if (index && event.t_s < profile.sound_events![index - 1]!.t_s) issue(["sound_events", index, "t_s"], "comes before the event before it: events are in order");
+  });
+  if (profile.tempo && profile.tempo.bpm !== null && !profile.tempo.music_bed) issue(["tempo", "bpm"], "a tempo is measured only over a music bed");
 }
 /** The profile's fields but `analysis`, and its checks: the profile as kept with an analysis is built from them where it is written. */
 export const referenceProfileShape = { ...profileHead, ...profileTail };

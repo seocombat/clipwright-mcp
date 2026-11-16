@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { keyFrameSecond, mapAnalyserDevice, mapAnalyserGraphic, mapAnalyserSourceKind, REFERENCE_PROFILE_VERSION, referenceProfileInput as referenceProfile, spanFrameSeconds } from "./index.js";
+import { keyFrameSecond, mapAnalyserDevice, mapAnalyserGraphic, mapAnalyserSourceKind, REFERENCE_PROFILE_VERSION, REFERENCE_SHOT_SOURCES, referenceProfileInput as referenceProfile,
+  referenceShot, spanFrameSeconds } from "./index.js";
+import { buildOpenApiDocument } from "./openapi.js";
 
 const beat = (start: number, end: number, extra: Record<string, unknown> = {}) => ({
   start_frac: start / 72, end_frac: end / 72, start_s: start, end_s: end, role: "demo", spoken_summary: "she answers calls", graphics: [],
@@ -191,5 +193,18 @@ describe("named devices", () => {
     const named = (devices: Record<string, string>) => { const base = profile(); return { ...base, beats: [{ ...base.beats[0]!, ...devices }, ...base.beats.slice(1)] }; };
     expect(referenceProfile.safeParse(named({ camera: "other", camera_device: "whip_pan", transition_in: "other", transition_device: "glitch" })).success).toBe(true);
     expect(referenceProfile.safeParse(named({ transition_in: "other", transition_device: "starburst" })).success).toBe(false);
+  });
+});
+
+describe("a shot's source", () => {
+  /** Mutants (#1602): put still_motion back on the list or in the field's description, and the public contract names a kind no reading supports. */
+  it("names no still_motion in the list, the schema or /openapi.json, and refuses it on a shot", () => {
+    expect(REFERENCE_SHOT_SOURCES).toEqual(["live", "real_footage", "ai_video", "code_render", "screen_capture"]);
+    const shot = { start_s: 0, end_s: 2, beat_index: 0, words: 0, silent: true, cut_in: "start" };
+    expect(referenceShot.safeParse({ ...shot, source: { kind: "ai_video", confidence: 0.9, measured: false } }).success).toBe(true);
+    expect(referenceShot.safeParse({ ...shot, source: { kind: "still_motion", confidence: 0.9, measured: false } }).success).toBe(false);
+    const openapi = JSON.stringify(buildOpenApiDocument());
+    expect(openapi).toContain("screen_capture");
+    expect(openapi).not.toContain("still_motion");
   });
 });

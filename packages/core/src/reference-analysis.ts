@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { assetId } from "./asset-identity.js";
 import { ASSET_VIDEO_MAX_SECONDS } from "./assets.js";
+import { maxCreditsField } from "./max-credits.js";
 import { referenceUntrusted } from "./reference-display.js";
 import { MAX_REFERENCE_SEGMENTS, MAX_REFERENCE_TRANSCRIPT_WORDS, referenceHook, referenceLanguage, referenceProfileAnswer, referenceSegment, referenceWord,
   type ReferenceProfileAnswer } from "./reference-profile.js";
@@ -103,6 +104,7 @@ export const analyzeReferenceRequest = z.strictObject({
     .describe(`instead of asset_id: ${REFERENCE_URL_ACCEPTED}; YouTube is refused`),
   mode: z.enum(REFERENCE_ANALYSIS_MODES).optional().describe(`full (default, ${REFERENCE_ANALYSIS_CREDITS} credits): the reference_profile. ` +
     `data (${REFERENCE_DATA_CREDITS} credits): duration, size, timed transcript, hook and a 3×3 frame sheet, without beats or graphics`),
+  max_credits: maxCreditsField,
 }).refine((request) => (request.asset_id === undefined) !== (request.source_url === undefined), {
   message: "pass exactly one of asset_id or source_url",
 });
@@ -292,11 +294,11 @@ export const referenceAnalysis = z.strictObject({
   repeat_note: z.string().nullable(),
   warnings: z.array(z.string()),
   error: z.strictObject({ code: z.enum(REFERENCE_ANALYSIS_ERRORS), message: z.string().min(1) }).nullable(),
-  /** Held at the start; 0 for an analysis started before it was paid (#927). */
+  /** Held at the start; 0 for an analysis started before it was paid (#927), and in a start an earlier analysis answers (#1525). */
   credits_reserved: z.number().int().nonnegative(),
-  /** Set at settlement: the price once succeeded, 0 once failed; `null` while it runs. */
+  /** Set at settlement: the price once succeeded, 0 once failed; `null` while it runs; 0 in a start an earlier analysis answers. */
   credits_charged: z.number().int().nonnegative().nullable(),
-  /** The account's balance right after the settlement, read in its transaction; `null` until settled. */
+  /** The account's balance right after the settlement, read in its transaction; `null` until settled and in a repeated start. */
   balance_after_credits: z.number().int().nullable(),
   created_at: z.string().datetime(),
   finished_at: z.string().datetime().nullable(),

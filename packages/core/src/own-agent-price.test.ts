@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOwnAgentEnabled, OWN_AGENT_TARIFF, OWN_AGENT_TARIFF_V1, ownAgentCharge, ownAgentTerms, ownAgentTermsNow, ownFilmRenderCredits, ownHeroCredits, ownStillsCredits,
+import { isOwnAgentEnabled, OWN_AGENT_TARIFF, OWN_AGENT_TARIFF_V1, ownAgentCharge, ownAgentTerms, ownAgentTermsNow, ownEditCredits, ownFilmRenderCredits, ownHeroCredits, ownStillsCredits,
   ownVoiceCredits, type OwnAgentTerms } from "./own-agent-price.js";
 
 // #1291 F2, 02-solution §4: the «own agent» prices as parameters, the owner's proposal (still 1, render 100 to 60 s + 2/s, voice 2/s).
@@ -7,7 +7,28 @@ import { isOwnAgentEnabled, OWN_AGENT_TARIFF, OWN_AGENT_TARIFF_V1, ownAgentCharg
 describe("the own-agent tariff", () => {
   it("freezes the proposal as a snapshot its schema accepts", () => {
     expect(ownAgentTerms.parse(ownAgentTermsNow())).toEqual({ tariff: OWN_AGENT_TARIFF, still_credits: 1, render_credits: 100, included_seconds: 60,
-      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 7, free_stills: 120, free_stills_window_hours: 24 });
+      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 7, edit_credits: 10, take_check_credits: 10, free_stills: 120,
+      free_stills_window_hours: 24 });
+  });
+
+  // Mutants: take frames charged anything, a second verdict charged, or a check charged on terms frozen before it was sold.
+  it("charges take frames nothing and a take check its frozen price once, and never on terms without one", () => {
+    expect(ownAgentCharge({ skill: "film_take_frames", sheets: 4 }, ownAgentTermsNow(), 0)).toBe(0);
+    expect(() => ownAgentCharge({ skill: "film_take_frames", sheets: 97 }, ownAgentTermsNow(), 0)).toThrow("outside 0–96");
+    expect(ownAgentCharge({ skill: "film_take_check", checks: 1 }, { ...ownAgentTermsNow(), take_check_credits: 25 }, 25)).toBe(25);
+    expect(() => ownAgentCharge({ skill: "film_take_check", checks: 2 }, ownAgentTermsNow(), 20)).toThrow("outside 0–1");
+    const { take_check_credits: _t, ...old } = ownAgentTermsNow();
+    expect(() => ownAgentCharge({ skill: "film_take_check", checks: 1 }, old, 10)).toThrow("these terms price no take check");
+  });
+
+  // Mutants: an edit charged by its seconds, or on terms frozen before the edit was sold.
+  it("charges an edit its flat price up to the longest edit, and never on terms without one", () => {
+    expect([ownEditCredits(0.5), ownEditCredits(60)]).toEqual([10, 10]);
+    expect(() => ownEditCredits(60.5)).toThrow("outside 0–60 s");
+    const { edit_credits: _e, ...old } = ownAgentTermsNow();
+    expect(() => ownEditCredits(10, old)).toThrow("these terms price no edit");
+    expect(ownAgentCharge({ skill: "film_edit", seconds: 19 }, ownAgentTermsNow(), 10)).toBe(10);
+    expect(() => ownAgentCharge({ skill: "film_edit", seconds: 19 }, ownAgentTermsNow(), 9)).toThrow("over its hold");
   });
 
   /** #1369 stage 2. Mutants: keep the old tariff name for the new price, accept free stills on the old one, or charge granted stills. */

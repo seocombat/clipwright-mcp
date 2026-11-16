@@ -468,13 +468,14 @@ describe("the answer and its table", () => {
     expect(page).toContain(`\` · page 2 of \`${parent}\` · TikTok`);
     expect(page).toContain("| [21](https://www.tiktok.com/@ana_ai/video/7700000000000000001) |");
     expect(page).toContain("Why the first 2:\n21. @ana\\_ai");
-    expect(page).toContain(`More: up to 10 more places for 10 credits until 2026-11-06 12:00 UTC: find_trends with search_id ${parent} and page 3, ` +
+    expect(page).toContain(`More: up to 10 more places free until 2026-11-06 12:00 UTC: find_trends with search_id ${parent} and page 3, ` +
       "quoted first with quote_trends.");
     expect(trendSearchMarkdown(answer())).not.toContain("More:");
-    // Pinned as literals: the owner's +10 for each next page, five pages in all, a day to start them (2026-11-11).
-    expect([TREND_PAGE_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_PAGE_WINDOW_SECONDS]).toEqual([10, 5, 86_400]);
-    expect(PRICE_LIST.find(entry => entry.tool === "find_trends" && entry.variant === "next page")).toMatchObject({
-      lines: [{ label: null, unit: "call", credits: 10 }] });
+    // Pinned as literals: a next page free (#1512), five pages in all, a day to start them (2026-11-11).
+    expect([TREND_PAGE_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_PAGE_WINDOW_SECONDS]).toEqual([0, 5, 86_400]);
+    // A free page is no paid entry of the price list: the search's entry says it.
+    expect(PRICE_LIST.filter(entry => entry.tool === "find_trends").map(entry => entry.variant)).toEqual([null]);
+    expect(PRICE_LIST.find(entry => entry.tool === "find_trends")!.notes).toContain("next pages are free for 24 hours after the search");
     expect(findTrendsPayload.safeParse({ searchId: parent, accountId: "acc", page: 1 }).success).toBe(false);
   });
 

@@ -61,11 +61,14 @@ describe("FIELD_DISPOSITIONS — completeness guard", () => {
     expect(Object.keys(FIELD_DISPOSITIONS).sort()).toEqual([...FIELDS].sort());
   });
 
-  it("the table matches today's contract (49 fields)", () => {
-    // Pinned: growing the shape is a deliberate contract change, not a side effect (#778, reference-elements S1–S7, #884 caption_position,
-    // presenter_framing, presenter_mic, #857 S5 call, #973 S2 caption_place, presenter_place, #972 interview, presenter_gaze, #991 end_hold_s,
-    // #1063 music, #1103 shots and product_asset_id, #1107 scenes, #1122 design, #1123 motion_style, #1175 moves).
-    expect(FIELDS).toHaveLength(50);
+  it("the table matches today's contract (54 fields)", () => {
+    // Pinned: growing the shape is a deliberate contract change, not a side effect (#778 and its later fields, each named by its own
+    // assertion below or in its own test; #1491 scene, proposal and propose).
+    expect(FIELDS).toHaveLength(54);
+    expect(FIELD_DISPOSITIONS.scene).toEqual({ kind: "implemented", provenBy: "egress" });
+    expect([FIELD_DISPOSITIONS.proposal, FIELD_DISPOSITIONS.propose]).toEqual([{ kind: "implemented", provenBy: "admission" },
+      { kind: "implemented", provenBy: "admission" }]);
+    expect(FIELD_DISPOSITIONS.max_credits).toEqual({ kind: "implemented", provenBy: "admission" });
     // Motion styles open with their own switch and composition, and not without either (#1123).
     expect(FIELD_DISPOSITIONS.motion_style).toEqual({ kind: "implemented", provenBy: "composition" });
     expect(resolveDispositions({ remoteFetch: true, compose: true }).motion_style.kind).toBe("rejected");
@@ -368,10 +371,12 @@ describe("actor_gender — a gender hint only for image", () => {
     ]);
   });
 
-  it("without image: a refusal naming image", () => {
-    expect(issues({ actor_gender: "male" })).toEqual([expect.stringMatching(/actor_gender requires image/)]);
+  // The live quote of 14.11 (actor_gender female, no photo) was refused; alone it now picks a catalogue actor (settleActorGender).
+  it("without image: accepted alone, refused beside person", () => {
+    expect(issues({ actor_gender: "male" })).toEqual([]);
+    expect(issues({ actor_gender: "female" })).toEqual([]);
     expect(issues({ actor_gender: "male", person: "a barista" })).toEqual([
-      expect.stringMatching(/actor_gender requires image/),
+      expect.stringMatching(/actor_gender is not combined with person: omit person/),
     ]);
   });
 

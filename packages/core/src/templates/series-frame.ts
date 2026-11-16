@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { frameCanvasOf } from "../ugc-layers.js";
+import { CANVAS_FPS } from "../media-timebase.js";
+import { estimateWordsPerSecond, PAUSE_TRIM_PACE_FACTOR } from "../pacing.js";
+import { lexicalTokens } from "../semantic-inserts.js";
+import { type AnchoredItem, frameCanvasOf, layerWordRange } from "../ugc-layers.js";
 import type { TemplateKind } from "./index.js";
 import { centredArea, fillingStep, templateSize } from "./size.js";
 import { templateMedia } from "./slot.js";
@@ -10,10 +13,13 @@ export const SERIES_ITEM_LOOKS = ["card", "orbit", "ui", "phone", "editor"] as c
 export const SERIES_ITEMS = { min: 3, max: 17 } as const;
 /** Lists longer than this take two columns. */
 export const SERIES_ONE_COLUMN_MAX = 6;
-/** The least time an item keeps on screen: a chat item types its prompt, so it keeps twice as long. */
-export const SERIES_ITEM_FLOOR_SEC = { ui: 2.4, other: 1.2 } as const;
+/** The time an item keeps on screen: a chat item types its prompt, so it keeps twice as long and never less. A short sentence shrinks the
+ *  others to `least`: past the dissolve in (8 frames) and the look settling (12–14) it still rests before the next dissolve (#1425). */
+export const SERIES_ITEM_FLOOR_SEC = { ui: 2.4, other: 1.2, least: 0.8 } as const;
 /** Frames the last item takes to dissolve back into the first, so the video loops. */
 export const SERIES_LOOP_FRAMES = 10;
+/** The most frames a series asks for, 17 chat items and the loop: a video may hold its last frame that long past its take (#1452). */
+export const SERIES_MAX_FRAMES = Math.round(SERIES_ITEMS.max * SERIES_ITEM_FLOOR_SEC.ui * CANVAS_FPS) + SERIES_LOOP_FRAMES;
 /** The one format the page is drawn in. */
 export const SERIES_ASPECT = "9:16";
 
@@ -50,40 +56,83 @@ const data = z.object({
 type Data = z.infer<typeof data>;
 
 const seconds = (frames: number, fps: number) => `${(frames / fps).toFixed(1)} s`;
+const floorsOf = (value: Data, other: number, fps: number) =>
+  value.items.map(entry => Math.round((entry.look === "ui" ? SERIES_ITEM_FLOOR_SEC.ui : other) * fps));
 
-/** Each item's first frame from the template's start: an item with `at` starts on its words, the others share the time between evenly, a
- *  chat item twice the share; every item keeps its floor, and what that moves or leaves off screen is named. */
-export function seriesFrameMoments(value: Data, beats: readonly (number | undefined)[], duration: number, fps: number, id: string):
-  { moments: number[]; warnings: string[] } {
-  const floors = value.items.map(entry => Math.round((entry.look === "ui" ? SERIES_ITEM_FLOOR_SEC.ui : SERIES_ITEM_FLOOR_SEC.other) * fps));
-  const room = duration - (value.loop === false ? 0 : SERIES_LOOP_FRAMES), count = floors.length, warnings: string[] = [];
+/** Each item's first frame (#1425): `at` on its words, the rest share the time (a chat item twice). Floors that do not fit shrink to `least`
+ *  but a ui item's; past that the series asks `frames` up to `most`, and only past `most` goes an item unshown; every move is named. */
+export function seriesFrameMoments(value: Data, beats: readonly (number | undefined)[], duration: number, fps: number, id: string,
+  most = duration): { moments: number[]; warnings: string[]; frames?: number } {
+  const loop = value.loop === false ? 0 : SERIES_LOOP_FRAMES, count = value.items.length, warnings: string[] = [];
+  const usual = floorsOf(value, SERIES_ITEM_FLOOR_SEC.other, fps), sum = (floors: number[]) => floors.reduce((total, floor) => total + floor, 0);
+  const floors = sum(usual) <= duration - loop ? usual : floorsOf(value, SERIES_ITEM_FLOOR_SEC.least, fps), need = sum(floors);
+  const frames = Math.max(duration, Math.min(need + loop, most)), room = frames - loop, fits = need <= room;
+  const rule = `${floors === usual ? SERIES_ITEM_FLOOR_SEC.other : SERIES_ITEM_FLOOR_SEC.least} s each, ${SERIES_ITEM_FLOOR_SEC.ui} s for a ui item`;
+  if (floors !== usual) {
+    warnings.push(`template "${id}": its ${count} items need ${seconds(sum(usual), fps)} at ${SERIES_ITEM_FLOOR_SEC.other} s each ` +
+      `(${SERIES_ITEM_FLOOR_SEC.ui} s for a ui item) and its words give ${seconds(duration - loop, fps)}, so items other than ui show for as little ` +
+      `as ${SERIES_ITEM_FLOOR_SEC.least} s`);
+  }
+  if (frames > duration) warnings.push(`template "${id}" runs ${seconds(frames - duration, fps)} past its words so that more of its ${count} items show (${rule})`);
   const anchors = Array.from({ length: count + 1 }, (_, index) => (index === 0 ? 0 : index === count ? room : beats[index]));
   const targets: number[] = [0];
   for (let from = 0; from < count;) {
     let to = from + 1;
     while (to < count && anchors[to] === undefined) to++;
-    const start = targets[from]!, end = Math.max(start, anchors[to]!), weight = floors.slice(from, to).reduce((sum, floor) => sum + floor, 0);
+    const start = targets[from]!, end = Math.max(start, anchors[to]!), weight = sum(floors.slice(from, to));
     let used = 0;
     for (let at = from + 1; at < to; at++) { used += floors[at - 1]!; targets[at] = Math.round(start + ((end - start) * used) / weight); }
     if (to < count) targets[to] = anchors[to]!;
     from = to;
   }
-  const moments: number[] = [];
-  for (const [index, target] of targets.entries()) {
-    const earliest = index === 0 ? 0 : moments[index - 1]! + floors[index - 1]!;
-    moments.push(Math.max(target, earliest));
-    if (target < earliest && beats[index] !== undefined) {
-      warnings.push(`template "${id}" items.${index}.at "${value.items[index]!.at}" is spoken ${seconds(earliest - target, fps)} before the item ` +
-        `ahead of it has had its ${seconds(floors[index - 1]!, fps)}: the item starts ${seconds(earliest - target, fps)} later`);
-    }
+  // Later than its word when the item ahead needs its floor; then, when they all fit, earlier when the items after need theirs before the loop.
+  const moments = targets.map(target => target);
+  for (let index = 1; index < count; index++) moments[index] = Math.max(targets[index]!, moments[index - 1]! + floors[index - 1]!);
+  if (fits) for (let index = count - 1; index > 0; index--) moments[index] = Math.min(moments[index]!, (moments[index + 1] ?? room) - floors[index]!);
+  for (const [index, moment] of moments.entries()) {
+    const target = targets[index]!, quote = `template "${id}" items.${index}.at "${value.items[index]!.at}" is spoken`;
+    if (beats[index] === undefined || index === 0 || moment >= room || moment === target) continue;
+    warnings.push(moment > target ? `${quote} ${seconds(moment - target, fps)} before the item ahead of it has had its ${seconds(floors[index - 1]!, fps)}: ` +
+      `the item starts ${seconds(moment - target, fps)} later` : `${quote} ${seconds(target - moment, fps)} after the item starts: the items from it on ` +
+      `need their time before the series ends`);
   }
-  const need = floors.reduce((sum, floor) => sum + floor, 0), unseen = moments.filter(at => at >= room).length;
-  if (moments.at(-1)! + floors.at(-1)! > room) {
-    warnings.push(`template "${id}": the series has ${seconds(room, fps)} and its ${count} items need ${seconds(need, fps)} at the least ` +
-      `(${SERIES_ITEM_FLOOR_SEC.other} s each, ${SERIES_ITEM_FLOOR_SEC.ui} s for a ui item): each item keeps that time, so ` +
-      (unseen ? `the last ${unseen} ${unseen === 1 ? "item is" : "items are"} not shown` : "the last item is cut short"));
+  if (!fits) {
+    const unseen = moments.filter(at => at >= room).length;
+    warnings.push(`template "${id}": the series has ${seconds(room, fps)} and its ${count} items need ${seconds(need, fps)} at the least (${rule}), ` +
+      `and the video has no more room for it, so ${unseen ? `the last ${unseen} ${unseen === 1 ? "item is" : "items are"} not shown` : "the last item is cut short"}`);
   }
-  return { moments, warnings };
+  const shown = moments.filter(at => at < room);
+  if (shown.length < SERIES_ITEMS.min) {
+    throw new Error(`its ${seconds(room, fps)} show ${shown.length} of its ${count} items, and a series shows at least ${SERIES_ITEMS.min}`);
+  }
+  return { moments: shown, warnings, ...(frames > duration ? { frames } : {}) };
+}
+
+/** The frames a series takes with every item at its least time and the loop; undefined for data that is not a series (#1452). */
+export function seriesLeastFrames(value: unknown, fps: number): number | undefined {
+  const parsed = data.safeParse(value);
+  if (!parsed.success) return undefined;
+  return parsed.data.items.reduce((sum, entry) => sum + Math.round((entry.look === "ui" ? SERIES_ITEM_FLOOR_SEC.ui : SERIES_ITEM_FLOOR_SEC.least) * fps), 0) +
+    (parsed.data.loop === false ? 0 : Math.round((SERIES_LOOP_FRAMES / CANVAS_FPS) * fps));
+}
+
+/** Before payment (#1425): a list whose least time is longer than its sentence takes, by the script's pace, is named, so the sentence can grow. */
+/** A list that ends the script has the video run on past its last word until every item has shown (#1452), and that length is named. */
+export function seriesFitWarnings(input: { script?: unknown; templates?: unknown; pause_trim?: unknown }): string[] {
+  if (typeof input.script !== "string" || !Array.isArray(input.templates)) return [];
+  const tokens = lexicalTokens(input.script), trimmed = typeof input.pause_trim === "object" && input.pause_trim !== null;
+  const pace = estimateWordsPerSecond(input.script) * (trimmed ? PAUSE_TRIM_PACE_FACTOR : 1);
+  return (input.templates as Partial<AnchoredItem & { kind: string; data: unknown }>[]).flatMap(item => {
+    const frames = item.kind === "series_frame" ? seriesLeastFrames(item.data, CANVAS_FPS) : undefined;
+    const range = frames !== undefined && item.anchor ? layerWordRange(tokens, item as AnchoredItem) : undefined;
+    if (frames === undefined || range === undefined || typeof range === "string") return [];
+    const count = (item.data as { items: unknown[] }).items.length, id = String(item.id);
+    const least = frames / CANVAS_FPS, spoken = (range.coverWord - range.startWord) / pace;
+    if (least <= spoken) return [];
+    return [`template "${id}": the list of ${count} items needs at least ${least.toFixed(1)} s of speech; its sentence gives about ` +
+      `${spoken.toFixed(1)} s; ${range.coverWord >= tokens.length ? `the video runs ${(least - spoken).toFixed(1)} s past its last word so all ${count} ` +
+        `items of template "${id}" show` : "the list will run on past it and the next template starts later"}; lengthen the sentence to keep the list on it`];
+  });
 }
 
 /** A full-frame series: the title, the numbered list with the current item marked and the done ones ticked, the current item's clip
@@ -96,7 +145,10 @@ export const seriesFrame: TemplateKind<typeof data> = {
     "and the done ones ticked; look card (a tilted card), orbit (the card with two tiles orbiting it), ui (the clip attached in a chat, " +
     "the prompt typed and sent), phone (the clip on a phone's screen) or editor (the view pulls back from the clip into an editor); items " +
     `change with a blur dissolve on their at quote, the rest share the time evenly, each at least ${SERIES_ITEM_FLOOR_SEC.other} s ` +
-    `(${SERIES_ITEM_FLOOR_SEC.ui} s for ui); unless loop is false the last dissolves back into the first, so the video loops`,
+    `(${SERIES_ITEM_FLOOR_SEC.ui} s for ui); over a short sentence items other than ui show for as little as ${SERIES_ITEM_FLOOR_SEC.least} s, ` +
+    "and when even that does not fit the list runs on past its sentence and the next template starts later, or, at the end of the video, " +
+    "the video holds its last frame past the last word until every item has shown; unless loop is false the last " +
+    "dissolves back into the first, so the video loops",
   placements: ["full"],
   aspects: [SERIES_ASPECT],
   data,
@@ -107,7 +159,7 @@ export const seriesFrame: TemplateKind<typeof data> = {
   fillsFrame: true,
   slots: { "items.clip": { type: "video", cover: 9 / 16 } },
   maxMedia: SERIES_ITEMS.max,
-  timing: (value, beats, duration, fps, id) => seriesFrameMoments(value, beats, duration, fps, id),
+  timing: (value, beats, duration, fps, id, most) => seriesFrameMoments(value, beats, duration, fps, id, most),
   hidesCaptions: () => true,
   onInserts: false,
   // The page fills the frame at medium; small draws it a quarter smaller on the theme's ground.

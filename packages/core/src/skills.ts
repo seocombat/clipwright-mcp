@@ -8,14 +8,17 @@ import { MAX_SCENES, SCENE_BRIEF_MAX_CHARS, SCENE_TEXT_MAX_CHARS, sceneRefusals,
 import { MAX_MOVES, moveRefusals, MOVES_DESCRIPTION, ugcMove } from "./moves.js";
 import { RESOLVED_TIMELINE_MAX_SLOTS } from "./long-form-profile.js";
 import { brollPolicy } from "./broll-policy.js";
+import { maxCreditsField } from "./max-credits.js";
 import { design, resolvedDesign } from "./design.js";
 import { MAX_MOTION_STYLE_SPANS, MOTION_STYLE_CHOICES, MOTION_STYLE_DESCRIPTION, motionStyleRefusals } from "./motion-styles.js";
 import { LIVE_SHOT_FRAMINGS, LIVE_SHOT_KINDS, LIVE_SHOT_PRODUCT_PLACEMENTS, LIVE_SHOT_TRANSITIONS, liveShotCastKey, liveShotProductPlacement, liveShotSetupKey,
-  MAX_SHOT_CAST, type LiveShotKind, type LiveShotProductPlacement } from "./live-shot-kinds.js";
+  MAX_SHOT_CAST, TALKING_ACTION_VOICE_OVER, talkingPose, type LiveShotKind, type LiveShotProductPlacement } from "./live-shot-kinds.js";
 import { countWords } from "./pacing.js";
 import { pauseTrim, VOICE_PACE_MAX, VOICE_PACE_MIN } from "./reference-voice.js";
-import { AD_PAUSE_TRIM } from "./ad-pause-trim.js";
+import { AD_PAUSE_TRIM, isAdStyleUgcInput } from "./ad-pause-trim.js";
 import { generationShot, negationIn, shotIssues } from "./generation-shot.js";
+import { runSpeech, SCENE_DESCRIPTION, sceneBible, sceneDirectionMark, shotStart, speechActions } from "./scene-bible.js";
+import { proposeField, sceneProposal, sceneProposalAccept } from "./scene-proposal.js";
 import { lexicalTokens, quoteOccurrences } from "./semantic-inserts.js";
 import { frameCanvasOf, FULL_FRAME_TRANSITIONS, INSERT_FITS, INSERT_MOTIONS, INSERT_RETIMES, INSERT_STAGE_ENTRANCES, INSERT_TRANSITIONS, LAYER_ENTERS, LAYER_EXITS, layerRefusals, LAYOUT_WINDOW_KINDS, MAX_ENTER_OFFSET_S,
   MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS, PRESENTER_FRAMINGS, SPLIT_MEDIA_SHARE, SPLIT_MEDIA_SIDES } from "./ugc-layers.js";
@@ -157,6 +160,9 @@ export const UGC_COMPOSITION_VERSION = 2;
 /** `end_hold_s`: the last frame held after the last word, in seconds (#991). */
 export const END_HOLD_MIN_S = 0.2;
 export const END_HOLD_MAX_S = 5;
+/** The hold after the last word of an ad that names none (#1526): pilots 1-2 ended 0.25 s after it, pilots 3, 5 and 6r held 0.5 to 0.74-0.77 s. */
+export const AD_END_HOLD_S = 0.5;
+export const AD_END_HOLD_WARNING = `end_hold_s: the last frame holds ${AD_END_HOLD_S} s after the last word, an ad's default; pass end_hold_s to change it`;
 
 export function compositionVersionOf(storedInput: unknown): 1 | 2 {
   return storedInput !== null && typeof storedInput === "object" &&
@@ -169,7 +175,7 @@ export const ASPECT_RATIOS = ["9:16", "1:1", "16:9"] as const;
 export type AspectRatio = (typeof ASPECT_RATIOS)[number];
 
 /** Output resolution offered (720p: 720×1280, 1080p: 1080×1920 at 9:16). Resolution does not */
-/** change the price; dev uses 720p for download size only. */
+/** change the price of a make_ugc second. */
 export const RESOLUTIONS = ["720p", "1080p"] as const;
 /** What a stored run or plan may hold: 4k is no longer offered, and a run admitted with it still reads (#1189). */
 export const STORED_RESOLUTIONS = [...RESOLUTIONS, "4k"] as const;
@@ -181,19 +187,25 @@ export const offeredResolution = z.enum(RESOLUTIONS, {
   error: (issue) => issue.input === "4k" ? RESOLUTION_4K_REFUSAL : undefined,
 });
 
-/** The 1080×1920 default is a product promise; only dev, where nothing is published, */
-/** may lower it. */
-export const DEFAULT_RESOLUTION: Resolution = "1080p";
+/** A new make_ugc run the client names no resolution for is 720p (#911): enough for an ad, and the render costs less. */
+export const DEFAULT_RESOLUTION: (typeof RESOLUTIONS)[number] = "720p";
+/** A stored run without a resolution was admitted before #911 pinned one, when silence meant 1080p. */
+export const LEGACY_RUN_RESOLUTION: Resolution = "1080p";
 export const DEV_RESOLUTION: Resolution = "720p";
 
-/** Resolution of a run: an explicit client choice beats any default, or dev would */
+/** Resolution of a stored run: an explicit choice beats any default, or dev would */
 /** silently replace what the user asked for. */
 export function resolveResolution(
   requested: Resolution | undefined,
   isDev: boolean,
 ): Resolution {
   if (requested) return requested;
-  return isDev ? DEV_RESOLUTION : DEFAULT_RESOLUTION;
+  return isDev ? DEV_RESOLUTION : LEGACY_RUN_RESOLUTION;
+}
+
+/** The resolution admission pins into a make_ugc run, short or long-form, so a later default change never reaches an admitted run. */
+export function admittedUgcResolution(input: { resolution?: Resolution | undefined }): Resolution {
+  return input.resolution ?? DEFAULT_RESOLUTION;
 }
 
 /** Length cap for ANY URL from a foreign body; without it the field takes the whole */
@@ -212,7 +224,7 @@ export function parseSkill(value: unknown): Skill | null {
 /** and MCP `tools/list`, so they never describe different skills. */
 export const MAKE_UGC_DESCRIPTION =
   "Start generation of a lip-synced UGC video. The actor comes from actor_id (a saved actor from list_actors) or image, " +
-  "otherwise the default actor is used. Format and resolution follow the request and the source, defaulting to 1080x1920. " +
+  "otherwise the default actor is used. Format and resolution follow the request and the source, defaulting to 720x1280. " +
   "Captions are OPT-IN: ask the user first. A field the renderer does not honor yet says NOT HONORED YET in its description.";
 
 /** How to CALL the skill over MCP. Kept apart from the description: neighboring tool */
@@ -243,10 +255,14 @@ function explainerOffer(ownAgent: boolean, sold: boolean): string {
     "off, passed as character_details; reuse one only when the user asks or the brand has its own. A delivered explainer keeps " +
     "its hero as a mascot (list_assets with mascot true); its id as mascot_id gives the same hero again with no pose pictures made or charged.";
 }
-/** The text for a server with the film tools listed or not; `explainer` is whether the API sells the format, this environment's flag when omitted. */
-export const mcpServerInstructions = ({ ownAgent, explainer }: { ownAgent: boolean; explainer?: boolean | undefined }): string =>
-  serverInstructions(explainerOffer(ownAgent, explainer ?? EXPLAINER_SOLD));
-const serverInstructions = (offer: string): string =>
+/** The line a server that lists get_ad_guide adds after the make_ugc ad advice (#1539 P3). */
+export const AD_GUIDE_INSTRUCTION = " Before you write an ad's devices and live shots, or make an ad yourself shot by shot with generate_image, " +
+  "generate_video, make_voice and render_edit, read get_ad_guide (free).";
+/** The text for a server with the film tools listed or not; `explainer` is whether the API sells the format, this environment's flag when omitted; */
+/** `adGuide` whether it lists get_ad_guide. */
+export const mcpServerInstructions = ({ ownAgent, explainer, adGuide }: { ownAgent: boolean; explainer?: boolean | undefined;
+  adGuide?: boolean | undefined }): string => serverInstructions(explainerOffer(ownAgent, explainer ?? EXPLAINER_SOLD), adGuide === true);
+const serverInstructions = (offer: string, adGuide: boolean): string =>
   "Clipwright makes short presenter (UGC) videos, faceless narrated videos, single images and silent clips. It renders " +
   "them on its servers and returns the MP4 or image file; it publishes nothing anywhere.\n\n" +
   "tools/list says each tool and field in short. describe_tool answers a tool's full guidance, or one field's, free: read it " +
@@ -272,7 +288,11 @@ const serverInstructions = (offer: string): string =>
   "assets[].anchor or line_edits. 4. Only the revision the user accepted is approved " +
   "with approve_workflow_plan, then quoted and run. For an ad made with make_ugc directly, pass pause_trim " +
   "{sentence_end_s: 0.15, comma_s: 0.08} and offer a live shot of the actor on its hook (shots: acting, framed wide or full) with its price " +
-  "from quote_ugc. plan_reference_remake adds live shots where the reference presenter moves; show them on the quote, and drop them if the " +
+  `from quote_ugc.${adGuide ? AD_GUIDE_INSTRUCTION : ""} When a quote_ugc or quote_faceless answer carries a ready scene proposal, show the user its scene and each option with ` +
+  "its credits, say which ones would make the video better, and let the user pick; then pass proposal { id, accept } to make_ugc or " +
+  "make_faceless with the body unchanged. " +
+  "One still being written: quote again after the seconds it names. Its free additions need no ask; to keep your own scene, pass scene instead. " +
+  "plan_reference_remake adds live shots where the reference presenter moves; show them on the quote, and drop them if the " +
   `user declines. If the user declines the brief, go on as asked.${offer}\n\n` +
   "Compose the visuals from our catalogue, in a remake and in a direct video alike. Before you compile or quote, read list_moves " +
   "and pick moves by meaning: one for the hook, one for each line of proof (a number, a list, a review) and one for the call to action. " +
@@ -287,7 +307,8 @@ const serverInstructions = (offer: string): string =>
   "a human face can present: make it an actor with create_actor from that picture. An animal or object mascot appears " +
   "in inserts under the narration.\n\n" +
   `Before a paid presenter video the user makes ${MUSIC_STOP ? "four" : "three"} choices. Presenter: show two or three actors from list_actors with ` +
-  "their previews, or the user's own actors. Voice: play the preview_url of two or three voices from list_voices, or " +
+  "their previews, or the user's own actors. When the script speaks as a woman or a man, pick a matching actor from list_actors before " +
+  "quote_ugc: with none, the presenter is the default man. Voice: play the preview_url of two or three voices from list_voices, or " +
   "give the links if the client cannot play them. Hook: write five to ten opening lines and let the user pick one to " +
   `three.${MUSIC_STOP} Recommend one option at each stop, but do not pick for the user; skip a stop only when the user already ` +
   "answered it or explicitly left the choice to you. If the user wants captions, recommend a style that reads on a " +
@@ -460,7 +481,7 @@ export const ugcOverlay = z.object({
 }).strict().refine(hasOneSource, ONE_SOURCE).refine(hasOnePlace, ONE_PLACE);
 export const OVERLAYS_DESCRIPTION = "Text-anchored images or videos over the visible presenter, each at one position or place. At most 2 on " +
   "screen at once, on boxes that do not overlap. Captions move to the middle or bottom third off an overlay, never over the face, and hide " +
-  "while neither is free. Hidden under full-frame inserts. Same requirements as inserts: script, long-form qualification on the server, 1080p " +
+  "while neither is free. Hidden under full-frame inserts. Same requirements as inserts: script, long-form qualification on the server " +
   "and explicit broll_policy=anyone. The presenter stays on screen, so the price does not change.";
 /** The slim MCP overlay: `place` is any object here, its forms sit in the description and the server checks it strictly, as templates do. */
 export const mcpUgcOverlay = z.object({
@@ -632,24 +653,50 @@ export const PRESENTER_GAZE_DESCRIPTION = "Where the presenter looks on these wo
 export const mcpPresenterGaze = z.array(z.record(z.string(), z.unknown())).min(1).max(MAX_PRESENTER_GAZE)
   .describe(`[{ anchor: { quote }, cover_words?, gaze: camera|left|right }]. ${PRESENTER_GAZE_DESCRIPTION}`);
 
-export { CAST_INSERT_ID, castSlotOf, LIVE_SHOT_FRAMINGS, LIVE_SHOT_KINDS, LIVE_SHOT_PRODUCT_PLACEMENTS, LIVE_SHOT_TRANSITIONS, liveShotCastKey,
-  liveShotProductPlacement, liveShotSetupKey, MAX_SHOT_CAST, type LiveShotFraming, type LiveShotKind, type LiveShotProductPlacement,
-  type LiveShotTransition } from "./live-shot-kinds.js";
+export { CAST_INSERT_ID, castSlotOf, fetchedProductWarnings, fetchesProduct, liveShotFetchesProduct, LIVE_SHOT_FRAMINGS, LIVE_SHOT_KINDS, LIVE_SHOT_PRODUCT_PLACEMENTS, LIVE_SHOT_TRANSITIONS, liveShotCastKey,
+  liveShotProductPlacement, liveShotSetupKey, lipsyncMotionMarked, lipsyncMotionShot, MAX_SHOT_CAST, omniShotIds, omniShotsMarked, productSheetMarked, seedanceShotIds, seedanceShotModels, shotNamesPrint, TALKING_ACTION_VOICE_OVER, talkingActionVoiceOver, handsInsertShots, voiceOverShotWarnings,
+  talkingPose, type LiveShotFraming, type LiveShotKind, type LiveShotProductPlacement, type LiveShotTransition } from "./live-shot-kinds.js";
 /** The most presenter takes one video renders (#1192); a live shot is at least one of them. */
 export const MAX_PRESENTER_TAKES = 16;
 export const MAX_LIVE_SHOTS = MAX_PRESENTER_TAKES;
+type ProductShot = { id: string; kind: LiveShotKind; setup?: string | undefined; start?: string | undefined;
+  product?: boolean | { placement: LiveShotProductPlacement } | undefined };
+/** A shot drawn from a picture of its own place: every talking_action and action shot, and a talking shot with a pose (#1536). */
+const drawnInSetup = (shot: Omit<ProductShot, "id">) => shot.kind !== "talking" || talkingPose(shot);
 /** One setup still per setup (#1146): the acting shots drawn in one place name one product placement, or none, so the product never moves. */
-function sameProductPerSetup(shots: readonly { kind: LiveShotKind; setup?: string | undefined;
-  product?: boolean | { placement: LiveShotProductPlacement } | undefined }[]): boolean {
+/** A shot that names no product takes its setup's placement (`settleShotProducts`), so only named placements can disagree. */
+function sameProductPerSetup(shots: readonly Omit<ProductShot, "id">[], talkingPoses: boolean): boolean {
   const placements = new Map<string, string>();
   for (const shot of shots) {
-    if (shot.kind === "talking") continue;
+    if (!(talkingPoses ? drawnInSetup(shot) : shot.kind !== "talking") || shot.product === undefined) continue;
     const setup = liveShotSetupKey(shot);
     const placement = liveShotProductPlacement(shot) ?? "none";
     if ((placements.get(setup) ?? placement) !== placement) return false;
     placements.set(setup, placement);
   }
   return true;
+}
+/** Shots of one setup share one picture: a talking_action, action or posed talking shot that names no product takes the placement another */
+/** shot of its setup names, and warnings[] names it (rule 3). Disagreeing placements are left to the schema's refusal. */
+export function settleShotProducts<S extends ProductShot>(shots: readonly S[]): { shots: S[]; warnings: string[] } {
+  const named = new Map<string, { placement: LiveShotProductPlacement | "none"; from: string }>();
+  for (const shot of shots) {
+    if (!drawnInSetup(shot) || shot.product === undefined) continue;
+    const setup = liveShotSetupKey(shot);
+    if (!named.has(setup)) named.set(setup, { placement: liveShotProductPlacement(shot) ?? "none", from: shot.id });
+  }
+  const filled = new Map<string, { placement: LiveShotProductPlacement; ids: string[] }>();
+  const settled = shots.map(shot => {
+    const source = !drawnInSetup(shot) || shot.product !== undefined ? undefined : named.get(liveShotSetupKey(shot));
+    if (source === undefined || source.placement === "none") return shot;
+    const { placement } = source;
+    filled.set(source.from, { placement, ids: [...filled.get(source.from)?.ids ?? [], shot.id] });
+    return { ...shot, product: { placement } } as S;
+  });
+  const warnings = [...filled].map(([from, { placement, ids }]) => `${ids.length === 1 ? "shot" : "shots"} ${ids.map(id => `"${id}"`).join(", ")}: ` +
+    `no product placement was given, so the product is shown ${placement === "hand" ? "in the actor's hand" : "beside the actor"} there, as in ` +
+    `shot "${from}" of the same setup; give a shot its own setup to show it otherwise`);
+  return { shots: settled, warnings };
 }
 /** Shots of one setup start from one picture, so the people in it are the same: one cast, or none, per setup (#1192). */
 function sameCastPerSetup(shots: readonly { kind: LiveShotKind; setup?: string | undefined; cast?: readonly { asset_id: string; role: string }[] | undefined }[]): boolean {
@@ -662,6 +709,8 @@ function sameCastPerSetup(shots: readonly { kind: LiveShotKind; setup?: string |
   }
   return true;
 }
+/** The catalogue actor `actor_gender` picks without image or actor_id: each gender's first in list_actors. */
+export const ACTOR_FOR_GENDER = { female: "actor_anna", male: "actor_alex" } as const;
 export const MAX_LIVE_SHOT_TEXT = 2000;
 export const MAX_CAST_ROLE = 200;
 /** A person beside the actor in a live shot (#1192): their picture, who they are, and what they do in this shot. */
@@ -671,7 +720,8 @@ export const ugcLiveShotCastMember = z.strictObject({
   action: z.string().trim().min(1).max(MAX_LIVE_SHOT_TEXT).optional().describe("What they do in this shot; omitted, they stay in the scene."),
 });
 export type UgcLiveShotCastMember = z.infer<typeof ugcLiveShotCastMember>;
-export const ugcLiveShot = z.strictObject({
+/** The live shot's fields. Their public texts stay as before the ad epic (#1539): it ships behind an account list until one switch at its end. */
+const ugcLiveShotFields = {
   id: insertId.describe("Unique across shots."),
   kind: z.enum(LIVE_SHOT_KINDS).describe("talking: the actor speaks to the lens with natural gestures; talking_action: speaks the words while " +
     "doing the action; action: does the action without speaking while the words play as voice-over."),
@@ -687,8 +737,9 @@ export const ugcLiveShot = z.strictObject({
       "further back, the same face and pose; omitted keeps the actor view's framing."),
   product: z.union([z.boolean(), z.strictObject({ placement: z.enum(LIVE_SHOT_PRODUCT_PLACEMENTS) })]).optional()
     .describe("talking_action and action: the product image (product_asset_id) in the actor's hand or beside them; true is the hand. Shots of " +
-      "one setup show it in one place, so they name one placement. For the product in every presenter second, use an actor view holding it " +
-      "(create_actor with from_actor_id and holding)."),
+      "one setup show it in one place: a shot of the setup that names none takes the placement another names, with a warning. For the product in every presenter " +
+      "second, use an actor view holding it (create_actor with from_actor_id and holding)."),
+  start: shotStart.optional(),
   cast: z.array(ugcLiveShotCastMember).min(1).max(MAX_SHOT_CAST)
     .refine(cast => new Set(cast.map(person => person.asset_id)).size === cast.length, { message: "each cast picture appears once in a shot" })
     .optional().describe(`talking_action and action: up to ${MAX_SHOT_CAST} more people in the shot, each from their own picture, with a role and ` +
@@ -698,8 +749,12 @@ export const ugcLiveShot = z.strictObject({
     "template_sounds false keeps them silent. None at the video's own start or end."),
   shot: generationShot.optional().describe("action only: the clip as a shot, second by second, in place of action alone; its beats run from 0 to " +
     "the last beat's to_s and are stretched to the take's own length."),
-}).superRefine((shot, context) => {
+};
+type UgcLiveShotParsed = z.infer<z.ZodObject<typeof ugcLiveShotFields, z.core.$strict>>;
+/** A shot's own checks. Without talking poses (#1536) a talking shot refuses setup, start and product, in the order and words as before. */
+const liveShotChecks = (talkingPoses: boolean) => (shot: UgcLiveShotParsed, context: z.RefinementCtx) => {
   const custom = z.ZodIssueCode.custom;
+  const talkingOnly = !talkingPoses && shot.kind === "talking";
   if (shot.kind !== "talking" && shot.action === undefined) context.addIssue({ code: custom, path: ["action"], message: `${shot.kind} needs action` });
   if (shot.shot !== undefined && shot.kind !== "action") context.addIssue({ code: custom, path: ["shot"], message: "shot works on action shots" });
   if (shot.shot !== undefined) {
@@ -712,18 +767,22 @@ export const ugcLiveShot = z.strictObject({
       if (word !== null) context.addIssue({ code: custom, path: ["cast", at, "action"], message: `"${word}" describes what is absent; describe what is visible instead` });
     });
   }
-  if (shot.kind === "talking" && shot.setup !== undefined) context.addIssue({ code: custom, path: ["setup"], message: "setup works on talking_action and action shots" });
+  if (talkingOnly && shot.setup !== undefined) context.addIssue({ code: custom, path: ["setup"], message: "setup works on talking_action and action shots" });
   if (shot.kind === "talking" && shot.framing !== undefined) context.addIssue({ code: custom, path: ["framing"], message: "framing works on talking_action and action shots" });
-  if (shot.kind === "talking" && shot.product !== undefined) context.addIssue({ code: custom, path: ["product"], message: "a talking shot shows no product; use talking_action, or an actor view holding it (create_actor holding)" });
+  if (talkingOnly && shot.start !== undefined) context.addIssue({ code: custom, path: ["start"], message: "start works on talking_action and action shots" });
+  if (talkingOnly && shot.product !== undefined) context.addIssue({ code: custom, path: ["product"], message: "a talking shot shows no product; use talking_action, or an actor view holding it (create_actor holding)" });
   if (shot.kind === "talking" && shot.cast !== undefined) context.addIssue({ code: custom, path: ["cast"], message: "a talking shot shows the actor alone; use talking_action or action for a cast" });
-});
+};
+export const ugcLiveShot = z.strictObject(ugcLiveShotFields).superRefine(liveShotChecks(true));
+/** The shot as accounts outside the ad epic's list send it (#1539): a talking shot has no pose. */
+const ugcLiveShotWithoutPoses = z.strictObject(ugcLiveShotFields).superRefine(liveShotChecks(false));
 export type UgcLiveShot = z.infer<typeof ugcLiveShot>;
 export const LIVE_SHOTS_DESCRIPTION = "Live shots of the actor on some words of script: talking, talking_action (speaks while acting) or action " +
   "(acts while the words play as voice-over). Shots may not overlap; words outside them are the presenter's usual take. Needs a 9:16 frame " +
   "and long-form qualification on the server; each kind has its own presenter-second price in list_prices.";
 /** The slim MCP shot list: the server checks each item strictly. */
 export const mcpLiveShots = z.array(z.record(z.string(), z.unknown())).min(1).max(MAX_LIVE_SHOTS)
-  .describe(`[{ id, kind: talking|talking_action|action, anchor: { quote }, cover_words?, action?, setup?, framing?: wide|full, product?: { placement: hand|beside }, cast?: [{ asset_id, role, action? }], transition?: cut|flash|light_leak|whoosh, shot?: as generate_video shot (action only) }]. ${LIVE_SHOTS_DESCRIPTION}`);
+  .describe(`[{ id, kind: talking|talking_action|action, anchor: { quote }, cover_words?, action?, setup?, framing?: wide|full, product?: { placement: hand|beside }, start?, cast?: [{ asset_id, role, action? }], transition?: cut|flash|light_leak|whoosh, shot?: as generate_video shot (action only) }]. ${LIVE_SHOTS_DESCRIPTION}`);
 
 /** What admission pins for an `asset_id` insert; the run reads this key and checks this hash, never the asset row.
  * Server-only: it lives at the top of the stored input, and a public body naming it is refused as an unknown field. */
@@ -757,6 +816,16 @@ export const MAX_NARRATED_ACTOR_SHOTS = MAX_PRESENTER_TAKES;
 
 export const actorId = z.string().regex(/^actor_[a-z0-9][a-z0-9_-]{0,63}$/);
 
+/** The shots field; without talking poses (#1536) its product check and words are as before them. */
+const liveShotsField = (shot: typeof ugcLiveShot, talkingPoses: boolean) => z.array(shot).min(1).max(MAX_LIVE_SHOTS)
+  .refine(shots => new Set(shots.map(one => one.id)).size === shots.length, { message: "shot IDs must be unique" })
+  .refine(shots => sameProductPerSetup(shots, talkingPoses), { message: `${talkingPoses ? "talking_action, action and posed talking shots"
+    : "talking_action and action shots"} of one setup share one picture, so they show the product ` +
+    "the same way: name one product placement for them (a shot that names none takes it), or give them different setups" })
+  .refine(shots => sameCastPerSetup(shots), { message: "talking_action and action shots of one setup share one picture, so they show the same " +
+    "people: give them the same cast (asset_id and role, in one order) or none, or give them different setups" })
+  .optional().describe(LIVE_SHOTS_DESCRIPTION);
+
 export const makeUgcInputShape = {
   // Exactly one of `script | segments` must be present, enforced by `.refine` below;
   // JSON Schema cannot express that via `required[]`, so the description says it.
@@ -771,12 +840,12 @@ export const makeUgcInputShape = {
         `${SCRIPT_LENGTH_DESCRIPTION} ${STRESS_MARKING_DESCRIPTION}`,
     ),
   segments: z.array(ugcSegment).min(1).max(MAX_SEGMENTS).optional()
-    .describe("Ordered actor and image segments; requires long-form qualification on the server, captions=false and 1080p. Image media requires explicit broll_policy=anyone."),
+    .describe("Ordered actor and image segments; requires long-form qualification on the server and captions=false. Image media requires explicit broll_policy=anyone."),
   inserts: z.array(ugcInsert).min(1).max(MAX_INSERTS)
     .refine(inserts => new Set(inserts.map(insert => insert.id)).size === inserts.length, {
       message: "insert IDs must be unique",
     }).optional().describe("Text-anchored image or video inserts over full narration, each covering cover_words spoken words from its anchor; " +
-      "requires long-form qualification on the server, 1080p and explicit broll_policy=anyone. Captions draw over inserts."),
+      "requires long-form qualification on the server and explicit broll_policy=anyone. Captions draw over inserts."),
   overlays: z.array(ugcOverlay).min(1).max(MAX_OVERLAYS).optional().describe(OVERLAYS_DESCRIPTION),
   layout_windows: z.array(ugcLayoutWindow).min(1).max(MAX_LAYOUT_WINDOWS).optional()
     .describe("Text-anchored reframings of the presenter: split (9:16 only) or card. Windows may not overlap one another or an insert. " +
@@ -803,14 +872,11 @@ export const makeUgcInputShape = {
     "the presenter answers the rest on screen and holds still while the off-screen speaker talks. Needs script and long-form " +
     "qualification on the server; the presenter's held frames add production seconds, not presenter seconds."),
   presenter_gaze: z.array(ugcPresenterGaze).min(1).max(MAX_PRESENTER_GAZE).optional().describe(PRESENTER_GAZE_DESCRIPTION),
-  shots: z.array(ugcLiveShot).min(1).max(MAX_LIVE_SHOTS)
-    .refine(shots => new Set(shots.map(shot => shot.id)).size === shots.length, { message: "shot IDs must be unique" })
-    .refine(shots => sameProductPerSetup(shots), { message: "talking_action and action shots of one setup share one picture, so they show the product " +
-      "the same way: give them one product placement (or none), or give them different setups" })
-    .refine(shots => sameCastPerSetup(shots), { message: "talking_action and action shots of one setup share one picture, so they show the same " +
-      "people: give them the same cast (asset_id and role, in one order) or none, or give them different setups" })
-    .optional().describe(LIVE_SHOTS_DESCRIPTION),
+  shots: liveShotsField(ugcLiveShot, true),
   product_asset_id: assetId.optional().describe("The product image (ast_…) that shots with product show."),
+  scene: sceneBible.optional().describe(SCENE_DESCRIPTION),
+  proposal: sceneProposalAccept.optional(),
+  propose: proposeField,
   person: z.string().min(1).max(2000).optional(),
   actor_id: actorId
     .optional()
@@ -845,10 +911,11 @@ export const makeUgcInputShape = {
     .enum(["female", "male"])
     .optional()
     .describe(
-      "Gender of the face in image: female | male. Only with image: picks the default voice of that " +
+      `female | male. Without image: picks that gender's catalogue actor (female: ${ACTOR_FOR_GENDER.female}, male: ${ACTOR_FOR_GENDER.male}) as if ` +
+        "actor_id were passed, named in warnings[]; list_actors offers others. With image: the gender of the face in it, picking the default voice of that " +
         `gender (female: sarah, male: george; on ${GOOGLE_TTS_MODEL}: ${MODEL_DEFAULT_VOICE_BY_GENDER.female} and ` +
-        `${MODEL_DEFAULT_VOICE_BY_GENDER.male}). Refused with actor_id (its gender is known) and without ` +
-        "image. An explicit voice or voice_id wins and the response warns that actor_gender changed nothing.",
+        `${MODEL_DEFAULT_VOICE_BY_GENDER.male}). Refused with actor_id (its gender is known) and with person. ` +
+        "An explicit voice or voice_id wins over the voice it picks, with a warning.",
     ),
   character: z.string().regex(/^char_[a-zA-Z0-9]+$/).optional(),
   name: z.string().max(100).optional(),
@@ -891,12 +958,11 @@ export const makeUgcInputShape = {
         "the supported format nearest the image's shape, even a landscape one — pass it explicitly whenever you pass image. A mismatch " +
         "above 15% between the request and the source is refused (aspect_conflict) before any charge.",
     ),
-  // No .default(): resolveResolution() fills it, since the default depends on the
-  // environment, which the schema must not know.
+  // No .default(): admission pins it (`admittedUgcResolution`), and a stored run without it is read as the 1080p it was admitted at.
   resolution: offeredResolution
     .optional()
     .describe(
-      `Output resolution: ${RESOLUTIONS.join(" | ")} (short side 720 / 1080 px). Omitted means 1080p.`,
+      `Output resolution: ${RESOLUTIONS.join(" | ")} (short side 720 / 1080 px). Omitted means 720p.`,
     ),
   // No .default(), like resolution: an explicit voice differs from silence. `voice` is a
   // name form checked by `serverUgcInput`; `voice_id` is a raw vendor id.
@@ -907,7 +973,7 @@ export const makeUgcInputShape = {
     .describe(
       `Voice name from list_voices. Curated presets: ${VOICE_PRESET_NAMES.join(" | ")}. ` +
         "The API refuses a name list_voices does not return, before any charge. Omitted means the default voice for the actor's gender: the " +
-        "gender of actor_id, actor_gender with image, or george for the default actor and for image " +
+        "gender of actor_id or actor_gender, or george for the default actor and for image " +
         "without actor_gender. " +
         `${MODEL_VOICE_MODEL} speaks only its own voices (kind model_voice in list_voices, such as ` +
         `${MODEL_DEFAULT_VOICE_BY_GENDER.female}): naming one selects that model, and a voice is refused with a ` +
@@ -950,7 +1016,8 @@ export const makeUgcInputShape = {
   pause_trim: z.union([z.literal(false), pauseTrim]).optional().describe("Cut pauses past these s; false keeps all. Default with " +
     `templates, scenes, shots: ${AD_PAUSE_TRIM.sentence_end_s} sentence, ${AD_PAUSE_TRIM.comma_s} comma.`),
   end_hold_s: z.number().min(END_HOLD_MIN_S).max(END_HOLD_MAX_S).optional().describe("Seconds the last frame stays after the last word: the " +
-    "presenter freezes and every layer on screen then stays. Production seconds, not presenter seconds. Needs script and long-form qualification."),
+    "presenter freezes and every layer on screen then stays. Production seconds, not presenter seconds. Needs script and long-form qualification. " +
+    `Default ${AD_END_HOLD_S} with shots, or with templates or scenes beside inserts, overlays, windows or framing.`),
   webhook_url: z.string().url().max(MAX_URL_LENGTH).optional(),
   /** Removed visible label (clipwright#488). The key stays in the shape so that the refusal */
   /** names its reason instead of answering `unknown_field`. */
@@ -963,6 +1030,7 @@ export const makeUgcInputShape = {
   /** How to fill a frame the clip does not cover. No `.default()`: absence means no layout */
   /** is needed. `contain` fits whole, `white` pads white, `blur` fills with the blurred frame. */
   background: z.enum(["white", "blur", "contain"]).optional(),
+  max_credits: maxCreditsField,
 } as const;
 
 /** Agent retry parameter: the attempt NUMBER. Kept apart from `makeUgcInputShape` because it */
@@ -971,8 +1039,8 @@ export const agentRetryShape = { attempt: z.number().int().min(1).optional() } a
 
 // Shared REST/MCP/SDK schema: actor_id, person and image are mutually exclusive.
 // The registry rejects character; person is accepted with a warning.
-export const makeUgcInput = z
-  .object(makeUgcInputShape)
+const refinedUgcInput = (shape: typeof makeUgcInputShape) => z
+  .object(shape)
   // Exactly one of script | segments: with neither there is nothing to render; with
   // both, silently picking one would be a silent substitution.
   .refine((v) => (v.script === undefined) !== (v.segments === undefined), {
@@ -1087,9 +1155,9 @@ export const makeUgcInput = z
     path: ["actor_gender"],
     message: "actor_gender cannot be combined with actor_id: the saved actor's gender is already known; omit actor_gender",
   })
-  .refine((v) => v.actor_gender === undefined || v.actor_id !== undefined || v.image !== undefined, {
+  .refine((v) => v.actor_gender === undefined || v.person === undefined, {
     path: ["actor_gender"],
-    message: "actor_gender requires image: it describes the face in your photo; omit it, or pass image",
+    message: "actor_gender is not combined with person: omit person, and actor_gender alone picks a list_actors actor of that gender",
   })
   // List-wide limits and per-role required fields are checked here.
   // Image type, duration and motion are checked by ugcSegment.
@@ -1134,6 +1202,9 @@ export const makeUgcInput = z
   .refine((v) => v.segments !== undefined || countWords(v.script ?? "") >= 1, {
     message: "script has 0 speakable words",
   });
+export const makeUgcInput = refinedUgcInput(makeUgcInputShape);
+/** make_ugc for an account outside the ad epic's list (#1539): talking shots without poses (#1536), refused in the words they were before. */
+export const makeUgcInputWithoutTalkingPoses = refinedUgcInput({ ...makeUgcInputShape, shots: liveShotsField(ugcLiveShotWithoutPoses, false) });
 
 type SpeechTextInput = SpokenTextInput &
   Omit<Parameters<typeof resolveTtsModel>[0], "script"> & { actor_gender?: "female" | "male" | undefined };
@@ -1219,8 +1290,9 @@ export function speechModelRefusals(input: {
 export function serverUgcInputWith(
   voiceRefusal: (voice: string) => string | undefined,
   voiceIdRefusal: (voiceId: string) => string | undefined = () => undefined,
+  base: typeof makeUgcInput = makeUgcInput,
 ) {
-  return makeUgcInput
+  return base
     .refine((v) => v.voice === undefined || voiceRefusal(v.voice) === undefined, {
       path: ["voice"],
       error: (issue) => voiceRefusal((issue.input as { voice: string }).voice)!,
@@ -1271,6 +1343,26 @@ export const storedUgcInput = z.object({
   design_source: z.literal("brand_kit").optional(),
   /** Set when `pause_trim` is the ad-style default pinned at admission, not the call's own (#1136). */
   pause_trim_source: z.literal("ad_default").optional(),
+  /** Set when `end_hold_s` is the ad default pinned at admission, not the call's own (#1526). */
+  end_hold_source: z.literal("ad_default").optional(),
+  /** Set when admission froze the scene director for the run's live shots (#1491). */
+  scene_direction: sceneDirectionMark.optional(),
+  /** Set when the run's talking_action shots follow the hands-insert rule (#1521); absent, they all speak as admitted before. */
+  talking_action_take: z.literal(TALKING_ACTION_VOICE_OVER).optional(),
+  /** Set when the run's edited first frames take the product from one product sheet (#1536 S2); absent, they take the photo. */
+  product_sheet: z.literal(true).optional(),
+  /** Set when the run's posed talking and talking_action takes lip-sync from their first frame with a motion prompt (#1543). */
+  lipsync_motion: z.literal(true).optional(),
+  /** Set when the run's action shots and hands inserts are drawn on Gemini Omni 1.2 and priced at its second (#1535). */
+  omni_shots: z.literal(true).optional(),
+  /** Set when admission decided who speaks on camera from the reference (#1539 C5); absent, the run keeps its shots as admitted. */
+  speech: runSpeech.optional(),
+  /** Set with a voice-over speech: the shots whose action admission wrote; absent, every shot's action is as stored. */
+  speech_actions: speechActions.optional(),
+  /** Those of them drawn on Seedance 2.5 and priced at its second (#1585). */
+  seedance_shots: z.array(insertId).min(1).max(MAX_LIVE_SHOTS).optional(),
+  /** Those of them with no print to read, drawn at 480P and lifted to 720p at their lower second (row 11c); absent, all at 720P. */
+  seedance_no_text_shots: z.array(insertId).min(1).max(MAX_LIVE_SHOTS).optional(),
 });
 
 /** Whether a run takes the narrated long-form path: one script with inserts, overlays, layout windows, framing, a call, an interview or gaze. */
@@ -1279,6 +1371,14 @@ export function isNarratedUgcInput(input: { segments?: unknown; inserts?: unknow
   return input.segments === undefined && (input.inserts !== undefined || input.overlays !== undefined || input.layout_windows !== undefined ||
     input.framing !== undefined || input.call !== undefined || input.interview !== undefined || input.presenter_gaze !== undefined ||
     input.end_hold_s !== undefined || input.shots !== undefined);
+}
+
+/** An ad on the narrated path with no hold of its own gets the default, pinned and marked so the run and its record say it. A video the hold would */
+/** move onto the narrated path is left as asked. */
+export function withAdEndHold<T extends MakeUgcInput>(input: T): T & { end_hold_source?: "ad_default" } {
+  if (input.end_hold_s !== undefined || typeof input.script !== "string" || input.segments !== undefined || !isAdStyleUgcInput(input) ||
+    !isNarratedUgcInput(input)) return input;
+  return { ...input, end_hold_s: AD_END_HOLD_S, end_hold_source: "ad_default" };
 }
 
 /** The pinned asset of an `asset_id` insert, overlay, layout window or template slot in a stored input; a public input has none. */
@@ -1368,5 +1468,7 @@ export const quoteResponse = z.object({
   tts_model: z.string().min(1),
   /** The design DNA the run draws in and where it came from (#1122); absent when the run names none and the account saved no kit. */
   design: resolvedDesign.extend({ source: z.enum(["request", "brand_kit"]) }).optional(),
+  /** The scene the quote proposes and its options with their prices (#1491); absent where the quote proposes none. */
+  scene_proposal: sceneProposal.optional(),
 });
 export type QuoteResponse = z.infer<typeof quoteResponse>;

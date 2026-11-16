@@ -4,8 +4,8 @@ import { ugcProductIntro } from './methods/ugc-product-intro.js';
 import { ugcFaqAnswer } from './methods/ugc-faq-answer.js';
 import { facelessExplainer } from './methods/faceless-explainer.js';
 import { productImageStory } from './methods/product-image-story.js';
-import { websiteProofDemo } from './methods/website-proof-demo.js';
-import { kineticLaunch } from './methods/kinetic-launch.js';
+import { websiteProofDemo, websiteProofDemoFilm } from './methods/website-proof-demo.js';
+import { kineticLaunch, kineticLaunchFilm } from './methods/kinetic-launch.js';
 import { referenceRemake } from './methods/reference-remake.js';
 
 function freeze<T>(value: T): T {
@@ -16,6 +16,18 @@ function freeze<T>(value: T): T {
     return value;
 }
 export const WORKFLOW_METHODS: readonly MethodDescriptor[] = freeze([ugcProductIntro, ugcFaqAnswer, facelessExplainer, productImageStory, websiteProofDemo, kineticLaunch, referenceRemake]);
+/** Executable versions of planning-only methods (#1461): one replaces its method while an executor of the snapshot names its profile. */
+export const WORKFLOW_FILM_METHODS: readonly MethodDescriptor[] = freeze([kineticLaunchFilm, websiteProofDemoFilm]);
+
+/** The version of a method the snapshot offers: its executable one while some executor qualifies that profile, else the catalog's. */
+function offered(descriptor: MethodDescriptor, snapshot: CapabilityProfile): MethodDescriptor {
+    const film = WORKFLOW_FILM_METHODS.find(method => method.id === descriptor.id);
+    return film && snapshot.executors.some(executor => executor.skill === film.binding.skill && executor.profiles.includes(film.binding.profile)) ? film : descriptor;
+}
+/** A pinned method version, whichever of its versions the catalog offers now. */
+export function workflowMethodVersion(id: string, version: number): MethodDescriptor | undefined {
+    return [...WORKFLOW_METHODS, ...WORKFLOW_FILM_METHODS].find(method => method.id === id && method.version === version);
+}
 
 function methodResponse(descriptor: MethodDescriptor, snapshot: CapabilityProfile): WorkflowMethodResponse {
     const reasons: WorkflowIssue[] = [];
@@ -43,7 +55,7 @@ function methodResponse(descriptor: MethodDescriptor, snapshot: CapabilityProfil
 export function queryWorkflowCatalog(capabilities: CapabilityProfile): WorkflowCatalogResponse {
     const snapshot = capabilityProfile.parse(capabilities);
     return { v: 1, capabilities: structuredClone(snapshot), methods: WORKFLOW_METHODS.map(descriptor => {
-        const response = methodResponse(descriptor, snapshot);
+        const response = methodResponse(offered(descriptor, snapshot), snapshot);
         const { id, version, content_digest, title, purpose, binding } = response.descriptor;
         return { descriptor: { id, version, content_digest, title, purpose, binding }, availability: response.availability };
     }) };
@@ -51,5 +63,5 @@ export function queryWorkflowCatalog(capabilities: CapabilityProfile): WorkflowC
 export function queryWorkflowMethod(id: string, capabilities: CapabilityProfile): WorkflowMethodResponse | null {
     const snapshot = capabilityProfile.parse(capabilities);
     const descriptor = WORKFLOW_METHODS.find(method => method.id === id);
-    return descriptor ? methodResponse(descriptor, snapshot) : null;
+    return descriptor ? methodResponse(offered(descriptor, snapshot), snapshot) : null;
 }

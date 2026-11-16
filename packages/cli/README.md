@@ -56,7 +56,8 @@ the price, are in the [`@clipwright/mcp-server` README](https://www.npmjs.com/pa
 The four native methods are `ugc-product-intro`, `ugc-faq-answer`,
 `faceless-explainer` and `product-image-story`, where the server lists them as
 available. `website-proof-demo` and
-`kinetic-launch` remain `execution_blocked` with reasons.
+`kinetic-launch` are `execution_blocked` with reasons unless the server lists
+their version 2, which runs as an explainer film.
 
 Workflow commands print JSON to stdout; API refusal messages, including all
 issues and warnings, go to stderr. Files must be valid UTF-8 JSON and at most

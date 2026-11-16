@@ -7,7 +7,8 @@ import type { PartsLine } from "./parts-pricing.js";
 export const MUSIC_BED_CREDITS = 60;
 export const MUSIC_MOOD_MAX_CHARS = 400;
 
-export const MUSIC_DESCRIPTION = 'Background music under the voice, made for this video; off unless you ask. "auto" takes the mood from the ' +
+export const MUSIC_DESCRIPTION = "Background music under the voice, made for this video by AI; it may carry an invisible watermark; off unless " +
+  'you ask. "auto" takes the mood from the ' +
   `script; { mood } says it in your words, such as "calm lo-fi". ${MUSIC_BED_CREDITS} credits per video, its own line on the quote, ` +
   "charged only when the video is delivered with it.";
 

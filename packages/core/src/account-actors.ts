@@ -21,6 +21,7 @@ import {
 } from "./actor-bounds.js";
 import { ASPECT_MATCH_THRESHOLD, ASPECT_RATIO_VALUES, aspectDistance } from "./aspect.js";
 import { assetId } from "./asset-identity.js";
+import { maxCreditsField } from "./max-credits.js";
 import { presenterPlace } from "./scene-place.js";
 import { actorId, ASPECT_RATIOS, type AspectRatio } from "./skills.js";
 
@@ -217,6 +218,7 @@ const actorFieldShape = {
         "It becomes the actor's 9:16 portrait at no charge; the other formats are edited from it and charged as usual. " +
         "With gender and approximate_age; not with description, style_reference or from_actor_id.",
     ),
+  max_credits: maxCreditsField,
 } as const;
 
 /** The fields of a view derived from an actor (#898). */
@@ -294,7 +296,7 @@ function unknownFieldsRefusal(keys: readonly string[]): string {
       "in style_reference; or describe a fictional adult in description, or derive a view of an actor with from_actor_id";
   }
   return `unknown field(s) ${keys.join(", ")}: create_actor accepts description, gender, approximate_age, name, quality, ` +
-    "aspect_ratios, from_actor_id, framing, holding, setting, style_reference, portrait";
+    "aspect_ratios, from_actor_id, framing, holding, setting, style_reference, portrait, max_credits";
 }
 
 /** The input for a given set of accepted qualities. */
@@ -493,7 +495,7 @@ export const producedCreatedActor = createdActor.extend({
 
 /** Decision for a `create_actor` input field; kinds mean what they do in the `make_ugc` registry. */
 export type CreateActorDisposition =
-  | { kind: "implemented"; provenBy: "egress" | "listing" }
+  | { kind: "implemented"; provenBy: "egress" | "listing" | "admission" }
   | { kind: "warned"; warning: string; triggersWhen: "present" }
   | { kind: "rejected"; message: string };
 
@@ -512,6 +514,7 @@ export const CREATE_ACTOR_FIELD_DISPOSITIONS = {
   setting: { kind: "implemented", provenBy: "egress" },
   style_reference: { kind: "implemented", provenBy: "egress" },
   portrait: { kind: "implemented", provenBy: "egress" },
+  max_credits: { kind: "implemented", provenBy: "admission" },
 } as const satisfies Record<CreateActorField, CreateActorDisposition>;
 
 export const ACTOR_VIEWS_DISABLED_MESSAGE =

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { CAPTION_FUNNEL_MAX_CHARS, captionFunnel } from "./caption-funnel.js";
 import { quoteThirdParty as quote } from "./markdown-quote.js";
+import { maxCreditsField } from "./max-credits.js";
 import { REFERENCE_WAIT_MAX_SECONDS } from "./reference-analysis.js";
 import { scriptVoice } from "./script-voice.js";
 
@@ -126,6 +127,7 @@ export function classifyCreatorUrl(raw: string): CreatorUrl {
 
 export const analyzeCreatorRequest = z.strictObject({
   source_url: z.string().url().startsWith("https://").max(2048).describe(`${CREATOR_URL_ACCEPTED}; YouTube is refused`),
+  max_credits: maxCreditsField,
 });
 export type AnalyzeCreatorRequest = z.infer<typeof analyzeCreatorRequest>;
 

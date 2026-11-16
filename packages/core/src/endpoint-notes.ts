@@ -3,7 +3,7 @@ import { CANDIDATE_CHARGE_TEXT } from "./edit-candidate.js";
 import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_PER_HOUR, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
 import {
-  TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_CREDITS, TREND_PAGE_WINDOW_SECONDS, TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_PER_HOUR,
+  TREND_FREE_PAGES_PER_DAY, TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_PER_HOUR,
   TREND_SEARCH_REELS,
 } from "./trend-search.js";
 import { FEEDBACK_PER_HOUR } from "./feedback.js";
@@ -81,7 +81,7 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "DELETE /v1/uploads/{id}":
     `Deletes an upload: no call takes it from now on, and its file is erased from storage after ${ASSET_DELETE_GRACE_DAYS} days unless another upload of the same picture is kept. Refused with upload_in_use while an unfinished run uses it. Free.`,
   "POST /v1/assets":
-    "Saves a picture as an account asset, kept until you delete it: from a run_id, an upload_id, a public https url or base64. Your own material needs rights_confirmed: true, or analysis_only: true for a reference kept for analyze_reference alone, which no render or generation takes. 2000 assets and 1 GB per account, 20 GB once it has bought credits, 100 new ones per day. Free.",
+    "Saves a picture as an account asset, kept until you delete it: from a run_id, an upload_id, a public https url or base64. Your own material needs rights_confirmed: true, or analysis_only: true for a reference kept for analyze_reference alone, which no render or generation takes. 2000 assets and 1 GB per account, 20 GB once it has bought credits as a pack or a plan, 100 new ones per day. Free.",
   "POST /v1/assets/bytes":
     "Saves the PNG or JPEG in the body (up to 10 MB) as an asset; role, name and rights_confirmed=true (or analysis_only=true, for analyze_reference alone) travel in the query. Free.",
   "GET /v1/assets":
@@ -115,7 +115,9 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "POST /v1/trend-searches/quote":
     `Prices a topic search: ${TREND_SEARCH_CREDITS} credits, or 0 when a search of the same query from the last hour would answer or one of the ` +
     `account's ${TREND_FREE_SEARCHES_PER_MONTH} free searches this month applies; free_searches_left says how many remain. With search_id ` +
-    `and page it prices a next page: ${TREND_PAGE_CREDITS} credits, never free, or 0 when that page is made or being made. Charges nothing.`,
+    `and page it prices a next page: 0, free for ${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, up to ` +
+    `${TREND_FREE_PAGES_PER_DAY} pages a day per account; past them, or while free pages are at capacity, ${TREND_PAGE_PAID_CREDITS} ` +
+    "credits, and warnings[] says why. Charges nothing.",
   "POST /v1/trend-searches":
     `Starts a search for reels on a topic, TikTok and Instagram ranked together unless platform names one: up to ${TREND_SEARCH_REELS} ` +
     "reels per platform, one per creator, each with its views against its creator's median. Answers at once; the same query within an " +
@@ -124,8 +126,8 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
     `The first ${TREND_FREE_SEARCHES_PER_MONTH} searches each calendar month hold and charge nothing; a failed one does not count. ` +
     `${TREND_SEARCH_PER_HOUR} new searches per hour. With search_id and page alone it starts a next page of a finished search ` +
     `(its next_page): up to ${TREND_SEARCH_REELS} more creators per platform the earlier pages did not show, up to ${TREND_SEARCH_MAX_PAGES} ` +
-    `pages, within ${TREND_PAGE_WINDOW_SECONDS / 3600} hours of the search. It holds ${TREND_PAGE_CREDITS} credits, never free, charged once ` +
-    "it finds a new reel with a known x_median; no new reel or any failure costs nothing. The same page again answers it for free; " +
+    `pages, within ${TREND_PAGE_WINDOW_SECONDS / 3600} hours of the search, free up to ${TREND_FREE_PAGES_PER_DAY} pages a day per account; ` +
+    `past them a page holds ${TREND_PAGE_PAID_CREDITS} credits, charged once it finds a new reel with a known x_median. The same page again answers it; ` +
     "trend_page_unavailable (409) refuses a page that cannot start, before anything is held. Pages count on the same hourly cap.",
   "GET /v1/trend-searches/{id}":
     "One topic search: queued, searching, succeeded with the reels and warnings, or failed with its error. sort reads the same reels " +

@@ -42,12 +42,33 @@ export const plannedRunShots = z.object({
   contract_version: z.string().min(1),
 });
 
+/** The takes of one live shot of an ad (#1560): each clip made for it, what our check said of it, and which one the video uses. */
+export const LIVE_SHOT_TAKES = ["first", "retake", "fallback", "head", "card"] as const;
+export const LIVE_TAKE_VERDICTS = ["accepted", "refused", "unjudged"] as const;
+const liveTake = z.object({
+  take: z.enum(LIVE_SHOT_TAKES), verdict: z.enum(LIVE_TAKE_VERDICTS),
+  /** The check's codes as it stored them (STRAY_TEXT, FACE_DRIFT, ...); empty when it named none. */
+  codes: z.array(z.string().min(1)), chosen: z.boolean(), preview_url: z.string().url().nullable(),
+});
+export const liveShot = z.object({ shot_id: z.string().min(1).max(64), takes: z.array(liveTake) });
+
+/** What our check of an ad's finished video found: each code (PRODUCT_JUMP, CAPTION_MISSING, ...) with the second it shows at. */
+export const FINISHED_CHECK_VERDICTS = ["clean", "defects"] as const;
+export const finishedCheck = z.object({
+  verdict: z.enum(FINISHED_CHECK_VERDICTS),
+  findings: z.array(z.object({ code: z.string().min(1), at_s: z.number().nonnegative().nullable() })),
+});
+
 /** A run with no plan to show: it carries no frame, duration, words or rules, and none are invented. */
 export const unplannedRunShots = z.object({
   planned: z.literal(false),
   run_id: runId, line: z.enum(EDIT_LINES),
   editable: z.object({ state: z.enum(["not_succeeded", "unsupported_line", "not_recorded"]), media_available_until: until, reason: z.string().min(1) }),
   lineage,
+  /** An ad run's live shots, for the accounts that have the ad parts; absent otherwise. */
+  live_shots: z.array(liveShot).optional(),
+  /** An ad run's finished-video check, for the accounts that have the ad parts; absent when the video was not checked. */
+  finished_check: finishedCheck.optional(),
   contract_version: z.string().min(1),
 });
 
@@ -67,7 +88,9 @@ export const plannedRunShotsRead = plannedRunShots.extend({
   editable: editableRead,
   withheld: z.array(z.string()),
 });
-export const unplannedRunShotsRead = unplannedRunShots.extend({ line: z.string(), editable: editableRead });
+const liveShotRead = liveShot.extend({ takes: z.array(liveShot.shape.takes.element.extend({ take: z.string(), verdict: z.string() })) });
+export const unplannedRunShotsRead = unplannedRunShots.extend({ line: z.string(), editable: editableRead,
+  live_shots: z.array(liveShotRead).optional(), finished_check: finishedCheck.extend({ verdict: z.string() }).optional() });
 export const runShotsRead = z.discriminatedUnion("planned", [plannedRunShotsRead, unplannedRunShotsRead]);
 export type RunShotsRead = z.infer<typeof runShotsRead>;
 

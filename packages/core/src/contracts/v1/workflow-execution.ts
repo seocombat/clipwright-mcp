@@ -3,13 +3,14 @@ import { quoteResponse } from '../../skills.js';
 import { facelessQuoteResponse } from '../../faceless-public.js';
 import { run, runId, runRead, runStep } from '../../runs.js';
 import { faceBillingTariffSchema } from '../../face-billing.js';
+import { maxCreditsField } from '../../max-credits.js';
 import { speechRhythmResult } from '../../speech-rhythm-contract.js';
 import { workflowDigest, workflowFormatRead, workflowId, workflowIssue, workflowIssueRead, workflowLocalId, workflowMethodPin, workflowMethodPinRead, workflowNextRead, workflowRevision, workflowText } from './workflow-primitives.js';
 
 const workflowQuoteId = z.string().regex(/^wq_[a-zA-Z0-9_-]{1,64}$/);
 export const launchWorkflow = z.strictObject({
     revision: workflowRevision, content_digest: workflowDigest, semantic_input_digest: workflowDigest,
-    quote_id: workflowQuoteId, idempotency_key: workflowText(200),
+    quote_id: workflowQuoteId, idempotency_key: workflowText(200), max_credits: maxCreditsField,
 });
 export const workflowQuoteBinding = z.strictObject({
     v: z.literal(1), quote_id: workflowQuoteId, plan_id: workflowId, revision: workflowRevision, content_digest: workflowDigest,

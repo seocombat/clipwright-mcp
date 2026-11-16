@@ -18,6 +18,110 @@ listed under.
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-11-16
+
+### Fixed
+
+- MCP `tools/list`: `make_ugc` and the other paid tools listed through their quote now show a field marked
+  `NOT HONORED YET` or `REJECTED for now` with its text, as the quote does. Before, the paid tool's `person` looked
+  like a working field.
+- Assets: an inline `base64` picture is one request whether or not its base64 ends in `=` padding. The SDK and the MCP
+  server give both spellings one key, so a resend makes no second asset; under one `Idempotency-Key` the API answers
+  the asset already made instead of a conflict (*Server-side*).
+
+## [0.60.0] - 2026-11-15
+
+### Added
+
+- `make_faceless` with `scene_images` on a script takes `keep_anchors`. Omitted or false, a picture that plainly shows
+  another sentence of the script may be shown on that sentence instead, and `warnings[]` names each move; true keeps every
+  picture on the words you anchored it to. *Server-side.*
+- `tier` on `make_faceless` and `quote_faceless` also covers formats other than explainer, where the account has the two
+  levels: `standard` is the story in pictures that move, with captions and sound and about a third of it live; `pro` plays
+  every shot as live footage. `quote_faceless` names both totals in `tiers`. Elsewhere `tier` is refused, as before.
+
+### Changed
+
+- Uploads: 200 a day per account, up from 20. *Server-side.*
+- The `music` field says the track is made by AI and may carry an invisible watermark. The price and the charge are
+  unchanged.
+
+## [0.59.0] - 2026-11-15
+
+### Added
+
+- New clip model `gemini-omni-flash-1.2`: 720p in 9:16 and 16:9, any whole number of seconds from 3 to 15, 9 credits a
+  second. It takes text, a first frame, and a first and last frame up to 10 seconds; reference mode at 720p 9:16.
+- Two image models for `generate_image`, both an editor of up to 14 reference pictures (a product, a person, a place, a
+  prop): `gemini-3-pro-image` at 1536x2752, 2752x1536 and 2048x2048 for 30 credits an image, and `gemini-nano-banana-2.1`
+  at 768x1376, 1376x768 and 1024x1024 for 16. `list_generation_models` names each model's own `max_references`; the
+  other image models keep 4.
+
+### Changed
+
+- A trend search's next pages are free for 24 hours after the search: `quote_trends` with `search_id` and `page` answers 0,
+  and `next_page.credits_estimate` is 0. Up to 5 pages with the first, as before. *Server-side.* *Dashboard:* the Trends
+  page shows the next page as free.
+- Free next pages are capped at 10 a day per account (UTC day); a failed page does not count. Past them, or while free
+  pages are at capacity, a next page costs 10 credits, charged once it finds new reels, and `quote_trends` and the page
+  say why in `warnings[]`. *Server-side.*
+- `@clipwright/mcp-server`: when `make_ugc` is called again with the arguments and `attempt` of a run that failed, the answer
+  returns that run as before and now also says how to start a new one: the same arguments with the next `attempt`, charged
+  as its quote says.
+
+## [0.58.0] - 2026-11-13
+
+### Added
+
+- `max_credits` on every paid call: the most credits the call may cost. A run is never charged above it. A call whose
+  reserve is above it is refused with `max_credits_exceeded` (`hold_credits`, `max_credits`) before anything is reserved
+  or started, and nothing is charged. The CLI takes `--max-credits <n>`; the MCP server tells the agent to ask the person
+  to approve the higher amount instead of retrying.
+- `get_account` answers `plan_credits` (this month's plan credits, spent first, not carried over), `pack_credits` (packs,
+  the trial and gifts, which never expire) and `plan` (the monthly plan, when it renews and whether it ends then, or
+  null). *Server-side.*
+- A workflow run's asset placement on an explainer film names `shown_frame`, the frame that shows the asset.
+- *Dashboard:* monthly plans on /pricing, billed monthly or yearly. A plan's credits arrive each month and are spent
+  before pack credits. Billing shows the plan, and a plan can be cancelled there: it keeps working until the paid
+  period ends.
+
+### Changed
+
+- Workflow runs default to 720p (720x1280) unless the plan names 1080p. Every method offers 9:16 at both. *Server-side.*
+- `generate_image` and `generate_video` cost about a quarter more per image or second. `quote_image`, `quote_video` and
+  `list_generation_models` show each price; a generation started earlier keeps its price. *Server-side.*
+- A plan, like a credit pack, raises the account's storage ceiling to 20 GB. *Server-side.*
+
+### Fixed
+
+- A workflow plan on an explainer film that marks a protected product area is refused before approval, with a reason,
+  instead of failing later. *Server-side.*
+- `make_ugc` and `make_faceless`: a short call to action at the end of the video plays out in full; the last picture
+  holds until it ends. *Server-side.*
+
+## [0.57.0] - 2026-11-13
+
+### Changed
+
+- Videos and clips now default to 720p (720x1280 for 9:16): `make_ugc` short and long-form, `make_faceless` and `generate_video`.
+  Pass `resolution: "1080p"` for 1080x1920. The price does not depend on the resolution. Runs started earlier keep theirs.
+- Long-form inserts, overlays and segments no longer require 1080p.
+
+### Added
+
+- `make_faceless` takes `resolution`.
+- `make_faceless` templates `cover_story` and `backdrop`: the subject of the picture under the words stands in front of the design.
+  `series_frame` and `comment_cta` work on `make_faceless` too; a series item without a clip shows that picture. All free.
+- The film kit adds the same depth layouts for explainer films you write yourself: cover, the eight backdrop styles, the series
+  and the comment call to action.
+
+### Fixed
+
+- `make_ugc`: a `comment_cta` on the last words of the video runs past them, so the comment, the reply and the follow tap all
+  play; in the middle of a video it runs on and the next template starts later.
+- `make_ugc`: `series_frame` shows every item. It shortens each item or runs on rather than dropping one, and a series on the
+  last words of the video holds its last frame until every item has played.
+
 ## [0.56.0] - 2026-11-12
 
 ### Added

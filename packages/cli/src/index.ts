@@ -153,6 +153,19 @@ const parseWholeNumber = (flag: string) => (raw: string): number => {
 };
 const parseRetry = parseWholeNumber("--retry");
 
+/** The paid call's ceiling (#942): a whole number, 0 allowed; a call that reserves more is refused with nothing charged. */
+const maxCreditsOption = (): Option => new Option("--max-credits <n>",
+  "the most credits this call may cost; a call that reserves more is refused and nothing is charged").argParser((raw: string): number => {
+  const parsed = Number.parseInt(raw, 10);
+  if (!/^(0|[1-9]\d*)$/.test(raw) || !Number.isSafeInteger(parsed)) {
+    console.error(`--max-credits expects a whole number of 0 or more, got ${raw}`);
+    process.exit(1);
+  }
+  return parsed;
+});
+const ceilingOf = (opts: { maxCredits?: number }): { max_credits?: number } =>
+  opts.maxCredits === undefined ? {} : { max_credits: opts.maxCredits };
+
 program
   .command("upload <path>")
   .description("upload a local PNG/JPEG and print the https url to pass as --image")
@@ -224,6 +237,7 @@ withSourceOptions(
     ),
   )
   .option("--retry <n>", "retry attempt number (forces a fresh run)", parseRetry)
+  .addOption(maxCreditsOption())
   .action(
     async (
       opts: {
@@ -234,6 +248,7 @@ withSourceOptions(
         voiceId?: string;
         ttsModel?: TtsModelId;
         retry?: number;
+        maxCredits?: number;
       } & SourceOptions,
     ) => {
       const run = await client().makeUgc(
@@ -249,6 +264,7 @@ withSourceOptions(
           voice: opts.voice,
           voice_id: opts.voiceId,
           tts_model: opts.ttsModel,
+          ...ceilingOf(opts),
         },
         { attempt: opts.retry },
         (r) => console.error(`state: ${r.state}`),
@@ -443,8 +459,9 @@ withReviseOptions(
     .description(`start a revision of a run (paid): a new run, editable in its turn; prints the run. ${REVISION_CHARGE_TEXT}`),
 )
   .option("--retry <n>", "attempt number: the same request with another number starts another revision", parseRetry)
-  .action(async (run: string, opts: ReviseOptions & { retry?: number }) => {
-    const request = revisionInput(opts);
+  .addOption(maxCreditsOption())
+  .action(async (run: string, opts: ReviseOptions & { retry?: number; maxCredits?: number }) => {
+    const request: RevisionRequest = { ...revisionInput(opts), ...ceilingOf(opts) };
     let started: RunRead;
     try {
       started = await client().startRevision(run, request, { attempt: opts.retry });
@@ -520,7 +537,8 @@ withCandidateOptions(
       `prints the quote, then with --yes starts it and prints the run. ${CANDIDATE_CHARGE_TEXT}`),
 )
   .option("--yes", "start the candidate after printing its quote; without it nothing is started")
-  .action(async (run: string, opts: CandidateOptions & { yes?: boolean }) => {
+  .addOption(maxCreditsOption())
+  .action(async (run: string, opts: CandidateOptions & { yes?: boolean; maxCredits?: number }) => {
     const request = candidateInput(opts);
     const quote = await client().quoteCandidate(run, request);
     console.error(`candidate of shot ${quote.shot_id} (${quote.unit}, take ${request.take}): ${quote.credits} credits; ` +
@@ -532,7 +550,7 @@ withCandidateOptions(
     }
     let created: RunRead;
     try {
-      created = await client().createCandidate(run, request);
+      created = await client().createCandidate(run, { ...request, ...ceilingOf(opts) });
     } catch (error) {
       if (!(error instanceof ClipwrightApiError)) throw error;
       const failure = error.failure;
@@ -618,8 +636,8 @@ withActorOptions(
 
 withActorOptions(
   program.command("create-actor").description("create a personal actor from a description (paid)"),
-).action(async (opts: ActorOptions) => {
-  console.log(JSON.stringify(await client().createActor(actorInput(opts)), null, 2));
+).addOption(maxCreditsOption()).action(async (opts: ActorOptions & { maxCredits?: number }) => {
+  console.log(JSON.stringify(await client().createActor({ ...actorInput(opts), ...ceilingOf(opts) }), null, 2));
 });
 
 interface FacelessOptions {
@@ -673,8 +691,9 @@ withFacelessOptions(
   program.command("make-faceless").description("start a faceless video (paid); ends with its narration, 25 s to duration + 25%; prints the run"),
 )
   .option("--retry <n>", "retry attempt number (forces a fresh run)", parseRetry)
-  .action(async (opts: FacelessOptions & { retry?: number }) => {
-    const run = await client().startFaceless(facelessInput(opts), { attempt: opts.retry });
+  .addOption(maxCreditsOption())
+  .action(async (opts: FacelessOptions & { retry?: number; maxCredits?: number }) => {
+    const run = await client().startFaceless({ ...facelessInput(opts), ...ceilingOf(opts) }, { attempt: opts.retry });
     console.log(JSON.stringify(run, null, 2));
   });
 

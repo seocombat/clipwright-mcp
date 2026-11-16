@@ -87,8 +87,8 @@ export const MCP_UGC_DESCRIPTIONS = {
     "Omitted: the default voice of the actor's gender (actor_id's or actor_gender's; george for the default actor and for image " +
     "alone). A gemini-3.8-flash-tts voice selects that model; a tts_model not speaking the voice is refused. Not with voice_id.",
   inserts: "Text-anchored image or video inserts over the narration, each over cover_words words from its anchor; need long-form " +
-    "qualification on the server, 1080p and broll_policy=anyone. Captions draw over them.",
-  segments: "Ordered actor and image segments; need long-form qualification on the server, captions=false and 1080p; image media " +
+    "qualification on the server and broll_policy=anyone. Captions draw over them.",
+  segments: "Ordered actor and image segments; need long-form qualification on the server and captions=false; image media " +
     "needs broll_policy=anyone.",
   captions: "Burn word-timed captions in, over the presenter and inserts; not with segments.",
   caption_position: "top, middle, lower or bottom (80% of the height); omitted, the caption_style's own place. Requires captions=true.",
@@ -109,8 +109,9 @@ export const MCP_UGC_DESCRIPTIONS = {
   framing: "Text-anchored presenter sizes: each cuts to close or medium on its words and back after them; no overlap with each other, an " +
     "insert or a layout window. One wholly under full-frame templates is named in warnings[]; it wins over a punch_in emphasis. Needs " +
     "script and long-form qualification; price unchanged.",
-  actor_gender: "Gender of the face in image, only with image: picks that gender's default voice (sarah or george; kore or charon on " +
-    "gemini-3.8-flash-tts). Refused with actor_id. An explicit voice or voice_id wins, with a warning.",
+  actor_gender: "female | male. Without image: that gender's catalogue actor, named in warnings[] (list_actors has others). With image: " +
+    "the face's gender, picking that gender's default voice (sarah or george; kore or charon on gemini-3.8-flash-tts). Refused with " +
+    "actor_id or person. An explicit voice or voice_id wins, with a warning.",
   aspect_ratio: "Output format. Omitted: 9:16, or with an image the supported format nearest its shape, even landscape, so pass it with " +
     "image. A source more than 15% off the request is refused (aspect_conflict) before any charge.",
   caption_mode: "full (default): every spoken word. highlights: only around caption_emphasis quotes (lead-in, quote, short tail); requires " +
@@ -119,7 +120,7 @@ export const MCP_UGC_DESCRIPTIONS = {
   layout_windows: "Text-anchored presenter reframings: split (9:16 only) or card; no overlap with each other or an insert; needs what " +
     "inserts need. A covered or blurred presenter is billed as face time.",
   end_hold_s: "Seconds the last frame holds after the last word, the presenter frozen and every layer kept; production seconds. Needs " +
-    "script and long-form qualification.",
+    "script and long-form qualification. Default 0.5 with shots, or with templates or scenes beside inserts, overlays, windows or framing.",
   edit_sounds: "A short sound on every cut (insert, full-frame template, layout window, framing). Needs one of them; template_sounds.edit " +
     "picks it (list_template_sounds). Price unchanged.",
 } as const;

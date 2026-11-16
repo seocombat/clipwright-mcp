@@ -1,4 +1,4 @@
-import { EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, FACELESS_MIN_BASE_CREDITS, FAILED_STATE, SKILL_FILM_TARIFFS, videoResolutionLabel,
+import { EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, FACELESS_MIN_BASE_CREDITS, FAILED_STATE, SHOT_ENGINE_LABELS, SKILL_FILM_TARIFFS, videoResolutionLabel,
   type FacelessQuoteResponse, type PartsLine, type QuoteResponse } from "@clipwright/core";
 import type { WorkflowRunRead } from "@clipwright/core/workflows";
 
@@ -12,6 +12,10 @@ const PART_NAMES: Readonly<Record<PartsLine["unit"], string>> = {
   face_second: "Presenter on screen", second: "Voice and render", still: "Live avatar on a call", track: "Music", scene: "Scenes made for the video",
   template: "Template, presenter in front",
 };
+/** A live shot's seconds are billed as presenter seconds; the row names the shot's kind, never the engine (#1490). */
+const LIVE_SHOT_LABELS = new Set<string>(Object.values(SHOT_ENGINE_LABELS));
+const partName = (line: PartsLine): string => line.unit === "template" || (line.unit === "face_second" && LIVE_SHOT_LABELS.has(line.label))
+  ? sentence(line.label) : PART_NAMES[line.unit] ?? line.unit;
 /** Units counted in pieces, not seconds. */
 const COUNTED = new Set<PartsLine["unit"]>(["still", "track", "template"]);
 
@@ -31,8 +35,8 @@ const table = (rows: readonly (readonly [string, string, string])[]) =>
 
 export function ugcQuoteMarkdown(quote: QuoteResponse): string {
   const long = quote.long_form_pricing;
-  // Each template line names its own kind; the other units have one name each.
-  const parts = quote.price_lines?.map((line) => [line.unit === "template" ? sentence(line.label) : PART_NAMES[line.unit] ?? line.unit,
+  // Each template and live-shot line names its own kind; the other units have one name each.
+  const parts = quote.price_lines?.map((line) => [partName(line),
     `${COUNTED.has(line.unit) ? line.quantity : `${line.quantity} s`} × ${line.unit_credits}`, line.credits] as const)
     ?? (long ? [[PART_NAMES.face_second, `${long.estimatedFaceSeconds} s × ${long.rateCreditsPerFaceSecond}`,
       long.estimatedFaceSeconds * long.rateCreditsPerFaceSecond] as const] : []);
@@ -49,8 +53,25 @@ export function ugcQuoteMarkdown(quote: QuoteResponse): string {
     "", `Estimate: the charge follows the finished video's measured length and can land above or below it.` +
       (minimum ? ` A delivered video costs at least ${credits(minimum)} credits.` : ""),
     ...designLines(quote.design),
+    ...proposalLines(quote.scene_proposal),
     ...warningLines(quote.warnings),
   ].join("\n");
+}
+
+/** The scene the quote proposes and each paid option with its price (#1491 S6), for the user to pick before the paid call. */
+function proposalLines(proposal: QuoteResponse["scene_proposal"]): string[] {
+  if (!proposal) return [];
+  if (proposal.state === "writing") return ["", `**Scene proposal** · being written; quote again in about ${proposal.retry_after_s} s.`];
+  if (proposal.state === "unavailable") return ["", `**Scene proposal** · none: ${quoted(proposal.reason)}`];
+  const scene = proposal.scene ? Object.entries(proposal.scene).map(([field, value]) => `${field}: ${[value].flat().join("; ")}`).join(" · ") : "";
+  return ["", `**Scene proposal** ${proposal.id} · about ${credits(proposal.base_credits)} credits with the scene and the free additions`,
+    ...(scene ? [`Scene: ${quoted(scene)}`] : []),
+    ...proposal.free.map(entry => `- Free: ${quoted(entry.what)}`),
+    ...(proposal.options.length ? ["", "| Option | What it adds | Credits |", "|---|---|---:|",
+      ...proposal.options.map(option => `| ${option.id} | ${quoted(option.what)} | +${credits(option.credits)} |`)] : []),
+    ...proposal.notes.map(note => `- Note: ${quoted(note)}`),
+    "", "Let the user pick the options, then pass proposal { id, accept: [their option ids] } with this body unchanged; quote it first " +
+      "for the exact total."];
 }
 
 /** The look the video draws in and where it came from (#1122), so the user confirms it before money. */
@@ -93,6 +114,7 @@ export function facelessQuoteMarkdown(quote: FacelessQuoteResponse): string {
     // Both levels of the same explainer (#1291 F4), so the user picks one before money; a film takes about half an hour.
     ...(tiers ? ["", `Explainer levels on this request: standard ${credits(tiers.standard)} credits · pro ${credits(tiers.pro)} credits ` +
       `(this quote: ${tiers.tier}; pass tier to choose). A film takes about half an hour.`] : []),
+    ...proposalLines(quote.scene_proposal),
     ...warningLines(quote.warnings),
   ].join("\n");
 }

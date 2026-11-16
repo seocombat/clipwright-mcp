@@ -6,9 +6,9 @@ import { buildOpenApiDocument } from '../openapi.js';
 
 const snapshot: CapabilityProfile = { v: 1, content_digest: 'a'.repeat(64), executors: [
     { skill: 'make_ugc', configured: true, qualified: true, enabled: true, profiles: ['ugc-native-v1'], features: ['exact_script', 'actor', 'voice'],
-        formats: [{ aspect_ratio: '9:16', resolution: '1080p' }], field_dispositions: { captions: 'warned', look: 'warned' } },
+        formats: [{ aspect_ratio: '9:16', resolution: '720p' }, { aspect_ratio: '9:16', resolution: '1080p' }], field_dispositions: { captions: 'warned', look: 'warned' } },
     { skill: 'make_faceless', configured: true, qualified: true, enabled: true, profiles: ['faceless-native-v1'], features: ['exact_script', 'voice', 'word_anchors', 'scene_images'],
-        formats: [{ aspect_ratio: '9:16', resolution: '1080p' }], field_dispositions: {} },
+        formats: [{ aspect_ratio: '9:16', resolution: '720p' }, { aspect_ratio: '9:16', resolution: '1080p' }], field_dispositions: {} },
 ] };
 const plan = (id = 'ugc-faq-answer') => {
     const card = queryWorkflowMethod(id, snapshot)!.descriptor;
@@ -36,7 +36,7 @@ describe('WF-01 review: independent catalog qualification and immutability', () 
         expect(queryWorkflowMethod(id, changed)!.availability.status).toBe('execution_blocked');
         expect(kinds(checkWorkflowBrief(id, plan(id).brief, changed))).toContain('profile_not_qualified');
     });
-    it.each([{ formats: [] }, { formats: [{ aspect_ratio: '16:9' as const, resolution: '1080p' as const }] }, { formats: [{ aspect_ratio: '9:16' as const, resolution: '720p' as const }] }])('blocks unqualified faceless output geometry %#', ({ formats }) => {
+    it.each([{ formats: [] }, { formats: [{ aspect_ratio: '16:9' as const, resolution: '1080p' as const }] }, { formats: [{ aspect_ratio: '16:9' as const, resolution: '720p' as const }] }])('blocks unqualified faceless output geometry %#', ({ formats }) => {
         const changed = structuredClone(snapshot);
         changed.executors[1]!.formats = formats;
         expect(queryWorkflowMethod('faceless-explainer', changed)!.availability.status).toBe('execution_blocked');

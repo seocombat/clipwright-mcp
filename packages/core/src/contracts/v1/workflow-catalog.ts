@@ -8,7 +8,8 @@ export const workflowBeat = z.strictObject({ id: workflowLocalId, role: workflow
 export type WorkflowBeat = z.infer<typeof workflowBeat>;
 export const workflowBeatRead = z.looseObject({ id: z.string(), role: z.string(), anchor: workflowAnchorRead, required: z.boolean(), visual: z.string().optional() });
 const binding = z.discriminatedUnion('kind', [
-    z.strictObject({ kind: z.literal('native'), skill: z.enum(['make_ugc', 'make_faceless']), profile: workflowText(80), visual_beats: z.literal('advisory') }),
+    // enforced: the executor refuses to deliver a film that misses a required beat's visual (#1461).
+    z.strictObject({ kind: z.literal('native'), skill: z.enum(['make_ugc', 'make_faceless']), profile: workflowText(80), visual_beats: z.enum(['advisory', 'enforced']) }),
     z.strictObject({ kind: z.literal('blocked'), skill: z.literal('make_composition'), profile: workflowText(80), reasons: z.array(workflowIssue).min(1).max(20) }),
 ]);
 const descriptorShape = {

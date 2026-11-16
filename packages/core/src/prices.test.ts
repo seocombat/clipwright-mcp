@@ -8,7 +8,7 @@ import { listGenerationModels } from "./generations.js";
 import { MUSIC_BED_CREDITS } from "./music.js";
 import { OPENAPI_ROUTES } from "./openapi.js";
 import { PARTS_DURATION_TARIFF, PARTS_FACE_TARIFF } from "./parts-pricing.js";
-import { isPaidEntry, PRICE_LIST, priceEntry, priceLine, priceListFor, PRICES_PATH, pricesResponse, priceText, withPriceLine } from "./prices.js";
+import { AD_DIY_PRICES, FREE_RUN_ROUTES, isPaidEntry, PRICE_LIST, priceEntry, priceLine, priceListFor, PRICES_PATH, pricesResponse, priceText, withPriceLine } from "./prices.js";
 
 const LIVE_SHOTS_ON = { CLIPWRIGHT_LIVE_SHOTS: "1", CLIPWRIGHT_LONG_FORM_QUALIFICATION: "1", CLIPWRIGHT_COMPOSE: "1", CLIPWRIGHT_REMOTE_FETCH: "1" };
 import { REFERENCE_ANALYSIS_CREDITS } from "./reference-analysis.js";
@@ -30,17 +30,24 @@ const only = (tool: string, variant: string | null = null) => {
 describe("the price list covers the registry", () => {
   /** Mutants: a billed route left without a price; a paid entry on a free route; an entry naming no route. */
   it("every billed route has a paid entry, and every entry's route is a registry row of the same billedness", () => {
-    // The own-agent film routes (#1337) are sold only with their switch on, so the coverage is read on that list.
-    const sold = priceListFor({ CLIPWRIGHT_OWN_AGENT: "1" });
+    // The own-agent film routes (#1337) are sold only with their switch on, so the coverage is read on that list; the ad tools' entries
+    // (AD_DIY_PRICES) stand apart until the ad epic opens to everyone.
+    const sold = [...priceListFor({ CLIPWRIGHT_OWN_AGENT: "1" }), ...AD_DIY_PRICES];
+    // Mutant: an ad tool's price on the public list while it serves only the ad epic's accounts.
+    for (const entry of AD_DIY_PRICES) expect(priceListFor({ CLIPWRIGHT_OWN_AGENT: "1", CLIPWRIGHT_AD_EPIC_ACCOUNTS: "1" })
+      .filter((one) => one.route === entry.route), entry.action).toEqual([]);
+    // A billed route that starts a run held at 0 (FREE_RUN_ROUTES) is listed at 0 instead: billed, and no price.
     for (const endpoint of API_ENDPOINTS.filter((row) => row.billed)) {
-      expect(sold.filter((entry) => entry.route === endpointLabel(endpoint) && isPaid(entry)), endpointLabel(endpoint)).not.toEqual([]);
+      const label = endpointLabel(endpoint), free = FREE_RUN_ROUTES.has(label);
+      expect(sold.filter((entry) => entry.route === label && (free ? !isPaid(entry) : isPaid(entry))), label).not.toEqual([]);
     }
-    expect(PRICE_LIST.filter((entry) => entry.route?.startsWith("POST /v1/film-"))).toEqual([]);
+    expect(PRICE_LIST.filter((entry) => entry.route?.startsWith("POST /v1/film-") || entry.route?.startsWith("POST /v1/take-"))).toEqual([]);
     for (const entry of sold) {
       const endpoint = LABELS.get(entry.route ?? "");
       expect(endpoint, `${entry.action} names ${entry.route}`).toBeDefined();
-      expect(endpoint!.billed, entry.action).toBe(isPaid(entry));
+      expect(endpoint!.billed, entry.action).toBe(isPaid(entry) || FREE_RUN_ROUTES.has(entry.route!));
     }
+    for (const route of FREE_RUN_ROUTES) expect(LABELS.get(route)?.billed, route).toBe(true);
   });
 
   it("is served keyless at its own registry row, with the response schema in the document", () => {

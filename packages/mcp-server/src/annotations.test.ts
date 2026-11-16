@@ -80,7 +80,7 @@ it("the create_candidate description says an identical request returns the same 
     expect(create?.description).toContain("Repeating an identical request returns the run it started");
     expect(create?.description).toContain("pass take 2");
     // The input is advertised once, on quote_candidate, and take is one of its fields (#1003).
-    expect(create?.description).toMatch(/^Input: the same fields as quote_candidate\. /);
+    expect(create?.description).toMatch(/^Input: the same fields as quote_candidate, plus max_credits\. /);
     expect(Object.keys(tools.find((tool) => tool.name === "quote_candidate")?.inputSchema.properties ?? {})).toContain("take");
     expect(create?.description).toContain("A delivered candidate is charged its one unit whether it is kept or discarded");
     expect(create?.description).toContain("one that fails is charged nothing");

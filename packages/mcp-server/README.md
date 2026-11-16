@@ -1,7 +1,7 @@
 # @clipwright/mcp-server
 
 Your coding agent writes the script; [Clipwright](https://clipwright.io/?ref=npm) renders
-a short vertical video of an actor speaking it, 1080×1920 by default. It also
+a short vertical video of an actor speaking it, 720×1280 by default and 1080×1920 on request. It also
 makes faceless videos of a length you pick, 30 to 90 seconds, from a script or a short brief: narration
 over an opening animated clip and image scenes, with no on-camera presenter. The agent
 asks for a free quote before it spends anything, and whatever the API cannot
@@ -235,7 +235,8 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
   with `kind: "video"`), `base64`, a presigned `put`, and a local `path` on
   stdio. A clip is checked in the background: `get_asset` says when it is
   ready. Your own material needs `rights_confirmed: true` once. Free; 2000
-  assets and 1 GB per account (20 GB once it has bought credits), 100 new
+  assets and 1 GB per account (20 GB once it has bought credits, as a pack or
+  a plan), 100 new
   ones per day.
 - `list_assets`, `get_asset` — the account's assets with fresh urls and the
   usage of the caps. Free.

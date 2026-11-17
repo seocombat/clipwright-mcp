@@ -43,6 +43,8 @@ export const CUT_PREVIEWS_PER_HOUR = 20;
 export const OWN_TAKE_CHECK_CREDITS = 10;
 /** A take judged against the picture it was made from (check_take against picture), once per delivered verdict; working number. */
 export const OWN_TAKE_CHECK_PICTURE_CREDITS = 20;
+/** The same check on a long take, one past TAKE_PICTURE_SHORT_TIER_SECONDS, the longest take at the short price; working number. */
+export const OWN_TAKE_CHECK_PICTURE_LONG_CREDITS = 38, TAKE_PICTURE_SHORT_TIER_SECONDS = 4.1;
 /** A faceless cut (render_cut) up to OWN_CUT_INCLUDED_SECONDS, each second over it, and the longest cut; working numbers, the owner decides. */
 export const OWN_CUT_CREDITS = 45, OWN_CUT_INCLUDED_SECONDS = 60, OWN_CUT_EXTRA_SECOND_CREDITS = 1, OWN_CUT_MAX_SECONDS = 90;
 /** The shortest cut the directed composition draws (250 frames at 25 fps). */
@@ -78,6 +80,8 @@ export const ownAgentTerms = z.strictObject({
   take_check_credits: z.number().int().nonnegative().optional(),
   /** A delivered verdict against a picture; absent on terms frozen before it was sold, which price none. */
   picture_check_credits: z.number().int().nonnegative().optional(),
+  /** The same verdict on a take longer than TAKE_PICTURE_SHORT_TIER_SECONDS; absent, every picture check is at picture_check_credits. */
+  picture_check_long_credits: z.number().int().nonnegative().optional(),
   /** A delivered cut and its paid parts; absent on terms frozen before the cut was sold, and a cut run without them is never charged. */
   cut_credits: z.number().int().nonnegative().optional(),
   cut_included_seconds: z.number().int().positive().optional(),
@@ -99,7 +103,7 @@ const CUT_TERMS = ["cut_credits", "cut_included_seconds", "cut_extra_second_cred
 export const ownAgentTermsNow = (): OwnAgentTerms => ({ tariff: OWN_AGENT_TARIFF, still_credits: OWN_STILL_CREDITS, render_credits: OWN_FILM_RENDER_CREDITS,
   included_seconds: OWN_FILM_INCLUDED_SECONDS, extra_second_credits: OWN_FILM_EXTRA_SECOND_CREDITS, voice_credits_per_second: OWN_VOICE_CREDITS_PER_SECOND,
   pose_credits: OWN_HERO_POSE_CREDITS, edit_credits: OWN_EDIT_CREDITS, music_credits: MUSIC_BED_CREDITS, take_check_credits: OWN_TAKE_CHECK_CREDITS,
-  picture_check_credits: OWN_TAKE_CHECK_PICTURE_CREDITS, free_stills: OWN_FREE_STILLS, free_stills_window_hours: OWN_FREE_STILLS_WINDOW_HOURS, cut_credits: OWN_CUT_CREDITS, cut_included_seconds: OWN_CUT_INCLUDED_SECONDS,
+  picture_check_credits: OWN_TAKE_CHECK_PICTURE_CREDITS, picture_check_long_credits: OWN_TAKE_CHECK_PICTURE_LONG_CREDITS, free_stills: OWN_FREE_STILLS, free_stills_window_hours: OWN_FREE_STILLS_WINDOW_HOURS, cut_credits: OWN_CUT_CREDITS, cut_included_seconds: OWN_CUT_INCLUDED_SECONDS,
   cut_extra_second_credits: OWN_CUT_EXTRA_SECOND_CREDITS, cut_bed_credits: OWN_CUT_BED_CREDITS,
   cut_take_sound_credits_per_second: OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND, cut_music_credits: MUSIC_BED_CREDITS });
 
@@ -156,8 +160,8 @@ export type OwnAgentDelivery =
   | { skill: "film_edit"; seconds: number; music?: boolean }
   /** `sheets`: the contact sheets drawn; free. */
   | { skill: "film_take_frames"; sheets: number }
-  /** `checks`: the verdicts delivered, one a run; `against`: the mode its admission froze, motion when absent. */
-  | { skill: "film_take_check"; checks: number; against?: "motion" | "picture" }
+  /** `checks`: one a run; `against`: the mode admission froze, motion when absent; `long`: admission found the take long, if it said. */
+  | { skill: "film_take_check"; checks: number; against?: "motion" | "picture"; long?: boolean }
   /** `seconds`: the cut's length; the parts it delivered beside it. */
   | ({ skill: "film_cut"; seconds: number } & OwnCutParts);
 
@@ -171,10 +175,12 @@ export function ownCutCredits(cut: { seconds: number } & OwnCutParts, terms: Own
     + terms.cut_take_sound_credits_per_second! * Math.ceil(cut.take_sound_seconds - 1e-9) + (cut.music ? terms.cut_music_credits! : 0);
 }
 
-/** `n` take verdicts of the mode `against`; terms that price no check of that mode price none. */
-export function ownTakeCheckCredits(n: number, terms: OwnAgentTerms = ownAgentTermsNow(), against: "motion" | "picture" = "motion"): number {
+/** `n` take verdicts of the mode `against`, a `long` take checked against its picture at the long price if the terms have it. */
+export function ownTakeCheckCredits(n: number, terms: OwnAgentTerms = ownAgentTermsNow(), against: "motion" | "picture" = "motion",
+  long = false): number {
   if (n !== 0 && n !== 1) throw new Error(`${n} take verdicts is outside 0–1`);
-  const unit = against === "picture" ? terms.picture_check_credits : terms.take_check_credits;
+  const longPrice = against === "picture" && long && terms.picture_check_long_credits !== undefined;
+  const unit = longPrice ? terms.picture_check_long_credits : against === "picture" ? terms.picture_check_credits : terms.take_check_credits;
   if (unit === undefined) throw new Error(against === "picture" ? "these terms price no picture check" : "these terms price no take check");
   return unit * n;
 }
@@ -191,7 +197,7 @@ export function ownAgentCharge(delivery: OwnAgentDelivery, terms: OwnAgentTerms,
     : delivery.skill === "film_hero" ? ownHeroCredits(delivery.poses, terms)
     : delivery.skill === "film_edit" ? ownEditCredits(delivery.seconds, terms, delivery.music === true)
     : delivery.skill === "film_take_frames" ? ownTakeFramesCredits(delivery.sheets)
-    : delivery.skill === "film_take_check" ? ownTakeCheckCredits(delivery.checks, terms, delivery.against)
+    : delivery.skill === "film_take_check" ? ownTakeCheckCredits(delivery.checks, terms, delivery.against, delivery.long === true)
     : delivery.skill === "film_cut" ? ownCutCredits(delivery, terms) : ownFilmRenderCredits(delivery.seconds, terms);
   if (!Number.isSafeInteger(heldCredits) || charge > heldCredits) throw new Error(`${delivery.skill} charge ${charge} is over its hold ${heldCredits}`);
   return charge;

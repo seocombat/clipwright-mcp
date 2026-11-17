@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { brandGuideBlock } from "./design.js";
 
 // The «own agent» explainer's guide and scene kit, served read-only (#1356): the guide a customer's agent writes its film from, its method
 // appendix, and the kit's sources with a reference film, so the agent reads the props it draws with instead of guessing them.
@@ -48,6 +49,7 @@ export const FILM_KEPT_SOUNDS_MAX = 60;
 const kitVersion =z.string().regex(/^[a-f0-9]{12}$/).describe("The kit's version: a digest of its files, which changes when any of them does");
 
 export const filmGuide = z.strictObject({
+  brand: brandGuideBlock.optional(),
   guide: z.string().min(1).describe("The explainer guide, Markdown: the steps, the tools and routes, the rules the checks refuse"),
   method: z.string().min(1).describe("Its appendix, Markdown: the craft behind every step"),
   kit_version: kitVersion,

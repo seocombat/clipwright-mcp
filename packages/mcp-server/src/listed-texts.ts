@@ -161,9 +161,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
   prepare_workflow_plan: "Free; starts no run. The complete document: omit plan_id and base_version to create, supply both to save " +
     "a revision. Strict, at most 256000 JSON bytes; keep accepted narration exact. After a lost save answer, read the saved document; " +
     "never auto-approve or buy.",
-  brand_kit: "Free. Alone: saved design, script voice, styles, our looks and faces. design, voice, style: save the user's confirmed one; " +
-    "voice {} clears it.",
-  extract_brand: "Free. A site's colours, fonts, logo, corners and name as a proposed design and voice; the user confirms. " +
+  brand_kit: "Free. Alone: the saved kit, styles, looks and faces. A field saves the confirmed one; \"\" or {} clears.",
+  extract_brand: "Free. A site's colours, fonts, logo, corners and name as a proposed design, voice, brand_name, prompt_block. " +
     "logo_url: create_asset it for design.logo_asset_id. analysis_id: a style from a reference video's analysis.",
 };
 

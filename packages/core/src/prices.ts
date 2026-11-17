@@ -22,7 +22,7 @@ import { isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SEC
   OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_EDIT_CREDITS,
   OWN_EDIT_MAX_SECONDS, OWN_TAKE_CHECK_CREDITS, OWN_CUT_BED_CREDITS, OWN_CUT_CREDITS, OWN_CUT_EXTRA_SECOND_CREDITS,
   OWN_CUT_INCLUDED_SECONDS, OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND,
-  OWN_TAKE_CHECK_PICTURE_CREDITS } from "./own-agent-price.js";
+  OWN_TAKE_CHECK_PICTURE_CREDITS, OWN_TAKE_CHECK_PICTURE_LONG_CREDITS, TAKE_PICTURE_SHORT_TIER_SECONDS } from "./own-agent-price.js";
 import { CUT_PREVIEW_MAX_STILLS } from "./film-cut.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
@@ -185,8 +185,13 @@ export const FACELESS_DIY_PRICES: readonly PriceEntry[] = Object.freeze([
     "fails costs nothing." }),
   paid({ tool: "check_take", variant: "against a picture", route: "POST /v1/take-checks", quote_tool: "quote_take_check", unit: "call",
     credits: OWN_TAKE_CHECK_PICTURE_CREDITS,
-    notes: "One take of your cut record judged against the picture it was made from: each defect with its seconds, the clean windows, the " +
-      "second its action shows and where its subject stands. Charged only for a delivered verdict; a check that delivers no verdict costs nothing." }),
+    notes: `One take of your cut record, up to ${TAKE_PICTURE_SHORT_TIER_SECONDS} s long, judged against the picture it was made from: each ` +
+      "defect with its seconds, the clean windows, the second its action shows and where its subject stands. Charged only for a delivered " +
+      "verdict; a check that delivers no verdict costs nothing." }),
+  paid({ tool: "check_take", variant: `against a picture, a take over ${TAKE_PICTURE_SHORT_TIER_SECONDS} s`, route: "POST /v1/take-checks",
+    quote_tool: "quote_take_check", unit: "call", credits: OWN_TAKE_CHECK_PICTURE_LONG_CREDITS,
+    notes: `The same check of a take longer than ${TAKE_PICTURE_SHORT_TIER_SECONDS} s. Charged only for a delivered verdict; a check that ` +
+      "delivers no verdict costs nothing." }),
   paid({ tool: "preview_cut", route: "POST /v1/cut-previews", quote_tool: "quote_cut_preview", unit: "still", credits: OWN_STILL_CREDITS,
     notes: `Up to ${CUT_PREVIEW_MAX_STILLS} frames of your checked cut sheet as the video draws them, on the words you name. The first ` +
       `${OWN_FREE_STILLS} preview stills of an account in any ${OWN_FREE_STILLS_WINDOW_HOURS} h are free; a preview that fails costs nothing.` }),

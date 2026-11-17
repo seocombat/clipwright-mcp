@@ -71,13 +71,13 @@ export const RENDER_EDIT_DESCRIPTION = "Paid once per delivered cut, after quote
   "(run_id) or video assets (asset_id) back to back, holds the last frame for hold seconds, lays the make_voice take (whole at voice.at, or " +
   "its sentences as voice.pieces on the seconds their pictures start), lays music if asked and burns in captions: one vertical 9:16 720p " +
   `MP4 at 25 fps, up to ${OWN_EDIT_MAX_SECONDS} s. music is a library track (free) or one made for the cut (charged only when the delivered ` +
-  "cut carries it); it plays from music.at to the end, lower under the voice. A clip off 9:16 is shown whole with bars, never cropped. An " +
+  "cut carries it); it plays from music.at to the end, lower under the voice. A clip up to 3% off 9:16 is cropped to fill it; one further off is shown whole with bars; warnings name each. An " +
   "edit that fails costs nothing. Returns at once; call get_film_run until it is succeeded (video_url) or failed. A clip you made with " +
   "generate_video whose file has not passed check_take is refused before any credits (409 take_unchecked, with next: the check to run); " +
   "your own uploaded footage needs no check. With ad_id every clip names its slot, and a generated clip that has not passed check_take in " +
   "its slot is refused (409 ad_slot_unchecked) before any credits; your own footage goes in any slot unchecked. Mistakes to avoid: rendering without the quote's go-ahead; cutting a generated take " +
   "before its check passes (frames you looked at are not a check); changing the arguments between quote and render; expecting a zoom (it " +
-  "never crops); music under a voice-led ad at volume above -6; a music-only cut without music; a caption over the product, its print, the " +
+  "has none); music under a voice-led ad at volume above -6; a music-only cut without music; a caption over the product, its print, the " +
   "hands or the face.";
 export const TAKE_FRAMES_DESCRIPTION = "Free. Your generate_video clip (run_id) or video asset (asset_id) as contact sheets: frames at fps (8 to " +
   "read the whole take, 12 to 24 on a contact), each labelled with its second, 8 to a row, at most 96 frames a call and " +

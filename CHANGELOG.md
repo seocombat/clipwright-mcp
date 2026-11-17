@@ -18,6 +18,33 @@ listed under.
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-11-17
+
+### Added
+
+- `brand_kit` (SDK `saveBrandKit`, `getBrandKit`) saves three more fields, each kept, replaced or cleared on its own:
+  - `brand_name`, the brand's name as it is written;
+  - `look` `{tag, description}`, the picture look of your generated pictures and clips. Its tag and description fit a faceless cut sheet's `look` and `style.look`;
+  - `prompt_block`, a short style block to paste into every picture and clip prompt.
+
+  Free.
+- *Server-side:* `get_ad_guide` and `get_film_guide` answer with `brand` first: your saved brand name, look and prompt block, or `null`.
+- *Server-side:* `extract_brand` proposes a `brand_name` and a `prompt_block` from a site, for you to confirm before `brand_kit` saves them.
+
+### Changed
+
+- *Server-side:* a new account opens with 1000 trial credits instead of 420. Accounts opened before keep what they got.
+- *Server-side:* a `check_take` against a picture costs 20 credits for a take up to 4.1 seconds and 38 for a longer one.
+  `quote_take_check` and `list_prices` show which applies.
+- *Server-side:* `render_edit` and `render_cut` crop a clip up to 3% off 9:16 to fill the frame and say so in
+  `warnings[]`. A clip further off is still shown whole with bars.
+- *Server-side:* `render_edit` and `render_cut` deliver at one even loudness. A file that cannot be brought to it, or a
+  cut whose words sink under the mix, costs nothing.
+- *Server-side:* `check_take` on a clip's motion flags a frozen start of a quarter second or more, and an edit refuses a
+  clip window through a part of a take its check closed, before any charge.
+- *Server-side:* more advice in `warnings[]`: `check_cut` on still length, picture novelty and caption gaps;
+  `quote_voice` on a cold open, digits, filler and repeats; `render_edit` on caption length and linger.
+
 ## [0.63.0] - 2026-11-17
 
 ### Added

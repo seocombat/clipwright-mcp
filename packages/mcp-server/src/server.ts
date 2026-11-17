@@ -12,6 +12,8 @@ import {
   mcpUgcInputShape,
   type MakeUgcInputArgs,
   actorDefaultsInput,
+  type BrandKitInput,
+  type BrandLook,
   type DesignInput,
   extractBrandInput,
   proposeBrandStyleInput,
@@ -1029,7 +1031,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     title: "Read a brand from a site",
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     description: "Free. A public site's colours, fonts, logo and corners as a proposed design, and its own name and description as a " +
-      "proposed script voice (voice.about); the user confirms them before brand_kit saves either. " +
+      "proposed script voice (voice.about), with a proposed brand_name and prompt_block; the user confirms them before brand_kit saves any. " +
       "logo_url: import with create_asset for design.logo_asset_id. " +
       "analysis_id instead of url: a style proposed from a finished analyze_reference of a video the user likes (colours, faces, motion, " +
       "transition and caption habits; never its logo, characters or frames). Draw a few sample stills with its theme_overrides on a film " +
@@ -1052,21 +1054,33 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     description: "Free. With neither field: the saved design (used when a video names none), the saved script voice, our looks and faces. " +
       "design, voice: save the user's confirmed one; the other stays as saved, and voice {} clears the voice. Read voice before you write " +
       "a script: when a call passes none, the server takes its banned phrases out, adds its sign-off and names both in warnings[]. " +
-      "styles: the saved styles; style saves the user's confirmed one by name (a film draft names it in brand_style).",
+      "styles: the saved styles; style saves the user's confirmed one by name (a film draft names it in brand_style). " +
+      "brand_name, look {tag, description} (the picture look of generated pictures and clips) and prompt_block (a style block to paste " +
+      "into every picture and clip prompt): save the user's confirmed ones; \"\" or {} clears one. The guides serve them as brand.",
     inputSchema: { design: mcpDesign.optional(), voice: mcpScriptVoice.optional(),
       style: z.object({ name: z.string(), design: mcpDesign, habits: z.record(z.string(), z.unknown()).optional(),
-        source_analysis_id: z.string().optional() }).strict().optional() },
-  }, async ({ design, voice, style }) => withFailureReport(async () => {
+        source_analysis_id: z.string().optional() }).strict().optional(),
+      // Light shapes, as mcpDesign: tools/list has no bytes for the limits and the tag grammar, which the API checks.
+      brand_name: z.string().optional(), look: z.record(z.string(), z.unknown()).optional(),
+      prompt_block: z.string().optional() },
+  }, async ({ design, voice, style, brand_name, look, prompt_block }) => withFailureReport(async () => {
+    const parts = { design, voice, brand_name, look, prompt_block };
     if (style !== undefined) {
-      if (design !== undefined || voice !== undefined) {
-        return { content: [{ type: "text", text: "Save a style alone: send style without design or voice." }], isError: true };
+      if (Object.values(parts).some(part => part !== undefined)) {
+        return { content: [{ type: "text", text: "Save a style alone: send style without the kit's other fields." }], isError: true };
       }
       return { content: [{ type: "text", text: JSON.stringify(await client.saveBrandStyle(style as SaveBrandStyleInput)) }] };
     }
-    const cleared = voice !== undefined && Object.values(voice).every(value => value === undefined);
-    return { content: [{ type: "text", text: JSON.stringify(design === undefined && voice === undefined ? await client.getBrandKit()
-      : await client.saveBrandKit({ ...(design === undefined ? {} : { design: design as DesignInput }),
-        ...(voice === undefined ? {} : { voice: cleared ? null : voice as ScriptVoice }) })) }] };
+    if (Object.values(parts).every(part => part === undefined)) return { content: [{ type: "text", text: JSON.stringify(await client.getBrandKit()) }] };
+    const empty = (value: object) => Object.values(value).every(part => part === undefined);
+    const kit: BrandKitInput = {
+      ...(design === undefined ? {} : { design: design as DesignInput }),
+      ...(voice === undefined ? {} : { voice: empty(voice) ? null : voice as ScriptVoice }),
+      ...(brand_name === undefined ? {} : { brand_name: brand_name === "" ? null : brand_name }),
+      ...(look === undefined ? {} : { look: empty(look) ? null : look as unknown as BrandLook }),
+      ...(prompt_block === undefined ? {} : { prompt_block: prompt_block === "" ? null : prompt_block }),
+    };
+    return { content: [{ type: "text", text: JSON.stringify(await client.saveBrandKit(kit)) }] };
   }));
 
   // Personal actor: the same schema the server checks, so offered and accepted

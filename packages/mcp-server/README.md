@@ -10,7 +10,7 @@ honor comes back in `warnings[]` instead of being dropped silently.
 The agent gets a `run_id` at once and polls until the video URL is ready.
 Clipwright returns the file; it does not publish anywhere. Quotes, voices,
 actors and the account balance are free. Renders spend credits: an account opened
-by signing up starts with 420 trial credits, enough for one 90-second faceless video. Buy more at
+by signing up starts with 1000 trial credits, enough for one breakdown and a 30-second talking-actor ad. Buy more at
 [clipwright.io/pricing](https://clipwright.io/pricing?ref=npm).
 
 ## Install

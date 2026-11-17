@@ -297,7 +297,7 @@ const ANSWER_FIELDS: Record<string, string[]> = {
 
 /** The full text each listed text was written from: a change to it fails here until the listed text says the same, then pin the new digest. */
 const WRITTEN_FROM: Record<string, string> = {
-  analyze_creator: "2aa74f417419deec", analyze_reference: "6caf3019638a9de6", brand_kit: "67ef2944b7b8752d", extract_brand: "8cc03d7318dacfb8",
+  analyze_creator: "2aa74f417419deec", analyze_reference: "6caf3019638a9de6", brand_kit: "4b9a4745a0a42932", extract_brand: "338b5625b7b98458",
   prepare_workflow_plan: "dcc184695ee43de7", create_actor: "64dc97d2adf395ca", create_asset: "f31bdd693a759a26",
   create_candidate: "ac7da0d7f8974609", create_upload: "ca48d9141527cf5e", delete_actor: "e625ea18d3d26377", delete_asset: "dd3a4991f04a444f",
   delete_creator_profile: "c5ee9a4029150781", find_trends: "ad07026b3ce8090a", trend_niches: "595673e0321dc109", delete_run_media: "e4f93b3a9cd5ea05", delete_upload: "ebb515f237d976c0", generate_image: "92cdec4c8c45facb",

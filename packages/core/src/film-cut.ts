@@ -3,6 +3,7 @@ import { assetId } from "./asset-identity.js";
 import { cutId } from "./cut-ids.js";
 import { diyBlocked, diyNext } from "./diy-next.js";
 import { FACELESS_BEAT_KINDS, FACELESS_CAMERA_MOVES, FACELESS_CUT_LOOKS, FACELESS_SHOT_SIZES, FACELESS_SPEEDS } from "./faceless-direction-summary.js";
+import { filmLookDescription, filmLookTag } from "./film-look.js";
 import { maxCreditsField } from "./max-credits.js";
 import { runId } from "./runs.js";
 import { uploadId } from "./uploads.js";
@@ -100,8 +101,7 @@ const beat = z.strictObject({
 
 export const filmCutInput = z.strictObject({
   format: z.enum(FILM_CUT_FORMATS).describe("The video: story, list (facts, tips or steps), own_pictures or cartoon"),
-  look: z.string().regex(/^[a-z][a-z0-9_]{1,31}$/u, "a short snake_case tag, such as flat_2d")
-    .describe("The look you picked, by its tag from the guide's menu, or your own"),
+  look: filmLookTag.describe("The look you picked, by its tag from the guide's menu, or your own"),
   voice_run_id: runId.describe("A delivered make_voice run of this account: its words place every beat"),
   method: z.strictObject({
     kind: z.enum(FILM_CUT_METHODS),
@@ -120,7 +120,7 @@ export const filmCutInput = z.strictObject({
     ending: z.strictObject({ kind: z.enum(["callback", "reveal", "call", "cut_to_black"]), words }),
   }),
   style: z.strictObject({
-    look: line(300), light: line(300),
+    look: filmLookDescription, light: line(300),
     palette: z.array(z.string().regex(/^#[0-9a-f]{6}$/iu)).min(3).max(5).describe("3 to 5 colours as #rrggbb: cards and outlines take theirs from it"),
     effect_colours: line(240).describe("The colours of sparkles, glows and outlines, named"),
   }),

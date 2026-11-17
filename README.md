@@ -49,8 +49,8 @@ in place of `cw_...`. It needs Node.js 20 or newer. Other hosts, the tool list a
 the environment variables: [`packages/mcp-server/README.md`](packages/mcp-server/README.md).
 
 Quotes, voices, actors and the balance are free. Renders spend credits: an
-account opened by signing up starts with 420 trial credits, enough for one
-90-second faceless video. Buy more at
+account opened by signing up starts with 1000 trial credits, enough for one
+breakdown and a 30-second talking-actor ad. Buy more at
 [clipwright.io/pricing](https://clipwright.io/pricing?ref=github).
 
 ## Build from source

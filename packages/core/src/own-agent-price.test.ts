@@ -7,7 +7,8 @@ import { isOwnAgentEnabled, OWN_AGENT_TARIFF, OWN_AGENT_TARIFF_V1, ownAgentCharg
 describe("the own-agent tariff", () => {
   it("freezes the proposal as a snapshot its schema accepts", () => {
     expect(ownAgentTerms.parse(ownAgentTermsNow())).toEqual({ tariff: OWN_AGENT_TARIFF, still_credits: 1, render_credits: 100, included_seconds: 60,
-      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 7, edit_credits: 10, music_credits: 60, take_check_credits: 10, picture_check_credits: 20, free_stills: 120,
+      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 7, edit_credits: 10, music_credits: 60, take_check_credits: 10, picture_check_credits: 20,
+      picture_check_long_credits: 38, free_stills: 120,
       free_stills_window_hours: 24, cut_credits: 45, cut_included_seconds: 60, cut_extra_second_credits: 1, cut_bed_credits: 35,
       cut_take_sound_credits_per_second: 4, cut_music_credits: 60 });
   });
@@ -54,6 +55,18 @@ describe("the own-agent tariff", () => {
     const { picture_check_credits: _p, ...old } = now;
     expect(() => ownTakeCheckCredits(1, old, "picture")).toThrow("these terms price no picture check");
     expect(ownTakeCheckCredits(1, old, "motion")).toBe(10);
+  });
+
+  // G2b C1. Mutants: the long price taken on a short take, for a motion check, unsaid, on terms frozen without it, or past the hold.
+  it("prices a long take against its picture at 38 when the terms carry it, and every other check at its one price", () => {
+    const now = ownAgentTermsNow();
+    expect([false, true].map(long => ownTakeCheckCredits(1, now, "picture", long))).toEqual([20, 38]);
+    expect([ownTakeCheckCredits(1, now, "motion", true), ownTakeCheckCredits(1, now, "picture"), ownTakeCheckCredits(0, now, "picture", true)]).toEqual([10, 20, 0]);
+    expect(ownAgentCharge({ skill: "film_take_check", checks: 1, against: "picture", long: true }, now, 38)).toBe(38);
+    expect(() => ownAgentCharge({ skill: "film_take_check", checks: 1, against: "picture", long: true }, now, 20)).toThrow("over its hold");
+    const { picture_check_long_credits: _l, ...short } = now;
+    for (const frozen of [{ ...short, picture_check_credits: 5 }, short])
+      expect(ownAgentCharge({ skill: "film_take_check", checks: 1, against: "picture", long: true }, frozen, 1000)).toBe(frozen.picture_check_credits);
   });
 
   // F3 D5. Mutants: a preview charged its free stills, or priced apart from a draft's stills.

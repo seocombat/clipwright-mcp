@@ -64,9 +64,15 @@ export const FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT =
   "This video was generated with AI: the voice and the opening clip are synthetic, " +
   "and so is every image its author did not supply.";
 
+/** A cut of your own pictures and clips on a made voice (#1653): no presenter, and any of its sources may be yours. */
+export const FILM_CUT_AI_DISCLOSURE_TEXT =
+  "This video was generated with AI: the voice is synthetic, and so is every picture and clip its author did not supply.";
+
 /** The disclosure of one run, from its skill and stored input: every writer and the API */
 /** response call this, so the sentence names what that video holds. */
 export function aiDisclosureText(skill: string, input: unknown): string {
+  // A preview's stills are the cut's own frames: they hold what the cut holds, never a presenter.
+  if (skill === "film_cut" || skill === "film_cut_preview") return FILM_CUT_AI_DISCLOSURE_TEXT;
   // A long-form revision shows its root's synthetic presenter, so it says what the root says.
   if (skill === "revise_long_form") return AI_DISCLOSURE_TEXT;
   if (skill !== "make_faceless") return AI_DISCLOSURE_TEXT;

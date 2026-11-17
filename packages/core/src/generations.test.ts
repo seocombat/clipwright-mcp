@@ -33,6 +33,7 @@ const D1_VIDEO: Record<string, Partial<Record<string, number>>> = {
   "seedance-2.0-fast": { "480p": 15, "720p": 31 },
   "seedance-2.0": { "480p": 18, "720p": 38, "1080p": 94 },
   "seedance-2.5": { "480p": 26, "720p": 59, "1080p": 143 },
+  "seedance-2.5-flash": { "480p": 17, "720p": 38 },
   "kling-3.0": { "720p": 19 },
   "kling-4.0": { "720p": 36, "1080p": 53 },
   "kling-4.0-flash": { "720p": 22 },
@@ -97,6 +98,10 @@ describe("capability table", () => {
       "seedance-2.5 9:16 1080p 1080x1920",
       "seedance-2.5 9:16 480p 480x854",
       "seedance-2.5 9:16 720p 720x1280",
+      "seedance-2.5-flash 16:9 480p 854x480",
+      "seedance-2.5-flash 16:9 720p 1280x720",
+      "seedance-2.5-flash 9:16 480p 480x854",
+      "seedance-2.5-flash 9:16 720p 720x1280",
       "seedream-5.0-flash 16:9 - 2560x1440",
       "seedream-5.0-flash 1:1 - 2048x2048",
       "seedream-5.0-flash 9:16 - 1440x2560",
@@ -110,8 +115,8 @@ describe("capability table", () => {
       for (const row of capability.rows.filter((one) => one.measured)) {
         const tenBit = model === "seedance-2.5" && row.resolution === "1080p";
         expect([row.codec, row.pix_fmt]).toEqual(tenBit ? ["hevc", "yuv420p10le"] : ["h264", "yuv420p"]);
-        // 2.0's 496x864 draft (Mini, Fast and 2.0) is off its format, told per aspect; 2.5's 480p is a true 480x854.
-        const draft = model !== "seedance-2.5" && row.resolution === "480p";
+        // 2.0's 496x864 draft (Mini, Fast and 2.0) is off its format, told per aspect; 2.5's and Flash's 480p is a true 480x854.
+        const draft = model !== "seedance-2.5" && model !== "seedance-2.5-flash" && row.resolution === "480p";
         expect(row.warning !== undefined, `${model} ${row.resolution}`).toBe(tenBit || draft);
         if (draft) expect(row.warning, `${model} ${row.aspect_ratio}`).toContain(`${row.width}x${row.height} (2.`);
         if (draft) expect(row.warning, `${model} ${row.aspect_ratio}`).toContain(`off ${row.aspect_ratio}`);
@@ -335,7 +340,7 @@ describe("models list", () => {
   it("shows only measured rows and modes, without vendors", () => {
     const listed = generationModels.parse({ models: listGenerationModels(), contract_version: "test" }).models;
     expect(listed.map((one) => one.model)).toEqual(["seedream-5.0-flash", "flare", "gemini-3-pro-image", "gemini-nano-banana-2.1", "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5",
-      "kling-3.0", "kling-4.0", "kling-4.0-flash", "gemini-omni-flash-1.1", "gemini-omni-flash-1.2"]);
+      "seedance-2.5-flash", "kling-3.0", "kling-4.0", "kling-4.0-flash", "gemini-omni-flash-1.1", "gemini-omni-flash-1.2"]);
     expect(listed.find((one) => one.model === "seedance-2.0")).toEqual({
       model: "seedance-2.0", kind: "video", unit: "second", modes: ["text", "first_frame", "reference"], duration_s: { min: 4, max: 15 },
       max_references: 4,
@@ -401,6 +406,26 @@ describe("models list", () => {
     });
     expect(listed.find((one) => one.model === "seedance-2.5")?.rows.map((row) => `${row.aspect_ratio} ${row.resolution}`))
       .toEqual(["9:16 480p", "16:9 480p", "9:16 720p", "16:9 720p", "9:16 1080p"]);
+    // Measured live 17.11 (#1670): first_frame on all four rows, reference on 9:16, no text mode and no 1080p.
+    expect(listed.find((one) => one.model === "seedance-2.5-flash")).toEqual({
+      model: "seedance-2.5-flash", kind: "video", unit: "second", modes: ["first_frame", "reference"], duration_s: { min: 4, max: 30 },
+      max_references: 4,
+      rows: [
+        { aspect_ratio: "9:16", resolution: "480p", width: 480, height: 854, unit_credits: 17, reference: true },
+        { aspect_ratio: "16:9", resolution: "480p", width: 854, height: 480, unit_credits: 17 },
+        { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 38, reference: true },
+        { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 38 },
+      ],
+    });
+    const flash = (overrides: Parameters<typeof video>[0]) =>
+      video({ model: "seedance-2.5-flash", mode: "first_frame", first_frame: { run_id: "run_abc" }, resolution: "480p", ...overrides });
+    expect(priceGeneration(flash({}))).toEqual({ unit_credits: 17, units: 4, credits: 68 });
+    expect(priceGeneration(flash({ aspect_ratio: "16:9", resolution: "720p", duration_s: 30 }))).toEqual({ unit_credits: 38, units: 30, credits: 1140 });
+    expect(priceGeneration(flash({ resolution: "1080p" }))).toBeNull();
+    expect(priceGeneration(video({ model: "seedance-2.5-flash", resolution: "480p" }))).toBeNull();
+    expect(priceGeneration(flash({ mode: "reference", first_frame: undefined, references: [{ run_id: "run_x" }], aspect_ratio: "16:9" }))).toBeNull();
+    expect(generateVideoRequest.safeParse(flash({ duration_s: 3 })).success).toBe(false);
+    expect(generateVideoRequest.safeParse(flash({ duration_s: 31 })).success).toBe(false);
     for (const one of listed) expect(JSON.stringify(one), one.model).not.toMatch(/byteplus|kie|fal\b|google\/|kling-3\.0\/video|keyframe-to-video|bytedance/);
   });
 });

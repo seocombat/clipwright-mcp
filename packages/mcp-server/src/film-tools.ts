@@ -2,7 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ClipwrightApiError, type ClipwrightClient } from "@clipwright/sdk";
 import { adId, createAdInput, updateAdInput, agentRetryShape, checkFilmInput, createFilmDraftInput, filmCutInput, filmDraftId, filmEditInput, filmHeroInput, OWN_EDIT_MAX_SECONDS, TAKE_CHECK_PROMPT_MAX_CHARS, TAKE_FRAMES_PER_HOUR, filmGuideQuery, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL,
   OWN_STILLS_SINGLE_MAX, putFilmFilesInput, runId, takeCheckInput, takeFramesInput, type FilmRun, filmCutRunInput, OWN_CUT_INCLUDED_SECONDS,
-  OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, type TakeCheckRequest } from "@clipwright/core";
+  OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, type TakeCheckRequest, createCutInput, CUT_MAX_QUIET_SEC, CUT_PREVIEW_MAX_STILLS,
+  cutId, filmCutPreviewInput, updateCutInput } from "@clipwright/core";
 
 import { withFailureReport, type McpToolResponse } from "./format.js";
 import { fetchImage, IMAGE_BUDGET_MS, type ImageBlock } from "./images.js";
@@ -25,6 +26,9 @@ export const QUOTE_VOICE_DESCRIPTION = "Free. What make_voice would hold for thi
 export const MAKE_VOICE_DESCRIPTION = "Paid per second delivered, after quote_voice. Speaks the script with a narrator and returns its words, each " +
   "with start and end seconds: write chunks, anchors and scenes on these timings; film_sec is how long the film on it runs. Waits up to 45 s; an " +
   "unfinished run names get_film_run to call.";
+/** A faceless voice's record, told only where faceless DIY is on. */
+export const MAKE_VOICE_CUT_DESCRIPTION = " For a faceless video, pass its cut_id (create_cut): the record takes the voice, and the delivered " +
+  "voice answers next: the record's next call.";
 export const QUOTE_STILLS_DESCRIPTION = "Free. What preview_stills would hold: one still per asked moment. free_units: how many of them are " +
   `free (the first ${OWN_FREE_STILLS} stills of a draft in any ${OWN_FREE_STILLS_WINDOW_HOURS} h); free_left: the draft's free stills after them; the start counts them again.`;
 export const PREVIEW_STILLS_DESCRIPTION = `Free for a draft's first ${OWN_FREE_STILLS} stills in any ${OWN_FREE_STILLS_WINDOW_HOURS} h, then paid ` +
@@ -97,7 +101,7 @@ export const CHECK_TAKE_DESCRIPTION = "Paid per delivered verdict, after quote_t
   "clean window as subject motion (the camera's own move taken out), camera move and camera shake, names a window too static for this format " +
   "and names shake on its own: advice to re-shoot, not a defect, so it never fails the take. " +
   "render_edit cuts a clip you made with generate_video only after the verdict delivered last on its file passed; your own footage needs none. A " +
-  "check that fails costs nothing. Waits up to 45 s; an unfinished run names get_film_run to call. A passed take answers next (the record, or " +
+  "check that delivers no verdict costs nothing. Waits up to 45 s; an unfinished run names get_film_run to call. A passed take answers next (the record, or " +
   "the edit on its clean window); a failed one answers blocked with its repair and next: the take's own generate_video request to change. " +
   "Mistakes to avoid: the whole prompt with its shared prefix as direction (send the shot's action and timeline); no product_image for a " +
   "labelled product; cutting around a whole_take defect; repeating the same request for an action or asset fault.";
@@ -105,8 +109,9 @@ export const CHECK_TAKE_DESCRIPTION = "Paid per delivered verdict, after quote_t
 export const CHECK_TAKE_PICTURE_DESCRIPTION = " For a faceless take, against picture judges it against the picture it was made from: direction is " +
   "{ start, changes: [{ at_s, cause, result }], camera, end, locks }, look { words, palette } names the colours it keeps; picture is needed " +
   "only for a take made without a first frame. Its verdict adds action_at_s (put the beat's take.action_s there) and subject (the box a push " +
-  "closes on); a colour outside the look is advice only. A passed take answers next: check_cut. The quote says " +
-  "what it costs.";
+  "closes on); a colour outside the look is advice only. Against a picture, cut_id (create_cut) and slot are required: the record's slot that " +
+  "needs this take; a picture, card or footage slot takes no check. A passed take answers next: get_cut, which names what the record still " +
+  "needs. The quote says what it costs.";
 export const GET_FILM_RUN_DESCRIPTION = "Free. One stills, voice, render, edit, hero, take frames or take check run: its state, credits, warnings and what it delivered. " +
   "Waits up to 45 s for an unfinished run to end; call it again while it is still working. A delivered stills run answers its " +
   "pictures again, at no charge.";
@@ -116,22 +121,53 @@ export const GET_FILM_KIT_DESCRIPTION = "Free. The scene kit's sources your film
   "read index.ts and the reference first, then the drawers whose props you use. path: one file; every file when omitted.";
 /** The faceless formats the guide also teaches, said only where they are served. */
 export const FACELESS_GUIDE_FORMATS = " format: story, list, own_pictures or cartoon reads how to make that faceless video yourself from " +
-  "make_voice, generate_image and generate_video instead; section reads one part of it (steps first).";
+  "make_voice, generate_image and generate_video instead; section reads one part of it (steps first). version: the whole guide's version, " +
+  "the same for every section; a cut record keeps the one it was made under.";
 export const QUOTE_CUT_DESCRIPTION = "Free. What render_cut would hold for this cut sheet, line by line in items (the cut, seconds over " +
   `${OWN_CUT_INCLUDED_SECONDS}, a described bed, takes' own sound, music), and film_sec: how long it runs. Checks the sheet as check_cut does ` +
-  "and names what is wrong by field path. Show it and wait for the go-ahead.";
-export const RENDER_CUT_DESCRIPTION = "Paid once per delivered video, after quote_cut. Renders a cut sheet check_cut passed: each beat's picture, " +
+  "and names what is wrong by field path. cut_id names the cut record the video belongs to; a record that is not yours is refused (404 " +
+  "cut_not_found). Show it and wait for the go-ahead.";
+export const RENDER_CUT_DESCRIPTION = "Paid once per delivered video, after quote_cut. Renders a cut sheet check_cut passed, of the cut record " +
+  "cut_id: each beat's picture, " +
   "held frame or take window on its words with its camera move and punch-ins, cards, outlines and captions with their accents; the voice " +
   "centred in stereo with the bed, hits and effects under it, a take's own sound where take_sound lists it, and music when asked. One " +
   `vertical 9:16 720p MP4 at 25 fps, ${OWN_CUT_MIN_SECONDS} to ${OWN_CUT_MAX_SECONDS} s, with up to ${OWN_CUT_MAX_NEW_SOUNDS} described sounds made. A part that ` +
-  "could not be made is left out and not charged; a cut that fails costs nothing. Returns at once; call get_film_run until it is succeeded " +
-  "(video_url) or failed.";
+  "could not be made is left out and not charged; a cut that fails costs nothing. A take you made with generate_video whose file has not " +
+  "passed check_take against its picture is refused before any credits (409 take_unchecked, with next: the check to run). Returns at once; " +
+  "call get_film_run until it is succeeded (video_url) or failed; get_cut lists the render too.";
 export const CHECK_CUT_DESCRIPTION ="Free and instant. Checks a faceless cut sheet (story, list, own_pictures or cartoon) against your " +
   "make_voice words and your own pictures, held frames and generate_video takes: every source yours, delivered and within 15% of 9:16; the " +
   "beats covering the words in order; nothing on screen still for over half a second; each take long enough for its beat. Answers ok, " +
-  "refusals by field path, advice (keep a choice with overrides and its why), warnings and the planned shots with each take's window. Run " +
+  "refusals by field path, advice (keep a choice with overrides and its why), warnings and the planned shots with each take's window. A " +
+  `stretch over ${CUT_MAX_QUIET_SEC} s of pictures, held frames or cards with nothing landing is refused unless each beat in it names its hold. ` +
+  "cut_id: the cut record the sheet belongs to; a passed sheet then answers next: quote_cut_preview, and without it next: create_cut. Run " +
   "it after every change until ok is true. Mistakes to avoid: pairing pictures by the order they came in instead of by what they show, " +
   "playing a take past the second it leaves its picture, and holding a frame still where a picture with a camera move is meant.";
+export const CREATE_CUT_DESCRIPTION = "Free. Starts the faceless video's cut record once the script is approved: brief (format, topic, look, " +
+  "language, script, voice_run_id, notes) and slots, the shot plan in order, one per shot ({ id: \"lamp\", needs: take, picture, card or " +
+  "footage, shot: \"what it shows and the words it plays on\" }). take is a clip you make with generate_video, checked against its picture; " +
+  "footage is the user's own video and needs no check. Pass its cut_id to make_voice, to the take checks with a take slot, and to the " +
+  "previews and the render: each names the record, and the record answers next: the call to make now. Mistakes to avoid: a picture or card " +
+  "slot for a take; a footage slot for a clip made with generate_video; a new record per take.";
+export const UPDATE_CUT_DESCRIPTION = "Free. Replaces the record's brief, its slots or both. slots is the whole shot plan again, not a patch: " +
+  "send every slot you keep. The guide version stays the one the record was made under. Mistakes to avoid: dropping a slot that has checked " +
+  "takes, or making it a picture, card or footage slot (refused with 409; reword its shot instead).";
+export const GET_CUT_DESCRIPTION = "Free. The cut record: the brief, the guide version it was made under, the voice, each slot with its state " +
+  "(take slots: no_take, checking, failed or passed, with every check_take verdict; other slots: none), the previews and renders, and next: " +
+  "the call to make now with its arguments (the voice, a check for each take slot without a passing take, then check_cut on a sheet with " +
+  "the voice's sentences as beats). blocked names the take slots without a pass. Mistakes to avoid: working from memory instead of next; " +
+  "rendering while blocked names a slot.";
+export const QUOTE_CUT_PREVIEW_DESCRIPTION = "Free. What preview_cut would hold: one still per asked word. free_units: how many of them are free " +
+  `(an account's first ${OWN_FREE_STILLS} stills in any ${OWN_FREE_STILLS_WINDOW_HOURS} h, across its cut records); free_left: the free stills ` +
+  "after them; the start counts them again. Checks the sheet as check_cut does and names what is wrong by field path; a take need not " +
+  "have passed its check yet. Show it and wait for the go-ahead. Mistakes to avoid: quoting a sheet check_cut still refuses.";
+export const PREVIEW_CUT_DESCRIPTION = `Free for an account's first ${OWN_FREE_STILLS} stills in any ${OWN_FREE_STILLS_WINDOW_HOURS} h, across ` +
+  "its cut records, then paid per still drawn, after quote_cut_preview and a clean check_cut. Draws up to " +
+  `${CUT_PREVIEW_MAX_STILLS} stills of the cut sheet of the record cut_id, each the frame just after an asked word starts (at: word indexes ` +
+  "of the voice), with the picture, take or card, its camera move, punch-ins, outlines, event text and captions as render_cut draws them, " +
+  "and returns them as pictures. Look at every still and fix the sheet before quote_cut. A preview that draws nothing costs nothing. " +
+  "Waits up to 45 s; an unfinished run names get_film_run to call. Mistakes to avoid: previewing before check_cut has no refusals; asking " +
+  "every word instead of the accents, the events and each beat's first word.";
 /** Every other film tool points at the guide, so an agent that starts anywhere reads it first. */
 const GUIDE_FIRST = " Read get_film_guide first.";
 
@@ -250,11 +286,15 @@ export function registerFilmDraftTools(server: McpServer, client: ClipwrightClie
     inputSchema: { draft_id: filmDraftId, ...checkFilmInput.shape },
   }, async ({ draft_id, ...request }) => withFailureReport(async () => ({ content: [text(await client.checkFilm(draft_id, request))] })));
 
+  // A cut record is the faceless DIY list's: off it, a voice names none.
+  const { cut_id: _cut, ...explainerVoice } = filmVoiceInput.shape;
+  const voiceShape = (facelessDiy ? filmVoiceInput.shape : explainerVoice) as typeof filmVoiceInput.shape;
   server.registerTool("quote_voice", { title: "Quote a film voice", annotations: { readOnlyHint: true, destructiveHint: false },
-    description: QUOTE_VOICE_DESCRIPTION + GUIDE_FIRST, inputSchema: filmVoiceInput.shape },
+    description: QUOTE_VOICE_DESCRIPTION + GUIDE_FIRST, inputSchema: voiceShape },
   async (input) => withFailureReport(async () => ({ content: [text(await client.quoteVoice(input))] })));
   server.registerTool("make_voice", { title: "Make a film voice", annotations: { readOnlyHint: false, destructiveHint: false },
-    description: MAKE_VOICE_DESCRIPTION + REPEAT_RUN + GUIDE_FIRST, inputSchema: { ...filmVoiceInput.shape, ...agentRetryShape } },
+    description: MAKE_VOICE_DESCRIPTION + (facelessDiy ? MAKE_VOICE_CUT_DESCRIPTION : "") + REPEAT_RUN + GUIDE_FIRST,
+    inputSchema: { ...voiceShape, ...agentRetryShape } },
   async ({ attempt, ...input }) => withFailureReport(async () => waited(await client.makeVoice(input, { attempt }))));
   server.registerTool("quote_stills", { title: "Quote film stills", annotations: { readOnlyHint: true, destructiveHint: false },
     description: QUOTE_STILLS_DESCRIPTION + GUIDE_FIRST, inputSchema: filmStillsInput.shape },
@@ -283,6 +323,7 @@ export function registerFilmDraftTools(server: McpServer, client: ClipwrightClie
     server.registerTool("render_cut", { title: "Render a faceless cut", annotations: { readOnlyHint: false, destructiveHint: false },
       description: RENDER_CUT_DESCRIPTION + REPEAT_RUN + GUIDE_FIRST, inputSchema: { ...filmCutRunInput.shape, ...agentRetryShape } },
     async ({ attempt, ...input }) => withFailureReport(async () => runAnswer(await client.renderCut(input, { attempt }), fetchImpl)));
+    registerCutRecordTools(server, client, waited);
   }
   server.registerTool("get_film_run", { title: "Read a film run", annotations: { readOnlyHint: true, destructiveHint: false },
     description: GET_FILM_RUN_DESCRIPTION + GUIDE_FIRST, inputSchema: { run_id: runId } },
@@ -308,12 +349,32 @@ function registerAdDiyTools(server: McpServer, client: ClipwrightClient, waited:
   async ({ attempt, ...input }) => withFailureReport(async () => runAnswer(await client.renderEdit(input, { attempt }), fetchImpl)));
 }
 
+/** The cut record and its previews, on the faceless DIY list. */
+function registerCutRecordTools(server: McpServer, client: ClipwrightClient, waited: (run: FilmRun) => Promise<McpToolResponse>): void {
+  server.registerTool("create_cut", { title: "Start a cut record", annotations: { readOnlyHint: false, destructiveHint: false },
+    description: CREATE_CUT_DESCRIPTION + GUIDE_FIRST, inputSchema: createCutInput.shape },
+  async (input) => withFailureReport(async () => ({ content: [text(await client.createCut(input))] })));
+  server.registerTool("update_cut", { title: "Change a cut record", annotations: { readOnlyHint: false, destructiveHint: false },
+    description: UPDATE_CUT_DESCRIPTION + GUIDE_FIRST, inputSchema: { cut_id: cutId, ...updateCutInput.shape } },
+  async ({ cut_id, ...change }) => withFailureReport(async () => ({ content: [text(await client.updateCut(cut_id, change))] })));
+  server.registerTool("get_cut", { title: "Read a cut record", annotations: { readOnlyHint: true, destructiveHint: false },
+    description: GET_CUT_DESCRIPTION + GUIDE_FIRST, inputSchema: { cut_id: cutId } },
+  async ({ cut_id }) => withFailureReport(async () => ({ content: [text(await client.getCut(cut_id))] })));
+  server.registerTool("quote_cut_preview", { title: "Quote a cut preview", annotations: { readOnlyHint: true, destructiveHint: false },
+    description: QUOTE_CUT_PREVIEW_DESCRIPTION + GUIDE_FIRST, inputSchema: filmCutPreviewInput.shape },
+  async (input) => withFailureReport(async () => ({ content: [text(await client.quotePreviewCut(input))] })));
+  server.registerTool("preview_cut", { title: "See a cut's stills", annotations: { readOnlyHint: false, destructiveHint: false },
+    description: PREVIEW_CUT_DESCRIPTION + REPEAT_RUN + GUIDE_FIRST, inputSchema: { ...filmCutPreviewInput.shape, ...agentRetryShape } },
+  async ({ attempt, ...input }) => withFailureReport(async () => waited(await client.previewCut(input, { attempt }))));
+}
+
 /** take_frames and the take check, on the ad and the faceless DIY lists; the picture mode's fields are listed only where faceless DIY is on. */
 function registerTakeTools(server: McpServer, client: ClipwrightClient, waited: (run: FilmRun) => Promise<McpToolResponse>, picture: boolean): void {
-  const { against: _a, look: _l, picture: _p, ...rest } = takeCheckInput.shape;
-  // Off the faceless DIY list, direction is the prompt text alone: the picture mode's object form is not offered there.
+  const { against: _a, look: _l, picture: _p, cut_id: _c, ...rest } = takeCheckInput.shape;
+  // Off the faceless DIY list, direction is the prompt text alone and a slot is an ad record's: the picture mode's fields are not offered there.
   const motionShape = { ...rest, direction: rest.direction.options[0].describe("What the take was asked to show: the shot's part of the prompt " +
-    `you made it with (its action and timeline), up to ${TAKE_CHECK_PROMPT_MAX_CHARS} characters`) };
+    `you made it with (its action and timeline), up to ${TAKE_CHECK_PROMPT_MAX_CHARS} characters`),
+    slot: rest.slot.describe("With ad_id: the slot of the ad record this take is for") };
   // One handler type for both lists: each sends its input on as a TakeCheckRequest, and the API validates the mode.
   const shape = (picture ? takeCheckInput.shape : motionShape) as typeof takeCheckInput.shape, also = picture ? CHECK_TAKE_PICTURE_DESCRIPTION : "";
   server.registerTool("take_frames", { title: "See a take's frames", annotations: { readOnlyHint: false, destructiveHint: false },

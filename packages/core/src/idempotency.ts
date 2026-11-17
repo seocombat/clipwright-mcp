@@ -5,7 +5,7 @@ import { createAssetRequest } from "./assets.js";
 import { candidateRequest } from "./edit-candidate.js";
 import { revisionRequest } from "./edit-revision.js";
 import { makeFacelessInput } from "./faceless-public.js";
-import { filmCutRunInput } from "./film-cut.js";
+import { filmCutPreviewInput, filmCutRunInput } from "./film-cut.js";
 import { generateImageRequest, generateVideoRequest } from "./generations.js";
 import { filmEditInput, filmHeroInput, filmRenderInput, filmStillsInput, filmVoiceInput, takeCheckInput, takeFramesInput } from "./own-agent-runs.js";
 import type { OwnAgentSkill } from "./own-agent-price.js";
@@ -97,7 +97,7 @@ export function generationIdempotencyKeyFor(skill: "generate_image" | "generate_
 export function ownAgentIdempotencyKeyFor(skill: OwnAgentSkill, request: unknown, clientId: string): string {
   const schema = skill === "film_stills" ? filmStillsInput : skill === "film_voice" ? filmVoiceInput : skill === "film_hero" ? filmHeroInput
     : skill === "film_edit" ? filmEditInput : skill === "film_take_frames" ? takeFramesInput : skill === "film_take_check" ? takeCheckInput
-    : skill === "film_cut" ? filmCutRunInput : filmRenderInput;
+    : skill === "film_cut" ? filmCutRunInput : skill === "film_cut_preview" ? filmCutPreviewInput : filmRenderInput;
   return createHash("sha256").update(clientId + JSON.stringify(canonicalize({ skill, request: schema.parse(request) }))).digest("hex");
 }
 

@@ -11,7 +11,8 @@ import { TREND_NICHES_PATH } from "./trend-niches.js";
 import { FEEDBACK_PATH } from "./feedback.js";
 import { FILM_DRAFT_CHECK_PATH, FILM_DRAFT_FILES_PATH, FILM_DRAFT_PATH, FILM_DRAFTS_PATH } from "./film-drafts.js";
 import { FILM_GUIDE_PATH, FILM_KIT_PATH } from "./film-guide.js";
-import { FILM_CUT_CHECK_PATH, FILM_CUTS_PATH, FILM_CUTS_QUOTE_PATH } from "./film-cut.js";
+import { CUT_PREVIEWS_PATH, CUT_PREVIEWS_QUOTE_PATH, FILM_CUT_CHECK_PATH, FILM_CUTS_PATH, FILM_CUTS_QUOTE_PATH } from "./film-cut.js";
+import { CUT_PATH, CUTS_PATH } from "./cuts.js";
 import { AD_GUIDE_PATH } from "./ad-guide.js";
 import { AD_PATH, ADS_PATH } from "./ads.js";
 import { FILM_EDITS_PATH, FILM_EDITS_QUOTE_PATH, FILM_HEROES_PATH, FILM_HEROES_QUOTE_PATH, FILM_RENDERS_PATH, FILM_RENDERS_QUOTE_PATH, FILM_RUN_PATH, FILM_STILLS_PATH, FILM_STILLS_QUOTE_PATH, FILM_VOICES_PATH,
@@ -164,6 +165,13 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   // The checked cut rendered, quoted first like the rest.
   { method: "POST", path: FILM_CUTS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: FILM_CUTS_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  // Stills of the checked cut as the video draws them, quoted first like the rest.
+  { method: "POST", path: CUT_PREVIEWS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: CUT_PREVIEWS_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  // The cut record of a customer's own agent: free, for the faceless DIY accounts.
+  { method: "POST", path: CUTS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: CUT_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "GET", path: CUT_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   // The mode's guide and scene kit, read-only (#1356).
   { method: "GET", path: FILM_GUIDE_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   { method: "GET", path: FILM_KIT_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },

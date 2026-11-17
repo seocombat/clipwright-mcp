@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { assetId } from "./asset-identity.js";
 import { adId, adSlotId } from "./ad-ids.js";
+import { cutId } from "./cut-ids.js";
 import { diyBlocked, diyNext } from "./diy-next.js";
 import { editMusic } from "./edit-music.js";
 import { EXPLAINER_MAX_PRODUCT_PICTURES, facelessCustomerSceneImage, qualifiedImageUrl } from "./faceless-public.js";
@@ -65,6 +66,7 @@ export type FilmStillsRequest = z.input<typeof filmStillsInput>;
 export const filmVoiceInput = z.strictObject({
   text: z.string().trim().min(1).max(OWN_VOICE_MAX_CHARS).describe("The script, spoken exactly as written"),
   voice: z.enum(FACELESS_VOICE_NAMES).optional().describe("A narrator (list_voices with skill=make_faceless); the fastest of the script's language when omitted"),
+  cut_id: cutId.optional().describe("The cut record this voice is for: the record then names it as its voice and says what comes next"),
   max_credits: maxCreditsField,
 });
 export type FilmVoiceInput = z.infer<typeof filmVoiceInput>;
@@ -204,7 +206,7 @@ export const pictureTakeAsk = z.strictObject({
 });
 export type PictureTakeAsk = z.infer<typeof pictureTakeAsk>;
 const hexColour = z.string().regex(/^#[0-9a-fA-F]{6}$/, "a colour is #RRGGBB");
-const PICTURE_ONLY = ["look", "picture"] as const, MOTION_ONLY = ["product_image", "moves", "format", "ad_id", "slot"] as const;
+const PICTURE_ONLY = ["look", "picture", "cut_id"] as const, MOTION_ONLY = ["product_image", "moves", "format", "ad_id"] as const;
 
 export const takeCheckInput = z.strictObject({
   ...takeSource,
@@ -223,13 +225,17 @@ export const takeCheckInput = z.strictObject({
   moves: z.array(takeSecond).max(TAKE_CHECK_MAX_MOVES).optional()
     .describe("Seconds of the take where a hand meets the product (a grip, a lid, a set-down): looked at first"),
   ad_id: adId.optional().describe("With slot: the ad record the verdict joins, as a take of that slot"),
-  slot: adSlotId.optional().describe("With ad_id: the slot of the ad this take is for"),
+  cut_id: cutId.optional().describe("With against picture, required with slot: the cut record the verdict joins, as a take of that slot"),
+  slot: adSlotId.optional().describe("With ad_id or cut_id: the slot of the record this take is for; on a cut record, a slot that needs a take"),
   format: z.enum(TAKE_MOTION_FORMATS).optional().describe("What the take's motion is measured against: fashion (people and clothes in " +
     "motion: fashion, lifestyle, sport) or product (a product worked in the hands); omitted, product"),
   max_credits: maxCreditsField,
-}).refine(oneTake, ONE_TAKE).refine(v => (v.ad_id === undefined) === (v.slot === undefined), "ad_id and slot go together")
+}).refine(oneTake, ONE_TAKE)
   .superRefine((v, ctx) => {
     const picture = v.against === "picture", refuse = (path: string, message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+    if (picture && v.cut_id === undefined) refuse("cut_id", "with against picture, name the cut record (create_cut) the take is for");
+    if (picture && v.slot === undefined) refuse("slot", "with against picture, name the cut record's slot the take is for");
+    if (!picture && (v.ad_id === undefined) !== (v.slot === undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [], message: "ad_id and slot go together" });
     if (picture !== (typeof v.direction === "object")) refuse("direction", picture ? "with against picture, direction is an object of start, changes, " +
       "camera, end and locks" : "direction is the shot's prompt as text; the object form goes with against picture");
     if (picture && v.look === undefined) refuse("look", "with against picture, name the look");
@@ -318,10 +324,11 @@ export const ownAgentQuote = z.strictObject({
   units: z.number().int().nonnegative(),
   /** `film_render`, `film_edit`, `film_cut`: how long the film will run. */
   film_sec: filmSec.optional(),
-  /** `film_stills`: how many of the asked stills are free, and the free stills the draft has left in the rolling day after them. */
+  /** `film_stills`, `film_cut_preview`: how many of the asked stills are free, and the free stills left in the rolling day after them. */
   free_units: z.number().int().nonnegative().optional()
-    .describe(`How many of the asked stills are free: the first ${OWN_FREE_STILLS} stills of a draft in any ${OWN_FREE_STILLS_WINDOW_HOURS} h are`),
-  free_left: z.number().int().nonnegative().optional().describe("Free stills this draft has left in the rolling day after this call"),
+    .describe(`How many of the asked stills are free: the first ${OWN_FREE_STILLS} stills of a draft, or previews of an account, in any ` +
+      `${OWN_FREE_STILLS_WINDOW_HOURS} h are`),
+  free_left: z.number().int().nonnegative().optional().describe("Free stills the draft, or the account's previews, have left in the rolling day after this call"),
   /** `film_take_frames`: how many frames the sheets will show. */
   frames: z.number().int().positive().optional(),
   /** `film_cut`: the credits line by line; they add up to `credits`. */
@@ -354,7 +361,8 @@ export const filmRun = z.strictObject({
   credits_charged: z.number().int().nonnegative().nullable(),
   warnings: z.array(z.string()),
   error: z.string().nullable(),
-  /** `film_stills`: the stills drawn, a tiled sheet when asked, and the gate's refusals as `file:line: reason`. */
+  /** `film_stills`: the stills drawn, a tiled sheet when asked, and the gate's refusals as `file:line: reason`; `film_cut_preview`: the cut's
+   *  composed frames, each `at` a word index. */
   stills: z.strictObject({ frames: z.array(filmStill), sheet_url: z.string().url().nullable(), refusals: z.array(z.string()) }).optional(),
   /** `film_voice`: the take's length and its words, each with its start and end, and how long a film on it runs. */
   voice: z.strictObject({ duration_sec: z.number().positive(), film_sec: filmSec.optional(), words: z.array(filmWord), audio_url: z.string().url() }).optional(),

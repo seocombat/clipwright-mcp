@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { storedRevisionInputFixture } from "./__fixtures__/edit-views.fixture.js";
 import {
-  AI_DISCLOSURE_TEXT, FACELESS_AI_DISCLOSURE_TEXT, FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT, RUN_STATES, TERMINAL_STATES, aiDisclosureText, isTerminal, run,
+  AI_DISCLOSURE_TEXT, FACELESS_AI_DISCLOSURE_TEXT, FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT, FILM_CUT_AI_DISCLOSURE_TEXT, RUN_STATES, TERMINAL_STATES, aiDisclosureText, isTerminal, run,
   runId, runRead,
 } from "./runs.js";
 
@@ -14,6 +14,14 @@ describe("the disclosure of a revision", () => {
     expect(aiDisclosureText("make_faceless", { ...storedRevisionInputFixture(false), scene_images: [{}] })).toBe(FACELESS_AI_DISCLOSURE_TEXT);
     expect(aiDisclosureText("make_faceless", { scene_images: [{}] })).toBe(FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT);
     expect(aiDisclosureText("make_faceless", { scene_images: [] })).toBe(FACELESS_AI_DISCLOSURE_TEXT);
+  });
+  // Mutant (#1653): a cut answering the presenter's sentence, with an actor and lip sync it has neither of.
+  it("a cut of the account's own pictures and clips names its voice, never an actor or lip sync", () => {
+    expect(aiDisclosureText("film_cut", { skill: "film_cut" })).toBe(FILM_CUT_AI_DISCLOSURE_TEXT);
+    expect(FILM_CUT_AI_DISCLOSURE_TEXT).not.toMatch(/actor|lip sync/u);
+    expect(aiDisclosureText("make_ugc", {})).toBe(AI_DISCLOSURE_TEXT);
+    // Codex r1: film_edit and film_render still answer the sentence their workers write into the file, until #1658 gives each its own.
+    for (const skill of ["film_edit", "film_render", "film_stills", "film_voice"]) expect(aiDisclosureText(skill, { skill })).toBe(AI_DISCLOSURE_TEXT);
   });
   it("a long-form revision states its root's presenter disclosure, whatever its input holds", () => {
     expect(aiDisclosureText("revise_long_form", storedRevisionInputFixture(true))).toBe(AI_DISCLOSURE_TEXT);

@@ -3,6 +3,7 @@ import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MIN_OUTPUT_FRAMES } from "./facele
 import { parseCutStyle, type CutStyleProfile } from "./faceless-cut-style.js";
 import { assertStoryboardWords } from "./faceless-storyboard.js";
 import { facelessCutScore } from "./faceless-storyboard-v2-timing.js";
+import { LEXICAL_WORD } from "./speech-words.js";
 import type { WordTiming } from "./tts-backend.js";
 
 const index = z.number().int().nonnegative().safe();
@@ -20,10 +21,9 @@ const storySchema = z.strictObject({
   captionPhrases: z.array(phrase).min(1).optional(),
 });
 export type FacelessPublicStory = z.infer<typeof storySchema>;
-const lexicalWordPattern = /[\p{L}\p{N}\p{M}]+(?:['’][\p{L}\p{N}\p{M}]+)*/gu;
 export function facelessSpeechWordSpans(script: string): Array<{ word: string; start: number; end: number }> {
-  const matches = [...script.matchAll(lexicalWordPattern)];
-  const normalizedCount = script.normalize("NFKC").match(lexicalWordPattern)?.length ?? 0;
+  const matches = [...script.matchAll(LEXICAL_WORD)];
+  const normalizedCount = script.normalize("NFKC").match(LEXICAL_WORD)?.length ?? 0;
   if (!matches.length || matches.length !== normalizedCount) throw new Error("unsupported faceless script word boundaries");
   const compactOffset = Array<number>(script.length + 1).fill(0);
   for (let i = 0; i < script.length; i++) compactOffset[i + 1] = compactOffset[i]! + (/\s/u.test(script[i]!) ? 0 : 1);
@@ -35,7 +35,7 @@ export function facelessSpeechWordSpans(script: string): Array<{ word: string; s
 }
 export function facelessSpeechLexicalWords(script: string): string[] {
   return facelessSpeechWordSpans(script).map(({ word }) => {
-    const normalized = word.normalize("NFKC").match(lexicalWordPattern);
+    const normalized = word.normalize("NFKC").match(LEXICAL_WORD);
     if (normalized?.length !== 1) throw new Error("unsupported faceless lexical word");
     return normalized[0]!.replace(/[’]/gu, "'").normalize("NFD")
       .replace(/\p{M}/gu, "").toLocaleLowerCase("und");

@@ -62,6 +62,22 @@ function walk(node: Schema, depth: number, visit: (node: Schema, depth: number) 
   }
 }
 
+/** The SDK writes draft-07, clients read 2020-12 (Claude drops the tool): a tuple's `items` list becomes `prefixItems`, its `additionalItems` its `items`. */
+export function toDraft2020(node: Schema): Schema {
+  if (Array.isArray(node.items)) {
+    node.prefixItems = node.items;
+    delete node.items;
+    if (node.additionalItems !== undefined) node.items = node.additionalItems;
+  }
+  // Beside a single `items` draft-07 ignores it; 2020-12 has no such keyword.
+  delete node.additionalItems;
+  for (const [container, key] of slots(node)) {
+    const value = child(container, key);
+    if (isSchema(value)) toDraft2020(value);
+  }
+  return node;
+}
+
 const withoutDescriptions = (schema: unknown): string =>
   JSON.stringify(schema, (key, value: unknown) => (key === "description" && typeof value === "string") || key === "$schema" ? undefined : value);
 
@@ -164,7 +180,7 @@ function advertise(tools: readonly Tool[]): Tool[] {
   const twins = findTwins(tools);
   return tools.map(tool => {
     const twin = twins.get(tool.name);
-    const schema = structuredClone(tool.inputSchema) as Schema;
+    const schema = toDraft2020(structuredClone(tool.inputSchema) as Schema);
     // A pointer or a listed text is the field's only description, so no cut or $defs move touches it.
     const pointers = new Set<Schema>();
     for (const [path, description] of Object.entries(COPIED_FIELDS[tool.name] ?? {})) {
@@ -207,10 +223,11 @@ function advertise(tools: readonly Tool[]): Tool[] {
       // A mark stays on its own field, not behind a $ref an agent may not follow (34 bytes, measured 2026-11-16).
       else pointers.add(node);
     });
-    const { execution, ...rest } = tool;
+    const { execution, outputSchema, ...rest } = tool;
     const body = listedDescription(tool);
     const description = twin === undefined ? body : withTwinNote(body ?? "", twin);
     return { ...rest, ...(execution === undefined || execution.taskSupport === "forbidden" ? {} : { execution }),
+      ...(outputSchema === undefined ? {} : { outputSchema: toDraft2020(structuredClone(outputSchema) as Schema) as Tool["outputSchema"] }),
       ...(description === undefined ? {} : { description }), inputSchema: hoistRepeats(schema, pointers) as Tool["inputSchema"] };
   });
 }

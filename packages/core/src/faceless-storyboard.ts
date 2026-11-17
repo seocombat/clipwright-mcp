@@ -1,9 +1,9 @@
 import { z } from "zod";
+import { lexicalWords as tokens } from "./speech-words.js";
 // Keep these private shapes compatible with the Remotion caption contract.
 type WordTiming = { word: string; startSec: number; endSec: number };
 type PhraseRange = { wordStart: number; wordEnd: number; accentWord: number };
 
-const tokenPattern = /[\p{L}\p{N}\p{M}]+(?:['’][\p{L}\p{N}\p{M}]+)*/gu;
 const nonblank = z.string().trim().min(1);
 const index = z.number().int().nonnegative();
 const sha256 = z.string().regex(/^[0-9a-fA-F]{64}$/);
@@ -41,10 +41,6 @@ const proposalSchema = z.strictObject({
 export type StoryboardProposal = Omit<z.infer<typeof proposalSchema>, "captionPhrases"> & {
   captionPhrases: PhraseRange[];
 };
-
-function tokens(input: string): string[] {
-  return input.normalize("NFKC").match(tokenPattern) ?? [];
-}
 
 function lexical(input: string): string {
   return input.normalize("NFKC").replace(/[’]/gu, "'").normalize("NFD")
@@ -87,15 +83,16 @@ export function parseStoryboardProposal(input: unknown): StoryboardProposal {
 
 export function assertStoryboardWords(script: string, words: readonly WordTiming[]): void {
   const scriptWords = tokens(script);
+  const differs = (i: number) => { const measured = tokens(words[i]!.word); return measured.length !== 1 || lexical(measured[0]!) !== lexical(scriptWords[i]!); };
+  const quoted = (i: number) => `"${words[i]!.word.slice(0, 40)}" in the voice, "${scriptWords[i]!.slice(0, 40)}" in the text`;
   if (scriptWords.length === 0 || scriptWords.length !== words.length) {
-    throw new Error("storyboard word count mismatch");
+    const shared = Math.min(words.length, scriptWords.length), at = Array.from({ length: shared }, (_, i) => i).find(differs);
+    throw new Error(`storyboard word count mismatch: the voice has ${words.length} words and its text ${scriptWords.length}` +
+      (at === undefined ? "" : `; word ${at} is the first that differs: ${quoted(at)}`));
   }
   for (let i = 0; i < words.length; i++) {
     const timed = words[i]!;
-    const measured = tokens(timed.word);
-    if (measured.length !== 1 || lexical(measured[0]!) !== lexical(scriptWords[i]!)) {
-      throw new Error(`storyboard word ${i} differs from script`);
-    }
+    if (differs(i)) throw new Error(`storyboard word ${i} differs from script: ${quoted(i)}`);
     if (!Number.isFinite(timed.startSec) || !Number.isFinite(timed.endSec) ||
         timed.startSec < 0 || timed.endSec <= timed.startSec ||
         (i > 0 && timed.startSec < words[i - 1]!.endSec)) {

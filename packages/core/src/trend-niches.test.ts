@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  findTrendsInput, resolveFindTrends, TREND_NICHE_REQUIRED_MESSAGE, TREND_PAGE_FIELDS_MESSAGE, trendNichesInput, trendPageTarget,
+  findTrendsInput, resolveFindTrends, suggestTrendNiches, TREND_NICHE_REQUIRED_MESSAGE, TREND_NICHE_SUGGESTIONS_MAX, TREND_PAGE_FIELDS_MESSAGE,
+  trendNicheSuggestion, trendNichesInput, trendPageTarget,
 } from "./trend-niches.js";
 import { TREND_SEARCH_DEFAULT_DAYS, trendQueryKey } from "./trend-search.js";
 
@@ -55,5 +56,45 @@ describe("saved niches", () => {
   it("refuses a search with neither keywords nor a niche, and a niche that no longer parses", () => {
     expect(resolveFindTrends({}, null)).toEqual({ ok: false, message: TREND_NICHE_REQUIRED_MESSAGE });
     expect(resolveFindTrends({}, { keywords: " ", platform: "mix", language: null })).toEqual({ ok: false, message: TREND_NICHE_REQUIRED_MESSAGE });
+  });
+});
+
+/** Suggested niches (#1392): read from analysed creators' hashtags, no source call and no model. */
+describe("suggestTrendNiches", () => {
+  const video = (caption: string | null, tookOff = false) => ({ caption, tookOff });
+  const profile = (handle: string, videos: { caption: string | null; tookOff: boolean }[], platform: "instagram" | "tiktok" = "instagram") =>
+    ({ platform, handle, videos });
+
+  // Mutants: drop the stop list, the two-caption floor, the took-off weight or the camel split, and each shows in the list below.
+  it("keeps tags in two captions of one creator, weighs the ones that took off, splits capitals and leaves generic tags out", () => {
+    const tile = profile("tile_maker", [
+      video("New floor #HomeRenovation #fyp #viral", true), video("Grout day #homerenovation #tiles #fyp"),
+      video("#tiles again #tiles #FYP #bathroomdesign"), video("#bathroomdesign once"), video(null), video("#oneoff"),
+    ]);
+    expect(suggestTrendNiches([tile], [])).toEqual([
+      { keywords: "home renovation", platform: "mix", from: { platform: "instagram", handle: "tile_maker" }, videos: 2, took_off: 1 },
+      { keywords: "bathroomdesign", platform: "mix", from: { platform: "instagram", handle: "tile_maker" }, videos: 2, took_off: 0 },
+      { keywords: "tiles", platform: "mix", from: { platform: "instagram", handle: "tile_maker" }, videos: 2, took_off: 0 },
+    ]);
+    for (const suggestion of suggestTrendNiches([tile], [])) expect(trendNicheSuggestion.parse(suggestion)).toEqual(suggestion);
+  });
+
+  // Codex r1 mutants: lower the two-caption floor, or count a tag twice when one caption spells it in two cases.
+  it("suggests nothing from one caption, even when it repeats a tag in another case", () => {
+    expect(suggestTrendNiches([profile("solo", [video("#Coffee #coffee #COFFEE", true), video("#tea")])], [])).toEqual([]);
+  });
+
+  // Mutants: compare saved niches by their raw text or with their spaces, and a niche the user saved as "Latte ART" comes back as
+  // #latteart; check the stop list on the tag with its underscores, and #viral_video and #for_you come back as niches.
+  it("leaves out a saved niche's words, keeps one suggestion per tag from the creator where it weighs most, and stops at three", () => {
+    const one = profile("one", [video("#coffee #latteart #barista #espresso #viral_video #for_you"),
+      video("#coffee #latteart #barista #espresso #viral_video #for_you")]);
+    const two = profile("two", [video("#coffee", true), video("#coffee"), video("#Barista #espresso"), video("#barista #espresso")], "tiktok");
+    const suggested = suggestTrendNiches([one, two], [{ keywords: "  Latte  ART " }]);
+    expect(suggested).toHaveLength(TREND_NICHE_SUGGESTIONS_MAX);
+    expect(suggested.map((s) => [s.keywords, s.from.handle, s.videos, s.took_off])).toEqual([
+      ["coffee", "two", 2, 1], ["barista", "one", 2, 0], ["espresso", "one", 2, 0],
+    ]);
+    expect(suggestTrendNiches([], [])).toEqual([]);
   });
 });

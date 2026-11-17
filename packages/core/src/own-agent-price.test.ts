@@ -7,7 +7,7 @@ import { isOwnAgentEnabled, OWN_AGENT_TARIFF, OWN_AGENT_TARIFF_V1, ownAgentCharg
 describe("the own-agent tariff", () => {
   it("freezes the proposal as a snapshot its schema accepts", () => {
     expect(ownAgentTerms.parse(ownAgentTermsNow())).toEqual({ tariff: OWN_AGENT_TARIFF, still_credits: 1, render_credits: 100, included_seconds: 60,
-      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 7, edit_credits: 10, music_credits: 60, take_check_credits: 10, picture_check_credits: 5, free_stills: 120,
+      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 7, edit_credits: 10, music_credits: 60, take_check_credits: 10, picture_check_credits: 20, free_stills: 120,
       free_stills_window_hours: 24, cut_credits: 45, cut_included_seconds: 60, cut_extra_second_credits: 1, cut_bed_credits: 35,
       cut_take_sound_credits_per_second: 4, cut_music_credits: 60 });
   });
@@ -42,16 +42,27 @@ describe("the own-agent tariff", () => {
   });
 
   // F2 disposition #8, priced on the function without the hold clip. Mutants: a picture check priced as a motion one, the mode dropped so
-  // a picture verdict charges 10, or terms frozen before the picture check priced at today's 5.
-  it("prices a take check by the frozen mode: picture 5, motion 10, and none on terms without the picture price", () => {
+  // a picture verdict charges 10, or terms frozen before the picture check priced at today's 20 (F3 D6, owner 17.11; a run admitted at 5 keeps 5).
+  it("prices a take check by the frozen mode: picture 20, motion 10, and none on terms without the picture price", () => {
     const now = ownAgentTermsNow();
-    expect([ownTakeCheckCredits(1, now, "picture"), ownTakeCheckCredits(1, now, "motion"), ownTakeCheckCredits(1, now)]).toEqual([5, 10, 10]);
-    expect(ownAgentCharge({ skill: "film_take_check", checks: 1, against: "picture" }, now, 1000)).toBe(5);
+    expect([ownTakeCheckCredits(1, now, "picture"), ownTakeCheckCredits(1, now, "motion"), ownTakeCheckCredits(1, now)]).toEqual([20, 10, 10]);
+    expect(ownAgentCharge({ skill: "film_take_check", checks: 1, against: "picture" }, now, 1000)).toBe(20);
+    expect(ownAgentCharge({ skill: "film_take_check", checks: 1, against: "picture" }, { ...now, picture_check_credits: 5 }, 1000)).toBe(5);
+    expect(ownTakeCheckCredits(0, now, "picture")).toBe(0);
     expect(ownAgentCharge({ skill: "film_take_check", checks: 1, against: "motion" }, now, 1000)).toBe(10);
     expect(ownTakeCheckCredits(1, { ...now, picture_check_credits: 7 }, "picture")).toBe(7);
     const { picture_check_credits: _p, ...old } = now;
     expect(() => ownTakeCheckCredits(1, old, "picture")).toThrow("these terms price no picture check");
     expect(ownTakeCheckCredits(1, old, "motion")).toBe(10);
+  });
+
+  // F3 D5. Mutants: a preview charged its free stills, or priced apart from a draft's stills.
+  it("charges a cut preview its stills past the free ones it was granted, as a draft's stills", () => {
+    const now = ownAgentTermsNow();
+    expect(ownAgentCharge({ skill: "film_cut_preview", frames: 6, free: 6 }, now, 0)).toBe(0);
+    expect(ownAgentCharge({ skill: "film_cut_preview", frames: 6, free: 2 }, now, 4)).toBe(4);
+    expect(ownAgentCharge({ skill: "film_cut_preview", frames: 6 }, now, 6)).toBe(6);
+    expect(() => ownAgentCharge({ skill: "film_cut_preview", frames: 6 }, now, 5)).toThrow(/over its hold/);
   });
 
   // Mutants: an edit charged by its seconds, or on terms frozen before the edit was sold.

@@ -14,6 +14,14 @@ const FILM_TOOLS = ["check_film", "check_take", "create_ad", "create_film_draft"
   "make_film_hero", "make_voice", "preview_stills", "put_film_files", "quote_edit", "quote_film_hero", "quote_render", "quote_stills", "quote_take_check",
   "quote_voice", "render_edit", "render_film", "take_frames", "update_ad"];
 
+/** A two-card cut sheet, as an agent writes it. */
+const CARD_SHEET = { format: "story", look: "silhouette", voice_run_id: "run_voice", method: { kind: "story", techniques: [{ id: "a", why: "1" },
+  { id: "b", why: "2" }, { id: "c", why: "3" }] },
+  structure: { arc: "a", hook: { kind: "payoff_line", payoff_words: [0, 0], cold_open: null }, ending: { kind: "reveal", words: [0, 0] } },
+  style: { look: "l", light: "l", palette: ["#000000", "#ffffff", "#c9862e"], effect_colours: "amber" },
+  beats: [{ id: "a", words: [0, 0], kind: "card", shot_size: "ms", why: "w", technique_ids: ["a"], card: "ONE" },
+    { id: "b", words: [1, 1], kind: "card", shot_size: "ms", why: "w", technique_ids: ["b"], card: "TWO" }], sound: { bed: null } };
+
 describe("the film tools (#1291 F2, #1337)", () => {
   /** Mutant: register them unconditionally, and every client sees tools the API refuses. */
   it("are listed with the mode on and absent with it off", async () => {
@@ -69,12 +77,7 @@ describe("the film tools (#1291 F2, #1337)", () => {
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "t", version: "0" });
     await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
-    const sheet = { format: "story", look: "silhouette", voice_run_id: "run_voice", method: { kind: "story", techniques: [{ id: "a", why: "1" }, { id: "b", why: "2" }, { id: "c", why: "3" }] },
-      structure: { arc: "a", hook: { kind: "payoff_line", payoff_words: [0, 0], cold_open: null }, ending: { kind: "reveal", words: [0, 0] } },
-      style: { look: "l", light: "l", palette: ["#000000", "#ffffff", "#c9862e"], effect_colours: "amber" },
-      beats: [{ id: "a", words: [0, 0], kind: "card", shot_size: "ms", why: "w", technique_ids: ["a"], card: "ONE" },
-        { id: "b", words: [1, 1], kind: "card", shot_size: "ms", why: "w", technique_ids: ["b"], card: "TWO" }], sound: { bed: null } };
-    const answer = await client.callTool({ name: "check_cut", arguments: sheet });
+    const answer = await client.callTool({ name: "check_cut", arguments: CARD_SHEET });
     expect(answer.isError).not.toBe(true);
     expect(sent).toEqual([expect.objectContaining({ format: "story", voice_run_id: "run_voice", beats: expect.arrayContaining([expect.objectContaining({ card: "ONE" })]) })]);
   });
@@ -88,6 +91,45 @@ describe("the film tools (#1291 F2, #1337)", () => {
     expect(quote.annotations).toMatchObject({ readOnlyHint: true });
     expect(render.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
     expect(Object.keys(render.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["voice_run_id", "beats", "max_credits", "attempt"]));
+  });
+
+  // F3. Mutants: the cut record tools listed to every account of the mode, a tool without its mistakes, update_cut without the record's id,
+  // preview_cut answering before its stills are drawn, or cut_id offered on the motion check and on an explainer's voice.
+  it("list the cut record and preview tools only where the faceless guide is served, and preview_cut waits for its stills", async () => {
+    const CUT_TOOLS = ["create_cut", "get_cut", "preview_cut", "quote_cut_preview", "update_cut"];
+    const tools = async (o: { adGuide?: boolean; facelessDiy?: boolean }) => listTools({ fileAccess: "refuse", ownAgent: true, ...o });
+    const ad = await tools({ adGuide: true }), faceless = await tools({ facelessDiy: true });
+    expect(ad.map(tool => tool.name).filter(name => CUT_TOOLS.includes(name))).toEqual([]);
+    expect(faceless.map(tool => tool.name).filter(name => CUT_TOOLS.includes(name)).sort()).toEqual(CUT_TOOLS);
+    for (const name of CUT_TOOLS) expect(faceless.find(t => t.name === name)!.description!.match(/Mistakes to avoid: \S/g), name).toHaveLength(1);
+    const find = (name: string) => faceless.find(t => t.name === name)!;
+    expect([find("get_cut").annotations?.readOnlyHint, find("quote_cut_preview").annotations?.readOnlyHint, find("preview_cut").annotations?.readOnlyHint])
+      .toEqual([true, true, false]);
+    expect(find("update_cut").inputSchema.required).toEqual(["cut_id"]);
+    expect(find("preview_cut").inputSchema.required).toEqual(expect.arrayContaining(["cut_id", "at", "beats"]));
+    expect(Object.keys(find("preview_cut").inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["attempt", "max_credits"]));
+    for (const name of ["quote_take_check", "check_take"]) {
+      expect(Object.keys(ad.find(t => t.name === name)!.inputSchema.properties ?? {}), name).not.toContain("cut_id");
+      expect(Object.keys(find(name).inputSchema.properties ?? {}), name).toContain("cut_id");
+    }
+    expect(Object.keys(ad.find(t => t.name === "make_voice")!.inputSchema.properties ?? {})).not.toContain("cut_id");
+    expect(Object.keys(find("make_voice").inputSchema.properties ?? {})).toContain("cut_id");
+    const drawn = run("succeeded", { skill: "film_cut_preview", stills: { frames: [{ at: 3, seconds: 1.2, frame: 30, image_url: "https://r2.test/p.png",
+      findings: [] }], sheet_url: null, refusals: [] } });
+    const started: unknown[] = [];
+    const api = { previewCut: async (input: unknown, opts: unknown) => { started.push([input, opts]); return run("queued", { skill: "film_cut_preview" }); },
+      getFilmRun: async () => drawn };
+    const server = new McpServer({ name: "t", version: "0" });
+    registerFilmDraftTools(server, api as unknown as ClipwrightClient, { pollMs: 0, sleep: async () => undefined,
+      fetchImpl: (async () => new Response(new Uint8Array([7]))) as unknown as typeof fetch }, false, true);
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair(), client = new Client({ name: "t", version: "0" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    let content: { type: string; text?: string }[];
+    try { content = (await client.callTool({ name: "preview_cut", arguments: { ...CARD_SHEET, cut_id: `fv_${"f".repeat(32)}`, at: [1], attempt: 2 } }))
+      .content as { type: string; text?: string }[]; }
+    finally { await client.close(); }
+    expect([JSON.parse(content[0]!.text!).state, content.map(c => c.type)]).toEqual(["succeeded", ["text", "image"]]);
+    expect(started).toEqual([[expect.objectContaining({ cut_id: `fv_${"f".repeat(32)}`, at: [1], format: "story" }), { attempt: 2 }]]);
   });
 
   it("offer the draft's schema: a draft id, a base revision and the sound markup", async () => {

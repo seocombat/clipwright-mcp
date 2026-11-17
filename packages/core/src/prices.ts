@@ -21,7 +21,9 @@ import { isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
 import { isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
   OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_EDIT_CREDITS,
   OWN_EDIT_MAX_SECONDS, OWN_TAKE_CHECK_CREDITS, OWN_CUT_BED_CREDITS, OWN_CUT_CREDITS, OWN_CUT_EXTRA_SECOND_CREDITS,
-  OWN_CUT_INCLUDED_SECONDS, OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND } from "./own-agent-price.js";
+  OWN_CUT_INCLUDED_SECONDS, OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND,
+  OWN_TAKE_CHECK_PICTURE_CREDITS } from "./own-agent-price.js";
+import { CUT_PREVIEW_MAX_STILLS } from "./film-cut.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
 export const PRICES_PATH = "/v1/public/prices";
@@ -163,7 +165,7 @@ export const AD_DIY_PRICES: readonly PriceEntry[] = Object.freeze([
       "delivered cut; an edit that fails costs nothing." }),
   paid({ tool: "check_take", route: "POST /v1/take-checks", quote_tool: "quote_take_check", unit: "call", credits: OWN_TAKE_CHECK_CREDITS,
     notes: "One of your clips judged frame by frame against the prompt it was made with: each defect with its seconds and how to repair " +
-      "it, and the clean windows. Charged only for a delivered verdict; a check that fails costs nothing." }),
+      "it, and the clean windows. Charged only for a delivered verdict; a check that delivers no verdict costs nothing." }),
   { action: "take_frames", tool: "take_frames", route: "POST /v1/take-frames", variant: null, lines: [{ label: null, unit: "call" as const, credits: 0 }],
     formula: null, minimum_credits: null, quote_tool: null,
     notes: "Free: one of your clips as contact sheets, each frame labelled with its second, up to 96 frames a call." },
@@ -181,6 +183,13 @@ export const FACELESS_DIY_PRICES: readonly PriceEntry[] = Object.freeze([
   notes: `One faceless video of ${OWN_CUT_MIN_SECONDS} to ${OWN_CUT_MAX_SECONDS} s from your checked cut sheet, vertical 720p in stereo, with up ` +
     `to ${OWN_CUT_MAX_NEW_SOUNDS} described sounds made. Charged only for a delivered video and only for the parts it carries; a cut that ` +
     "fails costs nothing." }),
+  paid({ tool: "check_take", variant: "against a picture", route: "POST /v1/take-checks", quote_tool: "quote_take_check", unit: "call",
+    credits: OWN_TAKE_CHECK_PICTURE_CREDITS,
+    notes: "One take of your cut record judged against the picture it was made from: each defect with its seconds, the clean windows, the " +
+      "second its action shows and where its subject stands. Charged only for a delivered verdict; a check that delivers no verdict costs nothing." }),
+  paid({ tool: "preview_cut", route: "POST /v1/cut-previews", quote_tool: "quote_cut_preview", unit: "still", credits: OWN_STILL_CREDITS,
+    notes: `Up to ${CUT_PREVIEW_MAX_STILLS} frames of your checked cut sheet as the video draws them, on the words you name. The first ` +
+      `${OWN_FREE_STILLS} preview stills of an account in any ${OWN_FREE_STILLS_WINDOW_HOURS} h are free; a preview that fails costs nothing.` }),
 ]);
 
 function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false, music = false, explainer = false,

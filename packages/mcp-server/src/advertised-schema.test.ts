@@ -7,7 +7,7 @@ import { MCP_UGC_SHORTENED_TEXTS, priceLine } from "@clipwright/core";
 import { ClipwrightClient } from "@clipwright/sdk";
 import { describe, expect, it, vi } from "vitest";
 
-import { advertisedTools, COPIED_FIELDS, fieldTexts, findTwins, hoistRepeats, PAID_TWINS } from "./advertised-schema.js";
+import { advertisedTools, COPIED_FIELDS, fieldTexts, findTwins, hoistRepeats, PAID_TWINS, toDraft2020 } from "./advertised-schema.js";
 import { LISTED_DESCRIPTIONS, LISTED_FIELDS } from "./listed-texts.js";
 import { listTools } from "./remote.js";
 import { createServer, type CreateServerOptions } from "./server.js";
@@ -300,7 +300,7 @@ const WRITTEN_FROM: Record<string, string> = {
   analyze_creator: "2aa74f417419deec", analyze_reference: "6caf3019638a9de6", brand_kit: "67ef2944b7b8752d", extract_brand: "8cc03d7318dacfb8",
   prepare_workflow_plan: "dcc184695ee43de7", create_actor: "64dc97d2adf395ca", create_asset: "f31bdd693a759a26",
   create_candidate: "ac7da0d7f8974609", create_upload: "ca48d9141527cf5e", delete_actor: "e625ea18d3d26377", delete_asset: "dd3a4991f04a444f",
-  delete_creator_profile: "c5ee9a4029150781", find_trends: "ad07026b3ce8090a", trend_niches: "d0c798bd1f7188d1", delete_run_media: "e4f93b3a9cd5ea05", delete_upload: "ebb515f237d976c0", generate_image: "92cdec4c8c45facb",
+  delete_creator_profile: "c5ee9a4029150781", find_trends: "ad07026b3ce8090a", trend_niches: "595673e0321dc109", delete_run_media: "e4f93b3a9cd5ea05", delete_upload: "ebb515f237d976c0", generate_image: "92cdec4c8c45facb",
   generate_video: "64d846bf7106bb14", get_account: "330f88827c765beb", get_asset: "37bd480834513438", get_creator_profile: "ccb8cc20d52ad7c9",
   get_reference_analysis: "cf4027c19e9a3dd3", get_run: "0ad53c727736d024", get_run_shots: "b4717e85b92bdae2", get_upload: "4bd3baac899982b4",
   list_actors: "89ca3249262caa88", list_assets: "15d7184ab3597f63", list_generation_models: "5737b2f41d69b048", list_moves: "067d552b22260a07", list_prices: "73634ccff928eacc",
@@ -309,7 +309,7 @@ const WRITTEN_FROM: Record<string, string> = {
   "quote_actor.aspect_ratios": "696dce090682b9ab", "quote_actor.description": "683e0cde898f0b05", "quote_actor.quality": "30a1a4112b5cec33",
   quote_analysis: "f8cafa866c28e5b6", "quote_analysis.mode": "87cd0678550af1e9", quote_candidate: "9cf2107d7d2e6101",
   quote_creator_profile: "551da40d61728402", "quote_faceless.duration_seconds": "db3a0647f58855cb", "quote_faceless.voice": "b912650f28f50ae9",
-  quote_image: "a21d80c84bd1fdd1", quote_revision: "2b7dc951c0ec0b8b", "quote_trends.language": "6123ffc4aa981c9f",
+  quote_image: "a21d80c84bd1fdd1", quote_revision: "2b7dc951c0ec0b8b", "quote_trends.language": "cdbf45d92952dc49",
   "quote_ugc.actor_id": "ec9da39dc8413ce5", "quote_ugc.aspect_ratio": "b49a2e8f98e0ba34", "quote_ugc.broll_policy": "d8b247cc27906eaa",
   "quote_ugc.image": "8beaedf565c18d60", "quote_ugc.inserts": "d6e76e86bd8a17f8", "quote_ugc.layout_windows": "48fd405d98d1c275",
   "quote_ugc.music": "6afd389a371b37a1", "quote_ugc.overlays": "51dd7c5214297733", "quote_ugc.scenes": "1ef584e9b5864e44",
@@ -374,4 +374,34 @@ it("lists a short text only for a tool or field whose full text it was written f
   };
   expect(Object.fromEntries(Object.entries(sources).map(([key, text]) => [key, digest(text)])), "a full text changed: say the change in listed-texts.ts, then pin its digest")
     .toEqual(WRITTEN_FROM);
+});
+
+describe("toDraft2020", () => {
+  const word = { type: "integer", minimum: 0 };
+  it("turns a draft-07 tuple into prefixItems, its additionalItems into items, wherever it is nested", () => {
+    expect(toDraft2020({ type: "object", properties: { pair: { type: "array", items: [word, word], additionalItems: false, minItems: 2 } } }))
+      .toEqual({ type: "object", properties: { pair: { type: "array", prefixItems: [word, word], items: false, minItems: 2 } } });
+    expect(toDraft2020({ anyOf: [{ type: "array", items: [word], additionalItems: { type: "string" } }] }))
+      .toEqual({ anyOf: [{ type: "array", prefixItems: [word], items: { type: "string" } }] });
+    expect(toDraft2020({ $defs: { d0: { type: "array", items: [word] } } })).toEqual({ $defs: { d0: { type: "array", prefixItems: [word] } } });
+  });
+  it("leaves a list schema and a value that only looks like a tuple as they are", () => {
+    const list = { type: "array", items: word, default: { items: [1, 2] } };
+    expect(toDraft2020(structuredClone(list))).toEqual(list);
+    expect(toDraft2020({ ...structuredClone(list), additionalItems: false })).toEqual(list);
+  });
+});
+
+it("lists a tuple field to every client as prefixItems: check_cut's beat words (17.11, Claude Code skipped the tool)", async () => {
+  const tools = await listTools({ fileAccess: "refuse", ownAgent: true, facelessDiy: true });
+  const text = JSON.stringify(tools.find(tool => tool.name === "check_cut")!.inputSchema);
+  const tuples: unknown[] = [];
+  JSON.parse(text, (key, value: unknown) => {
+    if (key === "prefixItems") tuples.push(value);
+    return value;
+  });
+  expect(tuples).toHaveLength(1);
+  expect(tuples[0]).toHaveLength(2);
+  expect(text).toContain("\"items\":false");
+  expect(text).not.toContain("additionalItems");
 });

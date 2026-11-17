@@ -131,11 +131,14 @@ export const TREND_SEARCH_ERROR_MESSAGES: Readonly<Record<TrendSearchError, stri
 export const findTrendsPayload = z.strictObject({ searchId: trendSearchId, accountId: z.string().min(1), page: trendPage.optional() });
 export type FindTrendsPayload = z.infer<typeof findTrendsPayload>;
 
+export const TREND_LANGUAGE_DESCRIPTION = "ISO 639-1: keeps reels in this language, read from the platform's label or the caption; " +
+  "a reel whose language cannot be told is kept.";
+
 export const findTrendsRequest = z.strictObject({
   keywords: z.string().min(2).max(100).refine((value) => value.trim().length >= 2, "keywords needs at least 2 characters besides spaces")
     .describe("The topic in a few words."),
   platform: z.enum(TREND_PLATFORMS).default("mix"),
-  language: z.string().regex(/^[a-z]{2}$/).optional().describe("ISO 639-1; filters TikTok only."),
+  language: z.string().regex(/^[a-z]{2}$/).optional().describe(TREND_LANGUAGE_DESCRIPTION),
   posted_within_days: z.number().int().min(TREND_SEARCH_MIN_DAYS).max(TREND_SEARCH_MAX_DAYS).default(TREND_SEARCH_DEFAULT_DAYS)
     .describe(`Reels posted within this many days: ${TREND_SEARCH_MIN_DAYS} is the last 24 hours, ${TREND_SEARCH_DEFAULT_DAYS} by default, ` +
       `at most ${TREND_SEARCH_MAX_DAYS}.`),

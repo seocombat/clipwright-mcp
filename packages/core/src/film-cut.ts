@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { assetId } from "./asset-identity.js";
+import { cutId } from "./cut-ids.js";
 import { diyBlocked, diyNext } from "./diy-next.js";
 import { FACELESS_BEAT_KINDS, FACELESS_CAMERA_MOVES, FACELESS_CUT_LOOKS, FACELESS_SHOT_SIZES, FACELESS_SPEEDS } from "./faceless-direction-summary.js";
 import { maxCreditsField } from "./max-credits.js";
@@ -12,12 +13,20 @@ import { uploadId } from "./uploads.js";
 export const FILM_CUT_CHECK_PATH = "/v1/film-cuts/check";
 export const FILM_CUTS_QUOTE_PATH = "/v1/film-cuts/quote";
 export const FILM_CUTS_PATH = "/v1/film-cuts";
+export const CUT_PREVIEWS_QUOTE_PATH = "/v1/cut-previews/quote";
+export const CUT_PREVIEWS_PATH = "/v1/cut-previews";
 export const FILM_CUT_FORMATS = ["story", "list", "own_pictures", "cartoon"] as const;
 export const FILM_CUT_METHODS = ["story", "horror", "list", "how_to", "history", "cartoon"] as const;
 /** Sounds drawn without a call: a sub boom, a heartbeat and the cartoon kit. */
 export const FILM_CUT_SYNTH_SOUNDS = ["sub_boom", "heartbeat", "pop", "slap", "whoosh", "tick", "ding", "boing", "thud"] as const;
 /** Ambiences drawn without a call. */
 export const FILM_CUT_BED_RECIPES = ["drone_low", "wind_dark", "room_tone", "tick_pulse"] as const;
+/** Why a beat may hold past the quiet limit with nothing landing: the ending's last image, text the viewer reads, a reveal left to sink in. */
+export const FILM_CUT_HOLDS = ["ending", "read_text", "reveal"] as const;
+/** The longest stretch over pictures, held frames and cards with nothing landing; longer is refused unless each beat in it names its hold. */
+export const CUT_MAX_QUIET_SEC = 3;
+/** The most stills one preview draws. */
+export const CUT_PREVIEW_MAX_STILLS = 24;
 
 const id = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/u, "lowercase letters, digits, - and _, at most 32, starting with a letter or digit");
 const word = z.number().int().nonnegative().max(5000);
@@ -85,6 +94,8 @@ const beat = z.strictObject({
     .refine(held => oneOf(held, ["run_id", "asset_id"]), ONE_CLIP).optional()
     .describe("The beat shows one frame of a clip as a still picture, with its camera move"),
   card: line(80).optional().describe("The beat is a text card with these words"),
+  hold: z.enum(FILM_CUT_HOLDS).optional().describe(`Only on a beat that holds over ${CUT_MAX_QUIET_SEC} s with nothing landing: ending (it ` +
+    "covers a word of the ending), read_text (a card, or a beat whose words carry an event with text) or reveal (a reveal left to sink in)"),
 }).refine(one => oneOf(one, ["picture", "take", "held_frame", "card"]), "a beat shows exactly one of picture, take, held_frame or card");
 
 export const filmCutInput = z.strictObject({
@@ -147,13 +158,26 @@ export const filmCutInput = z.strictObject({
   })).max(24).optional().describe("Outlines round a whole object on a picture"),
   overrides: z.array(z.strictObject({ check: line(64), why })).max(12).default([])
     .describe("Advice you keep your choice against, each by its check name with why"),
+  cut_id: cutId.optional().describe("The cut record this sheet belongs to (create_cut)"),
 });
 export type FilmCutInput = z.infer<typeof filmCutInput>;
 export type FilmCutRequest = z.input<typeof filmCutInput>;
-/** What quote_cut and render_cut take: the checked cut sheet, and the most the run may hold. */
-export const filmCutRunInput = filmCutInput.extend({ max_credits: maxCreditsField });
+/** What quote_cut and render_cut take: the checked cut sheet of a cut record, and the most the run may hold. */
+export const filmCutRunInput = filmCutInput.extend({ cut_id: cutId.describe("The cut record this video belongs to (create_cut)"),
+  max_credits: maxCreditsField });
 export type FilmCutRunInput = z.infer<typeof filmCutRunInput>;
 export type FilmCutRunRequest = z.input<typeof filmCutRunInput>;
+
+/** What quote_cut_preview and preview_cut take: the cut sheet of a cut record, the words to draw a still on, and the most the run may hold. */
+export const filmCutPreviewInput = filmCutInput.extend({
+  cut_id: cutId.describe("The cut record this sheet belongs to (create_cut)"),
+  at: z.array(word).min(1).max(CUT_PREVIEW_MAX_STILLS).refine(list => new Set(list).size === list.length, "each word is asked once")
+    .describe(`Up to ${CUT_PREVIEW_MAX_STILLS} words of the voice, by index: each still shows the composed frame just after its word starts, ` +
+      "with the captions, text, outlines and camera as the video draws them"),
+  max_credits: maxCreditsField,
+});
+export type FilmCutPreviewInput = z.infer<typeof filmCutPreviewInput>;
+export type FilmCutPreviewRequest = z.input<typeof filmCutPreviewInput>;
 
 export const FILM_CUT_SOURCES = ["picture", "take", "held_frame", "card"] as const;
 export const filmCutCheck = z.strictObject({

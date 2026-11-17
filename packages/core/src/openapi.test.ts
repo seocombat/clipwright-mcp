@@ -19,7 +19,8 @@ describe("the OpenAPI marking of the route registry", () => {
   it("gives every excluded route a reason and keeps it out of the document", () => {
     const excluded = API_ENDPOINTS.filter((endpoint) => OPENAPI_ROUTES[endpointLabel(endpoint)]?.exposure === "excluded");
     expect(excluded.map(endpointLabel).sort()).toEqual(["GET /", "GET /internal/portfolio-metrics", "GET /robots.txt", "GET /v1/ad-guide",
-      "GET /v1/ads/{id}", "GET /v1/film-drafts/{id}", "GET /v1/film-guide", "GET /v1/film-kit", "GET /v1/film-runs/{id}", "GET /v1/public/actor-previews/{actor_id}/{version}/{file}", "POST /v1/ads", "POST /v1/ads/{id}", "POST /v1/film-cuts",
+      "GET /v1/ads/{id}", "GET /v1/cuts/{id}", "GET /v1/film-drafts/{id}", "GET /v1/film-guide", "GET /v1/film-kit", "GET /v1/film-runs/{id}", "GET /v1/public/actor-previews/{actor_id}/{version}/{file}", "POST /v1/ads", "POST /v1/ads/{id}",
+      "POST /v1/cut-previews", "POST /v1/cut-previews/quote", "POST /v1/cuts", "POST /v1/cuts/{id}", "POST /v1/film-cuts",
       "POST /v1/film-cuts/check", "POST /v1/film-cuts/quote", "POST /v1/film-drafts", "POST /v1/film-drafts/{id}/check", "POST /v1/film-drafts/{id}/files", "POST /v1/film-edits", "POST /v1/film-edits/quote", "POST /v1/film-heroes", "POST /v1/film-heroes/quote", "POST /v1/film-renders", "POST /v1/film-renders/quote", "POST /v1/film-stills", "POST /v1/film-stills/quote",
       "POST /v1/film-voices", "POST /v1/film-voices/quote", "POST /v1/take-checks", "POST /v1/take-checks/quote", "POST /v1/take-frames",
       "POST /v1/take-frames/quote"]);

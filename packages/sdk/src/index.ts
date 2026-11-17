@@ -8,6 +8,18 @@ import {
   type CreateAdInput,
   updateAdInput,
   type UpdateAdInput,
+  CUT_PATH,
+  CUT_PREVIEWS_PATH,
+  CUT_PREVIEWS_QUOTE_PATH,
+  CUTS_PATH,
+  createCutInput,
+  type CreateCutInput,
+  cutRecord,
+  type CutRecord,
+  filmCutPreviewInput,
+  type FilmCutPreviewRequest,
+  updateCutInput,
+  type UpdateCutInput,
   adGuide,
   adGuideQuery,
   type AdGuide,
@@ -1078,6 +1090,36 @@ export class ClipwrightClient {
   /** A checked cut sheet rendered to one vertical 720p video with its sound, charged only when delivered. Returns at once; read it with getFilmRun. */
   async renderCut(request: FilmCutRunRequest, opts?: StartUgcOptions): Promise<FilmRun> {
     return this.#startFilm("film_cut", FILM_CUTS_PATH, filmCutRunInput.parse(request), opts);
+  }
+
+  /** What stills of a cut sheet would hold, and how many of them are free; spends no credits. */
+  async quotePreviewCut(request: FilmCutPreviewRequest): Promise<OwnAgentQuote> {
+    return this.#quoteFilm(CUT_PREVIEWS_QUOTE_PATH, filmCutPreviewInput.parse(request));
+  }
+
+  /** Stills of a cut sheet as the video draws them, one just after each asked word starts; an account's first stills in any 24 hours are free,
+   *  the rest charged per still drawn. Returns at once; read it with getFilmRun. */
+  async previewCut(request: FilmCutPreviewRequest, opts?: StartUgcOptions): Promise<FilmRun> {
+    return this.#startFilm("film_cut_preview", CUT_PREVIEWS_PATH, filmCutPreviewInput.parse(request), opts);
+  }
+
+  /** A new cut record: the brief and the shot plan's slots, which the voice, take checks, previews and the render then name. Free. */
+  async createCut(request: CreateCutInput): Promise<CutRecord> {
+    const body = await this.#request(CUTS_PATH, true, { method: "POST", body: JSON.stringify(createCutInput.parse(request)) });
+    return parseResponse(cutRecord, body, CUTS_PATH, true);
+  }
+
+  /** A cut record's brief, slots or both replaced; a slot with a checked take stays a take slot. Free. */
+  async updateCut(cutIdValue: string, request: UpdateCutInput): Promise<CutRecord> {
+    const path = CUT_PATH.replace(":id", encodeURIComponent(cutIdValue));
+    const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(updateCutInput.parse(request)) });
+    return parseResponse(cutRecord, body, path, true);
+  }
+
+  /** A cut record with its voice, each take slot's checked takes, its previews, its renders and the next call. Free. */
+  async getCut(cutIdValue: string): Promise<CutRecord> {
+    const path = CUT_PATH.replace(":id", encodeURIComponent(cutIdValue));
+    return parseResponse(cutRecord, await this.#request(path, false), path, false);
   }
 
   /** What stills of a draft revision would hold, and how many of them are free; spends no credits. */

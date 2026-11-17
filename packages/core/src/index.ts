@@ -11,6 +11,7 @@ export * from "./ad-guide.js";
 export * from "./own-agent-runs.js";
 export * from "./film-cut.js";
 export * from "./ads.js";
+export * from "./cuts.js";
 export * from "./diy-next.js";
 export * from "./script-voice.js";
 export * from "./ugc-layers.js";
@@ -73,6 +74,7 @@ export * from "./pacing.js";
 // Vendor-neutral contracts: everything vendor-specific lives in adapters, not here.
 export * from "./render-backend.js";
 export * from "./tts-backend.js";
+export * from "./speech-words.js";
 // Implementations of both contracts above mark errors with the response status, if any;
 // without it "the vendor refused" and "no response" look the same.
 export * from "./vendor-response.js";

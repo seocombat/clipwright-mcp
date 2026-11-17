@@ -11,12 +11,13 @@ export const OWN_AGENT_TARIFF = "own-agent-v2";
 export const OWN_AGENT_TARIFF_V1 = "own-agent-v1";
 /** The run skills of the mode, each with its own unit. */
 export const OWN_AGENT_SKILLS = ["film_stills", "film_voice", "film_render", "film_hero", "film_edit", "film_take_frames", "film_take_check",
-  "film_cut"] as const;
+  "film_cut", "film_cut_preview"] as const;
 export type OwnAgentSkill = (typeof OWN_AGENT_SKILLS)[number];
 
 /** One still the agent saw, past the free ones. */
 export const OWN_STILL_CREDITS = 1;
-/** Stills of one draft that are free in any rolling window of this many hours; a still past them is charged. */
+/** Stills of one draft, and preview stills of one account across its cut records, that are free in any rolling window of this many hours; a
+ *  still past them is charged. */
 export const OWN_FREE_STILLS = 120, OWN_FREE_STILLS_WINDOW_HOURS = 24;
 /** A rendered film up to OWN_FILM_INCLUDED_SECONDS, then each second over it. */
 export const OWN_FILM_RENDER_CREDITS = 100, OWN_FILM_INCLUDED_SECONDS = 60, OWN_FILM_EXTRA_SECOND_CREDITS = 2;
@@ -34,10 +35,14 @@ export const OWN_EDIT_CREDITS = 10, OWN_EDIT_MAX_SECONDS = 60;
 export const OWN_TAKE_FRAMES_MAX = 96, TAKE_FRAMES_PER_HOUR = 60, TAKE_FRAMES_WINDOW_SECONDS = 3600;
 /** Checks against a picture an account starts an hour, in the same window; working number. */
 export const TAKE_PICTURE_CHECKS_PER_HOUR = 30;
+/** Checks against a prompt (motion) an account starts an hour, in the same window, counted apart from those against a picture. */
+export const TAKE_MOTION_CHECKS_PER_HOUR = 30;
+/** preview_cut runs an account starts an hour, in the same window, whatever their stills cost; working number. */
+export const CUT_PREVIEWS_PER_HOUR = 20;
 /** A take judged frame by frame against its direction (check_take), charged once per delivered verdict. */
 export const OWN_TAKE_CHECK_CREDITS = 10;
-/** A take judged against the picture it was made from (check_take against picture), once per delivered verdict; working number (owner 16.11). */
-export const OWN_TAKE_CHECK_PICTURE_CREDITS = 5;
+/** A take judged against the picture it was made from (check_take against picture), once per delivered verdict; working number. */
+export const OWN_TAKE_CHECK_PICTURE_CREDITS = 20;
 /** A faceless cut (render_cut) up to OWN_CUT_INCLUDED_SECONDS, each second over it, and the longest cut; working numbers, the owner decides. */
 export const OWN_CUT_CREDITS = 45, OWN_CUT_INCLUDED_SECONDS = 60, OWN_CUT_EXTRA_SECOND_CREDITS = 1, OWN_CUT_MAX_SECONDS = 90;
 /** The shortest cut the directed composition draws (250 frames at 25 fps). */
@@ -142,6 +147,8 @@ export function ownEditCredits(s: number, terms: OwnAgentTerms = ownAgentTermsNo
 export type OwnAgentDelivery =
   /** `free`: the stills granted free when the run was admitted; absent, none. */
   | { skill: "film_stills"; frames: number; free?: number }
+  /** A cut's preview stills, priced as a draft's stills; `free`, the ones its admission granted free out of the account's allowance. */
+  | { skill: "film_cut_preview"; frames: number; free?: number }
   | { skill: "film_voice"; seconds: number }
   | { skill: "film_render"; seconds: number }
   | { skill: "film_hero"; poses: number }
@@ -179,7 +186,7 @@ export function ownTakeFramesCredits(sheets: number): number {
 
 /** The charge for a delivery under the run's frozen terms, never above what admission held: a measure past the hold is a defect, not a bill. */
 export function ownAgentCharge(delivery: OwnAgentDelivery, terms: OwnAgentTerms, heldCredits: number): number {
-  const charge = delivery.skill === "film_stills" ? ownStillsCredits(delivery.frames, terms, delivery.free)
+  const charge = delivery.skill === "film_stills" || delivery.skill === "film_cut_preview" ? ownStillsCredits(delivery.frames, terms, delivery.free)
     : delivery.skill === "film_voice" ? ownVoiceCredits(delivery.seconds, terms)
     : delivery.skill === "film_hero" ? ownHeroCredits(delivery.poses, terms)
     : delivery.skill === "film_edit" ? ownEditCredits(delivery.seconds, terms, delivery.music === true)

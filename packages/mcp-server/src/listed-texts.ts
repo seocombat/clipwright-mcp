@@ -43,7 +43,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     `No keywords: the primary saved niche (trend_niches). gallery_url: a page to share for ${TREND_GALLERY_DAYS} days. ` +
     `next_page: more places, free for ${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, ${TREND_FREE_PAGES_PER_DAY} a day, ` +
     `then ${TREND_PAGE_PAID_CREDITS} credits; up to ${TREND_SEARCH_MAX_PAGES} pages, search_id and page alone.`,
-  trend_niches: "Free. Alone: the saved niches, the first the primary. niches: save the user's confirmed list, at most 3, replacing it; [] clears it.",
+  trend_niches: "Free. Alone: the saved niches, the first the primary, and suggested ones from analysed creators. niches: save the user's " +
+    "confirmed list, at most 3, replacing it; [] clears it.",
   make_ugc: "Start a lip-synced UGC video; the actor is actor_id, image or the default. Format and resolution follow the request " +
     "and the source, defaulting to 720x1280. Captions are OPT-IN: ask the user first. " +
     "A field marked NOT HONORED YET does not reach the renderer. Poll get_run with its poll.arguments; a failed run whose video " +
@@ -214,5 +215,5 @@ export const LISTED_FIELDS: Record<string, Record<string, string>> = {
   plan_reference_remake: {
     music: `Music under the voice, as make_ugc music: ${MUSIC_BED_CREDITS} credits on the plan's quote. Off unless you ask.`,
   },
-  quote_trends: { language: "ISO 639-1; filters the TikTok half only." },
+  quote_trends: { language: "ISO 639-1; a reel whose language cannot be told is kept." },
 };

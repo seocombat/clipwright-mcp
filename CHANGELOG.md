@@ -18,6 +18,32 @@ listed under.
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-11-17
+
+### Added
+
+- *Server-side:* a new clip model for `generate_video`: `seedance-2.5-flash` at 480p (17 credits a second) and 720p (38), 4 to
+  30 seconds, in 9:16 and 16:9 in `first_frame` mode and in 9:16 in `reference` mode. It has no `text` mode and no 1080p.
+- Cut records for a faceless video you make yourself: `create_cut`, `update_cut` and `get_cut` (SDK `createCut`,
+  `updateCut`, `getCut`) keep the brief and its slots, and say the next call. Free.
+- `preview_cut` and `quote_cut_preview` (SDK `previewCut`, `quotePreviewCut`): stills of the composed frame at named
+  words, before you render. 120 stills a day are free, then 1 credit each.
+- *Server-side:* `GET /v1/trend-niches` and `trend_niches` suggest up to three niches from the creators you have
+  analysed. Free.
+- *Dashboard:* the trends page lists new videos that take off from creators in your own searches.
+
+### Changed
+
+- **Breaking:** `quote_cut` and `render_cut` take a `cut_id`. `make_voice` takes an optional `cut_id`, and a
+  `check_take` against a picture takes `cut_id` and `slot`.
+- `check_cut` warns when a cut has fewer than one event a second, and refuses a quiet stretch longer than 3 seconds
+  unless the beat names its `hold` (`ending`, `read_text` or `reveal`).
+- *Server-side:* a `check_take` against a picture costs 20 credits.
+- *Server-side:* `check_take` on a clip's motion answers `take_check_limited` (429, with `Retry-After`) after 30
+  checks an hour, as the picture check already did.
+- *Server-side:* when you ask `find_trends` for a language, a video without a language tag is matched by its caption,
+  and an undetected language is kept rather than dropped.
+
 ## [0.62.0] - 2026-11-17
 
 ### Added

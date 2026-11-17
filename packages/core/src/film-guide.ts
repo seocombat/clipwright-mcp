@@ -55,6 +55,8 @@ export const filmGuide = z.strictObject({
     .describe("The scene kit's files get_film_kit serves, in reading order"),
   kept_sounds: z.array(z.string()).max(FILM_KEPT_SOUNDS_MAX)
     .describe("Sounds your account's films made and kept, newest first: name one exactly in sfx and it plays again, made nothing new"),
+  version: z.string().regex(/^[a-f0-9]{12}$/).optional()
+    .describe("The guide's version: a digest of the whole guide of this format, the same whichever section is read"),
 });
 export type FilmGuide = z.infer<typeof filmGuide>;
 

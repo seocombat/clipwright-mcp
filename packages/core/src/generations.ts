@@ -14,7 +14,7 @@ export const GENERATE_VIDEO_RUN_PATH = "/v1/skills/generate_video/run";
 
 export const GENERATION_IMAGE_MODELS = ["seedream-5.0-flash", "flare", "gemini-3-pro-image", "gemini-nano-banana-2.1"] as const;
 export const GENERATION_VIDEO_MODELS = [
-  "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5", "kling-3.0", "kling-4.0", "kling-4.0-flash",
+  "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5", "seedance-2.5-flash", "kling-3.0", "kling-4.0", "kling-4.0-flash",
   "gemini-omni-flash-1.1", "gemini-omni-flash-1.2",
 ] as const;
 export type GenerationImageModel = (typeof GENERATION_IMAGE_MODELS)[number];
@@ -187,6 +187,15 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
       ...referenceVertical(video("720p", 720, 1280, 59, H264, { vertical: true, horizontal: true })),
       ...video("1080p", 1080, 1920, 143, HEVC10, { vertical: true },
         "seedance-2.5 at 1080p is HEVC 10-bit (yuv420p10le); some browsers and editors do not play it")],
+  },
+  // Measured live 17.11: a true 480x854 and 720x1280 in both formats; no 1080p.
+  "seedance-2.5-flash": {
+    kind: "video",
+    fps: GENERATION_VIDEO_FPS,
+    modes: { text: false, first_frame: true, reference: true },
+    duration_s: { min: 4, max: 30 },
+    rows: [...referenceVertical(video("480p", 480, 854, 17, H264, { vertical: true, horizontal: true })),
+      ...referenceVertical(video("720p", 720, 1280, 38, H264, { vertical: true, horizontal: true }))],
   },
   "kling-3.0": {
     kind: "video",

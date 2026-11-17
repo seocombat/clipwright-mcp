@@ -36,7 +36,9 @@ describe("own-agent run bounds", () => {
 describe("check_take against a picture (faceless DIY F2)", () => {
   const direction = { start: "The fox sits by the lamp.", changes: [{ at_s: 1.2, cause: "the lamp flickers", result: "the fox turns its head" }],
     end: "The fox looks at the lens.", locks: ["one fox"] };
-  const picture = { run_id: "run_take1", against: "picture", direction, look: { words: "painted folk horror", palette: ["#0d1418", "#2b414a", "#c9862e"] } };
+  const CUT = `fv_${"a".repeat(32)}`;
+  const picture = { run_id: "run_take1", against: "picture", direction, look: { words: "painted folk horror", palette: ["#0d1418", "#2b414a", "#c9862e"] },
+    cut_id: CUT, slot: "s1" };
   const issues = (body: Record<string, unknown>) => (takeCheckInput.safeParse(body).error?.issues ?? []).map(i => `${i.path.join(".")}: ${i.message}`);
 
   // Mutants: the object direction accepted in motion mode, the text one in picture mode, an ad-only field let through, look made optional.
@@ -49,11 +51,18 @@ describe("check_take against a picture (faceless DIY F2)", () => {
     expect(issues(noLook)).toEqual(["look: with against picture, name the look"]);
     for (const [key, value] of [["product_image", "https://example.com/a.png"], ["moves", [1]], ["format", "product"]] as const)
       expect(issues({ ...picture, [key]: value }), key).toEqual([`${key}: ${key} goes with a motion check, not against picture`]);
-    expect(issues({ ...picture, ad_id: `ad_${"a".repeat(32)}`, slot: "hook" })).toEqual(["ad_id: ad_id goes with a motion check, not against picture",
-      "slot: slot goes with a motion check, not against picture"]);
+    expect(issues({ ...picture, ad_id: `ad_${"a".repeat(32)}`, slot: "hook" })).toEqual(["ad_id: ad_id goes with a motion check, not against picture"]);
     expect(issues({ run_id: "run_take1", direction })).toEqual(["direction: direction is the shot's prompt as text; the object form goes with against picture"]);
     expect(issues({ run_id: "run_take1", direction: "A fox turns.", look: picture.look, picture: { run_id: "run_img" } }))
       .toEqual(["look: look goes with against picture", "picture: picture goes with against picture"]);
+    // F3 D2: a picture check names its cut record and take slot, both; a motion check never names a cut record.
+    const { cut_id: _c, slot: _s, ...unlinked } = picture;
+    expect(issues(unlinked)).toEqual(["cut_id: with against picture, name the cut record (create_cut) the take is for",
+      "slot: with against picture, name the cut record's slot the take is for"]);
+    expect(issues({ ...picture, slot: undefined })).toEqual(["slot: with against picture, name the cut record's slot the take is for"]);
+    expect(issues({ run_id: "run_take1", direction: "A fox turns.", cut_id: CUT, slot: "s1" }))
+      .toEqual([": ad_id and slot go together", "cut_id: cut_id goes with against picture"]);
+    expect(issues({ run_id: "run_take1", direction: "A fox turns.", ad_id: `ad_${"a".repeat(32)}` })).toEqual([": ad_id and slot go together"]);
     expect(takeCheckInput.safeParse({ run_id: "run_take1", direction: "A fox turns.", against: "motion" }).success).toBe(true);
     expect(takeCheckInput.safeParse({ ...picture, direction: { ...direction, changes: [] } }).success).toBe(false);
     expect(takeCheckInput.safeParse({ ...picture, look: { words: "x", palette: ["#000000", "#ffffff"] } }).success).toBe(false);

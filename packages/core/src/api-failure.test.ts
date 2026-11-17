@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agentFailureReport,
+  TAKE_UNCHECKED_NEXT_ACTION,
   UNAUTHORIZED_NEXT_ACTION,
   UPLOAD_NOT_FINISHED_NEXT_ACTION,
   isRetryableFailure,
@@ -13,6 +14,7 @@ import { QUEUE_PROMISES } from "./__fixtures__/queue-promises.js";
 import {
   accountNotAdmittedBody,
   apiErrorBody,
+  takeUncheckedBody,
   debtOutstandingBody,
   editCeilingReachedBody,
   editConflictBody,
@@ -756,6 +758,18 @@ describe("invalid_request is not a behavioral code", () => {
   it("is not retried: the input will not become valid on its own", () => {
     const failure = parseApiFailure({ status: 400, bodyText: VALIDATION_BODY, now: NOW });
     expect(isRetryableFailure(failure)).toBe(false);
+  });
+});
+
+/** Owner 16.11. Mutant: take_unchecked read as a generic 409, so the agent loses the check to run next and is told to STOP. */
+describe("take_unchecked", () => {
+  it("carries next and blocked to the agent and says to check, not to stop", () => {
+    const next = { action: "quote_take_check", method: "POST" as const, path: "/v1/take-checks/quote", body: { run_id: "run_x" }, add: ["direction"], note: "n" };
+    const blocked = { reason: "1 clip made with generate_video has no passing check_take", unblock: "check it" };
+    const failure = parseApiFailure({ status: 409, bodyText: JSON.stringify(takeUncheckedBody({ message: "clips[0] (run_x) ...", next, blocked })), now: NOW });
+    expect(agentFailureReport(failure)).toEqual({ status: "FAILED", code: "take_unchecked", message: "clips[0] (run_x) ...", retryable: false,
+      next, blocked, next_action: TAKE_UNCHECKED_NEXT_ACTION });
+    expect(TAKE_UNCHECKED_NEXT_ACTION).not.toMatch(/^STOP/);
   });
 });
 

@@ -1,5 +1,13 @@
 import {
   AD_GUIDE_PATH,
+  AD_PATH,
+  ADS_PATH,
+  adRecord,
+  type AdRecord,
+  createAdInput,
+  type CreateAdInput,
+  updateAdInput,
+  type UpdateAdInput,
   adGuide,
   adGuideQuery,
   type AdGuide,
@@ -10,6 +18,15 @@ import {
   type CheckFilmInput,
   filmCheck,
   type FilmCheck,
+  FILM_CUT_CHECK_PATH,
+  filmCutCheck,
+  filmCutInput,
+  filmCutRunInput,
+  FILM_CUTS_PATH,
+  FILM_CUTS_QUOTE_PATH,
+  type FilmCutCheck,
+  type FilmCutRequest,
+  type FilmCutRunRequest,
   FILM_DRAFT_CHECK_PATH,
   FILM_DRAFT_FILES_PATH,
   FILM_DRAFT_PATH,
@@ -17,9 +34,11 @@ import {
   FILM_GUIDE_PATH,
   FILM_KIT_PATH,
   filmGuide,
+  filmGuideQuery,
   filmKit,
   filmKitQuery,
   type FilmGuide,
+  type FilmGuideQuery,
   type FilmKit,
   type FilmKitQuery,
   filmDraft,
@@ -1044,6 +1063,23 @@ export class ClipwrightClient {
     return parseResponse(filmCheck, body, path, true);
   }
 
+  /** A faceless cut sheet checked against the account's voice, pictures and takes: refusals by field, advice, warnings and the planned shots.
+   *  Free; it starts nothing. */
+  async checkCut(request: FilmCutRequest): Promise<FilmCutCheck> {
+    const body = await this.#request(FILM_CUT_CHECK_PATH, true, { method: "POST", body: JSON.stringify(filmCutInput.parse(request)) });
+    return parseResponse(filmCutCheck, body, FILM_CUT_CHECK_PATH, true);
+  }
+
+  /** What rendering a checked cut sheet would hold, line by line; spends no credits. */
+  async quoteCut(request: FilmCutRunRequest): Promise<OwnAgentQuote> {
+    return this.#quoteFilm(FILM_CUTS_QUOTE_PATH, filmCutRunInput.parse(request));
+  }
+
+  /** A checked cut sheet rendered to one vertical 720p video with its sound, charged only when delivered. Returns at once; read it with getFilmRun. */
+  async renderCut(request: FilmCutRunRequest, opts?: StartUgcOptions): Promise<FilmRun> {
+    return this.#startFilm("film_cut", FILM_CUTS_PATH, filmCutRunInput.parse(request), opts);
+  }
+
   /** What stills of a draft revision would hold, and how many of them are free; spends no credits. */
   async quoteStills(request: FilmStillsRequest): Promise<OwnAgentQuote> {
     return this.#quoteFilm(FILM_STILLS_QUOTE_PATH, filmStillsInput.parse(request));
@@ -1115,9 +1151,15 @@ export class ClipwrightClient {
     return this.#startFilm("film_take_check", TAKE_CHECKS_PATH, takeCheckInput.parse(request), opts);
   }
 
-  /** The explainer guide, its method appendix and the scene kit's file list. Free. */
-  async getFilmGuide(): Promise<FilmGuide> {
-    return parseResponse(filmGuide, await this.#request(FILM_GUIDE_PATH, false), FILM_GUIDE_PATH, false);
+  /** The explainer guide, its method appendix and the scene kit's file list; with `format`, a faceless video's guide instead, or one */
+  /** `section` of it. Free. */
+  async getFilmGuide(query: FilmGuideQuery = {}): Promise<FilmGuide> {
+    const { format, section } = filmGuideQuery.parse(query);
+    const params = new URLSearchParams();
+    if (format) params.set("format", format);
+    if (section) params.set("section", section);
+    const path = params.size ? `${FILM_GUIDE_PATH}?${params}` : FILM_GUIDE_PATH;
+    return parseResponse(filmGuide, await this.#request(path, false), path, false);
   }
 
   /** The ad guide for make_ugc and for making the ad yourself, or one section of it. Free. */
@@ -1125,6 +1167,25 @@ export class ClipwrightClient {
     const { section } = adGuideQuery.parse(query);
     const path = section ? `${AD_GUIDE_PATH}?section=${encodeURIComponent(section)}` : AD_GUIDE_PATH;
     return parseResponse(adGuide, await this.#request(path, false), path, false);
+  }
+
+  /** A new ad record: the brief and the shot list's slots, which take checks and edits then name. Free. */
+  async createAd(request: CreateAdInput): Promise<AdRecord> {
+    const body = await this.#request(ADS_PATH, true, { method: "POST", body: JSON.stringify(createAdInput.parse(request)) });
+    return parseResponse(adRecord, body, ADS_PATH, true);
+  }
+
+  /** An ad record's brief, slots or both replaced; a slot with a checked take stays. Free. */
+  async updateAd(adIdValue: string, request: UpdateAdInput): Promise<AdRecord> {
+    const path = AD_PATH.replace(":id", encodeURIComponent(adIdValue));
+    const body = await this.#request(path, true, { method: "POST", body: JSON.stringify(updateAdInput.parse(request)) });
+    return parseResponse(adRecord, body, path, true);
+  }
+
+  /** An ad record with each slot's checked takes, its edits and the next call. Free. */
+  async getAd(adIdValue: string): Promise<AdRecord> {
+    const path = AD_PATH.replace(":id", encodeURIComponent(adIdValue));
+    return parseResponse(adRecord, await this.#request(path, false), path, false);
   }
 
   /** The scene kit's files with its reference film, or one of them. Free. */

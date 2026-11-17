@@ -10,9 +10,9 @@ import { AD_DIY_TOOLS, FILM_POLL_MS, FILM_WAIT_MS, ownAgentOpenFor, registerFilm
 
 // #1291 F2, #1337: the «own agent» film tools are listed only where the mode is offered, so the public tool list is unchanged before launch.
 
-const FILM_TOOLS = ["check_film", "check_take", "create_film_draft", "get_film_draft", "get_film_guide", "get_film_kit", "get_film_run", "make_film_hero",
-  "make_voice", "preview_stills", "put_film_files", "quote_edit", "quote_film_hero", "quote_render", "quote_stills", "quote_take_check", "quote_voice",
-  "render_edit", "render_film", "take_frames"];
+const FILM_TOOLS = ["check_film", "check_take", "create_ad", "create_film_draft", "get_ad", "get_film_draft", "get_film_guide", "get_film_kit", "get_film_run",
+  "make_film_hero", "make_voice", "preview_stills", "put_film_files", "quote_edit", "quote_film_hero", "quote_render", "quote_stills", "quote_take_check",
+  "quote_voice", "render_edit", "render_film", "take_frames", "update_ad"];
 
 describe("the film tools (#1291 F2, #1337)", () => {
   /** Mutant: register them unconditionally, and every client sees tools the API refuses. */
@@ -33,6 +33,63 @@ describe("the film tools (#1291 F2, #1337)", () => {
     expect(epic.filter(name => (AD_DIY_TOOLS as readonly string[]).includes(name)).sort()).toEqual([...AD_DIY_TOOLS].sort());
   });
 
+  // Mutant: the faceless formats listed to every account of the mode, which the API then refuses with a 404.
+  it("offer get_film_guide's faceless formats only where they are served, and pass them to the API", async () => {
+    const guideOf = async (facelessDiy?: boolean) => (await listTools({ fileAccess: "refuse", ownAgent: true, ...facelessDiy ? { facelessDiy } : {} }))
+      .find(tool => tool.name === "get_film_guide")!;
+    const plain = await guideOf();
+    expect([Object.keys(plain.inputSchema.properties ?? {}), plain.description]).toEqual([[], expect.not.stringContaining("own_pictures")]);
+    const faceless = await guideOf(true);
+    expect(Object.keys(faceless.inputSchema.properties ?? {}).sort()).toEqual(["format", "section"]);
+    expect(faceless.description).toContain("own_pictures");
+    const asked: unknown[] = [];
+    const server = new McpServer({ name: "t", version: "0" });
+    registerFilmDraftTools(server, { getFilmGuide: async (query: unknown) => { asked.push(query); return { guide: "g" }; } } as unknown as ClipwrightClient,
+      {}, false, true);
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "t", version: "0" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    await client.callTool({ name: "get_film_guide", arguments: { format: "list", section: "steps" } });
+    expect(asked).toEqual([{ format: "list", section: "steps" }]);
+  });
+
+  // Faceless DIY F1. Mutants: check_cut listed to every account of the mode, or its sheet not passed to the API as the agent wrote it.
+  it("list check_cut only where the faceless guide is served, read-only, with its mistakes to avoid, and pass the sheet on", async () => {
+    const names = async (facelessDiy: boolean) => (await listTools({ fileAccess: "refuse", ownAgent: true, ...facelessDiy ? { facelessDiy } : {} }))
+      .map(tool => tool.name);
+    expect(await names(false)).not.toContain("check_cut");
+    const tool = (await listTools({ fileAccess: "refuse", ownAgent: true, facelessDiy: true })).find(one => one.name === "check_cut")!;
+    expect(tool.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+    expect(tool.description!.match(/Mistakes to avoid:/g)).toHaveLength(1);
+    expect(tool.inputSchema.required).toEqual(expect.arrayContaining(["format", "voice_run_id", "beats", "sound"]));
+    const sent: unknown[] = [];
+    const server = new McpServer({ name: "t", version: "0" });
+    registerFilmDraftTools(server, { checkCut: async (sheet: unknown) => { sent.push(sheet); return { ok: true }; } } as unknown as ClipwrightClient,
+      {}, false, true);
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "t", version: "0" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    const sheet = { format: "story", look: "silhouette", voice_run_id: "run_voice", method: { kind: "story", techniques: [{ id: "a", why: "1" }, { id: "b", why: "2" }, { id: "c", why: "3" }] },
+      structure: { arc: "a", hook: { kind: "payoff_line", payoff_words: [0, 0], cold_open: null }, ending: { kind: "reveal", words: [0, 0] } },
+      style: { look: "l", light: "l", palette: ["#000000", "#ffffff", "#c9862e"], effect_colours: "amber" },
+      beats: [{ id: "a", words: [0, 0], kind: "card", shot_size: "ms", why: "w", technique_ids: ["a"], card: "ONE" },
+        { id: "b", words: [1, 1], kind: "card", shot_size: "ms", why: "w", technique_ids: ["b"], card: "TWO" }], sound: { bed: null } };
+    const answer = await client.callTool({ name: "check_cut", arguments: sheet });
+    expect(answer.isError).not.toBe(true);
+    expect(sent).toEqual([expect.objectContaining({ format: "story", voice_run_id: "run_voice", beats: expect.arrayContaining([expect.objectContaining({ card: "ONE" })]) })]);
+  });
+
+  // Faceless DIY F1 slice B. Mutants: the paid cut listed to every account of the mode, or listed read-only.
+  it("list quote_cut and render_cut only where the faceless guide is served, the render as a paid run with its attempt", async () => {
+    const tools = async (facelessDiy: boolean) => listTools({ fileAccess: "refuse", ownAgent: true, ...facelessDiy ? { facelessDiy } : {} });
+    expect((await tools(false)).map(tool => tool.name)).not.toEqual(expect.arrayContaining(["quote_cut"]));
+    expect((await tools(false)).map(tool => tool.name)).not.toContain("render_cut");
+    const listed = await tools(true), quote = listed.find(tool => tool.name === "quote_cut")!, render = listed.find(tool => tool.name === "render_cut")!;
+    expect(quote.annotations).toMatchObject({ readOnlyHint: true });
+    expect(render.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+    expect(Object.keys(render.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["voice_run_id", "beats", "max_credits", "attempt"]));
+  });
+
   it("offer the draft's schema: a draft id, a base revision and the sound markup", async () => {
     const put = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).find(tool => tool.name === "put_film_files")!;
     expect(put.inputSchema.required).toEqual(expect.arrayContaining(["draft_id", "base_revision"]));
@@ -43,7 +100,7 @@ describe("the film tools (#1291 F2, #1337)", () => {
   it("send the agent to get_film_guide from every other film tool, and the guide says to read it first", async () => {
     const tools = (await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true })).filter(tool => FILM_TOOLS.includes(tool.name));
     // An edit cuts the account's clips, not a film draft: the explainer guide is not its manual.
-    for (const tool of tools.filter(t => !["get_film_guide", "quote_edit", "render_edit", "take_frames", "quote_take_check", "check_take"].includes(t.name)))
+    for (const tool of tools.filter(t => !["get_film_guide", ...AD_DIY_TOOLS].includes(t.name)))
       expect(tool.description, tool.name).toMatch(/get_film_guide/);
     expect(tools.find(t => t.name === "get_film_guide")!.description).toMatch(/^Free\. Read this first/);
   });
@@ -203,10 +260,43 @@ describe("the run tools as a client calls them (#1337)", () => {
     for (const name of ["quote_edit", "render_edit"]) {
       const tool = tools.find(t => t.name === name)!;
       expect(Object.keys(tool.inputSchema.properties ?? {}).sort())
-        .toEqual([...name === "render_edit" ? ["attempt"] : [], "captions", "clips", "hold", "max_credits", "voice"]);
+        .toEqual(["ad_id", ...name === "render_edit" ? ["attempt"] : [], "captions", "clips", "hold", "max_credits", "music", "voice"]);
       expect(tool.inputSchema.required).toEqual(["clips"]);
     }
     expect(tools.find(t => t.name === "render_edit")!.description).toMatch(/^Paid once per delivered cut, after quote_edit\..*never cropped.*costs nothing/s);
+  });
+});
+
+describe("the ad record as a client calls it (#1539 stage 2)", () => {
+  const AD = `ad_${"a".repeat(32)}`;
+  // Mutants: a tool forwarding the ad id inside the body, update_ad dropping the id, or the record's next lost on the way.
+  it("create_ad, update_ad and get_ad reach the API with the record's id apart from its body", async () => {
+    const calls: unknown[][] = [], record = { ad_id: AD, next: { action: "quote_take_check" } };
+    const api = { createAd: async (...a: unknown[]) => { calls.push(["create", ...a]); return record; },
+      updateAd: async (...a: unknown[]) => { calls.push(["update", ...a]); return record; },
+      getAd: async (...a: unknown[]) => { calls.push(["get", ...a]); return record; } };
+    const server = new McpServer({ name: "ad-test", version: "0.0.0" });
+    registerFilmDraftTools(server, api as unknown as ClipwrightClient, {}, true);
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair(), client = new Client({ name: "ad-test", version: "0.0.0" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    try {
+      const brief = { product: "Mug" }, slots = [{ id: "hook", shot: "the mug to the lens" }];
+      const answer = await client.callTool({ name: "create_ad", arguments: { brief, slots } });
+      expect(JSON.parse((answer.content as { text: string }[])[0]!.text).next).toEqual({ action: "quote_take_check" });
+      await client.callTool({ name: "update_ad", arguments: { ad_id: AD, slots } });
+      await client.callTool({ name: "get_ad", arguments: { ad_id: AD } });
+    } finally { await client.close(); }
+    expect(calls).toEqual([["create", { brief: { product: "Mug" }, slots: [{ id: "hook", shot: "the mug to the lens" }] }],
+      ["update", AD, { slots: [{ id: "hook", shot: "the mug to the lens" }] }], ["get", AD]]);
+  });
+
+  // Mutant: a DIY tool listed without the mistakes an agent makes with it.
+  it("names the mistakes to avoid in every ad tool's description, and the ad fields on check_take and render_edit", async () => {
+    const tools = await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true });
+    for (const name of AD_DIY_TOOLS) expect(tools.find(t => t.name === name)!.description, name).toMatch(/Mistakes to avoid: \S/);
+    expect(tools.find(t => t.name === "render_edit")!.description).toMatch(/ad_slot_unchecked\) before any credits/);
+    expect(tools.find(t => t.name === "get_ad")!.inputSchema.required).toEqual(["ad_id"]);
+    expect(Object.keys(tools.find(t => t.name === "update_ad")!.inputSchema.properties ?? {}).sort()).toEqual(["ad_id", "brief", "slots"]);
   });
 });
 
@@ -232,12 +322,32 @@ describe("a take's audit as a client calls it", () => {
     const tools = await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true });
     for (const name of ["quote_take_check", "check_take"]) {
       expect(Object.keys(tools.find(t => t.name === name)!.inputSchema.properties ?? {}).sort())
-        .toEqual(["asset_id", ...name === "check_take" ? ["attempt"] : [], "direction", "max_credits", "moves", "product_image", "run_id"]);
+        .toEqual(["ad_id", "asset_id", ...name === "check_take" ? ["attempt"] : [], "direction", "format", "max_credits", "moves", "product_image", "run_id", "slot"]);
     }
     expect(Object.keys(tools.find(t => t.name === "take_frames")!.inputSchema.properties ?? {}).sort())
       .toEqual(["asset_id", "attempt", "crop", "fps", "from", "max_credits", "run_id", "to"]);
     expect(tools.find(t => t.name === "check_take")!.description).toMatch(/^Paid per delivered verdict, after quote_take_check\..*costs nothing/s);
     expect(tools.find(t => t.name === "take_frames")!.description).toMatch(/^Free\..*at most 96 frames/s);
+  });
+
+  // F2 C5. Mutants: the take tools left off a faceless DIY account, the picture fields listed to an ad-only account, or not told where listed.
+  it("list the take tools on the faceless DIY list too, with the picture fields and their text only there", async () => {
+    const names = async (o: { adGuide?: boolean; facelessDiy?: boolean }) => listTools({ fileAccess: "refuse", ownAgent: true, ...o });
+    const faceless = await names({ facelessDiy: true }), ad = await names({ adGuide: true });
+    expect(faceless.map(t => t.name)).toEqual(expect.arrayContaining(["take_frames", "quote_take_check", "check_take"]));
+    expect(faceless.map(t => t.name)).not.toContain("render_edit");
+    for (const name of ["quote_take_check", "check_take"]) {
+      expect(Object.keys(faceless.find(t => t.name === name)!.inputSchema.properties ?? {}), name).toEqual(expect.arrayContaining(["against", "look", "picture"]));
+      expect(Object.keys(ad.find(t => t.name === name)!.inputSchema.properties ?? {}), name).not.toContain("against");
+    }
+    expect(faceless.find(t => t.name === "check_take")!.description).toContain("against picture");
+    expect(ad.find(t => t.name === "check_take")!.description).not.toContain("against picture");
+    // Code review #3. Mutant: the ad list's direction keeps the picture mode's object form and its text.
+    for (const name of ["quote_take_check", "check_take"]) {
+      const direction = (list: typeof ad) => (list.find(t => t.name === name)!.inputSchema.properties as Record<string, Record<string, unknown>>).direction!;
+      expect([direction(ad).type, direction(ad).anyOf, JSON.stringify(direction(ad))], name).toEqual(["string", undefined, expect.not.stringMatching(/picture|start/)]);
+      expect(JSON.stringify(direction(faceless)), name).toMatch(/changes/);
+    }
   });
 });
 

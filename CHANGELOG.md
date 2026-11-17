@@ -18,6 +18,27 @@ listed under.
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-11-17
+
+### Added
+
+- Ad records: `create_ad`, `update_ad` and `get_ad` (SDK `createAd`, `updateAd`, `getAd`) keep an ad's brief and
+  shot-list slots. `check_take` and `render_edit` take `ad_id` and `slot`, and `get_ad` answers each slot's checked
+  takes, its edits and the next call. All three are free.
+- `get_ad_guide` (SDK `getAdGuide`): the guide for making an ad yourself, whole or one `section`. Free.
+- `render_edit` `music`: a library track (free) or a track made for the cut (paid only when the delivered file
+  carries it), from `at` to the end, under the voice.
+- `render_edit` captions: `banner` and `badge` styles beside `outline`, an `align`, a boxed word on the spoken word,
+  and a fill `color`.
+- `check_take` measures a take's motion (subject and camera) and says how it compares with a good take of its kind.
+
+### Changed
+
+- `render_edit` and `quote_edit` refuse a clip made with `generate_video` until a `check_take` on that file has
+  passed. The customer's own uploaded footage needs no check.
+- `take_frames`: at most 60 calls an hour per account.
+- A caption `color` that no style draws is refused instead of ignored.
+
 ## [0.61.0] - 2026-11-16
 
 ### Fixed

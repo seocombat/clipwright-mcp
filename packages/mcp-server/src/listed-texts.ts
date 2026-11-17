@@ -135,7 +135,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "plan_reference_remake. Filter by beat, content, surface, mood, skill or q; each line has the move's purpose and credits per use (0 is free). " +
     "names=a,b answers those in full (data to pass, what the line needs). Read it before planning the visuals. Free.",
   list_template_sounds: "Sounds make_ugc templates play, by beat; template_sounds swaps or (false) mutes them; the edit beat " +
-    "needs edit_sounds=true. Sounds never change the price. Free.",
+    "needs edit_sounds=true. Also music_beds: render_edit's free music, each with genre, energy, tempo and length. Sounds never change the " +
+    "price. Free.",
   upload_image: "An upload_id and a signed url for a PNG or JPEG up to 10 MB, from a local `path` (local server only) or a public " +
     "https `url` (up to 20 seconds and 3 redirects). The url is signed for 24 hours; the upload_id lasts 365 days. Set " +
     "aspect_ratio to match the picture. Remote server and a file on disk: create_upload. Free; 200 uploads per day, at most 30 " +

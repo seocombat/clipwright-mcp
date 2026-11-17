@@ -137,6 +137,8 @@ describe("template sounds (#778 S3c, C2–C4)", () => {
 
   it("lists the catalog for REST and MCP: every beat with its default, names and where it plays", () => {
     const list = templateSoundsList.parse({ beats: listTemplateSounds(), contract_version: "x" });
+    // An API from before the music library answers without music_beds: the client reads an empty library, not a refusal.
+    expect(list.music_beds).toEqual([]);
     expect(list.beats.map(({ beat, default: preset, names }) => [beat, preset, names])).toEqual(TEMPLATE_SOUND_BEATS.map(beat => [beat, DEFAULT_TEMPLATE_SOUNDS[beat], OWNER[beat]]));
     expect(list.beats.every(entry => entry.plays.length > 10)).toBe(true);
     expect(API_ENDPOINTS.find(endpoint => endpoint.path === "/v1/template-sounds")).toEqual({ method: "GET", path: "/v1/template-sounds", billed: false,

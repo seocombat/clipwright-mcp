@@ -20,7 +20,8 @@ import {
 import { isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
 import { isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
   OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_EDIT_CREDITS,
-  OWN_EDIT_MAX_SECONDS, OWN_TAKE_CHECK_CREDITS } from "./own-agent-price.js";
+  OWN_EDIT_MAX_SECONDS, OWN_TAKE_CHECK_CREDITS, OWN_CUT_BED_CREDITS, OWN_CUT_CREDITS, OWN_CUT_EXTRA_SECOND_CREDITS,
+  OWN_CUT_INCLUDED_SECONDS, OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND } from "./own-agent-price.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
 export const PRICES_PATH = "/v1/public/prices";
@@ -166,6 +167,20 @@ export const AD_DIY_PRICES: readonly PriceEntry[] = Object.freeze([
   { action: "take_frames", tool: "take_frames", route: "POST /v1/take-frames", variant: null, lines: [{ label: null, unit: "call" as const, credits: 0 }],
     formula: null, minimum_credits: null, quote_tool: null,
     notes: "Free: one of your clips as contact sheets, each frame labelled with its second, up to 96 frames a call." },
+]);
+
+/** The faceless cut's entry (render_cut). It serves only the faceless DIY accounts, which read the price from the quote, so the public list
+ *  leaves it out until faceless cuts open to everyone. */
+export const FACELESS_DIY_PRICES: readonly PriceEntry[] = Object.freeze([
+  paid({ tool: "render_cut", route: "POST /v1/film-cuts", quote_tool: "quote_cut", lines: [
+    { label: `the cut, up to ${OWN_CUT_INCLUDED_SECONDS} s`, unit: "call", credits: OWN_CUT_CREDITS },
+    { label: `each second over ${OWN_CUT_INCLUDED_SECONDS}`, unit: "second", credits: OWN_CUT_EXTRA_SECOND_CREDITS },
+    { label: "a described bed, once per cut", unit: "call", credits: OWN_CUT_BED_CREDITS },
+    { label: "a take's own sound, each second of the whole take", unit: "second", credits: OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND },
+    { label: "music", unit: "track", credits: MUSIC_BED_CREDITS }],
+  notes: `One faceless video of ${OWN_CUT_MIN_SECONDS} to ${OWN_CUT_MAX_SECONDS} s from your checked cut sheet, vertical 720p in stereo, with up ` +
+    `to ${OWN_CUT_MAX_NEW_SOUNDS} described sounds made. Charged only for a delivered video and only for the parts it carries; a cut that ` +
+    "fails costs nothing." }),
 ]);
 
 function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false, music = false, explainer = false,

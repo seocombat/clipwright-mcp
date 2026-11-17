@@ -26,6 +26,22 @@ export const FILM_KIT_FILES = [
 ] as const;
 export type FilmKitFile = (typeof FILM_KIT_FILES)[number];
 
+/** The videos the guide teaches: the explainer film, and the faceless videos an agent cuts from its own pictures, clips and voice. */
+export const FILM_GUIDE_FORMATS = ["explainer", "story", "list", "own_pictures", "cartoon"] as const;
+export type FilmGuideFormat = (typeof FILM_GUIDE_FORMATS)[number];
+/** The parts of a faceless format's guide: its steps, then the craft by theme. */
+export const FILM_GUIDE_SECTIONS = ["steps", "story", "words", "captions", "voice", "consistency", "pictures", "motion", "density", "repair"] as const;
+export type FilmGuideSection = (typeof FILM_GUIDE_SECTIONS)[number];
+
+export const filmGuideQuery = z.strictObject({
+  format: z.enum(FILM_GUIDE_FORMATS).optional().describe("The video to make: explainer (the default, a coded film), story, list (facts or " +
+    "tips), own_pictures (the user's own pictures) or cartoon (a drawn hero in generated pictures)"),
+  section: z.enum(FILM_GUIDE_SECTIONS).optional()
+    .describe("One part of a story, list, own_pictures or cartoon guide instead of all of it: steps, or one theme of the craft"),
+}).refine(query => query.section === undefined || (query.format !== undefined && query.format !== "explainer"),
+  { message: "section reads one part of a story, list, own_pictures or cartoon guide: name that format too", path: ["section"] });
+export type FilmGuideQuery = z.infer<typeof filmGuideQuery>;
+
 /** The most kept sounds the guide names, as many as the hosted writer is shown. */
 export const FILM_KEPT_SOUNDS_MAX = 60;
 

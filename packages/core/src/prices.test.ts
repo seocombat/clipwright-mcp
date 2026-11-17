@@ -8,7 +8,7 @@ import { listGenerationModels } from "./generations.js";
 import { MUSIC_BED_CREDITS } from "./music.js";
 import { OPENAPI_ROUTES } from "./openapi.js";
 import { PARTS_DURATION_TARIFF, PARTS_FACE_TARIFF } from "./parts-pricing.js";
-import { AD_DIY_PRICES, FREE_RUN_ROUTES, isPaidEntry, PRICE_LIST, priceEntry, priceLine, priceListFor, PRICES_PATH, pricesResponse, priceText, withPriceLine } from "./prices.js";
+import { AD_DIY_PRICES, FACELESS_DIY_PRICES, FREE_RUN_ROUTES, isPaidEntry, PRICE_LIST, priceEntry, priceLine, priceListFor, PRICES_PATH, pricesResponse, priceText, withPriceLine } from "./prices.js";
 
 const LIVE_SHOTS_ON = { CLIPWRIGHT_LIVE_SHOTS: "1", CLIPWRIGHT_LONG_FORM_QUALIFICATION: "1", CLIPWRIGHT_COMPOSE: "1", CLIPWRIGHT_REMOTE_FETCH: "1" };
 import { REFERENCE_ANALYSIS_CREDITS } from "./reference-analysis.js";
@@ -32,7 +32,7 @@ describe("the price list covers the registry", () => {
   it("every billed route has a paid entry, and every entry's route is a registry row of the same billedness", () => {
     // The own-agent film routes (#1337) are sold only with their switch on, so the coverage is read on that list; the ad tools' entries
     // (AD_DIY_PRICES) stand apart until the ad epic opens to everyone.
-    const sold = [...priceListFor({ CLIPWRIGHT_OWN_AGENT: "1" }), ...AD_DIY_PRICES];
+    const sold = [...priceListFor({ CLIPWRIGHT_OWN_AGENT: "1" }), ...AD_DIY_PRICES, ...FACELESS_DIY_PRICES];
     // Mutant: an ad tool's price on the public list while it serves only the ad epic's accounts.
     for (const entry of AD_DIY_PRICES) expect(priceListFor({ CLIPWRIGHT_OWN_AGENT: "1", CLIPWRIGHT_AD_EPIC_ACCOUNTS: "1" })
       .filter((one) => one.route === entry.route), entry.action).toEqual([]);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { editMusicBed } from "../edit-music.js";
 
 // Template sounds: one list of names per beat, with the default first in each.
 
@@ -132,6 +133,8 @@ export const TEMPLATE_SOUNDS_PATH = "/v1/template-sounds";
 export const templateSoundsList = z.strictObject({
   beats: z.array(z.strictObject({ beat: z.enum(TEMPLATE_SOUND_BEATS), default: z.string().min(1), names: z.array(z.string().min(1)).min(1),
     plays: z.string().min(1) })),
+  /** render_edit's library of music beds (free): pass an id as music.track. */
+  music_beds: z.array(editMusicBed).default([]),
   contract_version: z.string().min(1),
 });
 export type TemplateSoundsList = z.infer<typeof templateSoundsList>;

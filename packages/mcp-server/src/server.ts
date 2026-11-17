@@ -132,12 +132,15 @@ export interface CreateServerOptions {
   explainer?: boolean;
   /** Lists get_ad_guide (#1539 P3) for an account it is offered to; off, the tool list and instructions stay as they are. */
   adGuide?: boolean;
+  /** Lists get_film_guide's faceless formats for an account they are offered to; off, the tool stays as it is. */
+  facelessDiy?: boolean;
 }
 
 export const GET_AD_GUIDE_DESCRIPTION = "Free. Read it before you write an ad with make_ugc: the word → device catalogue (which list_moves " +
   "names fit which words), the hook, poses, live shots by action, captions, hands and timeline, and density. Then the method for making " +
   "the ad yourself shot by shot: product and hero sheets, location, state stills, a motion test, the shot list, takes, a frame audit, " +
-  "repair, and the edit with render_edit. section reads one part: ugc, or one step of making the ad yourself.";
+  "repair, and the edit with render_edit. section reads one part: ugc, or one step of making the ad yourself. version changes whenever the " +
+  "guide does; read it again when it differs from the one your ad record (get_ad) notes.";
 
 /** What `upload_image` answers a path on a server that reads no files; the tool list stays the same on both transports. */
 export const REMOTE_UPLOAD_REFUSAL =
@@ -277,7 +280,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   answerInvalidArguments(server);
   registerWorkflowTools(server, client);
   // The ad tools (render_edit, take_frames, check_take) go only where get_ad_guide is offered: the ad epic's accounts.
-  if (ownAgent) registerFilmDraftTools(server, client, {}, options.adGuide === true);
+  if (ownAgent) registerFilmDraftTools(server, client, {}, options.adGuide === true, options.facelessDiy === true);
 
   // tools/list publishes the full schema; an empty schema leaves agents guessing.
   server.registerTool(
@@ -968,6 +971,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "List the sounds make_ugc templates play, by beat: where each beat plays, its default and every name it takes. " +
         "A run plays the defaults; template_sounds { beat: name } swaps a beat's sound, and template_sounds=false plays none. " +
         "The edit beat plays on every cut only with make_ugc edit_sounds=true. " +
+        "music_beds lists render_edit's free music library: pass an id as music.track, picking the closest genre, energy and tempo. " +
         "Sounds never change the price. Free.",
       inputSchema: {},
     },

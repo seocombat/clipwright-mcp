@@ -17,5 +17,7 @@ export type AdGuideQuery = z.infer<typeof adGuideQuery>;
 
 export const adGuide = z.strictObject({
   guide: z.string().min(1).describe("The ad guide, Markdown: the word → device catalogue, the hook, poses, live shots, captions, hands and density"),
+  /** Since #1539 stage 2: the whole guide's version, the same for every section; an ad record notes the version it was made with. */
+  version: z.string().regex(/^[a-f0-9]{12}$/).optional().describe("The guide's version: it changes whenever any part of the guide does"),
 });
 export type AdGuide = z.infer<typeof adGuide>;

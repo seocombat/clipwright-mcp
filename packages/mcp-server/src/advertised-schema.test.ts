@@ -304,7 +304,7 @@ const WRITTEN_FROM: Record<string, string> = {
   generate_video: "64d846bf7106bb14", get_account: "330f88827c765beb", get_asset: "37bd480834513438", get_creator_profile: "ccb8cc20d52ad7c9",
   get_reference_analysis: "cf4027c19e9a3dd3", get_run: "0ad53c727736d024", get_run_shots: "b4717e85b92bdae2", get_upload: "4bd3baac899982b4",
   list_actors: "89ca3249262caa88", list_assets: "15d7184ab3597f63", list_generation_models: "5737b2f41d69b048", list_moves: "067d552b22260a07", list_prices: "73634ccff928eacc",
-  list_template_sounds: "22aba7b06ba63bfd", list_voices: "726e995f8c322a19", make_faceless: "01ad3322c484672d", make_ugc: "69575c31d049320a",
+  list_template_sounds: "ba0ec728d7e7e0b1", list_voices: "726e995f8c322a19", make_faceless: "01ad3322c484672d", make_ugc: "69575c31d049320a",
   plan_reference_remake: "581fe1cca7125762", "plan_reference_remake.music": "2f4412656b080b28", quote_actor: "e12a380eb9ee5f43",
   "quote_actor.aspect_ratios": "696dce090682b9ab", "quote_actor.description": "683e0cde898f0b05", "quote_actor.quality": "30a1a4112b5cec33",
   quote_analysis: "f8cafa866c28e5b6", "quote_analysis.mode": "87cd0678550af1e9", quote_candidate: "9cf2107d7d2e6101",

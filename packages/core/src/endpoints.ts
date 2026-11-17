@@ -11,7 +11,9 @@ import { TREND_NICHES_PATH } from "./trend-niches.js";
 import { FEEDBACK_PATH } from "./feedback.js";
 import { FILM_DRAFT_CHECK_PATH, FILM_DRAFT_FILES_PATH, FILM_DRAFT_PATH, FILM_DRAFTS_PATH } from "./film-drafts.js";
 import { FILM_GUIDE_PATH, FILM_KIT_PATH } from "./film-guide.js";
+import { FILM_CUT_CHECK_PATH, FILM_CUTS_PATH, FILM_CUTS_QUOTE_PATH } from "./film-cut.js";
 import { AD_GUIDE_PATH } from "./ad-guide.js";
+import { AD_PATH, ADS_PATH } from "./ads.js";
 import { FILM_EDITS_PATH, FILM_EDITS_QUOTE_PATH, FILM_HEROES_PATH, FILM_HEROES_QUOTE_PATH, FILM_RENDERS_PATH, FILM_RENDERS_QUOTE_PATH, FILM_RUN_PATH, FILM_STILLS_PATH, FILM_STILLS_QUOTE_PATH, FILM_VOICES_PATH,
   FILM_VOICES_QUOTE_PATH, TAKE_CHECKS_PATH, TAKE_CHECKS_QUOTE_PATH, TAKE_FRAMES_PATH, TAKE_FRAMES_QUOTE_PATH } from "./own-agent-runs.js";
 import { GENERATION_MODELS_PATH } from "./generations.js";
@@ -157,11 +159,20 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "POST", path: TAKE_CHECKS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: TAKE_CHECKS_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "GET", path: FILM_RUN_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
+  // A faceless cut sheet checked against the account's voice, pictures and takes: free, it starts nothing.
+  { method: "POST", path: FILM_CUT_CHECK_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  // The checked cut rendered, quoted first like the rest.
+  { method: "POST", path: FILM_CUTS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: FILM_CUTS_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   // The mode's guide and scene kit, read-only (#1356).
   { method: "GET", path: FILM_GUIDE_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   { method: "GET", path: FILM_KIT_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
   // The ad guide for make_ugc (#1539 P3), read-only and free.
   { method: "GET", path: AD_GUIDE_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
+  // The ad record of a customer's own agent (#1539 stage 2): free, for the same accounts as the ad guide.
+  { method: "POST", path: ADS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: AD_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "GET", path: AD_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },
 ];
 
 /** `GET /v1/runs/{id}`: the human notation, with the parameter in curly braces. */

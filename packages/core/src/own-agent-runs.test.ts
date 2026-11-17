@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filmStillsInput, filmVoiceInput, OWN_VOICE_MAX_CHARS, ownFilmFrames, ownFilmSeconds, ownVoiceCeilingSeconds } from "./own-agent-runs.js";
+import { filmStillsInput, filmVoiceInput, OWN_VOICE_MAX_CHARS, ownFilmFrames, ownFilmSeconds, ownVoiceCeilingSeconds, takeCheckInput } from "./own-agent-runs.js";
 import { OWN_VOICE_MAX_SECONDS } from "./own-agent-price.js";
 
 // #1337: what an own-agent run holds before it is made: a take at the slowest pace, a film at its voice plus the tail, at most 24 stills.
@@ -30,5 +30,32 @@ describe("own-agent run bounds", () => {
     expect(filmStillsInput.safeParse({ ...base, at: Array.from({ length: 25 }, (_, i) => i) }).success).toBe(false);
     expect(filmStillsInput.parse({ ...base, at: ["hook", 2.5] })).toEqual({ ...base, at: ["hook", 2.5], sheet: false });
     expect(filmStillsInput.parse(base)).toEqual({ ...base, sheet: false });
+  });
+});
+
+describe("check_take against a picture (faceless DIY F2)", () => {
+  const direction = { start: "The fox sits by the lamp.", changes: [{ at_s: 1.2, cause: "the lamp flickers", result: "the fox turns its head" }],
+    end: "The fox looks at the lens.", locks: ["one fox"] };
+  const picture = { run_id: "run_take1", against: "picture", direction, look: { words: "painted folk horror", palette: ["#0d1418", "#2b414a", "#c9862e"] } };
+  const issues = (body: Record<string, unknown>) => (takeCheckInput.safeParse(body).error?.issues ?? []).map(i => `${i.path.join(".")}: ${i.message}`);
+
+  // Mutants: the object direction accepted in motion mode, the text one in picture mode, an ad-only field let through, look made optional.
+  it("refuses each mode's fields in the other mode and reads the picture direction with its defaults", () => {
+    expect(takeCheckInput.parse(picture).direction).toEqual({ ...direction, camera: "as made" });
+    expect(takeCheckInput.parse({ ...picture, picture: { upload_id: `upl_${"a".repeat(32)}` } }).picture).toEqual({ upload_id: `upl_${"a".repeat(32)}` });
+    expect(issues({ ...picture, direction: "A fox turns." })).toEqual(["direction: with against picture, direction is an object of start, changes, " +
+      "camera, end and locks"]);
+    const { look: _l, ...noLook } = picture;
+    expect(issues(noLook)).toEqual(["look: with against picture, name the look"]);
+    for (const [key, value] of [["product_image", "https://example.com/a.png"], ["moves", [1]], ["format", "product"]] as const)
+      expect(issues({ ...picture, [key]: value }), key).toEqual([`${key}: ${key} goes with a motion check, not against picture`]);
+    expect(issues({ ...picture, ad_id: `ad_${"a".repeat(32)}`, slot: "hook" })).toEqual(["ad_id: ad_id goes with a motion check, not against picture",
+      "slot: slot goes with a motion check, not against picture"]);
+    expect(issues({ run_id: "run_take1", direction })).toEqual(["direction: direction is the shot's prompt as text; the object form goes with against picture"]);
+    expect(issues({ run_id: "run_take1", direction: "A fox turns.", look: picture.look, picture: { run_id: "run_img" } }))
+      .toEqual(["look: look goes with against picture", "picture: picture goes with against picture"]);
+    expect(takeCheckInput.safeParse({ run_id: "run_take1", direction: "A fox turns.", against: "motion" }).success).toBe(true);
+    expect(takeCheckInput.safeParse({ ...picture, direction: { ...direction, changes: [] } }).success).toBe(false);
+    expect(takeCheckInput.safeParse({ ...picture, look: { words: "x", palette: ["#000000", "#ffffff"] } }).success).toBe(false);
   });
 });

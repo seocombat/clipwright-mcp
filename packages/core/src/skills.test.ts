@@ -411,6 +411,8 @@ describe("makeUgcInput — script length gate", () => {
       // An edit's bounds (render_edit): a longer cut or hold is refused before money, and the cut is one flat price, never per second.
       "OWN_EDIT_MAX_SECONDS",
       "FILM_EDIT_MAX_HOLD_SEC",
+      // A faceless cut's longest length (render_cut): a longer cut is refused before money; every second up to it is charged.
+      "OWN_CUT_MAX_SECONDS",
       // The trend search window's upper bound (#1394): how old a found reel may be, priced per search, never a render length.
       "TREND_SEARCH_MAX_DAYS",
     ];

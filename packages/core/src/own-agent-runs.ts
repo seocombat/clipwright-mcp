@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { assetId } from "./asset-identity.js";
+import { adId, adSlotId } from "./ad-ids.js";
+import { diyBlocked, diyNext } from "./diy-next.js";
+import { editMusic } from "./edit-music.js";
 import { EXPLAINER_MAX_PRODUCT_PICTURES, facelessCustomerSceneImage, qualifiedImageUrl } from "./faceless-public.js";
 import { FACELESS_VOICE_NAMES } from "./faceless-voices.js";
+import { filmCutPicture } from "./film-cut.js";
 import { filmDraftId } from "./film-drafts.js";
 import { MASCOT_POSES } from "./mascots.js";
 import { maxCreditsField } from "./max-credits.js";
@@ -91,6 +95,8 @@ const editClip = z.strictObject({
   from: editSecond.describe("The second of the clip the cut starts at"),
   to: editSecond.describe("The second of the clip the cut ends at, after from"),
   speed: z.number().min(0.5).max(2).default(1).describe("Play speed; the clip lasts (to - from) / speed in the edit. 1.2 lifts a slow beat"),
+  slot: adSlotId.optional().describe("With ad_id: the slot of the ad this clip fills. A clip made with generate_video must have passed " +
+    "check_take in that slot; your own footage needs no check"),
 }).refine(clip => (clip.run_id === undefined) !== (clip.asset_id === undefined), "name the clip by run_id or by asset_id, one of them")
   .refine(clip => clip.to > clip.from, "to must be after from");
 const voicePiece = z.strictObject({
@@ -132,8 +138,13 @@ export const filmEditInput = z.strictObject({
     .describe("Burned-in captions, each in its style: outline (default), banner or badge"),
   hold: z.number().min(0).max(FILM_EDIT_MAX_HOLD_SEC).default(0)
     .describe("Seconds the last frame is held at the end, for the packshot"),
+  music: editMusic.optional().describe("Music from at to the end: a library track (free) or one made for the cut (paid on delivery); " +
+    "under a voice it plays lower"),
+  ad_id: adId.optional().describe("The ad record this cut belongs to: every clip then names its slot, and a clip made with generate_video " +
+    "that has not passed check_take in its slot is refused before any credits; your own footage needs no check"),
   max_credits: maxCreditsField,
-});
+}).refine(edit => edit.ad_id !== undefined || edit.clips.every(clip => clip.slot === undefined), "a clip's slot needs ad_id")
+  .refine(edit => edit.ad_id === undefined || edit.clips.every(clip => clip.slot !== undefined), "with ad_id, every clip names its slot");
 export type FilmEditInput = z.infer<typeof filmEditInput>;
 /** What a client sends: the defaults may be left out. */
 export type FilmEditRequest = z.input<typeof filmEditInput>;
@@ -143,6 +154,15 @@ export const TAKE_FRAMES_COLUMNS = 8, TAKE_FRAMES_CELL_WIDTH = 240, TAKE_FRAMES_
 export const TAKE_FRAMES_MIN_FPS = 1, TAKE_FRAMES_MAX_FPS = 24, TAKE_FRAMES_DEFAULT_FPS = 8;
 /** The longest direction a take check reads whole, and the most planned contact seconds it looks at first. */
 export const TAKE_CHECK_PROMPT_MAX_CHARS = 1500, TAKE_CHECK_MAX_MOVES = 5;
+/** The kinds of ad a take's motion is measured against: people and clothes in motion, or a product worked in the hands. */
+export const TAKE_MOTION_FORMATS = ["fashion", "product"] as const;
+export type TakeMotionFormat = (typeof TAKE_MOTION_FORMATS)[number];
+/** What a take's window should reach for its format: subject motion (the mean change of brightness between frames once the camera's own */
+/** move is taken out, 0 to 255) and, for people in motion, a camera that moves (percent of the frame's width a second). */
+export const TAKE_MOTION_TARGETS: Record<TakeMotionFormat, { subject: number; camera: number | null }> = {
+  fashion: { subject: 11, camera: 5 }, product: { subject: 1.5, camera: null } };
+/** Camera shake above this (percent of the frame's width a step, off the camera's smooth path) is named as shake. */
+export const TAKE_SHAKE_LIMIT = 4;
 
 const takeSecond = z.number().min(0).max(600);
 const takeSource = {
@@ -167,22 +187,94 @@ export const takeFramesInput = z.strictObject({
 export type TakeFramesInput = z.infer<typeof takeFramesInput>;
 export type TakeFramesRequest = z.input<typeof takeFramesInput>;
 
+/** What a take is checked against: its ad shot's motion, or the picture it was made from (faceless). */
+export const TAKE_CHECK_AGAINST = ["motion", "picture"] as const;
+export type TakeCheckAgainst = (typeof TAKE_CHECK_AGAINST)[number];
+/** The most changes a picture-mode direction names, and the most locks. */
+export const TAKE_PICTURE_MAX_CHANGES = 4, TAKE_PICTURE_MAX_LOCKS = 6;
+const words = (most: number) => z.string().trim().min(1).max(most);
+/** A picture-mode direction: the take's start, each change at its second, the camera, the end, and what must not change. */
+export const pictureTakeAsk = z.strictObject({
+  start: words(300).describe("What the first frame shows"),
+  changes: z.array(z.strictObject({ at_s: takeSecond.describe("The second of the take the change starts"), cause: words(200), result: words(240) }))
+    .min(1).max(TAKE_PICTURE_MAX_CHANGES).describe("Each change the take was asked to show, in order"),
+  camera: words(160).default("as made").describe("The camera's move; omitted, as made"),
+  end: words(300).describe("What the last frame shows"),
+  locks: z.array(words(200)).max(TAKE_PICTURE_MAX_LOCKS).default([]).describe("What must stay as the picture shows it"),
+});
+export type PictureTakeAsk = z.infer<typeof pictureTakeAsk>;
+const hexColour = z.string().regex(/^#[0-9a-fA-F]{6}$/, "a colour is #RRGGBB");
+const PICTURE_ONLY = ["look", "picture"] as const, MOTION_ONLY = ["product_image", "moves", "format", "ad_id", "slot"] as const;
+
 export const takeCheckInput = z.strictObject({
   ...takeSource,
-  direction: z.string().trim().min(1).max(TAKE_CHECK_PROMPT_MAX_CHARS)
-    .describe("What the take was asked to show: the shot's part of the prompt you made it with (its action and timeline), up to 1500 characters"),
+  against: z.enum(TAKE_CHECK_AGAINST).optional().describe("motion (an ad shot, the default) or picture: the take against the picture it was " +
+    "made from, with direction as start, changes, camera, end and locks"),
+  direction: z.union([z.string().trim().min(1).max(TAKE_CHECK_PROMPT_MAX_CHARS), pictureTakeAsk])
+    .describe("What the take was asked to show: the shot's part of the prompt you made it with (its action and timeline), up to 1500 characters; " +
+      "with against picture, the object of start, changes, camera, end and locks"),
+  look: z.strictObject({ words: words(200).describe("The video's look in words"),
+    palette: z.array(hexColour).min(3).max(5).optional().describe("Its colours") }).optional()
+    .describe("With against picture: the look a colour outside it is named against"),
+  picture: filmCutPicture.optional().describe("With against picture: the picture the take is checked against; needed only when the take " +
+    "was not made from a first frame, and it must be that first frame when it was"),
   product_image: qualifiedImageUrl.optional()
     .describe("https picture of the product as it really is (your upload or a saved asset): the take's product is compared with it"),
   moves: z.array(takeSecond).max(TAKE_CHECK_MAX_MOVES).optional()
     .describe("Seconds of the take where a hand meets the product (a grip, a lid, a set-down): looked at first"),
+  ad_id: adId.optional().describe("With slot: the ad record the verdict joins, as a take of that slot"),
+  slot: adSlotId.optional().describe("With ad_id: the slot of the ad this take is for"),
+  format: z.enum(TAKE_MOTION_FORMATS).optional().describe("What the take's motion is measured against: fashion (people and clothes in " +
+    "motion: fashion, lifestyle, sport) or product (a product worked in the hands); omitted, product"),
   max_credits: maxCreditsField,
-}).refine(oneTake, ONE_TAKE);
+}).refine(oneTake, ONE_TAKE).refine(v => (v.ad_id === undefined) === (v.slot === undefined), "ad_id and slot go together")
+  .superRefine((v, ctx) => {
+    const picture = v.against === "picture", refuse = (path: string, message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+    if (picture !== (typeof v.direction === "object")) refuse("direction", picture ? "with against picture, direction is an object of start, changes, " +
+      "camera, end and locks" : "direction is the shot's prompt as text; the object form goes with against picture");
+    if (picture && v.look === undefined) refuse("look", "with against picture, name the look");
+    for (const key of picture ? MOTION_ONLY : PICTURE_ONLY) if (v[key] !== undefined)
+      refuse(key, picture ? `${key} goes with a motion check, not against picture` : `${key} goes with against picture`);
+  });
 export type TakeCheckInput = z.infer<typeof takeCheckInput>;
 export type TakeCheckRequest = z.input<typeof takeCheckInput>;
 
 /** How a take defect is repaired: a new first frame or reference, the motion prompt's action, its framing, or another roll of the same prompt. */
 export const TAKE_DEFECT_LEVELS = ["asset", "action", "camera", "roll"] as const;
 const takeWindow = z.strictObject({ from: z.number().min(0), to: z.number().min(0) });
+/** A stretch of a take with its motion, cuts and whips left out: subject, camera move and camera shake. */
+const motionNumbers = {
+  subject: z.number().nonnegative().describe("How much the subject moves once the camera's own move is taken out: mean change of brightness between frames, 0 to 255"),
+  camera: z.number().nonnegative().describe("How fast the camera travels on its smooth path, percent of the frame's width a second"),
+  jitter: z.number().nonnegative().describe("Camera shake: how far the camera strays from that smooth path, percent of the frame's width a step"),
+};
+export const takeMotionWindow = z.strictObject({ from: z.number().min(0), to: z.number().min(0), ...motionNumbers });
+export type TakeMotionWindow = z.infer<typeof takeMotionWindow>;
+/** How much a take moves, free with its check: the whole take and each clean window (the whole take when none is clean) against its */
+/** format's target. Advice only: it never changes the findings, the clean windows or a pass. */
+export const takeMotion = z.strictObject({
+  format: z.enum(TAKE_MOTION_FORMATS),
+  target: z.strictObject({ subject: z.number().nonnegative(), camera: z.number().nonnegative().nullable() }),
+  ...motionNumbers,
+  windows: z.array(takeMotionWindow),
+  finding: z.string().nullable().describe("too static for this format, with what to change; null when every window reaches the target"),
+  shake: z.string().nullable().describe("camera shake past the limit, with what to change; null when the camera is steady"),
+});
+export type TakeMotion = z.infer<typeof takeMotion>;
+/** A delivered take check: each defect the frames show, where in the take and how it is repaired, and the take's clean windows. */
+export const takeCheckVerdict = z.strictObject({ duration_sec: z.number().positive(),
+  findings: z.array(z.strictObject({ code: z.string(), level: z.enum(TAKE_DEFECT_LEVELS), from: z.number().min(0), to: z.number().min(0),
+    whole_take: z.boolean(), why: z.string().nullable() })),
+  clean: z.array(takeWindow),
+  motion: takeMotion.optional(),
+  against: z.enum(TAKE_CHECK_AGAINST).optional(),
+  action_at_s: z.number().min(0).nullable().optional().describe("Against picture: the second the first asked change shows; null when it never does"),
+  subject: z.strictObject({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0).max(1), h: z.number().min(0).max(1) })
+    .nullable().optional().describe("Against picture: the main subject's box at that second, shares of the frame from its top-left corner") });
+export type TakeCheckVerdict = z.infer<typeof takeCheckVerdict>;
+/** A take passes its check when no defect spans the whole take and a clean window is left to cut from. */
+export const takeCheckPassed = (verdict: Pick<TakeCheckVerdict, "findings" | "clean">): boolean =>
+  verdict.clean.length > 0 && !verdict.findings.some(finding => finding.whole_take);
 
 /** What a hero is drawn from, at least one: a character named by picture or words, else the meaning of the film's script. */
 export const FILM_HERO_SOURCE_FIELDS = ["character_reference", "character_details", "script", "voice_run_id"] as const;
@@ -213,6 +305,10 @@ export const ownFilmFrames = (voiceSeconds: number): number => Math.ceil((voiceS
 export const ownFilmSeconds = (voiceSeconds: number): number => +(ownFilmFrames(voiceSeconds) / FILM_RENDER_FPS).toFixed(2);
 
 const filmSec = z.number().positive().describe("How long the film runs: the voice, then a short tail; say this length, not the voice's");
+/** One line of an own-agent quote: what is counted, how many, at what rate, and the product. */
+export const ownAgentQuoteLine = z.strictObject({ label: z.string().min(1), unit: z.enum(["film", "track"]), quantity: z.number().int().nonnegative(),
+  unit_credits: z.number().int().nonnegative(), credits: z.number().int().nonnegative() });
+export type OwnAgentQuoteLine = z.infer<typeof ownAgentQuoteLine>;
 
 export const ownAgentQuote = z.strictObject({
   skill: z.enum(OWN_AGENT_SKILLS),
@@ -220,7 +316,7 @@ export const ownAgentQuote = z.strictObject({
   credits: z.number().int().nonnegative(),
   unit: z.enum(["still", "second", "film", "pose", "sheet", "check"]),
   units: z.number().int().nonnegative(),
-  /** `film_render`, `film_edit`: how long the film will run. */
+  /** `film_render`, `film_edit`, `film_cut`: how long the film will run. */
   film_sec: filmSec.optional(),
   /** `film_stills`: how many of the asked stills are free, and the free stills the draft has left in the rolling day after them. */
   free_units: z.number().int().nonnegative().optional()
@@ -228,7 +324,14 @@ export const ownAgentQuote = z.strictObject({
   free_left: z.number().int().nonnegative().optional().describe("Free stills this draft has left in the rolling day after this call"),
   /** `film_take_frames`: how many frames the sheets will show. */
   frames: z.number().int().positive().optional(),
+  /** `film_cut`: the credits line by line; they add up to `credits`. */
+  items: z.array(z.strictObject({ item: z.enum(["cut", "extra_seconds", "bed", "take_sound", "music"]), units: z.number().int().nonnegative(),
+    credits: z.number().int().nonnegative() })).optional(),
+  /** `film_edit` with music made for the cut: the cut and the music, each its own line; they add up to credits. */
+  lines: z.array(ownAgentQuoteLine).optional(),
   warnings: z.array(z.string()),
+  /** The ad tools' quotes (#1539): the paid call with the same arguments, to send after the go-ahead. */
+  next: diyNext.optional(),
 });
 export type OwnAgentQuote = z.infer<typeof ownAgentQuote>;
 
@@ -255,7 +358,7 @@ export const filmRun = z.strictObject({
   stills: z.strictObject({ frames: z.array(filmStill), sheet_url: z.string().url().nullable(), refusals: z.array(z.string()) }).optional(),
   /** `film_voice`: the take's length and its words, each with its start and end, and how long a film on it runs. */
   voice: z.strictObject({ duration_sec: z.number().positive(), film_sec: filmSec.optional(), words: z.array(filmWord), audio_url: z.string().url() }).optional(),
-  /** `film_render`, `film_edit`: the delivered film, and its frame as a thumbnail when one could be taken. */
+  /** `film_render`, `film_edit`, `film_cut`: the delivered film, and its frame as a thumbnail when one could be taken. */
   film: z.strictObject({ video_url: z.string().url(), duration_sec: z.number().positive(),
     thumbnail_url: z.string().url().nullable().default(null) }).optional(),
   /** `film_hero`: the saved mascot (pass `mascot_id` to create_film_draft), the poses it was published with, and those poses on one picture
@@ -264,13 +367,15 @@ export const filmRun = z.strictObject({
     sheet_url: z.string().url().nullable().default(null) }).optional(),
   /** `film_take_frames`: the take's frames on contact sheets in reading order, each frame labelled with its second of the take. */
   take_frames: z.strictObject({ fps: z.number().int().positive(), frames: z.number().int().positive(),
-    sheets: z.array(z.strictObject({ image_url: z.string().url(), from: z.number().min(0), to: z.number().min(0), frames: z.number().int().positive() })) })
+    sheets: z.array(z.strictObject({ image_url: z.string().url(), from: z.number().min(0), to: z.number().min(0), frames: z.number().int().positive() })),
+    shots: z.array(takeMotionWindow).optional()
+      .describe("The stretches between cuts and whips in these seconds, each with its subject motion, camera move and camera shake: a reference's energy, shot by shot") })
     .optional(),
   /** `film_take_check`: each defect the frames show, where in the take and how it is repaired, and the take's clean windows. */
-  take_check: z.strictObject({ duration_sec: z.number().positive(),
-    findings: z.array(z.strictObject({ code: z.string(), level: z.enum(TAKE_DEFECT_LEVELS), from: z.number().min(0), to: z.number().min(0),
-      whole_take: z.boolean(), why: z.string().nullable() })),
-    clean: z.array(takeWindow) }).optional(),
+  take_check: takeCheckVerdict.optional(),
+  /** The ad tools (#1539): the call that moves the ad on with its arguments, or why it cannot move on and what unblocks it. */
+  next: diyNext.nullable().optional(),
+  blocked: diyBlocked.nullable().optional(),
   created_at: z.string(),
   finished_at: z.string().nullable(),
 });

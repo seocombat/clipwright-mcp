@@ -121,7 +121,7 @@ describe("live shots (#1103)", () => {
 describe("live shots: a talking shot's pose (#1536)", () => {
   const script = "One two three four five six seven eight nine ten.";
   const talking = (id: string, quote: string, extra: Record<string, unknown> = {}) => ({ id, kind: "talking", anchor: { quote }, ...extra });
-  const parse = (shots: unknown[]) => makeUgcInput.safeParse({ script, shots });
+  const parse = (shots: unknown[]) => contract.storedUgcInput.safeParse({ script, shots });
 
   /** Mutants: one of the three refusals kept, and the pose the client wrote never reaches the run. */
   it("takes start, product and setup on a talking shot, and keeps them in the parsed shot", () => {
@@ -167,11 +167,11 @@ describe("live shots without talking poses: an account off the ad epic's list (#
 
   /** Mutants: one refusal dropped, its words or order changed, or the setup check counting talking shots, and an account off the list */
   /** gets a request through, or a refusal unlike main's. The lines are main's, byte for byte (2938a86b7). */
-  it("refuses setup, start and product on a talking shot with main's words, in main's order, and takes a plain talking shot", () => {
+  it("refuses setup and product on a talking shot with main's words, in main's order, refuses start as unknown, and takes a plain talking shot", () => {
     expect(issues([talking({ setup: "a café", framing: "wide", start: "she sits", product: true })])).toEqual([
+      "shots.0: Unrecognized key: \"start\"",
       "shots.0.setup: setup works on talking_action and action shots",
       "shots.0.framing: framing works on talking_action and action shots",
-      "shots.0.start: start works on talking_action and action shots",
       "shots.0.product: a talking shot shows no product; use talking_action, or an actor view holding it (create_actor holding)",
     ]);
     expect(issues([talking({ product: { placement: "hand" } })]))
@@ -181,7 +181,8 @@ describe("live shots without talking poses: an account off the ad epic's list (#
     expect(issues([acting("a1", true), { ...acting("a2", { placement: "beside" }), anchor: { quote: "nine" } }])).toEqual([
       "shots: talking_action and action shots of one setup share one picture, so they show the product the same way: name one product " +
       "placement for them (a shot that names none takes it), or give them different setups"]);
-    expect(makeUgcInput.safeParse({ script, shots: [talking({ start: "she sits" })] }).success).toBe(true);
+    expect(makeUgcInput.safeParse({ script, shots: [talking({ start: "she sits" })] }).success).toBe(false);
+    expect(contract.storedUgcInput.safeParse({ script, shots: [talking({ start: "she sits" })] }).success).toBe(true);
   });
 });
 

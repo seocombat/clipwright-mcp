@@ -38,13 +38,16 @@ const D1_VIDEO: Record<string, Partial<Record<string, number>>> = {
   "kling-4.0": { "720p": 36, "1080p": 53 },
   "kling-4.0-flash": { "720p": 22 },
   "gemini-omni-flash-1.1": { "360p": 20, "720p": 20 },
-  "gemini-omni-flash-1.2": { "720p": 12 },
+  "gemini-omni-flash-1.2": { "360p": 5, "720p": 12 },
 };
 
 describe("capability table", () => {
   it("prices every row by D1, one price per resolution", () => {
     for (const model of GENERATION_IMAGE_MODELS) {
-      for (const row of GENERATION_CAPABILITIES[model].rows) expect(row.unit_credits, model).toBe(D1_IMAGE[model]);
+      // Flare's 21:9 board (#1686) costs its own measured $0.0597, so it has its own price; every other image row is the model's.
+      for (const row of GENERATION_CAPABILITIES[model].rows) {
+        expect(row.unit_credits, `${model} ${row.aspect_ratio}`).toBe(model === "flare" && row.aspect_ratio === "21:9" ? 15 : D1_IMAGE[model]);
+      }
     }
     expect(Object.keys(D1_VIDEO).sort()).toEqual([...GENERATION_VIDEO_MODELS].sort());
     for (const model of GENERATION_VIDEO_MODELS) {
@@ -59,6 +62,7 @@ describe("capability table", () => {
       capability.rows.filter((row) => row.measured).map((row) =>
         `${model} ${row.aspect_ratio} ${"resolution" in row ? row.resolution : "-"} ${row.width}x${row.height}`));
     expect(measured.sort()).toEqual([
+      "flare 21:9 - 2352x1008",
       "flare 9:16 - 1008x1792",
       "gemini-3-pro-image 16:9 - 2752x1536",
       "gemini-3-pro-image 1:1 - 2048x2048",
@@ -70,6 +74,7 @@ describe("capability table", () => {
       "gemini-omni-flash-1.1 16:9 720p 1280x720",
       "gemini-omni-flash-1.1 9:16 720p 720x1280",
       "gemini-omni-flash-1.2 16:9 720p 1280x720",
+      "gemini-omni-flash-1.2 9:16 360p 360x640",
       "gemini-omni-flash-1.2 9:16 720p 720x1280",
       "kling-3.0 16:9 720p 1280x720",
       "kling-3.0 9:16 720p 720x1280",
@@ -117,7 +122,10 @@ describe("capability table", () => {
         expect([row.codec, row.pix_fmt]).toEqual(tenBit ? ["hevc", "yuv420p10le"] : ["h264", "yuv420p"]);
         // 2.0's 496x864 draft (Mini, Fast and 2.0) is off its format, told per aspect; 2.5's and Flash's 480p is a true 480x854.
         const draft = model !== "seedance-2.5" && model !== "seedance-2.5-flash" && row.resolution === "480p";
-        expect(row.warning !== undefined, `${model} ${row.resolution}`).toBe(tenBit || draft);
+        // Omni 1.2's 360p is a draft tier: the customer is told what it is for, never a vendor or a cost (rule 8).
+        const omniDraft = model === "gemini-omni-flash-1.2" && row.resolution === "360p";
+        expect(row.warning !== undefined, `${model} ${row.resolution}`).toBe(tenBit || draft || omniDraft);
+        if (omniDraft) expect(row.warning).toBe("360p is a draft: softer than 720p, for trying a move cheaply; make the final take at 720p");
         if (draft) expect(row.warning, `${model} ${row.aspect_ratio}`).toContain(`${row.width}x${row.height} (2.`);
         if (draft) expect(row.warning, `${model} ${row.aspect_ratio}`).toContain(`off ${row.aspect_ratio}`);
       }
@@ -144,7 +152,12 @@ describe("findCapabilityRow and priceGeneration", () => {
     expect(priceGeneration(video({ camera: "pan" }))).toEqual({ unit_credits: 11, units: 4, credits: 44 });
     expect(priceGeneration(video({ model: "seedance-2.0", resolution: "1080p", duration_s: 15 }))).toEqual({ unit_credits: 94, units: 15, credits: 1410 });
     expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "9:16" })).toEqual({ unit_credits: 6, units: 1, credits: 6 });
+    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "21:9" })).toEqual({ unit_credits: 15, units: 1, credits: 15 });
     expect(priceGeneration({ prompt: "x", model: "seedream-5.0-flash", aspect_ratio: "9:16" })).toEqual({ unit_credits: 5, units: 1, credits: 5 });
+    // 21:9 is measured on Flare only (#1686): every other image model refuses it before money.
+    for (const model of ["seedream-5.0-flash", "gemini-3-pro-image", "gemini-nano-banana-2.1"] as const) {
+      expect(priceGeneration({ prompt: "x", model, aspect_ratio: "21:9" }), model).toBeNull();
+    }
   });
 
   // Mutant (#1186 r2): price one camera differently, and the quote no longer says what the clip costs.
@@ -164,6 +177,7 @@ describe("findCapabilityRow and priceGeneration", () => {
     ["duration past the model's bound", video({ duration_s: 16 })],
     ["kling 3.0 at 1080p, a row that does not exist", video({ model: "kling-3.0", resolution: "1080p" })],
     ["omni flash at 360p 9:16, not measured", video({ model: "gemini-omni-flash-1.1", resolution: "360p" })],
+    ["omni flash 1.2 at 360p 16:9, not measured", video({ model: "gemini-omni-flash-1.2", aspect_ratio: "16:9", resolution: "360p" })],
     ["kling 4.0 at 480p, a row that does not exist", video({ model: "kling-4.0", resolution: "480p" })],
     ["kling 4.0 flash at 1080p, a row that does not exist", video({ model: "kling-4.0-flash", resolution: "1080p" })],
     ["kling 4.0 flash past 20 seconds", video({ model: "kling-4.0-flash", duration_s: 21 })],
@@ -404,6 +418,16 @@ describe("models list", () => {
         { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 20 },
       ],
     });
+    // Measured live 17.11 (omni-360p): 9:16 360p in all three modes, at 5 a second; no 16:9 360p.
+    expect(listed.find((one) => one.model === "gemini-omni-flash-1.2")?.rows).toEqual([
+      { aspect_ratio: "9:16", resolution: "360p", width: 360, height: 640, unit_credits: 5, reference: true },
+      { aspect_ratio: "9:16", resolution: "720p", width: 720, height: 1280, unit_credits: 12, reference: true },
+      { aspect_ratio: "16:9", resolution: "720p", width: 1280, height: 720, unit_credits: 12 },
+    ]);
+    for (const extra of [{}, { mode: "reference" as const, references: [{ run_id: "run_x" }] }]) {
+      expect(priceGeneration(video({ model: "gemini-omni-flash-1.2", resolution: "360p", duration_s: 10, ...extra })))
+        .toEqual({ unit_credits: 5, units: 10, credits: 50 });
+    }
     expect(listed.find((one) => one.model === "seedance-2.5")?.rows.map((row) => `${row.aspect_ratio} ${row.resolution}`))
       .toEqual(["9:16 480p", "16:9 480p", "9:16 720p", "16:9 720p", "9:16 1080p"]);
     // Measured live 17.11 (#1670): first_frame on all four rows, reference on 9:16, no text mode and no 1080p.
@@ -449,6 +473,50 @@ describe("run generation block", () => {
     expect(runGeneration.safeParse({ ...base, kind: "image", model: "seedream-5.0-flash", duration_s: null }).success).toBe(true);
     expect(runGeneration.safeParse({ ...base, kind: "video", model: "seedance-2.0", mime: "video/mp4", duration_s: 4.04 }).success).toBe(true);
     expect(runGeneration.safeParse({ ...base, kind: "audio", model: "x", duration_s: null }).success).toBe(false);
+  });
+});
+
+describe("the clip's own sound, on request (#1686)", () => {
+  const SOUND_MODELS = ["seedance-2.5", "seedance-2.5-flash", "gemini-omni-flash-1.2"];
+  const asked = (model: string) => {
+    const capability = GENERATION_CAPABILITIES[model as keyof typeof GENERATION_CAPABILITIES] as { modes: { text: boolean }; duration_s: { min: number };
+      duration_values?: readonly number[] };
+    const mode = capability.modes.text ? { mode: "text" } : { mode: "first_frame", first_frame: { upload_id: UPLOAD, rights_confirmed: true } };
+    return { prompt: "she says: hello", model, ...mode, aspect_ratio: "9:16", duration_s: capability.duration_values?.[0] ?? capability.duration_s.min,
+      audio: true };
+  };
+
+  it("is taken by the measured models only; any other is refused on the audio path", () => {
+    expect(GENERATION_VIDEO_MODELS.filter((model) => GENERATION_CAPABILITIES[model].audio === true)).toEqual(SOUND_MODELS);
+    for (const model of GENERATION_VIDEO_MODELS) {
+      const parsed = generateVideoRequest.safeParse(asked(model));
+      if (SOUND_MODELS.includes(model)) {
+        expect(parsed.success, model).toBe(true);
+      } else {
+        expect(parsed.error?.issues.map((issue) => [issue.path.join("."), issue.message]), model).toEqual([["audio", `${model} makes no sound`]]);
+      }
+    }
+    expect(generateVideoRequest.safeParse({ ...asked("kling-3.0"), audio: false }).success).toBe(true);
+  });
+
+  it("keeps the price of the row", () => {
+    for (const model of SOUND_MODELS) {
+      const request = generateVideoRequest.parse(asked(model));
+      expect(priceGeneration(request), model).toEqual(priceGeneration({ ...request, audio: undefined }));
+    }
+  });
+
+  // Mutant: findCapabilityRow ignores audio, and a request built past the schema prices a sound the model cannot make.
+  it("finds no row for sound on a model without it", () => {
+    expect(findCapabilityRow({ ...video(), audio: true } as GenerateVideoRequest)).toBeNull();
+    expect(findCapabilityRow({ ...video(), audio: false } as GenerateVideoRequest)).not.toBeNull();
+  });
+
+  it("is listed on the sound models only while it is offered", () => {
+    const off = generationModels.parse({ models: listGenerationModels(), contract_version: "test" }).models;
+    expect(off.filter((one) => "audio" in one)).toEqual([]);
+    const on = generationModels.parse({ models: listGenerationModels({ audio: true }), contract_version: "test" }).models;
+    expect(on.filter((one) => one.audio === true).map((one) => one.model)).toEqual(SOUND_MODELS);
   });
 });
 

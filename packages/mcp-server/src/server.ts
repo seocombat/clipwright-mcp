@@ -346,10 +346,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "it. A field named in `withheld` is null on every shot. planned=false is a normal answer, not an " +
         "error: the run has no shots to show, and editable.state with editable.reason says why. " +
         "editable.media_available_until is how long the media of the run are stored. paid_edits.enabled " +
-        "says whether a video can be made from an edit; while it is false, none can. For an ad with live shots, " +
-        "live_shots lists each shot's takes with the check's codes, whether it was accepted or refused, and which " +
-        "take the video uses. finished_check names what the check of the finished ad found: each code " +
-        "(PRODUCT_JUMP, CAPTION_MISSING, ...) with the second it shows at; the same findings are in the run's warnings.",
+        "says whether a video can be made from an edit; while it is false, none can.",
       inputSchema: { run_id: runId },
     },
     async ({ run_id }) =>
@@ -555,7 +552,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Generate a clip",
       annotations: { readOnlyHint: false, destructiveHint: false },
       description: withPriceLine("generate_video",
-        "Generate one silent clip from a prompt or a shot, as quote_video explains (paid): a NEW run of skill generate_video, " +
+        "Generate one clip (silent unless audio: true) from a prompt or a shot, as quote_video explains (paid): a NEW run of skill generate_video, " +
         "charged unit_credits per second of duration_s " +
         "once it is delivered. Modes: text; first_frame (first_frame, optional last_frame, of the requested aspect ratio " +
         "within 2%); reference (1 to 4 references). Poll get_run; once it succeeded, generation.url is the clip. " + generationTerms),

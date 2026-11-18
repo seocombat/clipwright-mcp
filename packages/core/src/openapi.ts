@@ -22,6 +22,7 @@ import { revisionQuote, revisionRequest } from "./edit-revision.js";
 import { runShots } from "./edit-shots.js";
 import { ENDPOINT_NOTES } from "./endpoint-notes.js";
 import { API_ERROR_CODES } from "./errors.js";
+import { diyNext } from "./diy-next.js";
 import { API_ENDPOINTS, type ApiEndpoint, endpointLabel } from "./endpoints.js";
 import { facelessQuoteResponse } from "./faceless-public.js";
 import { feedbackRequest, feedbackResponse } from "./feedback.js";
@@ -92,7 +93,8 @@ export type OpenApiTag = keyof typeof TAGS;
 
 /** The shared refusal: `code` is a registered one, typed refusals add their own fields. */
 export const errorEnvelope = z.object({
-  error: z.looseObject({ code: z.enum(API_ERROR_CODES as [string, ...string[]]), message: z.string().min(1) }),
+  error: z.looseObject({ code: z.enum(API_ERROR_CODES as [string, ...string[]]), message: z.string().min(1),
+    next: diyNext.optional().describe("The one call that fixes this refusal, when there is one") }),
 });
 
 const Run = named("Run", workflowRun);

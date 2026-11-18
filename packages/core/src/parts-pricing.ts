@@ -51,13 +51,14 @@ export const PARTS_FACE_TARIFF: PartsFaceTariff = Object.freeze({
   minimumCredits: DELIVERED_VIDEO_MINIMUM_CREDITS, rounding: "ceil_aggregate_seconds", failurePolicy: "verified_delivery_only",
 } as const);
 
-/** parts-v3 (#1535): parts-v2 and the Omni live-shot second. Runs admitted on it keep it; new ones with an Omni shot go on parts-v4. */
+/** parts-v3 (#1535): parts-v2 and the Omni live-shot second, as runs admitted on it froze it; no admission writes it any more. */
 export const PARTS_OMNI_PRICING_VERSION = "parts-v3";
 export const PARTS_OMNI_FACE_TARIFF: PartsFaceTariff = Object.freeze({ ...PARTS_FACE_TARIFF, pricingVersion: PARTS_OMNI_PRICING_VERSION,
   shotCreditsPerSecond: Object.freeze({ shot_talking_action: SHOT_CREDITS_PER_SECOND.shot_talking_action,
     shot_action: SHOT_CREDITS_PER_SECOND.shot_action, shot_omni: SHOT_CREDITS_PER_SECOND.shot_omni }) });
 
-/** parts-v4 (#1539 C4): parts-v3 with the method ad's four live-shot seconds at the video's resolution, frozen with the run. */
+/** parts-v4 (#1539 C4): parts-v3 with the method ad's four live-shot seconds at the video's resolution, as runs admitted on it froze it. */
+/** No admission writes it any more; it stays the shape those snapshots were frozen in. */
 export const PARTS_METHOD_PRICING_VERSION = "parts-v4";
 export function partsMethodFaceTariff(resolution: Resolution): PartsFaceTariff {
   // make_ugc refuses 4k (#1189), so a 4k second has no price to freeze.
@@ -65,13 +66,6 @@ export function partsMethodFaceTariff(resolution: Resolution): PartsFaceTariff {
   return Object.freeze({ ...PARTS_OMNI_FACE_TARIFF, pricingVersion: PARTS_METHOD_PRICING_VERSION,
     shotCreditsPerSecond: Object.freeze({ ...PARTS_OMNI_FACE_TARIFF.shotCreditsPerSecond!, ...METHOD_SHOT_CREDITS_PER_SECOND[resolution] }) });
 }
-/** The tariff a long-form run is admitted on: a run with an Omni shot on the one that prices Omni and Seedance seconds at its resolution. */
-export const partsFaceTariffFor = (omni: boolean, resolution: Resolution): PartsFaceTariff =>
-  (omni ? partsMethodFaceTariff(resolution) : PARTS_FACE_TARIFF);
-
-/** One pre-production (#1539 C4): its stills and storyboard, charged once a still is published, also when the video is never ordered. */
-/** A repeat on the same pictures costs nothing. */
-export const PRE_PRODUCTION_CREDITS = 270;
 
 /** The face tariffs new runs are admitted on, as a LIST: public text walks it, so another tariff cannot ship silently. parts-v3 joins it */
 /** once the Omni shot is sold to every account. */

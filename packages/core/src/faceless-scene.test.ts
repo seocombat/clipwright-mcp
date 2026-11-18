@@ -7,16 +7,18 @@ const script = Array.from({ length: 70 }, (_, i) => `word${i}`).join(" ");
 const scene = { place: "a quiet seaside town in late autumn", posture: "standing" as const, light: "low grey daylight" };
 
 describe("the scene of a faceless video", () => {
-  it("rides on a script, a brief and the MCP shape", () => {
-    expect(makeFacelessInput.parse({ input_mode: "script", script, duration_seconds: 30, scene }).scene).toEqual(scene);
-    expect(makeFacelessInput.parse({ input_mode: "brief", brief: "a lighthouse keeper's day", duration_seconds: 30, scene }).scene).toEqual(scene);
-    expect(offeredFacelessInput.safeParse({ input_mode: "brief", brief: "a day", duration_seconds: 30, scene }).success).toBe(true);
+  /** Mutant: the withdrawn field still taken on a public body, or dropped from a stored run that carries it. */
+  it("is refused on a script, a brief and the MCP shape, and kept on a stored run", () => {
+    expect(makeFacelessInput.safeParse({ input_mode: "script", script, duration_seconds: 30, scene }).success).toBe(false);
+    expect(makeFacelessInput.safeParse({ input_mode: "brief", brief: "a lighthouse keeper's day", duration_seconds: 30, scene }).success).toBe(false);
+    expect(offeredFacelessInput.safeParse({ input_mode: "brief", brief: "a day", duration_seconds: 30, scene }).success).toBe(false);
+    expect(facelessStoredInput.parse({ input_mode: "script", script, duration_seconds: 30, scene })).toMatchObject({ scene });
   });
 
-  /** Mutant: the faceless field written by hand instead of the shared schema, so a negation or an unknown key reaches a prompt. */
-  it("refuses an empty scene, an unknown key and a field that describes what is absent, as make_ugc does", () => {
+  /** Mutant: the stored field written by hand instead of the shared schema, so a negation or an unknown key reaches a prompt. */
+  it("refuses an empty stored scene, an unknown key and a field that describes what is absent, as make_ugc does", () => {
     for (const bad of [{}, { place: "a town", mood: "calm" }, { place: "a street with no cars" }]) {
-      expect(makeFacelessInput.safeParse({ input_mode: "script", script, duration_seconds: 30, scene: bad }).success).toBe(false);
+      expect(facelessStoredInput.safeParse({ input_mode: "script", script, duration_seconds: 30, scene: bad }).success).toBe(false);
     }
   });
 

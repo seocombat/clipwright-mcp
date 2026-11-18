@@ -61,13 +61,13 @@ describe("FIELD_DISPOSITIONS — completeness guard", () => {
     expect(Object.keys(FIELD_DISPOSITIONS).sort()).toEqual([...FIELDS].sort());
   });
 
-  it("the table matches today's contract (54 fields)", () => {
+  it("the table matches today's contract (52 fields)", () => {
     // Pinned: growing the shape is a deliberate contract change, not a side effect (#778 and its later fields, each named by its own
-    // assertion below or in its own test; #1491 scene, proposal and propose).
-    expect(FIELDS).toHaveLength(54);
-    expect(FIELD_DISPOSITIONS.scene).toEqual({ kind: "implemented", provenBy: "egress" });
-    expect([FIELD_DISPOSITIONS.proposal, FIELD_DISPOSITIONS.propose]).toEqual([{ kind: "implemented", provenBy: "admission" },
-      { kind: "implemented", provenBy: "admission" }]);
+    // assertion below or in its own test; #1491 propose, with scene and proposal withdrawn).
+    expect(FIELDS).toHaveLength(52);
+    expect(FIELDS).not.toContain("scene");
+    expect(FIELDS).not.toContain("proposal");
+    expect(FIELD_DISPOSITIONS.propose).toEqual({ kind: "implemented", provenBy: "admission" });
     expect(FIELD_DISPOSITIONS.max_credits).toEqual({ kind: "implemented", provenBy: "admission" });
     // Motion styles open with their own switch and composition, and not without either (#1123).
     expect(FIELD_DISPOSITIONS.motion_style).toEqual({ kind: "implemented", provenBy: "composition" });

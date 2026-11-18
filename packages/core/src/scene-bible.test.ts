@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { dispositionWarnings, rejectedFields, resolveDispositions, SCENE_DIRECTOR_DISABLED_MESSAGE, SCENE_UNUSED_WARNING, makeUgcInput,
-  sceneBible, sceneDirectorAccounts, storedUgcInput } from "./index.js";
+import { facelessStoredInput, makeFacelessInput, makeUgcInput, sceneBible, storedUgcInput, unknownFields } from "./index.js";
 
-/** #1491 S1: one scene for the whole video, and a live shot's first frame, on the make_ugc contract. */
+/** #1491: the scene director's public fields are withdrawn; the scene's schema stays for the runs that stored one. */
 
 const SCRIPT = "Pour the water. Then check it at seventy two degrees.";
 const action = { id: "pour", kind: "action", action: "pours hot water into the mug", anchor: { quote: "Pour the water." } };
 
-describe("the scene of a video", () => {
+describe("the scene of a stored run", () => {
   it("takes the fields it names and trims them", () => {
     expect(sceneBible.parse({ place: " a white kitchen counter ", posture: "standing", props: ["the same grey probe thermometer"] }))
       .toEqual({ place: "a white kitchen counter", posture: "standing", props: ["the same grey probe thermometer"] });
@@ -22,42 +21,39 @@ describe("the scene of a video", () => {
     expect(absent.error?.issues[0]).toMatchObject({ path: ["place"], message: expect.stringContaining("describe what is visible") });
     expect(sceneBible.safeParse({ props: ["a mug", "a kettle without a lid"] }).error?.issues[0]?.path).toEqual(["props", 1]);
   });
-
-  it("rides on make_ugc beside the shots, and a stored run keeps it with its server mark", () => {
-    const input = makeUgcInput.parse({ script: SCRIPT, scene: { place: "a white kitchen counter" }, shots: [action] });
-    expect(input.scene).toEqual({ place: "a white kitchen counter" });
-    const stored = storedUgcInput.parse({ ...input, scene_direction: { mode: "complete" } });
-    expect(stored.scene_direction).toEqual({ mode: "complete" });
-  });
 });
 
-describe("a live shot's start", () => {
-  it("is taken on every kind of shot: a talking shot's start is its pose (#1536)", () => {
-    const start = "she stands at the counter holding the empty mug";
-    expect(makeUgcInput.parse({ script: SCRIPT, shots: [{ ...action, start }] }).shots![0]!.start).toBe(start);
-    expect(makeUgcInput.parse({ script: SCRIPT, shots: [{ id: "t", kind: "talking", anchor: { quote: "Pour" }, start }] }).shots![0]!.start)
-      .toBe(start);
-    expect(makeUgcInput.safeParse({ script: SCRIPT, shots: [{ ...action, start: "she holds nothing" }] }).success).toBe(false);
-  });
-});
+describe("runs stored before the scene director was withdrawn", () => {
+  const start = "she stands at the counter holding the empty mug";
+  const proposal = { id: "sp_00000000000000000001", accept: ["o1"] };
 
-describe("the scene director's switch", () => {
-  it("reads 1 as every account, a comma list as those accounts, anything else as nobody", () => {
-    expect(sceneDirectorAccounts({ CLIPWRIGHT_SCENE_DIRECTOR: "1" })).toBe("all");
-    expect(sceneDirectorAccounts({ CLIPWRIGHT_SCENE_DIRECTOR: " acc_a , acc_b,nope " })).toEqual(new Set(["acc_a", "acc_b"]));
-    for (const value of [undefined, "", "0", "true", "nope"]) expect(sceneDirectorAccounts({ CLIPWRIGHT_SCENE_DIRECTOR: value })).toBeNull();
-  });
+  /** Mutants: a stored key dropped or narrowed (the digest of an old run would change), or a stored run refused outright. */
+  it("parse with their scene, proposal, mark and a shot's start, key for key", () => {
+    const ugc = { script: SCRIPT, scene: { place: "a white kitchen counter" }, proposal, propose: false,
+      scene_direction: { mode: "complete", proposal: { id: proposal.id, content_digest: "a".repeat(64), accepted: ["o1"] } },
+      shots: [{ ...action, start }, { id: "t", kind: "talking", anchor: { quote: "Then check it" }, start: "she leans on the counter" }] };
+    const stored = storedUgcInput.parse(ugc);
+    expect(stored).toMatchObject({ scene: ugc.scene, proposal, propose: false, scene_direction: ugc.scene_direction });
+    expect(stored.shots?.map(shot => shot.start)).toEqual([start, "she leans on the counter"]);
 
-  /** Mutant: scene accepted and stored with the switch off, so a run the director never reads looks like one scene. */
-  it("refuses scene by name before any reserve when off, and offers it when on", () => {
-    expect(resolveDispositions({ remoteFetch: true, compose: true }).scene).toEqual({ kind: "rejected", message: SCENE_DIRECTOR_DISABLED_MESSAGE });
-    expect(resolveDispositions({ remoteFetch: true, compose: true, sceneDirector: true }).scene.kind).toBe("implemented");
-    expect(rejectedFields({ script: SCRIPT, scene: { place: "a desk" } })).toEqual([{ field: "scene", message: SCENE_DIRECTOR_DISABLED_MESSAGE }]);
+    const faceless = { input_mode: "script", script: SCRIPT, duration_seconds: 30, scene: { place: "a harbor town", posture: "standing" }, proposal,
+      propose: false, scene_direction: { mode: "complete" } };
+    expect(facelessStoredInput.parse(faceless)).toMatchObject({ scene: faceless.scene, proposal, scene_direction: { mode: "complete" } });
+    const brief = { input_mode: "brief", brief: "A harbor morning.", duration_seconds: 30, scene: { place: "a harbor town" } };
+    expect(facelessStoredInput.parse(brief)).toMatchObject({ scene: brief.scene });
   });
 
-  it("names a scene on a video with no live shots", () => {
-    expect(dispositionWarnings(makeUgcInput.parse({ script: SCRIPT, scene: { place: "a desk" } }))).toContain(SCENE_UNUSED_WARNING);
-    expect(dispositionWarnings(makeUgcInput.parse({ script: SCRIPT, scene: { place: "a desk" }, shots: [action] })))
-      .not.toContain(SCENE_UNUSED_WARNING);
+  /** Mutants: a public body still takes a withdrawn field, or refuses the deprecated propose. */
+  it("leave the public bodies refusing each withdrawn field as unknown, and taking propose false", () => {
+    const unknown = (result: { success: boolean; error?: { issues: { code: string; keys?: string[] }[] } }, key: string) =>
+      expect(result.error?.issues.some(issue => issue.code === "unrecognized_keys" && issue.keys?.includes(key)), key).toBe(true);
+    // make_ugc's body is checked against the contract's field list before its schema, which refuses an unknown key in a shot.
+    expect(unknownFields({ script: SCRIPT, scene: { place: "a desk" }, proposal, propose: false }).map(hit => hit.field))
+      .toEqual(["scene", "proposal"]);
+    unknown(makeUgcInput.safeParse({ script: SCRIPT, shots: [{ ...action, start }] }), "start");
+    unknown(makeFacelessInput.safeParse({ input_mode: "script", script: SCRIPT, duration_seconds: 30, scene: { place: "a desk" } }), "scene");
+    unknown(makeFacelessInput.safeParse({ input_mode: "brief", brief: "A harbor morning.", duration_seconds: 30, proposal }), "proposal");
+    expect(makeUgcInput.parse({ script: SCRIPT, propose: false }).propose).toBe(false);
+    expect(makeFacelessInput.parse({ input_mode: "script", script: SCRIPT, duration_seconds: 30, propose: false }).propose).toBe(false);
   });
 });

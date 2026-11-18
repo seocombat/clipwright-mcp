@@ -21,7 +21,8 @@ export type GenerationImageModel = (typeof GENERATION_IMAGE_MODELS)[number];
 export type GenerationVideoModel = (typeof GENERATION_VIDEO_MODELS)[number];
 export type GenerationModel = GenerationImageModel | GenerationVideoModel;
 
-export const GENERATION_IMAGE_ASPECTS = ["9:16", "16:9", "1:1"] as const;
+/** 21:9 is a storyboard strip of four 9:16 slots in one row (#1686). */
+export const GENERATION_IMAGE_ASPECTS = ["9:16", "16:9", "1:1", "21:9"] as const;
 export const GENERATION_VIDEO_ASPECTS = ["9:16", "16:9"] as const;
 export const GENERATION_RESOLUTIONS = ["360p", "480p", "720p", "1080p"] as const;
 export const GENERATION_VIDEO_MODES = ["text", "first_frame", "reference"] as const;
@@ -87,6 +88,8 @@ export interface GenerationVideoCapability {
   last_frame?: false;
   /** The longest clip that takes a last_frame, where it is shorter than `duration_s.max`. */
   last_frame_max_s?: number;
+  /** The model's own sound is kept on request (`audio: true`), at the row's price. */
+  audio?: true;
   rows: readonly GenerationVideoRow[];
 }
 
@@ -123,6 +126,8 @@ function draft480p(unit_credits: number): GenerationVideoRow[] {
     .map((row) => ({ ...row, warning: DRAFT_480P[row.aspect_ratio] }));
 }
 
+const OMNI_DRAFT_360P = "360p is a draft: softer than 720p, for trying a move cheaply; make the final take at 720p";
+
 /** One aspect of a pair changed: a measure that saw only that aspect. */
 function only(rows: GenerationVideoRow[], aspect: GenerationVideoAspect, change: Partial<GenerationVideoRow>): GenerationVideoRow[] {
   return rows.map((row) => (row.aspect_ratio === aspect ? { ...row, ...change } : row));
@@ -139,7 +144,8 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
   },
   flare: {
     kind: "image",
-    rows: [image("9:16", 1008, 1792, 6, true), image("16:9", 1792, 1008, 6), image("1:1", 1024, 1024, 6)],
+    // 21:9 measured live 17.11 (#1686) with four references: a storyboard strip, priced on its own cost.
+    rows: [image("9:16", 1008, 1792, 6, true), image("16:9", 1792, 1008, 6), image("1:1", 1024, 1024, 6), image("21:9", 2352, 1008, 15, true)],
   },
   // An editor of up to 14 pictures (product, person, place, prop); 9:16 is 0.8% off, inside the 2% match.
   "gemini-3-pro-image": {
@@ -182,6 +188,7 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     fps: GENERATION_VIDEO_FPS,
     modes: { text: false, first_frame: true, reference: true },
     duration_s: { min: 4, max: 30 },
+    audio: true,
     // 2.5 renders a true 480x854.
     rows: [...referenceVertical(video("480p", 480, 854, 26, H264, { vertical: true, horizontal: true })),
       ...referenceVertical(video("720p", 720, 1280, 59, H264, { vertical: true, horizontal: true })),
@@ -194,6 +201,7 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     fps: GENERATION_VIDEO_FPS,
     modes: { text: false, first_frame: true, reference: true },
     duration_s: { min: 4, max: 30 },
+    audio: true,
     rows: [...referenceVertical(video("480p", 480, 854, 17, H264, { vertical: true, horizontal: true })),
       ...referenceVertical(video("720p", 720, 1280, 38, H264, { vertical: true, horizontal: true }))],
   },
@@ -230,13 +238,16 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     rows: [...only(video("360p", 360, 640, 20, H264), "16:9", { measured: true }),
       ...referenceVertical(video("720p", 720, 1280, 20, H264, { vertical: true, horizontal: true }))],
   },
+  // 360p measured live 17.11 in 9:16 only, in every mode; a draft tier for trying a move.
   "gemini-omni-flash-1.2": {
     kind: "video",
     fps: GENERATION_VIDEO_FPS,
     modes: { text: true, first_frame: true, reference: true },
     duration_s: { min: 3, max: 15 },
     last_frame_max_s: 10,
-    rows: referenceVertical(video("720p", 720, 1280, 12, H264, { vertical: true, horizontal: true })),
+    audio: true,
+    rows: [...referenceVertical(video("360p", 360, 640, 5, H264, { vertical: true }, OMNI_DRAFT_360P)),
+      ...referenceVertical(video("720p", 720, 1280, 12, H264, { vertical: true, horizontal: true }))],
   },
 });
 
@@ -291,7 +302,9 @@ export type GenerateImageRequest = z.infer<typeof generateImageRequest>;
 const SHOT_DESCRIPTION = "The clip as a shot, in place of prompt: framing, subject, start_state, timed beats, camera, light and " +
   "continuity. Write every field as what the frame shows: a state reads \"her fingertips are clean\", never as an absence.";
 
-/** No audio field: the vendor is always asked for a silent clip. Exactly one of `prompt` and `shot`. */
+const AUDIO_DESCRIPTION = "Keep the model's own sound (words in prompt spoken, effects): models listed audio: true, same price. Else silent.";
+
+/** Silent unless `audio` asks for the model's own sound (#1686). Exactly one of `prompt` and `shot`. */
 export const generateVideoRequest = z.strictObject({
   prompt: prompt.optional().describe("What the clip shows, in your words; or pass shot instead."),
   shot: generationShot.optional().describe(SHOT_DESCRIPTION),
@@ -307,10 +320,12 @@ export const generateVideoRequest = z.strictObject({
   references: z.array(generationReference).min(1).max(GENERATION_MAX_REFERENCES).optional(),
   /** Compiled into the prompt's first line; the price does not depend on it. */
   camera: z.enum(GENERATION_CAMERAS).optional().describe(GENERATION_CAMERA_DESCRIPTION),
+  audio: z.boolean().optional().describe(AUDIO_DESCRIPTION),
   max_credits: maxCreditsField,
 }).superRefine((request, context) => {
   const issue = (path: string, message: string) => context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
   const capability = GENERATION_CAPABILITIES[request.model];
+  if (request.audio === true && capability.audio !== true) issue("audio", `${request.model} makes no sound`);
   const { min, max } = capability.duration_s;
   if (request.duration_s < min || request.duration_s > max) {
     issue("duration_s", `${request.model} takes ${min} to ${max} seconds`);
@@ -354,6 +369,7 @@ export function findCapabilityRow(request: GenerationRequest): GenerationMatch |
     const capability = GENERATION_CAPABILITIES[request.model];
     const { min, max } = capability.duration_s;
     if (!capability.modes[request.mode] || request.duration_s < min || request.duration_s > max) return null;
+    if (request.audio === true && capability.audio !== true) return null;
     if (request.last_frame !== undefined && capability.last_frame === false) return null;
     if (request.last_frame !== undefined && request.duration_s > (capability.last_frame_max_s ?? max)) return null;
     if (capability.duration_values && !capability.duration_values.includes(request.duration_s)) return null;
@@ -415,6 +431,7 @@ const listedModel = z.strictObject({
   /** Present when the model takes only these lengths inside `duration_s`. */
   duration_values: z.array(z.number().int().positive()).min(1).optional(),
   max_references: z.number().int().nonnegative(),
+  audio: z.literal(true).optional().describe("Present on a clip model that keeps its own sound on audio: true, at the same price."),
   rows: z.array(listedRow).min(1),
 });
 
@@ -426,7 +443,8 @@ export type GenerationModels = z.infer<typeof generationModels>;
 export type ListedGenerationModel = z.infer<typeof listedModel>;
 
 /** The models list from the table: a model with no measured row, or a video model with no measured mode, is left out. */
-export function listGenerationModels(): ListedGenerationModel[] {
+/** `audio` marks the sound models only while the API offers the field (its switch is read by the caller). */
+export function listGenerationModels(options: { audio?: boolean } = {}): ListedGenerationModel[] {
   return (Object.keys(GENERATION_CAPABILITIES) as GenerationModel[]).flatMap((model): ListedGenerationModel[] => {
     const capability: GenerationImageCapability | GenerationVideoCapability = GENERATION_CAPABILITIES[model];
     if (capability.kind === "image") {
@@ -442,6 +460,7 @@ export function listGenerationModels(): ListedGenerationModel[] {
     return rows.length === 0 || modes.length === 0 ? [] : [{ model, kind: "video", unit: "second", modes,
       duration_s: { ...capability.duration_s },
       ...(capability.duration_values ? { duration_values: [...capability.duration_values] } : {}),
-      max_references: modes.includes("reference") ? GENERATION_MAX_REFERENCES : 0, rows }];
+      max_references: modes.includes("reference") ? GENERATION_MAX_REFERENCES : 0,
+      ...(options.audio === true && capability.audio === true ? { audio: true as const } : {}), rows }];
   });
 }

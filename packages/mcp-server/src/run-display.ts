@@ -53,25 +53,8 @@ export function ugcQuoteMarkdown(quote: QuoteResponse): string {
     "", `Estimate: the charge follows the finished video's measured length and can land above or below it.` +
       (minimum ? ` A delivered video costs at least ${credits(minimum)} credits.` : ""),
     ...designLines(quote.design),
-    ...proposalLines(quote.scene_proposal),
     ...warningLines(quote.warnings),
   ].join("\n");
-}
-
-/** The scene the quote proposes and each paid option with its price (#1491 S6), for the user to pick before the paid call. */
-function proposalLines(proposal: QuoteResponse["scene_proposal"]): string[] {
-  if (!proposal) return [];
-  if (proposal.state === "writing") return ["", `**Scene proposal** · being written; quote again in about ${proposal.retry_after_s} s.`];
-  if (proposal.state === "unavailable") return ["", `**Scene proposal** · none: ${quoted(proposal.reason)}`];
-  const scene = proposal.scene ? Object.entries(proposal.scene).map(([field, value]) => `${field}: ${[value].flat().join("; ")}`).join(" · ") : "";
-  return ["", `**Scene proposal** ${proposal.id} · about ${credits(proposal.base_credits)} credits with the scene and the free additions`,
-    ...(scene ? [`Scene: ${quoted(scene)}`] : []),
-    ...proposal.free.map(entry => `- Free: ${quoted(entry.what)}`),
-    ...(proposal.options.length ? ["", "| Option | What it adds | Credits |", "|---|---|---:|",
-      ...proposal.options.map(option => `| ${option.id} | ${quoted(option.what)} | +${credits(option.credits)} |`)] : []),
-    ...proposal.notes.map(note => `- Note: ${quoted(note)}`),
-    "", "Let the user pick the options, then pass proposal { id, accept: [their option ids] } with this body unchanged; quote it first " +
-      "for the exact total."];
 }
 
 /** The look the video draws in and where it came from (#1122), so the user confirms it before money. */
@@ -114,7 +97,6 @@ export function facelessQuoteMarkdown(quote: FacelessQuoteResponse): string {
     // Both levels of the same explainer (#1291 F4), so the user picks one before money; a film takes about half an hour.
     ...(tiers ? ["", `Explainer levels on this request: standard ${credits(tiers.standard)} credits · pro ${credits(tiers.pro)} credits ` +
       `(this quote: ${tiers.tier}; pass tier to choose). A film takes about half an hour.`] : []),
-    ...proposalLines(quote.scene_proposal),
     ...warningLines(quote.warnings),
   ].join("\n");
 }

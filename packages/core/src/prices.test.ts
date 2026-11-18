@@ -194,8 +194,10 @@ describe("each price is the constant billing charges by", () => {
 
   /** Mutants: a listed row left out, a price that is no row's, a model under the other tool. */
   it("generations: exactly the listed models' rows, per image or per second of clip", () => {
+    // A picture model with prices that differ by format (flare's 21:9 board, #1686) names the format in its variant.
+    const split = (rows: readonly { unit_credits: number }[]) => new Set(rows.map((row) => row.unit_credits)).size > 1;
     const listed = listGenerationModels().flatMap((model) => model.rows.map((row) =>
-      `${model.kind === "video" ? "generate_video" : "generate_image"}|${model.model}|${row.resolution ?? ""}|${row.unit_credits}`));
+      `${model.kind === "video" ? "generate_video" : "generate_image"}|${model.model}|${row.resolution ?? (split(model.rows) ? row.aspect_ratio : "")}|${row.unit_credits}`));
     const priced = [...entriesOf("generate_image"), ...entriesOf("generate_video")].map((entry) => {
       const [model, size = ""] = entry.variant!.split(" ");
       return `${entry.tool}|${model}|${size}|${part(entry)[1]}`;

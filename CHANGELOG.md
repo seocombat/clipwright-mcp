@@ -18,6 +18,41 @@ listed under.
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-11-18
+
+### Added
+
+- *Server-side:* `generate_video` takes `audio: true` with `seedance-2.5`, `seedance-2.5-flash` and `gemini-omni-flash-1.2`: the
+  clip keeps the model's own sound, the words written in the prompt spoken and its effects, at the same price. The models list
+  marks these models `audio: true`; another model asked for sound is refused before any charge. Without it, a clip stays silent.
+- *Server-side:* `generate_video` with `gemini-omni-flash-1.2` takes `resolution: "360p"` in 9:16, in every mode, at 5 credits a
+  second. It is a draft for trying a move cheaply: the clip is softer than 720p, and the quote says so in `warnings[]`. Make the
+  final take at 720p. 16:9 at 360p is not offered.
+- *Server-side:* `generate_image` with `flare` takes `aspect_ratio: "21:9"`, a 2352×1008 picture for a storyboard of four 9:16
+  shots in one row, at 15 credits. Other image models do not offer 21:9.
+- A refusal can name the one call that fixes it, as `error.next` with the tool, its route, its arguments and the fields to change. The
+  film tools' refusals and the refusals of `quote_image`, `quote_video`, `generate_image` and `generate_video` carry it. In the SDK and
+  the MCP server, the failure report passes it on, and its `next_action` names that call.
+- *Server-side:* `get_ad_guide` and `get_film_guide` answer `guides`: every guide your account can read, with the format it covers, when
+  to use it and its `version`.
+- *Server-side:* `get_film_guide` for a faceless format answers `recent_looks`: the looks your latest faceless videos used, newest first,
+  with their format and date, so a new video can pick a look you have not used lately.
+- *Server-side:* `check_cut` takes `{kept}` when it names an entry of `get_film_guide`'s `kept_sounds` word for word, in any case or
+  spacing. A name that is not a kept sound is refused with a pointer to `{describe}` and the nearest kept sound, if one shares a word.
+
+### Removed
+
+- **Breaking:** *Server-side:* `scene`, `proposal` and `shots[].start` on `make_ugc` and `quote_ugc`, and the `scene_proposal`
+  answer of `quote_ugc`. No quote proposes a scene; `propose` is still accepted, as `false` only.
+- **Breaking:** *Server-side:* `scene`, `proposal` and `keep_anchors` on `make_faceless` and `quote_faceless`, and the
+  `scene_proposal` and `tiers` answers of `quote_faceless`.
+- **Breaking:** a request that still names a removed field gets 400, including a retry with an idempotency key used before.
+
+### Changed
+
+- **Breaking:** `tier` on `make_faceless` and `quote_faceless` is refused unless `format` is `explainer`.
+- **Breaking:** *Server-side:* a `talking` live shot takes no `setup`, `start` or `product`; it is always the presenter take.
+
 ## [0.64.0] - 2026-11-17
 
 ### Added

@@ -120,7 +120,6 @@ export * from "./workflows/index.js";
 export * from "./output-provenance.js";
 export * from "./generation-shot.js";
 export * from "./scene-bible.js";
-export * from "./scene-proposal.js";
 export * from "./generations.js";
 export * from "./generations-output.js";
 export * from "./reference-profile.js";

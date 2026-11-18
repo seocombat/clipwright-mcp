@@ -34,25 +34,18 @@ export const sceneBible = z.strictObject({
 }).refine(scene => Object.keys(scene).length > 0, { message: "scene needs at least one field" });
 export type SceneBible = z.infer<typeof sceneBible>;
 
-export const SCENE_DESCRIPTION = "One scene for the whole video, written once: where it happens, how the presenter stands or sits, what " +
-  "they wear, how the product looks, the props and the light. The presenter and every live shot of the video are drawn in it; a presenter " +
-  "photo of your own (image) is kept as it is. Omitted, one is written from the script and the presenter's picture; free.";
-
-/** A live shot's first frame (#1491), described as what is visible, like the scene. */
+/** A live shot's first frame (#1491), described as what is visible, like the scene. Stored runs only: no public body takes it now. */
 export const shotStart = sceneText(MAX_SHOT_START).superRefine((text, context) => {
   const word = negationIn(text);
   if (word) context.addIssue({ code: z.ZodIssueCode.custom, message: absentMessage(word) });
-}).describe("talking_action and action: the first frame, where the actor is and what they hold as the shot begins; omitted, written from " +
-  "the scene and the action.");
+});
 
-/** make_faceless reads the same scene (#1491 S7); its posture is the main character's, and a video with no one in it leaves it out. */
-export const FACELESS_SCENE_DESCRIPTION = "One scene for the whole video, written once: where it happens, how the main character stands or " +
-  "sits, what they wear, how the product looks, the props and the light. Every picture and moving clip of the video is drawn in it; with " +
-  "format explainer, the film's scenes are set in it. Omitted, a picture video gets one written with its story; free.";
-
-export const SCENE_DIRECTOR_DISABLED_MESSAGE = "scene is not available right now; omit scene and each shot's start";
-export const FACELESS_SCENE_DIRECTOR_DISABLED_MESSAGE = "scene is not available on make_faceless right now; omit scene";
-export const SCENE_UNUSED_WARNING = "scene has no effect on this video: it has no live shots";
+/** Stored runs only: the accepted quote proposal a run named before proposals were withdrawn, read as it was written. */
+export const storedSceneProposal = z.strictObject({
+  id: z.string().regex(/^sp_[a-z0-9]{20}$/),
+  accept: z.array(z.string().regex(/^o[1-9][0-9]?$/)).max(12)
+    .refine(ids => new Set(ids).size === ids.length, { message: "each option id once" }).default([]),
+});
 
 /** Server-only: admission freezes the run's direction here, and a public body naming it is refused as an unknown field. */
 export const sceneDirectionMark = z.strictObject({ mode: z.literal("complete"),
@@ -83,20 +76,10 @@ export function runSpeechOf(storedInput: unknown): RunSpeech | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-/** Who the scene director serves: `1` every account, a comma list of account ids only those, anything else nobody. */
-export function sceneDirectorAccounts(env: Record<string, string | undefined>): "all" | ReadonlySet<string> | null {
-  return listedAccounts(env.CLIPWRIGHT_SCENE_DIRECTOR);
-}
-
 /** An account switch's value read one way: `1` every account, a comma list of account ids only those, anything else nobody. */
 export function listedAccounts(raw: string | undefined): "all" | ReadonlySet<string> | null {
   const value = raw?.trim();
   if (value === "1") return "all";
   const ids = (value ?? "").split(",").map(id => id.trim()).filter(id => /^acc_[A-Za-z0-9_-]+$/.test(id));
   return ids.length ? new Set(ids) : null;
-}
-
-/** Whether the run asks for direction by a field of its own: the scene or any shot's start. */
-export function asksSceneDirection(input: { scene?: unknown; shots?: readonly { start?: unknown }[] | undefined }): boolean {
-  return input.scene !== undefined || (input.shots ?? []).some(shot => shot.start !== undefined);
 }

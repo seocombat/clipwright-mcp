@@ -14,8 +14,6 @@ import { MAX_SCENES, SCENES_DISABLED_MESSAGE } from "./ugc-scenes.js";
 import { MOTION_STYLE_UNUSED_WARNING, motionStyleAsked, motionStyleHasCanvas } from "./motion-styles.js";
 import { AD_PAUSE_TRIM_WARNING } from "./ad-pause-trim.js";
 import { isPresenterMatteEnabled, needsPresenterCutout, PRESENTER_MATTE_DISABLED_MESSAGE } from "./presenter-matte.js";
-import { SCENE_DIRECTOR_DISABLED_MESSAGE, SCENE_UNUSED_WARNING, sceneDirectorAccounts } from "./scene-bible.js";
-import { SCENE_PROPOSAL_DISABLED_MESSAGE } from "./scene-proposal.js";
 
 /** Disposition registry for `make_ugc` input fields: every field must have a recorded */
 /** decision. The type guards completeness; tests at each effect boundary prove truth. */
@@ -136,11 +134,7 @@ export const FIELD_DISPOSITIONS = {
   // Each shot drawn by its kind's engine and cut into the timeline as an actor take (#1103), gated by its switch.
   shots: { kind: "implemented", provenBy: "composition" },
   product_asset_id: { kind: "implemented", provenBy: "composition" },
-  // One scene written into every live shot's prompt (#1491), gated by its switch; on a video without shots it is named in warnings[].
-  scene: { kind: "implemented", provenBy: "egress" },
-  // An accepted quote proposal (#1491 S6): admission expands it into the fields above, gated by the scene director's switch.
-  proposal: { kind: "implemented", provenBy: "admission" },
-  // The quote's choice to propose no scene; on a paid call, the choice to add no free move (#1517).
+  // Deprecated: quotes propose no scene, so false changes nothing; kept so an older body parses.
   propose: { kind: "implemented", provenBy: "admission" },
   character: {
     kind: "rejected",
@@ -208,8 +202,6 @@ export interface ContractFlags {
   scenes?: boolean;
   /** Motion styles (#1123); absent means off. */
   motionStyles?: boolean;
-  /** The scene director (#1491), on for at least one account; absent means off. */
-  sceneDirector?: boolean;
 }
 
 /** Motion styles have their own switch and draw only where composition does (#1123). */
@@ -261,7 +253,6 @@ export function contractFlagsFromEnv(
     ...(isLiveShotsEnabled(env) ? { liveShots: true } : {}),
     ...(isScenesEnabled(env) ? { scenes: true } : {}),
     ...(isMotionStylesEnabled(env) ? { motionStyles: true } : {}),
-    ...(sceneDirectorAccounts(env) !== null ? { sceneDirector: true } : {}),
   };
 }
 
@@ -377,8 +368,6 @@ export function resolveDispositions(
       kind: "rejected", message: "visible_ai_label is not available right now; omit it",
     },
     music: flags.music === true ? FIELD_DISPOSITIONS.music : { kind: "rejected", message: MUSIC_DISABLED_MESSAGE },
-    scene: flags.sceneDirector === true ? FIELD_DISPOSITIONS.scene : { kind: "rejected", message: SCENE_DIRECTOR_DISABLED_MESSAGE },
-    proposal: flags.sceneDirector === true ? FIELD_DISPOSITIONS.proposal : { kind: "rejected", message: SCENE_PROPOSAL_DISABLED_MESSAGE },
   };
 }
 
@@ -564,7 +553,6 @@ export function dispositionWarnings(
     scenes: Array.isArray(input.scenes) ? input.scenes : undefined })) warnings.push(MOTION_STYLE_UNUSED_WARNING);
   if (input.pause_trim_source === "ad_default") warnings.push(AD_PAUSE_TRIM_WARNING);
   if (input.end_hold_source === "ad_default") warnings.push(AD_END_HOLD_WARNING);
-  if (input.scene !== undefined && !(Array.isArray(input.shots) && input.shots.length > 0)) warnings.push(SCENE_UNUSED_WARNING);
   warnings.push(...templateFaceWarnings(input), ...templateSizeWarnings(input), ...seriesFitWarnings(input), ...commentCtaFitWarnings(input), ...framingWarnings(input),
     ...callWarnings(input), ...placeWarnings(input, framing => templateSceneItems(scene, framing)), ...interviewWarnings(input));
   return warnings;

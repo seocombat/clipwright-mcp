@@ -34,6 +34,19 @@ export type FilmGuideFormat = (typeof FILM_GUIDE_FORMATS)[number];
 export const FILM_GUIDE_SECTIONS = ["steps", "story", "words", "captions", "voice", "consistency", "pictures", "motion", "density", "repair"] as const;
 export type FilmGuideSection = (typeof FILM_GUIDE_SECTIONS)[number];
 
+/** The most recent looks a faceless guide lists: enough to steer away from a repeat, few enough to leave the menu open. */
+export const RECENT_LOOKS_MAX = 5;
+
+/** The guides this account is served (#1666): which tool and format reads each, when it fits, and its version, the same `version` the guide */
+/** answers; a version you saw before that differs means the guide changed since. */
+export const guideCatalog = z.array(z.strictObject({
+  tool: z.enum(["get_ad_guide", "get_film_guide"]),
+  format: z.enum(FILM_GUIDE_FORMATS).optional(),
+  use_when: z.string().min(1),
+  version: z.string().regex(/^[a-f0-9]{12}$/),
+})).describe("Every guide this account can read, each with its version: read the one that fits the video before its first tool call");
+export type GuideCatalog = z.infer<typeof guideCatalog>;
+
 export const filmGuideQuery = z.strictObject({
   format: z.enum(FILM_GUIDE_FORMATS).optional().describe("The video to make: explainer (the default, a coded film), story, list (facts or " +
     "tips), own_pictures (the user's own pictures) or cartoon (a drawn hero in generated pictures)"),
@@ -59,6 +72,10 @@ export const filmGuide = z.strictObject({
     .describe("Sounds your account's films made and kept, newest first: name one exactly in sfx and it plays again, made nothing new"),
   version: z.string().regex(/^[a-f0-9]{12}$/).optional()
     .describe("The guide's version: a digest of the whole guide of this format, the same whichever section is read"),
+  guides: guideCatalog.optional(),
+  recent_looks: z.array(z.strictObject({ look: z.string(), format: z.enum(FILM_GUIDE_FORMATS), made_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .max(RECENT_LOOKS_MAX).optional()
+    .describe("The looks this account's latest faceless videos used, newest first: pick another unless the user keeps their style"),
 });
 export type FilmGuide = z.infer<typeof filmGuide>;
 

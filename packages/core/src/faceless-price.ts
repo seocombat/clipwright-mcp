@@ -7,7 +7,7 @@ import { namedThings } from "./explainer-fit.js";
 /** The tariff new faceless runs are admitted on (#800); runs admitted on `faceless-image-i2v-v1` keep it. */
 export const FACELESS_TARIFF_ID = "faceless-parts-v1" as const;
 export const FACELESS_LEGACY_TARIFF_ID = "faceless-image-i2v-v1" as const;
-/** A directed video's tariff (#1573): its level, live seconds and direction line, frozen at admission. */
+/** LEGACY: a directed video's tariff (#1573), withdrawn; no admission writes it, and its runs' bills still name it. */
 export const FACELESS_DIRECTED_TARIFF_ID = "faceless-parts-v2" as const;
 export const FACELESS_TARIFF_IDS = [FACELESS_TARIFF_ID, FACELESS_LEGACY_TARIFF_ID, FACELESS_DIRECTED_TARIFF_ID] as const;
 /** A picture video ends with its speech and runs at least 25 s. */
@@ -182,54 +182,5 @@ export function quoteFaceless(input: { outputFrames: number; captions: boolean; 
     ...(authoredScenes ? { authoredScenes, authoredSceneCredits } : {}), ...(objectPictures ? { objectPictures, objectPictureCredits } : {}) };
 }
 
-/** A directed video's prices (#1573): a live second, the direction line, and a picture made for the video; production and the minimum are
- *  the parts tariff's, with no opening clip. A video mostly on the caller's own pictures pays the smaller direction line. */
-export const FACELESS_DIRECTED_PLAIN_LIVE_CREDITS_PER_SECOND = 12;
-// A live second whose frame shows readable text, a logo or a sign costs the text rate; the hold counts every live second at it.
-export const FACELESS_DIRECTED_TEXT_LIVE_CREDITS_PER_SECOND = 20;
-export const FACELESS_DIRECTED_DIRECTION_CREDITS = 120;
-export const FACELESS_DIRECTED_OWN_PICTURES_DIRECTION_CREDITS = 60;
-export const FACELESS_DIRECTED_IMAGE_CREDITS = 9;
-/** The pictures a directed video may make: one per 2.5 selected seconds, at most 24, less the caller's own pictures. */
+/** LEGACY: the pictures a directed video (#1573) could make, one per 2.5 selected seconds and at most 24; its frozen snapshots are read by it. */
 export const facelessDirectedPictures = (selectedSeconds: number): number => Math.min(24, Math.ceil(selectedSeconds / 2.5));
-/** The share of the selected seconds each level plays live: standard about a third, pro every second. Live shots are made at 720p only,
- *  so a 1080p video has none. */
-export const FACELESS_DIRECTED_LIVE_SHARE = { standard: 1 / 3, pro: 1 } as const;
-
-export interface DirectedFacelessAsk {
-  outputFrames: number; captions: boolean; music?: MusicRequest | undefined; ownPictures: number; tier: ExplainerTier;
-  resolution: "720p" | "1080p"; maxCredits?: number | undefined;
-}
-/** A directed quote and the terms admission freezes from it: the level's live seconds, those `max_credits` leaves held at the text rate, and
- *  the live seconds that hold pays when none shows text. */
-export interface DirectedFacelessTerms { quote: FacelessQuote; liveSecondsCeiling: number; plainLiveSeconds: number; stillsCeiling: number;
-  ownPicturesRun: boolean }
-
-/** The most a directed video is charged on its level, which is also the budget it is planned within: every picture it may
- *  make, every selected second, the direction, and the level's live seconds held at the text rate, whole seconds that fit `maxCredits`. */
-export function quoteDirectedFaceless(ask: DirectedFacelessAsk): DirectedFacelessTerms {
-  // The run is charged what it shows, text seconds at 20 and the rest at 12: `totalCreditsWithoutText` is the charge when none shows text.
-  const outputFrames = z.number().int().min(FACELESS_MIN_OUTPUT_FRAMES).max(2250).multipleOf(25).parse(ask.outputFrames);
-  const seconds = outputFrames / 25, pictures = facelessDirectedPictures(seconds);
-  const own = z.number().int().nonnegative().parse(ask.ownPictures), stillsCeiling = Math.max(0, pictures - own);
-  const ownPicturesRun = own > 0 && own * 2 >= pictures;
-  const directionCredits = ownPicturesRun ? FACELESS_DIRECTED_OWN_PICTURES_DIRECTION_CREDITS : FACELESS_DIRECTED_DIRECTION_CREDITS;
-  const liveSecondsCeiling = ask.resolution === "1080p" ? 0 : Math.floor(seconds * FACELESS_DIRECTED_LIVE_SHARE[ask.tier]);
-  const baseCredits = facelessPartsBaseAt(stillsCeiling, FACELESS_DIRECTED_IMAGE_CREDITS, outputFrames);
-  const musicCredits = ask.music === undefined ? 0 : MUSIC_BED_CREDITS;
-  const fixed = Math.max(FACELESS_MIN_BASE_CREDITS, baseCredits + directionCredits) + musicCredits;
-  const text = FACELESS_DIRECTED_TEXT_LIVE_CREDITS_PER_SECOND, plain = FACELESS_DIRECTED_PLAIN_LIVE_CREDITS_PER_SECOND;
-  const fits = ask.maxCredits === undefined ? liveSecondsCeiling : Math.floor((ask.maxCredits - fixed) / text);
-  const shotSeconds = Math.max(0, Math.min(liveSecondsCeiling, fits)), shotCredits = shotSeconds * text;
-  // A level plays at most its held seconds with or without text: the hold covers them at the text rate.
-  const plainLiveSeconds = shotSeconds;
-  return { liveSecondsCeiling, plainLiveSeconds, stillsCeiling, ownPicturesRun, quote: { outputFrames, baseCredits, openerCredits: 0,
-    totalCredits: fixed + shotCredits, totalCreditsWithoutText: fixed + plainLiveSeconds * plain, tariffId: FACELESS_DIRECTED_TARIFF_ID,
-    captions: z.boolean().parse(ask.captions), images: stillsCeiling, imageCredits: FACELESS_DIRECTED_IMAGE_CREDITS, directionCredits, shotSeconds,
-    shotCredits, ...(musicCredits ? { musicCredits } : {}) } };
-}
-
-/** The parts base at a picture price: `images` pictures and every second of `outputFrames`, the seconds rounded up once. */
-export function facelessPartsBaseAt(images: number, imageCredits: number, outputFrames: number): number {
-  return images * imageCredits + Math.ceil(FACELESS_CREDITS_PER_1500_FRAMES * outputFrames / 1500);
-}

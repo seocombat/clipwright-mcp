@@ -8,6 +8,7 @@ import {
   isRetryableFailure,
   parseApiFailure,
   parseRetryAfterSeconds,
+  refusalNextAction,
   retryDelayMs,
 } from "./api-failure.js";
 import { QUEUE_PROMISES } from "./__fixtures__/queue-promises.js";
@@ -770,6 +771,27 @@ describe("take_unchecked", () => {
     expect(agentFailureReport(failure)).toEqual({ status: "FAILED", code: "take_unchecked", message: "clips[0] (run_x) ...", retryable: false,
       next, blocked, next_action: TAKE_UNCHECKED_NEXT_ACTION });
     expect(TAKE_UNCHECKED_NEXT_ACTION).not.toMatch(/^STOP/);
+  });
+});
+
+/** #1666. Mutants: next dropped on the generic read, so the agent is told only to read the message; an off-shape next taking the envelope's */
+/** code and message down with it; the fields to change left out of next_action; apiErrorBody writing a next its own read would drop. */
+describe("a refusal that names its fix", () => {
+  const next = { action: "check_cut", method: "POST" as const, path: "/v1/film-cuts/check", body: {}, add: ["sound.hits[1].sound"],
+    note: "Send the cut sheet to check_cut, free." };
+  it("carries next to the agent and names the call and the fields in next_action", () => {
+    const failure = parseApiFailure({ status: 400, bodyText: JSON.stringify(apiErrorBody({ code: "invalid_request", message: "m", next })), now: NOW });
+    expect(agentFailureReport(failure)).toEqual({ status: "FAILED", code: "invalid_request", message: "m", retryable: false, next,
+      next_action: refusalNextAction(next) });
+    expect(refusalNextAction(next)).toBe("STOP. Do NOT retry unchanged: Send the cut sheet to check_cut, free. Change sound.hits[1].sound first. " +
+      "Then call check_cut (next has its route and arguments). Nothing was charged and no run was created.");
+  });
+  it("drops an off-shape next and keeps the envelope; refuses to write one", () => {
+    const body = { error: { code: "invalid_request", message: "m", next: { action: "x" } } };
+    const report = agentFailureReport(parseApiFailure({ status: 400, bodyText: JSON.stringify(body), now: NOW }));
+    expect([report.code, report.message, "next" in report]).toEqual(["invalid_request", "m", false]);
+    expect(report.next_action).toMatch(/^STOP\. Do NOT retry: the request itself was rejected/);
+    expect(() => apiErrorBody({ code: "invalid_request", message: "m", next: { ...next, extra: 1 } as never })).toThrow();
   });
 });
 

@@ -82,8 +82,9 @@ describe("parts-v3: the Omni live-shot second", () => {
     expect(omni).toEqual({ ...core.PARTS_FACE_TARIFF, pricingVersion: "parts-v3",
       shotCreditsPerSecond: { shot_talking_action: 30, shot_action: 30, shot_omni: 20 } });
     expect(core.partsFaceTariffSchema.parse(omni)).toEqual(omni);
-    expect(core.partsFaceTariffFor(false, "720p")).toEqual(core.PARTS_FACE_TARIFF);
     expect(core.FACE_BILLING_TARIFFS).toEqual([core.PARTS_FACE_TARIFF]);
+    // No admission writes parts-v3 or parts-v4 any more (remove-server-pipelines C5): their chooser is gone.
+    expect("partsFaceTariffFor" in core).toBe(false);
   });
 
   /** Mutant: an Omni second on parts-v2 priced by a fallback rate the run was never quoted. */
@@ -106,16 +107,15 @@ describe("parts-v4: the method tariff", () => {
       shot_seedance_no_text: 217 });
     expect(() => core.partsMethodFaceTariff("4k")).toThrow("no method shot second at 4k");
     expect(core.partsFaceTariffSchema.parse(at720)).toEqual(at720);
-    expect(core.partsFaceTariffFor(true, "1080p")).toEqual(core.partsMethodFaceTariff("1080p"));
     // parts-v3 stays byte for byte for the runs admitted on it.
     expect(core.PARTS_OMNI_FACE_TARIFF.shotCreditsPerSecond).toEqual({ shot_talking_action: 30, shot_action: 30, shot_omni: 20 });
-    expect(core.PRE_PRODUCTION_CREDITS).toBe(270);
+    expect("PRE_PRODUCTION_CREDITS" in core).toBe(false);
   });
 
-  /** The owner's example: a 19 s ad on Omni is 669 with its pre-production; Seedance seconds on their own line. */
+  /** The owner's example: a 19 s ad on Omni is 399 (669 with the 270 pre-production of then); Seedance seconds on their own line. */
   it("prices a 19 s Omni ad at 19 × 20 + 19, and the Seedance seconds of a mixed one at 89 on their own line", () => {
     const omni = core.calculatePartsCharge({ presenter: seconds("shot_omni", 0, 19), outputFrames: 19 * 25, fps: 25, liveAvatarStills: 0 }, at720, true);
-    expect(omni.credits + core.PRE_PRODUCTION_CREDITS).toBe(669);
+    expect(omni.credits).toBe(399);
     const mixed = core.calculatePartsCharge({ presenter: { ...seconds("shot_omni", 0, 12), ...seconds("shot_seedance", 12, 19) }, outputFrames: 19 * 25,
       fps: 25, liveAvatarStills: 0 }, at720, true);
     expect(mixed.lines).toEqual([

@@ -121,26 +121,12 @@ describe("get_run waits on the server (#1000, #1036)", () => {
 });
 
 describe("display_markdown on quotes and finished runs (#1000)", () => {
-  /** #1491 S6. Mutants: the proposal left off the markdown, an option shown without its price, or no word on how to accept it. */
-  it("shows the proposed scene, each free addition and each option with its price, and how to pass the pick", () => {
-    const shown = ugcQuoteMarkdown({ ...UGC_QUOTE, scene_proposal: { state: "ready", id: "sp_00000000000000000001", expires_at: "2026-11-15T00:00:00Z",
-      scene: { place: "a white kitchen counter", posture: "standing" }, free: [{ what: "stat-count-up on \"72 degrees\"" }], base_credits: 420,
-      options: [{ id: "o1", what: "a live shot on \"Follow for more.\"", field: "shots", credits: 150, item: {} },
-        { id: "o2", what: "music made for the video", field: "music", credits: 60, item: "auto" }], notes: [] } });
-    for (const part of ["**Scene proposal** sp_00000000000000000001", "about 420 credits", "place: a white kitchen counter", "Free:",
-      "| o1 | “a live shot on \"Follow for more.\"” | +150 |", "| o2 | “music made for the video” | +60 |", "proposal { id, accept"])
-      expect(shown).toContain(part);
-    expect(ugcQuoteMarkdown({ ...UGC_QUOTE, scene_proposal: { state: "writing", retry_after_s: 15 } })).toContain("quote again in about 15 s");
-  });
-
-  /** #1491 integration. Mutant: quote_faceless's proposal left off its markdown, so the user never sees the options or their prices. */
-  it("shows a faceless quote's proposal the same way", () => {
-    const shown = facelessQuoteMarkdown({ ...FACELESS_QUOTE, scene_proposal: { state: "ready", id: "sp_00000000000000000002",
-      expires_at: "2026-11-15T00:00:00Z", scene: { place: "a wooden kitchen counter" }, free: [], base_credits: 171, notes: [],
-      options: [{ id: "o1", what: "an action shot on \"press the plunger\"", field: "shots", credits: 150, item: {} }] } });
-    for (const part of ["**Scene proposal** sp_00000000000000000002", "about 171 credits", "place: a wooden kitchen counter",
-      "| o1 | “an action shot on \"press the plunger\"” | +150 |", "proposal { id, accept"]) expect(shown).toContain(part);
-    expect(facelessQuoteMarkdown({ ...FACELESS_QUOTE, scene_proposal: { state: "unavailable", reason: "used up" } })).toContain("none: “used up”");
+  /** Scene proposals are withdrawn (#1491): a quote's markdown names none and asks for no pick. */
+  it("names no scene proposal on either quote", () => {
+    for (const shown of [ugcQuoteMarkdown(UGC_QUOTE), facelessQuoteMarkdown(FACELESS_QUOTE)]) {
+      expect(shown).not.toContain("Scene proposal");
+      expect(shown).not.toContain("proposal { id");
+    }
   });
 
   /** Mutant (Codex r2 on #1428 S2): name every template line by one fixed name, and a backdrop reads as a cover story on the quote. */

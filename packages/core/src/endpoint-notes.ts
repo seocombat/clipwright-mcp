@@ -154,7 +154,7 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "POST /v1/skills/generate_image/run":
     "Starts one image generation and answers at once with a run_id; the run's generation block holds the image once delivered. A failed generation is charged nothing. While generations are closed it answers generations_disabled and charges nothing.",
   "POST /v1/skills/generate_video/quote":
-    "Prices one silent clip with this request: credits per second times its duration, width, height and warnings. Charges nothing.",
+    "Prices one clip with this request, silent unless audio is set: credits per second times its duration, width, height and warnings. Charges nothing.",
   "POST /v1/skills/generate_video/run":
     "Starts one clip generation and answers at once with a run_id; the run's generation block holds the clip once delivered. A failed generation is charged nothing. While generations are closed it answers generations_disabled and charges nothing.",
 };

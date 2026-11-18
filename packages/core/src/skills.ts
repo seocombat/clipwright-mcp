@@ -17,8 +17,7 @@ import { countWords } from "./pacing.js";
 import { pauseTrim, VOICE_PACE_MAX, VOICE_PACE_MIN } from "./reference-voice.js";
 import { AD_PAUSE_TRIM, isAdStyleUgcInput } from "./ad-pause-trim.js";
 import { generationShot, negationIn, shotIssues } from "./generation-shot.js";
-import { runSpeech, SCENE_DESCRIPTION, sceneBible, sceneDirectionMark, shotStart, speechActions } from "./scene-bible.js";
-import { proposeField, sceneProposal, sceneProposalAccept } from "./scene-proposal.js";
+import { runSpeech, sceneBible, sceneDirectionMark, shotStart, speechActions, storedSceneProposal } from "./scene-bible.js";
 import { lexicalTokens, quoteOccurrences } from "./semantic-inserts.js";
 import { frameCanvasOf, FULL_FRAME_TRANSITIONS, INSERT_FITS, INSERT_MOTIONS, INSERT_RETIMES, INSERT_STAGE_ENTRANCES, INSERT_TRANSITIONS, LAYER_ENTERS, LAYER_EXITS, layerRefusals, LAYOUT_WINDOW_KINDS, MAX_ENTER_OFFSET_S,
   MAX_LAYOUT_WINDOWS, MAX_OVERLAYS, OVERLAY_POSITIONS, PRESENTER_FRAMINGS, SPLIT_MEDIA_SHARE, SPLIT_MEDIA_SIDES } from "./ugc-layers.js";
@@ -234,8 +233,7 @@ export const MAKE_UGC_AGENT_PROTOCOL =
   "whose video is still being made can go back to 'queued' and succeed later, named in warnings[]. attempt=2,3,… starts a " +
   "NEW run for the same input. For a video like a reference reel, use analyze_reference, then plan_reference_remake with its analysis_id.";
 
-/** The `instructions` of the MCP initialize result, one text for the stdio and the hosted server: */
-/** a client that connects over MCP alone reads this and no skill file. */
+/** The MCP initialize result's `instructions`, one text for stdio and hosted: a client on MCP alone reads this and no skill file. */
 /** The music stop (#1063) is said only where the server offers music, so an agent never asks for a field it refuses. */
 const MUSIC_STOP = isMusicEnabled() ? " Music: ask whether the user wants music under the voice, and show its " +
   "price from the quote; it is off unless asked." : "";
@@ -263,7 +261,7 @@ export const AD_GUIDE_INSTRUCTION = " Before you write an ad's devices and live 
 export const mcpServerInstructions = ({ ownAgent, explainer, adGuide }: { ownAgent: boolean; explainer?: boolean | undefined;
   adGuide?: boolean | undefined }): string => serverInstructions(explainerOffer(ownAgent, explainer ?? EXPLAINER_SOLD), adGuide === true);
 const serverInstructions = (offer: string, adGuide: boolean): string =>
-  "Clipwright makes short presenter (UGC) videos, faceless narrated videos, single images and silent clips. It renders " +
+  "Clipwright makes short presenter (UGC) videos, faceless narrated videos, single images and clips. It renders " +
   "them on its servers and returns the MP4 or image file; it publishes nothing anywhere.\n\n" +
   "tools/list says each tool and field in short. describe_tool answers a tool's full guidance, or one field's, free: read it " +
   "before the first use of a tool or field, such as quote_ugc templates.\n\n" +
@@ -288,10 +286,7 @@ const serverInstructions = (offer: string, adGuide: boolean): string =>
   "assets[].anchor or line_edits. 4. Only the revision the user accepted is approved " +
   "with approve_workflow_plan, then quoted and run. For an ad made with make_ugc directly, pass pause_trim " +
   "{sentence_end_s: 0.15, comma_s: 0.08} and offer a live shot of the actor on its hook (shots: acting, framed wide or full) with its price " +
-  `from quote_ugc.${adGuide ? AD_GUIDE_INSTRUCTION : ""} When a quote_ugc or quote_faceless answer carries a ready scene proposal, show the user its scene and each option with ` +
-  "its credits, say which ones would make the video better, and let the user pick; then pass proposal { id, accept } to make_ugc or " +
-  "make_faceless with the body unchanged. " +
-  "One still being written: quote again after the seconds it names. Its free additions need no ask; to keep your own scene, pass scene instead. " +
+  `from quote_ugc.${adGuide ? AD_GUIDE_INSTRUCTION : ""} ` +
   "plan_reference_remake adds live shots where the reference presenter moves; show them on the quote, and drop them if the " +
   `user declines. If the user declines the brief, go on as asked.${offer}\n\n` +
   "Compose the visuals from our catalogue, in a remake and in a direct video alike. Before you compile or quote, read list_moves " +
@@ -739,7 +734,6 @@ const ugcLiveShotFields = {
     .describe("talking_action and action: the product image (product_asset_id) in the actor's hand or beside them; true is the hand. Shots of " +
       "one setup show it in one place: a shot of the setup that names none takes the placement another names, with a warning. For the product in every presenter " +
       "second, use an actor view holding it (create_actor with from_actor_id and holding)."),
-  start: shotStart.optional(),
   cast: z.array(ugcLiveShotCastMember).min(1).max(MAX_SHOT_CAST)
     .refine(cast => new Set(cast.map(person => person.asset_id)).size === cast.length, { message: "each cast picture appears once in a shot" })
     .optional().describe(`talking_action and action: up to ${MAX_SHOT_CAST} more people in the shot, each from their own picture, with a role and ` +
@@ -750,7 +744,9 @@ const ugcLiveShotFields = {
   shot: generationShot.optional().describe("action only: the clip as a shot, second by second, in place of action alone; its beats run from 0 to " +
     "the last beat's to_s and are stretched to the take's own length."),
 };
-type UgcLiveShotParsed = z.infer<z.ZodObject<typeof ugcLiveShotFields, z.core.$strict>>;
+/** A stored run's shot: its first frame (`start`) was public until the scene director was withdrawn, so old runs still carry it. */
+const storedLiveShotFields = { ...ugcLiveShotFields, start: shotStart.optional() };
+type UgcLiveShotParsed = z.infer<z.ZodObject<typeof storedLiveShotFields, z.core.$strict>>;
 /** A shot's own checks. Without talking poses (#1536) a talking shot refuses setup, start and product, in the order and words as before. */
 const liveShotChecks = (talkingPoses: boolean) => (shot: UgcLiveShotParsed, context: z.RefinementCtx) => {
   const custom = z.ZodIssueCode.custom;
@@ -776,13 +772,15 @@ const liveShotChecks = (talkingPoses: boolean) => (shot: UgcLiveShotParsed, cont
 export const ugcLiveShot = z.strictObject(ugcLiveShotFields).superRefine(liveShotChecks(true));
 /** The shot as accounts outside the ad epic's list send it (#1539): a talking shot has no pose. */
 const ugcLiveShotWithoutPoses = z.strictObject(ugcLiveShotFields).superRefine(liveShotChecks(false));
-export type UgcLiveShot = z.infer<typeof ugcLiveShot>;
+const storedUgcLiveShot = z.strictObject(storedLiveShotFields).superRefine(liveShotChecks(true));
+/** A run's shot: a stored one may carry the withdrawn start (#1491), which no public body takes. */
+export type UgcLiveShot = z.infer<typeof storedUgcLiveShot>;
 export const LIVE_SHOTS_DESCRIPTION = "Live shots of the actor on some words of script: talking, talking_action (speaks while acting) or action " +
   "(acts while the words play as voice-over). Shots may not overlap; words outside them are the presenter's usual take. Needs a 9:16 frame " +
   "and long-form qualification on the server; each kind has its own presenter-second price in list_prices.";
 /** The slim MCP shot list: the server checks each item strictly. */
 export const mcpLiveShots = z.array(z.record(z.string(), z.unknown())).min(1).max(MAX_LIVE_SHOTS)
-  .describe(`[{ id, kind: talking|talking_action|action, anchor: { quote }, cover_words?, action?, setup?, framing?: wide|full, product?: { placement: hand|beside }, start?, cast?: [{ asset_id, role, action? }], transition?: cut|flash|light_leak|whoosh, shot?: as generate_video shot (action only) }]. ${LIVE_SHOTS_DESCRIPTION}`);
+  .describe(`[{ id, kind: talking|talking_action|action, anchor: { quote }, cover_words?, action?, setup?, framing?: wide|full, product?: { placement: hand|beside }, cast?: [{ asset_id, role, action? }], transition?: cut|flash|light_leak|whoosh, shot?: as generate_video shot (action only) }]. ${LIVE_SHOTS_DESCRIPTION}`);
 
 /** What admission pins for an `asset_id` insert; the run reads this key and checks this hash, never the asset row.
  * Server-only: it lives at the top of the stored input, and a public body naming it is refused as an unknown field. */
@@ -817,7 +815,7 @@ export const MAX_NARRATED_ACTOR_SHOTS = MAX_PRESENTER_TAKES;
 export const actorId = z.string().regex(/^actor_[a-z0-9][a-z0-9_-]{0,63}$/);
 
 /** The shots field; without talking poses (#1536) its product check and words are as before them. */
-const liveShotsField = (shot: typeof ugcLiveShot, talkingPoses: boolean) => z.array(shot).min(1).max(MAX_LIVE_SHOTS)
+const liveShotsField = <S extends z.ZodType<UgcLiveShotParsed>>(shot: S, talkingPoses: boolean) => z.array(shot).min(1).max(MAX_LIVE_SHOTS)
   .refine(shots => new Set(shots.map(one => one.id)).size === shots.length, { message: "shot IDs must be unique" })
   .refine(shots => sameProductPerSetup(shots, talkingPoses), { message: `${talkingPoses ? "talking_action, action and posed talking shots"
     : "talking_action and action shots"} of one setup share one picture, so they show the product ` +
@@ -874,9 +872,8 @@ export const makeUgcInputShape = {
   presenter_gaze: z.array(ugcPresenterGaze).min(1).max(MAX_PRESENTER_GAZE).optional().describe(PRESENTER_GAZE_DESCRIPTION),
   shots: liveShotsField(ugcLiveShot, true),
   product_asset_id: assetId.optional().describe("The product image (ast_…) that shots with product show."),
-  scene: sceneBible.optional().describe(SCENE_DESCRIPTION),
-  proposal: sceneProposalAccept.optional(),
-  propose: proposeField,
+  propose: z.literal(false).optional().describe("Deprecated: quotes no longer propose a scene, so false changes nothing; accepted so " +
+    "an older body still parses."),
   person: z.string().min(1).max(2000).optional(),
   actor_id: actorId
     .optional()
@@ -1328,6 +1325,7 @@ export function serverUgcInputWith(
 
 /** A stored run input already passed admission; a model or cap change must not make an */
 /** old run unreadable. The snapshot keeps the actor's gender: the parse feeds the timeline digest, so it stays this narrow. */
+export type StoredUgcInput = z.infer<typeof storedUgcInput>;
 export const storedUgcInput = z.object({
   ...makeUgcInputShape,
   resolution: z.enum(STORED_RESOLUTIONS).optional(),
@@ -1347,6 +1345,10 @@ export const storedUgcInput = z.object({
   end_hold_source: z.literal("ad_default").optional(),
   /** Set when admission froze the scene director for the run's live shots (#1491). */
   scene_direction: sceneDirectionMark.optional(),
+  /** The scene director's public fields, withdrawn (#1491): old runs carry them, so they parse as they were written. */
+  shots: liveShotsField(storedUgcLiveShot, true),
+  scene: sceneBible.optional(),
+  proposal: storedSceneProposal.optional(),
   /** Set when the run's talking_action shots follow the hands-insert rule (#1521); absent, they all speak as admitted before. */
   talking_action_take: z.literal(TALKING_ACTION_VOICE_OVER).optional(),
   /** Set when the run's edited first frames take the product from one product sheet (#1536 S2); absent, they take the photo. */
@@ -1416,8 +1418,9 @@ export function resolvedScript(input: SpokenTextInput): string {
   return text;
 }
 
-/** A run's parsed input; its resolution is what a stored run may hold, 4k included (#1189). */
-export type MakeUgcInput = Omit<z.infer<typeof makeUgcInput>, "resolution"> & { resolution?: Resolution | undefined };
+/** A run's parsed input; its resolution and shots are what a stored run may hold: 4k (#1189), a shot's withdrawn start (#1491). */
+export type MakeUgcInput = Omit<z.infer<typeof makeUgcInput>, "resolution" | "shots"> & { resolution?: Resolution | undefined;
+  shots?: UgcLiveShot[] | undefined };
 
 // The INPUT type (`MakeUgcInputArgs`) lives in `contract-dispositions.ts`: it comes from the
 // OFFERED shape, so SDK autocomplete does not show rejected fields.
@@ -1468,7 +1471,5 @@ export const quoteResponse = z.object({
   tts_model: z.string().min(1),
   /** The design DNA the run draws in and where it came from (#1122); absent when the run names none and the account saved no kit. */
   design: resolvedDesign.extend({ source: z.enum(["request", "brand_kit"]) }).optional(),
-  /** The scene the quote proposes and its options with their prices (#1491); absent where the quote proposes none. */
-  scene_proposal: sceneProposal.optional(),
 });
 export type QuoteResponse = z.infer<typeof quoteResponse>;

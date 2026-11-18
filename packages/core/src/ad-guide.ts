@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { brandGuideBlock } from "./design.js";
+import { guideCatalog } from "./film-guide.js";
 
 // The ad guide (#1539 P3): short rules for an agent building an ad with make_ugc, served read-only and free.
 
@@ -21,5 +22,6 @@ export const adGuide = z.strictObject({
   guide: z.string().min(1).describe("The ad guide, Markdown: the word → device catalogue, the hook, poses, live shots, captions, hands and density"),
   /** Since #1539 stage 2: the whole guide's version, the same for every section; an ad record notes the version it was made with. */
   version: z.string().regex(/^[a-f0-9]{12}$/).optional().describe("The guide's version: it changes whenever any part of the guide does"),
+  guides: guideCatalog.optional(),
 });
 export type AdGuide = z.infer<typeof adGuide>;

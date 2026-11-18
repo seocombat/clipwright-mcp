@@ -155,7 +155,7 @@ export interface ClientFailure extends WorkflowDiagnostics {
   message: string;
   /** Code from the body, if the body followed the contract at all. */
   code: string | undefined;
-  /** On `take_unchecked`: the check to run next and what unblocks the cut. */
+  /** The one call that fixes the refusal, when the server names it (#1666); on `take_unchecked`, the check to run and what unblocks the cut. */
   next?: DiyNext;
   blocked?: DiyBlocked;
 }
@@ -515,7 +515,8 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
   if (status >= 500) {
     return { kind: "server_error", ...diagnostics, status, message, retryAfterSeconds: headerSeconds };
   }
-  return { kind: "client_error", ...diagnostics, status, message, code };
+  const next = generic.success ? generic.data.error.next : undefined;
+  return { kind: "client_error", ...diagnostics, status, message, code, ...(next && { next }) };
 }
 
 /** Message when the body said nothing usable, instead of a parser `SyntaxError` */
@@ -593,6 +594,13 @@ export const UNAUTHORIZED_NEXT_ACTION =
   `${PUBLIC_APP_BASE_URL}/auth/sign-up comes with trial credits), puts it in the MCP server's environment as ` +
   "CLIPWRIGHT_API_KEY, never in the chat, and restarts the host. With the hosted connector, the human reconnects it and " +
   "signs in again. Then call get_account, which is free, to confirm.";
+
+/** A refusal that names its fix: the call in `next`, with the fields to change first, when there are any. */
+export function refusalNextAction(next: DiyNext): string {
+  const fields = next.add.length ? ` Change ${next.add.join(", ")} first.` : "";
+  return `STOP. Do NOT retry unchanged: ${next.note}${fields} Then call ${next.action} (next has its route and arguments). ` +
+    "Nothing was charged and no run was created.";
+}
 
 export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
   const base = { message: failure.message,
@@ -798,6 +806,7 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
         next_action: failure.code === "take_unchecked" ? TAKE_UNCHECKED_NEXT_ACTION :
           failure.code === "upload_not_finished" ? UPLOAD_NOT_FINISHED_NEXT_ACTION :
           failure.code === "unauthorized" ? UNAUTHORIZED_NEXT_ACTION :
+          failure.next ? refusalNextAction(failure.next) :
           "STOP. Do NOT retry: the request itself was rejected, so repeating it unchanged gives " +
           "the same answer. Read the message, fix the call, or tell the user what is wrong.",
       };

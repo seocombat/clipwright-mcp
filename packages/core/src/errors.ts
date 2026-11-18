@@ -10,12 +10,13 @@ import { actorCreationLimitedError, rateLimitedError } from "./rate-limit.js";
 // Refusal bodies are built through schemas, not handler literals: a 402 carries numbers the
 // agent acts on. Numbers sit INSIDE `error`, since an error response has one envelope.
 
-/** The generic error envelope. Tolerates extra fields inside `error`: the typed refusals */
-/** below extend it, and generic parsing must not break when a code brings numbers. */
+/** The generic error envelope, tolerant of extra fields, so a code that brings numbers still parses; a refusal may name the */
+/** one call that fixes it as `next` (#1666), and an off-shape `next` is dropped, not the envelope. */
 export const apiError = z.object({
   error: z.object({
     code: z.string().min(1),
     message: z.string().min(1),
+    next: diyNext.optional().catch(undefined),
   }),
 });
 export type ApiError = z.infer<typeof apiError>;
@@ -490,10 +491,6 @@ const BARE_ERROR_CODES = [
   "own_agent_disabled",
   "own_agent_marking_pending",
   "paid_render_disabled",
-  "proposal_expired",
-  "proposal_not_found",
-  "proposal_not_ready",
-  "proposal_stale",
   "payload_too_large",
   "reference_analysis_disabled",
   "reference_analysis_limited",
@@ -560,6 +557,8 @@ export const API_ERROR_CODES: readonly string[] = [
 
 /** A bare refusal body. The only path to one: a code outside the registry does not */
 /** compile, and an envelope built around this function fails the envelope guard test. */
-export function apiErrorBody(args: { code: BareApiErrorCode; message: string }): ApiError {
-  return apiError.parse({ error: { code: args.code, message: args.message } });
+export function apiErrorBody(args: { code: BareApiErrorCode; message: string; next?: DiyNext | undefined }): ApiError {
+  // Strict on write: the read side drops an off-shape next, so a wrong one here would vanish unseen.
+  const next = args.next === undefined ? {} : { next: diyNext.parse(args.next) };
+  return apiError.parse({ error: { code: args.code, message: args.message, ...next } });
 }

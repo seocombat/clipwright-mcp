@@ -3,10 +3,11 @@ import { ClipwrightApiError, type ClipwrightClient } from "@clipwright/sdk";
 import { adId, createAdInput, updateAdInput, agentRetryShape, checkFilmInput, createFilmDraftInput, filmCutInput, filmDraftId, filmEditInput, filmHeroInput, OWN_EDIT_MAX_SECONDS, TAKE_CHECK_PROMPT_MAX_CHARS, TAKE_FRAMES_PER_HOUR, filmGuideQuery, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL,
   OWN_STILLS_SINGLE_MAX, putFilmFilesInput, runId, takeCheckInput, takeFramesInput, type FilmRun, filmCutRunInput, OWN_CUT_INCLUDED_SECONDS,
   OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, type TakeCheckRequest, createCutInput, CUT_MAX_QUIET_SEC, CUT_PREVIEW_MAX_STILLS,
-  cutId, filmCutPreviewInput, updateCutInput } from "@clipwright/core";
+  cutId, filmCutPreviewInput, guideModesOf, updateCutInput } from "@clipwright/core";
 
 import { withFailureReport, type McpToolResponse } from "./format.js";
 import { fetchImage, IMAGE_BUDGET_MS, type ImageBlock } from "./images.js";
+import type { CreateServerOptions } from "./server.js";
 
 // The «own agent» explainer's film drafts and runs (#1291 F2, #1337): scene files, the frozen brand theme, stills as pictures, a voice with
 // word timings and the render. Listed only where the mode is offered.
@@ -51,18 +52,22 @@ export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published, after quote_
 export const CREATE_AD_DESCRIPTION = "Free. Starts the ad's record once the script and shot list are written: brief (product, audience, " +
   "message, notes with the product page's facts) and slots, one per shot in cut order ({ id: \"hook\", shot: \"what it shows and the line it " +
   "carries\" }). Pass its ad_id and a slot to check_take for every take, and ad_id to render_edit: the cut is refused before any credits while a " +
-  "slot's take has not passed. Mistakes to avoid: one slot for two shots; a new record per take; slot ids you will not reuse.";
+  "slot's take has not passed. A slot with people_only: true (no product, label or detail in any frame) takes generated takes unchecked. " +
+  "Mistakes to avoid: one slot for two shots; a new record per take; slot ids you will not reuse; people_only on a shot that shows the product.";
 export const UPDATE_AD_DESCRIPTION = "Free. Replaces the record's brief, its slots or both. slots is the whole shot list again, not a patch: send " +
-  "every slot you keep. Mistakes to avoid: dropping a slot that has checked takes (refused; reword it instead); a new record when the shot list grows.";
+  "every slot you keep. Mistakes to avoid: dropping a slot that has checked takes (refused; reword it instead); turning people_only on for a " +
+  "slot that has checked takes (refused; add a new slot instead); a new record when the shot list grows.";
 export const GET_AD_DESCRIPTION = "Free. The ad record: each slot's state (no_take, checking, failed, passed), its takes with every check_take " +
   "verdict, the edits, and next: the call to make now with its arguments (a check for the first slot without a passing take, then the edit " +
   "with each slot's passing take on its longest clean window). passed is what render_edit decides: a clip made with generate_video when it " +
-  "was checked in the slot and the latest verdict on its file passed; own_footage takes always, their checks only advice. blocked says why " +
+  "was checked in the slot and the latest verdict on its file passed, or in a people_only slot when its file has no check that did not pass; " +
+  "own_footage takes always, their checks only advice. A people_only slot never blocks the edit. blocked says why " +
   "the edit would be refused and what unblocks it; your own footage needs no check in any slot. " +
   "Mistakes to avoid: cutting a take the record shows as failed; guessing windows when next already has them.";
 export const QUOTE_EDIT_DESCRIPTION = "Free. What render_edit would hold for this edit list, and film_sec: how long the cut runs. Checks every " +
   "clip, window, voice piece and caption first and names what is wrong; that every clip you made with generate_video passed check_take on its " +
-  "file (your own uploaded footage needs no check, with or without ad_id), and with ad_id that each generated clip passed in its slot. With music.generate, lines show " +
+  "file (your own uploaded footage needs no check, with or without ad_id), and with ad_id that each generated clip passed in its slot " +
+  "(a people_only slot takes it unchecked, named in warnings). With music.generate, lines show " +
   "the cut and the music apart. Answers next: render_edit with the same arguments. Show it and wait for the go-ahead. Mistakes to avoid: " +
   "cutting a generated take before its check; from and to in the edit's seconds (they are the clip's own); captions in the clip's seconds " +
   "(they are the edit's); a window that keeps an empty first frame or leaves the take's clean windows; a voice that runs past the cut; " +
@@ -76,7 +81,8 @@ export const RENDER_EDIT_DESCRIPTION = "Paid once per delivered cut, after quote
   "edit that fails costs nothing. Returns at once; call get_film_run until it is succeeded (video_url) or failed. A clip you made with " +
   "generate_video whose file has not passed check_take is refused before any credits (409 take_unchecked, with next: the check to run); " +
   "your own uploaded footage needs no check. With ad_id every clip names its slot, and a generated clip that has not passed check_take in " +
-  "its slot is refused (409 ad_slot_unchecked) before any credits; your own footage goes in any slot unchecked. Mistakes to avoid: rendering without the quote's go-ahead; cutting a generated take " +
+  "its slot is refused (409 ad_slot_unchecked) before any credits, unless the slot is people_only and the file has no check that did not " +
+  "pass; your own footage goes in any slot unchecked. Mistakes to avoid: rendering without the quote's go-ahead; cutting a generated take " +
   "before its check passes (frames you looked at are not a check); changing the arguments between quote and render; expecting a zoom (it " +
   "has none); music under a voice-led ad at volume above -6; a music-only cut without music; a caption over the product, its print, the " +
   "hands or the face.";
@@ -96,7 +102,9 @@ export const QUOTE_TAKE_CHECK_DESCRIPTION = "Free. What check_take would hold fo
 export const CHECK_TAKE_DESCRIPTION = "Paid per delivered verdict, after quote_take_check. Judges your generate_video clip (run_id) or video " +
   "asset (asset_id) frame by frame against direction, the shot's part of the prompt you made it with (up to 1500 characters): each defect with its code, the seconds it shows, its " +
   "repair level (asset: a new first frame or reference; action: the prompt's steps; camera: the framing; roll: the same prompt again) and " +
-  "whole_take when it cannot be cut out, then clean: the windows without defects, 0.5 s or longer, to cut from. product_image: the product as it " +
+  "whole_take when it cannot be cut out, then clean: the windows without defects, 0.5 s or longer, to cut from. A take with its own sound is " +
+  "also heard: a voice that does not fit the person on screen who speaks is VOICE_MISMATCH, a fault of its sound that leaves the clean " +
+  "windows as they are; render_edit then cuts the take only silent (no sound: true). product_image: the product as it " +
   "really is; moves: the seconds a hand meets the product, looked at first. ad_id and slot: the verdict joins that slot of the ad record. " +
   "format: fashion (people and clothes in motion) or product (a product in the hands, the default); motion, free, measures the take and each " +
   "clean window as subject motion (the camera's own move taken out), camera move and camera shake, names a window too static for this format " +
@@ -225,28 +233,38 @@ async function runAnswer(run: FilmRun, fetchImpl?: typeof fetch): Promise<McpToo
   return { content: [text({ ...withPoll(run), ...(note ? { pictures: note } : {}) }), ...images] } as unknown as McpToolResponse;
 }
 
-/** Asks the API whether the mode is open for this key: the guide answers an account it is open to and is refused (4xx) for the rest.
- *  Unreachable or a server fault: no film tools, one stderr line, the server still starts. */
-export async function ownAgentOpenFor(client: Pick<ClipwrightClient, "getFilmGuide">, log: (line: string) => void = console.error): Promise<boolean> {
+/** A guide's answer; `closed` where the API refuses it (4xx) to this key. Unreachable or a server fault: `failed` and one stderr line
+ *  naming `what`, and the server still starts without those tools. */
+async function guideAnswer<T>(read: () => Promise<T>, what: string, log: (line: string) => void): Promise<{ answer: T } | "closed" | "failed"> {
   try {
-    await client.getFilmGuide();
-    return true;
+    return { answer: await read() };
   } catch (error) {
-    if (error instanceof ClipwrightApiError && error.status >= 400 && error.status < 500) return false;
+    if (error instanceof ClipwrightApiError && error.status >= 400 && error.status < 500) return "closed";
     // Never the error's message: it can echo a request header, the key, or a body with newlines.
     const why = error instanceof ClipwrightApiError ? `HTTP ${error.status}` : "no usable answer";
-    log(`clipwright mcp: could not ask whether the film tools are open (${why}); starting without them`);
-    return false;
+    log(`clipwright mcp: could not ask whether the ${what} tools are open (${why}); starting without them`);
+    return "failed";
   }
 }
 
-/** What a stdio server offers, by the API: the film tools by the guide, the made-for-you explainer by its line on the price list. */
-export async function stdioModes(client: Pick<ClipwrightClient, "getFilmGuide" | "listPrices">, log: (line: string) => void = console.error):
-  Promise<{ ownAgent: boolean; explainer: boolean }> {
+/** Asks the API whether the mode is open for this key: the guide answers an account it is open to and is refused for the rest. */
+export async function ownAgentOpenFor(client: Pick<ClipwrightClient, "getFilmGuide">, log: (line: string) => void = console.error): Promise<boolean> {
+  return typeof await guideAnswer(() => client.getFilmGuide(), "film", log) === "object";
+}
+
+/** What a stdio server offers, by the API, so it lists what the hosted server lists for the same account: the film tools by the guide, the
+ *  ad and faceless tools by the guide's catalog, the made-for-you explainer by its line on the price list. Every option is set. */
+export async function stdioModes(client: Pick<ClipwrightClient, "getFilmGuide" | "getAdGuide" | "listPrices">,
+  log: (line: string) => void = console.error): Promise<Required<Omit<CreateServerOptions, "fileAccess">>> {
   const explainer = client.listPrices().then(({ prices }) => prices.some(p => p.tool === "make_faceless" && p.variant?.startsWith("explainer") === true),
     () => { log("clipwright mcp: could not read the price list; starting without the explainer offer"); return false; });
-  const [ownAgent, sold] = await Promise.all([ownAgentOpenFor(client, log), explainer]);
-  return { ownAgent, explainer: sold };
+  const [film, sold] = await Promise.all([guideAnswer(() => client.getFilmGuide(), "film", log), explainer]);
+  const guides = typeof film === "object" ? film.answer.guides : undefined, { adGuide, facelessDiy } = guideModesOf(guides);
+  // The ad guide is listed alone where the film tools are closed, or where the API names no catalog: then it is asked on its own. An API
+  // that failed is not asked again, so a hung one delays the start once.
+  const adOpen = guides !== undefined ? adGuide
+    : film !== "failed" && typeof await guideAnswer(() => client.getAdGuide({ section: "ugc" }), "ad", log) === "object";
+  return { ownAgent: typeof film === "object", explainer: sold, adGuide: adOpen, facelessDiy };
 }
 
 /** The same arguments and attempt are the same run, a failed one too: a repeat needs its own attempt. */

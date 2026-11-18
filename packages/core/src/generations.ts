@@ -12,7 +12,7 @@ export const GENERATE_IMAGE_RUN_PATH = "/v1/skills/generate_image/run";
 export const GENERATE_VIDEO_QUOTE_PATH = "/v1/skills/generate_video/quote";
 export const GENERATE_VIDEO_RUN_PATH = "/v1/skills/generate_video/run";
 
-export const GENERATION_IMAGE_MODELS = ["seedream-5.0-flash", "flare", "gemini-3-pro-image", "gemini-nano-banana-2.1"] as const;
+export const GENERATION_IMAGE_MODELS = ["seedream-5.0-flash", "seedream-5.5", "flare", "gemini-3-pro-image", "gemini-nano-banana-2.1"] as const;
 export const GENERATION_VIDEO_MODELS = [
   "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5", "seedance-2.5-flash", "kling-3.0", "kling-4.0", "kling-4.0-flash",
   "gemini-omni-flash-1.1", "gemini-omni-flash-1.2",
@@ -72,6 +72,8 @@ export interface GenerationImageCapability {
   kind: "image";
   /** The references a request may carry, measured live; absent means `GENERATION_MAX_REFERENCES`. */
   max_references?: number;
+  /** The fewest references a request needs, where the model only edits a picture it is given; absent means none. */
+  min_references?: number;
   rows: readonly GenerationImageRow[];
 }
 
@@ -142,10 +144,16 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
     kind: "image",
     rows: [image("9:16", 1440, 2560, 5, true), image("16:9", 2560, 1440, 5, true), image("1:1", 2048, 2048, 5, true)],
   },
+  // A cleanup pass over a board or picture (#1686), measured live 17.11: it edits the pictures it is given.
+  "seedream-5.5": {
+    kind: "image",
+    min_references: 1,
+    rows: [image("9:16", 1440, 2560, 17, true), image("21:9", 3024, 1296, 17, true)],
+  },
   flare: {
     kind: "image",
     // 21:9 measured live 17.11 (#1686) with four references: a storyboard strip, priced on its own cost.
-    rows: [image("9:16", 1008, 1792, 6, true), image("16:9", 1792, 1008, 6), image("1:1", 1024, 1024, 6), image("21:9", 2352, 1008, 15, true)],
+    rows: [image("9:16", 1008, 1792, 7, true), image("16:9", 1792, 1008, 7), image("1:1", 1024, 1024, 7), image("21:9", 2352, 1008, 16, true)],
   },
   // An editor of up to 14 pictures (product, person, place, prop); 9:16 is 0.8% off, inside the 2% match.
   "gemini-3-pro-image": {
@@ -281,6 +289,7 @@ export function withNoTextClause(promptText: string, options: { hasReference: bo
 
 const imageMaxReferences = (model: GenerationImageModel): number =>
   GENERATION_CAPABILITIES[model].max_references ?? GENERATION_MAX_REFERENCES;
+const imageMinReferences = (model: GenerationImageModel): number => GENERATION_CAPABILITIES[model].min_references ?? 0;
 
 /** No `visible_ai_label`: an unknown key is refused, never passed to the provenance policy (D12). */
 export const generateImageRequest = z.strictObject({
@@ -289,12 +298,18 @@ export const generateImageRequest = z.strictObject({
   model: z.enum(GENERATION_IMAGE_MODELS),
   aspect_ratio: z.enum(GENERATION_IMAGE_ASPECTS),
   references: z.array(generationReference).max(Math.max(...GENERATION_IMAGE_MODELS.map(imageMaxReferences))).optional()
-    .describe("Pictures the image is made from; each model takes up to its max_references (list_generation_models)."),
+    .describe("Pictures the image is made from; each model takes up to its max_references, and at least its min_references where it " +
+      "lists one (list_generation_models)."),
   max_credits: maxCreditsField,
 }).superRefine((request, context) => {
   const most = imageMaxReferences(request.model);
-  if ((request.references?.length ?? 0) > most) {
+  const count = request.references?.length ?? 0;
+  if (count > most) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["references"], message: `${request.model} takes up to ${most} references` });
+  }
+  if (count < imageMinReferences(request.model)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["references"],
+      message: `${request.model} cleans up a picture: pass the picture, and any product photos, as references` });
   }
 });
 export type GenerateImageRequest = z.infer<typeof generateImageRequest>;
@@ -378,6 +393,7 @@ export function findCapabilityRow(request: GenerationRequest): GenerationMatch |
     return row?.measured ? { kind: "video", model: request.model, capability, row } : null;
   }
   const capability = GENERATION_CAPABILITIES[request.model];
+  if ((request.references?.length ?? 0) < imageMinReferences(request.model)) return null;
   const row = capability.rows.find((one) => one.aspect_ratio === request.aspect_ratio);
   return row?.measured ? { kind: "image", model: request.model, capability, row } : null;
 }
@@ -431,6 +447,8 @@ const listedModel = z.strictObject({
   /** Present when the model takes only these lengths inside `duration_s`. */
   duration_values: z.array(z.number().int().positive()).min(1).optional(),
   max_references: z.number().int().nonnegative(),
+  min_references: z.number().int().positive().optional()
+    .describe("Present on a picture model that only cleans up pictures it is given: the fewest references a request takes."),
   audio: z.literal(true).optional().describe("Present on a clip model that keeps its own sound on audio: true, at the same price."),
   rows: z.array(listedRow).min(1),
 });
@@ -450,8 +468,9 @@ export function listGenerationModels(options: { audio?: boolean } = {}): ListedG
     if (capability.kind === "image") {
       const rows = capability.rows.filter((row) => row.measured)
         .map(({ aspect_ratio, width, height, unit_credits }) => ({ aspect_ratio, resolution: null, width, height, unit_credits }));
+      const fewest = imageMinReferences(model as GenerationImageModel);
       return rows.length === 0 ? [] : [{ model, kind: "image", unit: "image", modes: null, duration_s: null,
-        max_references: imageMaxReferences(model as GenerationImageModel), rows }];
+        max_references: imageMaxReferences(model as GenerationImageModel), ...(fewest > 0 ? { min_references: fewest } : {}), rows }];
     }
     const modes = GENERATION_VIDEO_MODES.filter((mode) => capability.modes[mode]);
     const rows = capability.rows.filter((row) => row.measured)

@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import type { CreateServerOptions } from "./server.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { OWN_STILLS_SINGLE_MAX, parseApiFailure, putFilmFilesInput, type FilmRun } from "@clipwright/core";
+import { FILM_GUIDE_FORMATS, guideModesOf, OWN_STILLS_SINGLE_MAX, parseApiFailure, putFilmFilesInput, type FilmGuideFormat, type FilmRun }
+  from "@clipwright/core";
 import type { ClipwrightClient } from "@clipwright/sdk";
 import { listTools } from "./remote.js";
 import { ClipwrightApiError } from "@clipwright/sdk";
@@ -500,16 +502,86 @@ describe("a stills run read again (#1372 C2)", () => {
 describe("stdioModes (#1356 C5)", () => {
   const entry = (tool: string, variant: string | null) => ({ action: tool, tool, route: null, variant, lines: [], formula: null, minimum_credits: null,
     quote_tool: null, notes: null });
-  const api = (prices: ReturnType<typeof entry>[]) => ({ getFilmGuide: async () => ({}) as never, listPrices: async () => ({ prices }) });
+  const api = (prices: ReturnType<typeof entry>[]) => ({ getFilmGuide: async () => ({ guides: [] }) as never, getAdGuide: async () => ({}) as never,
+    listPrices: async () => ({ prices }) });
+  const closed = { adGuide: false, facelessDiy: false };
   it("offers the made-for-you explainer when the API prices it, and not when it does not", async () => {
-    expect(await stdioModes(api([entry("make_faceless", "explainer standard"), entry("make_faceless", "explainer pro")]))).toEqual({ ownAgent: true, explainer: true });
-    expect(await stdioModes(api([entry("make_faceless", null), entry("make_ugc", "explainer standard")]))).toEqual({ ownAgent: true, explainer: false });
+    expect(await stdioModes(api([entry("make_faceless", "explainer standard"), entry("make_faceless", "explainer pro")]))).toEqual({ ownAgent: true, explainer: true, ...closed });
+    expect(await stdioModes(api([entry("make_faceless", null), entry("make_ugc", "explainer standard")]))).toEqual({ ownAgent: true, explainer: false, ...closed });
   });
   it("says no with one fixed stderr line when the price list does not answer", async () => {
     const log: string[] = [];
-    const modes = await stdioModes({ getFilmGuide: async () => ({}) as never, listPrices: async () => { throw new TypeError("fetch failed cw_secret"); } },
-      l => log.push(l));
-    expect([modes, log.length, log[0]?.includes("cw_secret")]).toEqual([{ ownAgent: true, explainer: false }, 1, false]);
+    const modes = await stdioModes({ getFilmGuide: async () => ({ guides: [] }) as never, getAdGuide: async () => ({}) as never,
+      listPrices: async () => { throw new TypeError("fetch failed cw_secret"); } }, l => log.push(l));
+    expect([modes, log.length, log[0]?.includes("cw_secret")]).toEqual([{ ownAgent: true, explainer: false, ...closed }, 1, false]);
+  });
+});
+
+// #1696: the npm server lists what the hosted one lists for the same account, read from the guide catalog the API answers.
+// Mutants: the catalog ignored, an explainer entry read as faceless, the ad guide not asked alone, or a mode listed apart.
+describe("stdio lists the hosted server's DIY tools (#1696)", () => {
+  const refused = new ClipwrightApiError(parseApiFailure({ status: 403, bodyText: "{}", retryAfterHeader: null }));
+  const v = "0123456789ab", use_when = "w";
+  const AD = { tool: "get_ad_guide" as const, use_when, version: v };
+  const film = (format: FilmGuideFormat) => ({ tool: "get_film_guide" as const, format, use_when, version: v });
+  // Mutant: a looser return type, so a new option of the factory goes unanswered on stdio and stays off there.
+  it("answers every option of the server factory but the file access", () => {
+    expectTypeOf<Awaited<ReturnType<typeof stdioModes>>>().toEqualTypeOf<Required<Omit<CreateServerOptions, "fileAccess">>>();
+  });
+  // Mutant: one faceless format read as the mode, so a catalog that lists only another one hides the tools.
+  it.each(FILM_GUIDE_FORMATS.filter(format => format !== "explainer"))("opens the faceless tools on a catalog that lists %s alone", async (format) => {
+    expect(guideModesOf([film(format)])).toEqual({ adGuide: false, facelessDiy: true });
+    expect(await stdioModes(fake([film("explainer"), film(format)]).client)).toMatchObject({ facelessDiy: true });
+  });
+  const fake = (guides: unknown, ad: "answers" | "refused" = "refused") => {
+    const asked: string[] = [];
+    return { asked, client: {
+      // As the API answers: a faceless format is refused to an account it is not served, so only the plain guide tells the modes.
+      getFilmGuide: async (query?: object) => { asked.push("film");
+        return (guides === "refused" || Object.keys(query ?? {}).length ? Promise.reject(refused) : { guides }) as never; },
+      getAdGuide: async () => { asked.push("ad"); return (ad === "refused" ? Promise.reject(refused) : {}) as never; },
+      listPrices: async () => ({ prices: [] }) } };
+  };
+  it.each([
+    [[film("explainer")], { ownAgent: true, adGuide: false, facelessDiy: false }],
+    [[AD, film("explainer")], { ownAgent: true, adGuide: true, facelessDiy: false }],
+    [[film("explainer"), film("story"), film("cartoon")], { ownAgent: true, adGuide: false, facelessDiy: true }],
+    [[AD, film("explainer"), film("cartoon")], { ownAgent: true, adGuide: true, facelessDiy: true }],
+    [[], { ownAgent: true, adGuide: false, facelessDiy: false }],
+  ])("reads the modes from the film guide's catalog %j, asking nothing more", async (guides, modes) => {
+    const { asked, client } = fake(guides);
+    expect(await stdioModes(client)).toEqual({ ...modes, explainer: false });
+    expect(asked).toEqual(["film"]);
+  });
+  it.each([["refused", "answers", true], ["refused", "refused", false], [undefined, "answers", true]] as const)(
+    "asks the ad guide on its own where the film guide is closed or names no catalog (film %s, ad %s)", async (guides, ad, open) => {
+      const { asked, client } = fake(guides, ad);
+      expect(await stdioModes(client)).toEqual({ ownAgent: guides !== "refused", explainer: false, adGuide: open, facelessDiy: false });
+      expect(asked).toEqual(["film", "ad"]);
+    });
+  // Mutants: the ad guide asked after a server fault too, so a hung API holds the start twice; or a status on either side of 4xx misread.
+  const status = (code: number) => new ClipwrightApiError(parseApiFailure({ status: code, bodyText: "{}", retryAfterHeader: null }));
+  it.each([["no answer", new TypeError("fetch failed")], ["HTTP 500", status(500)], ["HTTP 503", status(503)]])(
+    "asks nothing more where the film guide failed (%s), with one stderr line", async (_, failure) => {
+      const log: string[] = [], asked: string[] = [];
+      const modes = await stdioModes({ getFilmGuide: async () => { asked.push("film"); throw failure; },
+        getAdGuide: async () => { asked.push("ad"); return {} as never; }, listPrices: async () => ({ prices: [] }) }, l => log.push(l));
+      expect([modes, asked, log.length]).toEqual([{ ownAgent: false, explainer: false, adGuide: false, facelessDiy: false }, ["film"], 1]);
+    });
+  it.each([400, 404, 499])("reads HTTP %i on the film guide as closed: the ad guide is asked, nothing is logged", async (code) => {
+    const log: string[] = [], asked: string[] = [];
+    const modes = await stdioModes({ getFilmGuide: async () => { asked.push("film"); throw status(code); },
+      getAdGuide: async () => { asked.push("ad"); return {} as never; }, listPrices: async () => ({ prices: [] }) }, l => log.push(l));
+    expect([modes.adGuide, asked, log]).toEqual([true, ["film", "ad"], []]);
+  });
+  // The tool list differs by transport only in what reads a file; every name is on both, so a mode cannot be lost to stdio.
+  it("lists the same tool names on both transports under the same modes", async () => {
+    for (const ownAgent of [false, true]) for (const adGuide of [false, true]) for (const facelessDiy of [false, true]) {
+      const names = async (fileAccess: "local" | "refuse") => (await listTools({ fileAccess, ownAgent, adGuide, facelessDiy })).map(t => t.name).sort();
+      expect(await names("local"), JSON.stringify({ ownAgent, adGuide, facelessDiy })).toEqual(await names("refuse"));
+    }
+    const full = (await listTools({ fileAccess: "local", ownAgent: true, adGuide: true, facelessDiy: true })).map(t => t.name);
+    expect(full).toEqual(expect.arrayContaining(["get_ad_guide", "get_film_guide", "get_film_kit", "check_cut", "create_cut", "render_cut", ...AD_DIY_TOOLS]));
   });
 });
 

@@ -148,7 +148,7 @@ export const filmEditInput = z.strictObject({
   music: editMusic.optional().describe("Music from at to the end: a library track (free) or one made for the cut (paid on delivery); " +
     "under a voice it plays lower"),
   ad_id: adId.optional().describe("The ad record this cut belongs to: every clip then names its slot, and a clip made with generate_video " +
-    "that has not passed check_take in its slot is refused before any credits; your own footage needs no check"),
+    "that has not passed check_take in its slot is refused before any credits, unless the slot is people_only; your own footage needs no check"),
   max_credits: maxCreditsField,
 }).refine(edit => edit.ad_id !== undefined || edit.clips.every(clip => clip.slot === undefined), "a clip's slot needs ad_id")
   .refine(edit => edit.ad_id === undefined || edit.clips.every(clip => clip.slot !== undefined), "with ad_id, every clip names its slot");
@@ -286,6 +286,9 @@ export type TakeCheckVerdict = z.infer<typeof takeCheckVerdict>;
 /** A take passes its check when no defect spans the whole take and a clean window is left to cut from. */
 export const takeCheckPassed = (verdict: Pick<TakeCheckVerdict, "findings" | "clean">): boolean =>
   verdict.clean.length > 0 && !verdict.findings.some(finding => finding.whole_take);
+/** A voice in the take's own sound that does not fit the person on screen: a fault of the sound, not the picture. It closes no clean */
+/** window and never fails the take; an edit refuses the take only when it plays the take's own sound. */
+export const TAKE_VOICE_MISMATCH = "VOICE_MISMATCH" as const;
 
 /** What a hero is drawn from, at least one: a character named by picture or words, else the meaning of the film's script. */
 export const FILM_HERO_SOURCE_FIELDS = ["character_reference", "character_details", "script", "voice_run_id"] as const;

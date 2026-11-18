@@ -47,6 +47,13 @@ export const guideCatalog = z.array(z.strictObject({
 })).describe("Every guide this account can read, each with its version: read the one that fits the video before its first tool call");
 export type GuideCatalog = z.infer<typeof guideCatalog>;
 
+/** The tool sets a guide catalog opens: the ad tools where it lists the ad guide, the faceless tools where it lists a faceless format. */
+export function guideModesOf(guides: GuideCatalog | undefined): { adGuide: boolean; facelessDiy: boolean } {
+  const listed = guides ?? [];
+  return { adGuide: listed.some(entry => entry.tool === "get_ad_guide"),
+    facelessDiy: listed.some(entry => entry.tool === "get_film_guide" && entry.format !== undefined && entry.format !== "explainer") };
+}
+
 export const filmGuideQuery = z.strictObject({
   format: z.enum(FILM_GUIDE_FORMATS).optional().describe("The video to make: explainer (the default, a coded film), story, list (facts or " +
     "tips), own_pictures (the user's own pictures) or cartoon (a drawn hero in generated pictures)"),

@@ -192,7 +192,8 @@ export const filmCutCheck = z.strictObject({
     live_sec: z.number().nonnegative(),
   }).nullable(),
   warnings: z.array(z.string()),
-  next: diyNext.optional().describe("A passed sheet: its quote_cut; a take not yet cleared to play: its check_take quote"),
+  next: diyNext.optional().describe("A passed sheet: its quote_cut; a take not yet cleared to play: its check_take quote; a refused " +
+    "sheet: check_cut again, add naming the fields to fix"),
   blocked: diyBlocked.optional().describe("Why a take of the cut cannot play yet, and what unblocks it"),
 });
 export type FilmCutCheck = z.infer<typeof filmCutCheck>;

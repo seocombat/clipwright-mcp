@@ -25,9 +25,9 @@ const video = (overrides: Partial<GenerateVideoRequest> = {}): GenerateVideoRequ
   ...overrides,
 });
 
-// D1 of #761 (owner 21.10): credits per image and per second; service-core's pricing test derives the same numbers.
-// ×2.5 since 29.10 (#800), the two 21.10 overrides going with it; ×1.3 since 30.10 (#935); on the Business credit from #938; 16.11 prices.
-const D1_IMAGE = { "seedream-5.0-flash": 5, flare: 6, "gemini-3-pro-image": 38, "gemini-nano-banana-2.1": 21 } as const;
+// D1 of #761 (owner 21.10): credits per image and per second; service-core's pricing test derives the same numbers. ×2.5 since 29.10
+// (#800); ×1.3 since 30.10 (#935); on the Business credit from #938; 16.11 prices, Flare 18.11 (#1700), Seedream 5.5 from #1686.
+const D1_IMAGE = { "seedream-5.0-flash": 5, "seedream-5.5": 17, flare: 7, "gemini-3-pro-image": 38, "gemini-nano-banana-2.1": 21 } as const;
 const D1_VIDEO: Record<string, Partial<Record<string, number>>> = {
   "seedance-2.0-mini": { "480p": 5, "720p": 11 },
   "seedance-2.0-fast": { "480p": 15, "720p": 31 },
@@ -46,7 +46,7 @@ describe("capability table", () => {
     for (const model of GENERATION_IMAGE_MODELS) {
       // Flare's 21:9 board (#1686) costs its own measured $0.0597, so it has its own price; every other image row is the model's.
       for (const row of GENERATION_CAPABILITIES[model].rows) {
-        expect(row.unit_credits, `${model} ${row.aspect_ratio}`).toBe(model === "flare" && row.aspect_ratio === "21:9" ? 15 : D1_IMAGE[model]);
+        expect(row.unit_credits, `${model} ${row.aspect_ratio}`).toBe(model === "flare" && row.aspect_ratio === "21:9" ? 16 : D1_IMAGE[model]);
       }
     }
     expect(Object.keys(D1_VIDEO).sort()).toEqual([...GENERATION_VIDEO_MODELS].sort());
@@ -110,6 +110,8 @@ describe("capability table", () => {
       "seedream-5.0-flash 16:9 - 2560x1440",
       "seedream-5.0-flash 1:1 - 2048x2048",
       "seedream-5.0-flash 9:16 - 1440x2560",
+      "seedream-5.5 21:9 - 3024x1296",
+      "seedream-5.5 9:16 - 1440x2560",
     ]);
   });
 
@@ -151,12 +153,21 @@ describe("findCapabilityRow and priceGeneration", () => {
     expect(priceGeneration(video())).toEqual({ unit_credits: 11, units: 4, credits: 44 });
     expect(priceGeneration(video({ camera: "pan" }))).toEqual({ unit_credits: 11, units: 4, credits: 44 });
     expect(priceGeneration(video({ model: "seedance-2.0", resolution: "1080p", duration_s: 15 }))).toEqual({ unit_credits: 94, units: 15, credits: 1410 });
-    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "9:16" })).toEqual({ unit_credits: 6, units: 1, credits: 6 });
-    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "21:9" })).toEqual({ unit_credits: 15, units: 1, credits: 15 });
+    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "9:16" })).toEqual({ unit_credits: 7, units: 1, credits: 7 });
+    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "21:9" })).toEqual({ unit_credits: 16, units: 1, credits: 16 });
     expect(priceGeneration({ prompt: "x", model: "seedream-5.0-flash", aspect_ratio: "9:16" })).toEqual({ unit_credits: 5, units: 1, credits: 5 });
-    // 21:9 is measured on Flare only (#1686): every other image model refuses it before money.
+    // 21:9 is measured on Flare and on Seedream 5.5's cleanup (#1686): every other image model refuses it before money.
     for (const model of ["seedream-5.0-flash", "gemini-3-pro-image", "gemini-nano-banana-2.1"] as const) {
       expect(priceGeneration({ prompt: "x", model, aspect_ratio: "21:9" }), model).toBeNull();
+    }
+    const board = [{ run_id: "run_board" }];
+    expect(priceGeneration({ prompt: "x", model: "seedream-5.5", aspect_ratio: "21:9", references: board }))
+      .toEqual({ unit_credits: 17, units: 1, credits: 17 });
+    expect(priceGeneration({ prompt: "x", model: "seedream-5.5", aspect_ratio: "9:16", references: board }))
+      .toEqual({ unit_credits: 17, units: 1, credits: 17 });
+    // Unmeasured formats of 5.5 are not sold.
+    for (const aspect_ratio of ["16:9", "1:1"] as const) {
+      expect(priceGeneration({ prompt: "x", model: "seedream-5.5", aspect_ratio, references: board }), aspect_ratio).toBeNull();
     }
   });
 
@@ -338,7 +349,8 @@ describe("request schemas", () => {
   // or a model gets more pictures than it was measured with.
   it("takes up to each image model's own measured reference ceiling, naming it when refused", () => {
     const refs = (count: number) => Array(count).fill({ run_id: "run_x" });
-    for (const [model, most] of [["seedream-5.0-flash", 4], ["flare", 4], ["gemini-3-pro-image", 14], ["gemini-nano-banana-2.1", 14]] as const) {
+    for (const [model, most] of [["seedream-5.0-flash", 4], ["seedream-5.5", 4], ["flare", 4], ["gemini-3-pro-image", 14],
+      ["gemini-nano-banana-2.1", 14]] as const) {
       const base = { prompt: "x", model, aspect_ratio: "9:16" };
       expect(generateImageRequest.safeParse({ ...base, references: refs(most) }).success, model).toBe(true);
       const over = generateImageRequest.safeParse({ ...base, references: refs(most + 1) });
@@ -348,12 +360,33 @@ describe("request schemas", () => {
       expect(listGenerationModels().find((one) => one.model === model)?.max_references, model).toBe(most);
     }
   });
+
+  // Mutant: drop the floor, and a 5.5 call without a picture is sold as a plain text picture, which is no cleanup (#1686).
+  it("refuses seedream-5.5 without a picture to clean up, before any price", () => {
+    const base = { prompt: "x", model: "seedream-5.5", aspect_ratio: "21:9" } as const;
+    expect(generateImageRequest.safeParse(base).error?.issues).toMatchObject([{ path: ["references"],
+      message: "seedream-5.5 cleans up a picture: pass the picture, and any product photos, as references" }]);
+    expect(generateImageRequest.safeParse({ ...base, references: [] }).success).toBe(false);
+    expect(generateImageRequest.safeParse({ ...base, references: [{ run_id: "run_board" }] }).success).toBe(true);
+    expect(findCapabilityRow(base)).toBeNull();
+    expect(findCapabilityRow({ ...base, references: [] })).toBeNull();
+    // Every other image model still draws from the prompt alone.
+    for (const model of GENERATION_IMAGE_MODELS.filter((one) => one !== "seedream-5.5")) {
+      expect(generateImageRequest.safeParse({ prompt: "x", model, aspect_ratio: "9:16" }).success, model).toBe(true);
+    }
+    const listed = listGenerationModels();
+    expect(listed.filter((one) => "min_references" in one).map((one) => [one.model, one.min_references])).toEqual([["seedream-5.5", 1]]);
+    expect(listed.find((one) => one.model === "seedream-5.5")?.rows).toEqual([
+      { aspect_ratio: "9:16", resolution: null, width: 1440, height: 2560, unit_credits: 17 },
+      { aspect_ratio: "21:9", resolution: null, width: 3024, height: 1296, unit_credits: 17 },
+    ]);
+  });
 });
 
 describe("models list", () => {
   it("shows only measured rows and modes, without vendors", () => {
     const listed = generationModels.parse({ models: listGenerationModels(), contract_version: "test" }).models;
-    expect(listed.map((one) => one.model)).toEqual(["seedream-5.0-flash", "flare", "gemini-3-pro-image", "gemini-nano-banana-2.1", "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5",
+    expect(listed.map((one) => one.model)).toEqual(["seedream-5.0-flash", "seedream-5.5", "flare", "gemini-3-pro-image", "gemini-nano-banana-2.1", "seedance-2.0", "seedance-2.0-mini", "seedance-2.0-fast", "seedance-2.5",
       "seedance-2.5-flash", "kling-3.0", "kling-4.0", "kling-4.0-flash", "gemini-omni-flash-1.1", "gemini-omni-flash-1.2"]);
     expect(listed.find((one) => one.model === "seedance-2.0")).toEqual({
       model: "seedance-2.0", kind: "video", unit: "second", modes: ["text", "first_frame", "reference"], duration_s: { min: 4, max: 15 },

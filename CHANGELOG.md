@@ -18,6 +18,31 @@ listed under.
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-11-18
+
+### Added
+
+- `create_ad` and `update_ad` take `slots[].people_only: true` for a shot with people and no product. `render_edit` with
+  `ad_id` takes an unchecked take from such a slot and names it in `warnings[]`. A take whose `check_take` failed or has not
+  finished is still refused. A slot that already has checked takes can't be marked. `get_ad` returns the field.
+- The local MCP server (`clipwright-mcp`) lists the same guides and tools for directing a video yourself as the hosted
+  server does for your account.
+- *Server-side:* `check_take` hears a take's sound. A voice that doesn't fit the person on screen is a `VOICE_MISMATCH`
+  finding on the whole take, and the picture is still judged on its own. `render_edit` refuses such a take only with
+  `clips[].sound: true`; played silent, it goes in with a note in `warnings[]`.
+
+- *Server-side:* `generate_image` takes `seedream-5.5`, a cleanup pass for a storyboard or a picture: pass the picture as a
+  reference, with up to three product photos, and say what to fix. It fixes the details you name and keeps the layout, framing,
+  poses and colour. It comes in 21:9 at 3024×1296, for a board of
+  four 9:16 shots, and in 9:16 at 1440×2560, at 17 credits a picture. It needs at least one reference: the models list marks
+  it `min_references: 1`, and a request without one is refused before any charge.
+
+### Changed
+
+- *Server-side:* `generate_image` with `flare` costs 7 credits a picture, and 16 for its 21:9 board; it was 6 and 15. Other image
+  models keep their prices. A picture already started is charged at the price it was started at.
+- `check_cut` refusals carry `next`: what to call to fix the sheet.
+
 ## [0.66.0] - 2026-11-18
 
 ### Added

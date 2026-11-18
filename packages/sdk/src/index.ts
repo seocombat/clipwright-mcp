@@ -1158,7 +1158,8 @@ export class ClipwrightClient {
     return this.#quoteFilm(FILM_HEROES_QUOTE_PATH, filmHeroInput.parse(request));
   }
 
-  /** A hero's poses, saved as the account's mascot, charged per pose published. Returns at once; read it with getFilmRun. */
+  /** A hero's poses, saved as the account's mascot, charged per pose published (a drawn pose whose face shows but whose mouth cannot move with the voice is not); an account starts at most 10 heroes an hour,
+   *  new or completing a mascot, and none while it has received 27 such uncharged poses in the last 24 hours (429 film_hero_limited). Returns at once; read it with getFilmRun. */
   async makeFilmHero(request: FilmHeroInput, opts?: StartUgcOptions): Promise<FilmRun> {
     return this.#startFilm("film_hero", FILM_HEROES_PATH, filmHeroInput.parse(request), opts);
   }

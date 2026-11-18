@@ -34,7 +34,7 @@ export const ASSET_TOOL_PAGE = 8;
  *  so a page longer than this is asked again at the count that fits. */
 export const ASSET_TOOL_ANSWER_CHARS = 12_000;
 
-/** A customer clip: up to 100 MiB and 120 s, a non-fragmented MP4 in h264 or hevc. */
+/** A customer clip: up to 100 MiB and 120 s, kept as a non-fragmented MP4 in h264 or hevc; another delivery format is re-encoded (#1717). */
 export const ASSET_VIDEO_MAX_BYTES = 100 * 1024 * 1024;
 export const ASSET_VIDEO_MAX_SECONDS = 120;
 export const ASSET_VIDEO_CODECS = ["h264", "hevc"] as const;
@@ -44,8 +44,14 @@ export const ASSET_BYTES_ROUTE_VIDEO_MAX_BYTES = 32 * 1024 * 1024;
 export const ASSET_PROCESSING_SECONDS = 600;
 export const ASSET_VIDEO_DOWNLOAD_DEADLINE_MS = 90_000;
 export const ASSET_INGEST_TASK_MAX_DURATION_SECONDS = 300;
-export const ASSET_PUT_MEDIA_TYPES = ["image/png", "image/jpeg", "video/mp4"] as const;
+/** What a clip may be declared as (#1717): the server reads the container from the bytes, and the intent keeps every clip as `video/mp4`. */
+export const ASSET_PUT_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"] as const;
+export const ASSET_PUT_MEDIA_TYPES = ["image/png", "image/jpeg", ...ASSET_PUT_VIDEO_TYPES] as const;
 export type AssetPutMediaType = (typeof ASSET_PUT_MEDIA_TYPES)[number];
+export const isAssetPutVideoType = (mediaType: string): boolean => (ASSET_PUT_VIDEO_TYPES as readonly string[]).includes(mediaType);
+/** The type an intent stores and signs its PUT with: a clip of any declared container is `video/mp4`. */
+export const assetPutStoredType = (mediaType: AssetPutMediaType): "image/png" | "image/jpeg" | "video/mp4" =>
+  mediaType === "image/png" || mediaType === "image/jpeg" ? mediaType : "video/mp4";
 /** The task that downloads or reads a staged file, checks it and publishes the asset. */
 export const INGEST_ASSET_MEDIA_TASK = "ingest-asset-media";
 
@@ -84,7 +90,7 @@ export const assetPutSource = z.strictObject({
   media_type: z.enum(ASSET_PUT_MEDIA_TYPES),
   bytes: z.number().int().positive().max(ASSET_VIDEO_MAX_BYTES),
   sha256: sha256Hex,
-}).refine((put) => put.media_type === "video/mp4" || put.bytes <= UPLOAD_MAX_BYTES, `a picture is at most ${UPLOAD_MAX_BYTES} bytes`);
+}).refine((put) => isAssetPutVideoType(put.media_type) || put.bytes <= UPLOAD_MAX_BYTES, `a picture is at most ${UPLOAD_MAX_BYTES} bytes`);
 
 /** Where the asset's bytes come from: an own generation, an own upload, a public https url (`kind: "video"` for a clip), */
 /** inline base64, or a presigned PUT. */
@@ -164,6 +170,8 @@ export const asset = z.strictObject({
   url: z.string().url().startsWith("https://"),
   /** The one-asset read only (#1372): a small WebP of the picture, long side at most 512, signed like `url`; absent until it is made. */
   preview_url: z.string().url().startsWith("https://").optional(),
+  /** Present when the clip was re-encoded when it was saved (#1717): what it was, and that the stored file is the re-encoded one. */
+  warnings: z.array(z.string().min(1)).optional(),
   expires_at: z.string().datetime(),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
@@ -259,6 +267,13 @@ export const assetListRead = assetList.extend({
 }).loose();
 export type AssetListRead = z.infer<typeof assetListRead>;
 
+/** The `warnings[]` line of a clip re-encoded when it was saved; `from` names its delivery format, such as "AV1 in fragmented MP4". */
+export function transcodedClipWarning(from: string): string {
+  const sdr = from.startsWith("HDR ") ? ", tone-mapped from HDR to SDR BT.709" : "";
+  return `the clip was ${from}; it was re-encoded to an 8-bit H.264 MP4 (yuv420p${sdr}) when it was saved, at its own size and frame ` +
+    "rate, so its bytes, content_digest, codec and pix_fmt are those of the re-encoded file";
+}
+
 /** The asset's own object: a new id per asset, so a copy never overwrites another asset. */
 export function assetKey(accountId: string, id: string, sha256: string, mediaType: AssetMediaType): string {
   const extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "video/mp4": "mp4" }[mediaType];
@@ -284,11 +299,13 @@ export const CREATE_ASSET_DESCRIPTION =
   "Save a picture or a clip as an asset of this account, kept until you delete it: a character, location, style, prop " +
   "or other, with a name. source is {run_id} of a succeeded generate_image or generate_video run of this account, " +
   "{upload_id} from upload_image or create_upload, a public https {url} the server downloads (add " +
-  `kind: "video" for an MP4), {base64, media_type} of a PNG or JPEG up to ${ASSET_BASE64_MAX_BYTES} bytes, or ` +
+  `kind: "video" for a clip), {base64, media_type} of a PNG or JPEG up to ${ASSET_BASE64_MAX_BYTES} bytes, or ` +
   "{put: {media_type, bytes, sha256}} to PUT a local file: the answer carries upload.put_url and put_headers; " +
-  "run `curl -X PUT -H 'content-type: <media_type>' --data-binary @<file> '<put_url>'` within 15 minutes, then call " +
-  "get_asset. On a server running on your machine also {path} of a local PNG, JPEG or MP4. A clip is an MP4 in h264 " +
-  `or hevc, up to ${ASSET_VIDEO_MAX_SECONDS} seconds and 100 MB; a url clip or a PUT is checked in the background ` +
+  "run `curl -X PUT -H 'content-type: <put_headers content-type>' --data-binary @<file> '<put_url>'` within 15 minutes, then call " +
+  "get_asset. On a server running on your machine also {path} of a local PNG, JPEG or MP4. A clip is an MP4, MOV or WebM " +
+  `up to ${ASSET_VIDEO_MAX_SECONDS} seconds and 100 MB; one in another codec than H.264 or HEVC (such as AV1 or VP9), or a ` +
+  "fragmented MP4, is re-encoded to an H.264 MP4 when it is saved, and so is 10-bit or HDR video, tone-mapped to SDR; get_asset " +
+  "says so in warnings. A url clip or a PUT is checked in the background " +
   "(state \"processing\" or \"awaiting_upload\"; get_asset says ready or failed within minutes). For your own material " +
   "pass rights_confirmed: true, stating once that you may use the people and works in it. A reference only to analyse, " +
   "such as someone else's ad for analyze_reference, takes analysis_only: true instead: no rights claim, and no render " +
@@ -305,7 +322,8 @@ export const LIST_ASSETS_DESCRIPTION =
 
 export const GET_ASSET_DESCRIPTION =
   "Read one asset by asset_id with a freshly signed url (valid for an hour), its role, name, media_type, bytes, " +
-  "width, height, content_digest and, for a clip, duration_frames, fps, codec and pix_fmt, plus a small preview " +
+  "width, height, content_digest and, for a clip, duration_frames, fps, codec and pix_fmt (warnings says when it was re-encoded), " +
+  "plus a small preview " +
   "picture of it to look at when one is ready. An asset still in " +
   "progress answers state awaiting_upload (PUT the file, then read again) or processing (read again in a few " +
   "seconds); a refused one answers state failed with error.code. A deleted asset answers asset_not_found. Free.";

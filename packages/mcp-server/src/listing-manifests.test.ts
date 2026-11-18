@@ -44,6 +44,13 @@ describe("server.json for the official MCP registry", () => {
     expect(result.valid).toBe(true);
   });
 
+  it("directories show the domain name and a description that opens on what it is", () => {
+    expect(serverJson.title).toBe("Clipwright.io");
+    expect(manifest.display_name).toBe("Clipwright.io");
+    expect(serverJson.description).toMatch(/^Video studio for your AI agent: /);
+    expect(manifest.description).toMatch(/^Video studio for your AI agent: /);
+  });
+
   it("the API key is required and secret", () => {
     const key = serverJson.packages[0].environmentVariables.find((env: { name: string }) => env.name === "CLIPWRIGHT_API_KEY");
     expect(key).toMatchObject({ isRequired: true, isSecret: true });

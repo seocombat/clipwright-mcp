@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { assetListQuery, asset } from "./assets.js";
 import { brandKitInput } from "./design.js";
 import { facelessStoredInput, makeFacelessInput, quoteFacelessInput } from "./faceless-public.js";
-import { MASCOT_POSES, mascotPoses, pinnedMascot } from "./mascots.js";
+import { MASCOT_POSES, mascotPoseFace, mascotPoses, mascotPoseWorks, pinnedMascot } from "./mascots.js";
 
 /** #1257: a mascot is an explainer's finished hero; the request, the quote, the stored pin and the answers that name it. */
 
@@ -72,5 +72,18 @@ describe("a mascot in answers and requests", () => {
 
   it("keeps the mascot's pose list equal to the composition's nine", () => {
     expect([...MASCOT_POSES].sort()).toEqual(["celebrate", "neutral", "palm", "point", "shrug", "surprise", "think", "up", "wink"]);
+  });
+});
+
+describe("a pose in a film: works, still or faceless (#1705, #1724)", () => {
+  /** Mutants: free a pose with no face (or an unrecognised one), charge a found face that kept its mouth or one we could not read, count a
+   *  mouth with no ink as moving, or drop a photo. */
+  it("is free only when a face was found or not read on our side and its mouth keeps its drawing", () => {
+    const mouth = { x: 0.5, y: 0.6, w: 0.2 }, eyes = { points: [{ x: 0.4, y: 0.4 }], w: 0.1, h: 0.1, skin: "#FFFFFF" };
+    expect([{ mouth: { ...mouth, ink: "#2A0F12" } }, { photo: true }, { photo: true, unread: true }].map(mascotPoseFace)).toEqual(["works", "works", "works"]);
+    expect([{ eyes }, { unread: true }, { mouth }].map(mascotPoseFace)).toEqual(["still", "still", "still"]);
+    expect([{}, { eyes: {} }, { eyes: { points: [] } }, { unread: "yes" }, { photo: "yes" }, { mouth: { ...mouth, ink: 7 } }, { mouth: { ...mouth, ink: undefined } },
+      null, undefined, "pose"].map(mascotPoseFace)).toEqual(Array.from({ length: 10 }, () => "faceless"));
+    expect([{ mouth: { ...mouth, ink: "#2A0F12" } }, { eyes }, {}].map(mascotPoseWorks)).toEqual([true, false, false]);
   });
 });

@@ -127,7 +127,7 @@ describe("capability table", () => {
         // Omni 1.2's 360p is a draft tier: the customer is told what it is for, never a vendor or a cost (rule 8).
         const omniDraft = model === "gemini-omni-flash-1.2" && row.resolution === "360p";
         expect(row.warning !== undefined, `${model} ${row.resolution}`).toBe(tenBit || draft || omniDraft);
-        if (omniDraft) expect(row.warning).toBe("360p is a draft: softer than 720p, for trying a move cheaply; make the final take at 720p");
+        if (omniDraft) expect(row.warning).toBe("360p is softer than 720p: a draft for trying a move cheaply, or a final take the user chose for its price");
         if (draft) expect(row.warning, `${model} ${row.aspect_ratio}`).toContain(`${row.width}x${row.height} (2.`);
         if (draft) expect(row.warning, `${model} ${row.aspect_ratio}`).toContain(`off ${row.aspect_ratio}`);
       }

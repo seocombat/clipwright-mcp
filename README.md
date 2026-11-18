@@ -1,4 +1,4 @@
-# Clipwright clients
+# Clipwright™ clients
 
 Open-source clients for [Clipwright](https://clipwright.io/?ref=github): an API that turns a
 script into a short video of an actor speaking it, or a script or a short brief

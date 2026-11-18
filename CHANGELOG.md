@@ -18,6 +18,28 @@ listed under.
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-11-18
+
+### Added
+
+- *Server-side:* uploaded clips in AV1, VP9, fragmented MP4 or WebM are re-encoded to H.264 MP4 when they are saved, and
+  10-bit or HDR clips are converted to 8-bit SDR (BT.709). `warnings[]` names the conversion. A Dolby Vision profile 5 clip,
+  or a clip that can't be converted in time, is refused by name before any charge.
+- *Server-side:* when an Omni 1.2 clip fails, the answer offers priced substitutes, cheapest first, for your agent to ask you
+  about before a pricier one.
+
+### Changed
+
+- *Server-side:* `make_film_hero` charges a published pose unless its face shows but its mouth cannot move with the voice, or
+  its face could not be read: that pose is published with a warning and not charged. A pose with no face to animate is charged,
+  with a warning. An account starts at most 10 heroes an hour; the next is refused with `film_hero_limited` (429,
+  `Retry-After`) before any charge. An account that has received 27 uncharged poses in the last 24 hours starts no new hero
+  until fewer than 27 remain in that window (the same `film_hero_limited`, with `Retry-After`).
+- *Server-side:* `render_edit` music made for the edit is bought only when the cut has room for it to be heard; otherwise the
+  quote and `warnings[]` say so and nothing is bought. Under a clip's own sound the music now sits 12 dB lower, under a voice
+  15 dB lower.
+- The MCP bundle is listed as Clipwright.io.
+
 ## [0.67.0] - 2026-11-18
 
 ### Added

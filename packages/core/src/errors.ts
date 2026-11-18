@@ -474,6 +474,7 @@ const BARE_ERROR_CODES = [
   "film_draft_limited",
   "film_draft_not_found",
   "film_draft_stale",
+  "film_hero_limited",
   "film_run_not_found",
   "film_voice_not_ready",
   "generations_disabled",

@@ -21,8 +21,27 @@ export const mascotPose = z.strictObject({
   rig: z.string().min(1).max(300).optional(),
   /** A photo of a person, kept as one on request: no mouth is drawn or moved on it. */
   photo: z.literal(true).optional(),
+  /** Its face could not be read on our side: it keeps its drawn mouth, and it is not charged. */
+  unread: z.literal(true).optional(),
 });
 export type MascotPose = z.infer<typeof mascotPose>;
+
+/** `works`: a photo, or its mouth erased (`ink`) to move with the voice; `still`: a face found or not read on our side, its mouth as drawn, not
+ *  charged; `faceless`: no face to animate, charged. Anything unrecognised is `faceless`, never free. */
+export type MascotPoseFace = "works" | "still" | "faceless";
+export function mascotPoseFace(pose: unknown): MascotPoseFace {
+  if (typeof pose !== "object" || pose === null) return "faceless";
+  const { photo, mouth, eyes, unread } = pose as { photo?: unknown; mouth?: unknown; eyes?: unknown; unread?: unknown };
+  if (photo === true) return "works";
+  if (typeof mouth === "object" && mouth !== null) {
+    const ink = (mouth as { ink?: unknown }).ink;
+    return typeof ink === "string" ? "works" : !Object.hasOwn(mouth, "ink") ? "still" : "faceless";
+  }
+  const points = typeof eyes === "object" && eyes !== null ? (eyes as { points?: unknown }).points : undefined;
+  return unread === true || (Array.isArray(points) && points.length > 0) ? "still" : "faceless";
+}
+/** Whether a pose's mouth moves with the voice in a film (the explainer's bill counts only these). */
+export const mascotPoseWorks = (pose: unknown): boolean => mascotPoseFace(pose) === "works";
 
 /** The saved set: every pose it holds, the neutral always, since the hero shows it wherever a pose is missing. */
 export const mascotPoses = z.partialRecord(z.enum(MASCOT_POSES), mascotPose)

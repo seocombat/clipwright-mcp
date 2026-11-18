@@ -37,6 +37,11 @@ export const OWN_TAKE_FRAMES_MAX = 96, TAKE_FRAMES_PER_HOUR = 60, TAKE_FRAMES_WI
 export const TAKE_PICTURE_CHECKS_PER_HOUR = 30;
 /** Checks against a prompt (motion) an account starts an hour, in the same window, counted apart from those against a picture. */
 export const TAKE_MOTION_CHECKS_PER_HOUR = 30;
+/** Heroes (make_film_hero, new or completing a mascot) an account starts an hour, in the same window; working number. */
+export const HERO_RUNS_PER_HOUR = 10;
+/** Hero poses published and not charged (a still mouth, a face not read) an account receives in a trailing window; past it, no new hero (#1735). */
+export const OWN_HERO_FREE_POSES_PER_DAY = 27;
+export const OWN_HERO_FREE_POSES_WINDOW_HOURS = 24;
 /** preview_cut runs an account starts an hour, in the same window, whatever their stills cost; working number. */
 export const CUT_PREVIEWS_PER_HOUR = 20;
 /** A take judged frame by frame against its direction (check_take), charged once per delivered verdict. */

@@ -128,7 +128,7 @@ function draft480p(unit_credits: number): GenerationVideoRow[] {
     .map((row) => ({ ...row, warning: DRAFT_480P[row.aspect_ratio] }));
 }
 
-const OMNI_DRAFT_360P = "360p is a draft: softer than 720p, for trying a move cheaply; make the final take at 720p";
+const OMNI_DRAFT_360P = "360p is softer than 720p: a draft for trying a move cheaply, or a final take the user chose for its price";
 
 /** One aspect of a pair changed: a measure that saw only that aspect. */
 function only(rows: GenerationVideoRow[], aspect: GenerationVideoAspect, change: Partial<GenerationVideoRow>): GenerationVideoRow[] {

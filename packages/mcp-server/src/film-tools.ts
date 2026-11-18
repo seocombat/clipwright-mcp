@@ -3,7 +3,7 @@ import { ClipwrightApiError, type ClipwrightClient } from "@clipwright/sdk";
 import { adId, createAdInput, updateAdInput, agentRetryShape, checkFilmInput, createFilmDraftInput, filmCutInput, filmDraftId, filmEditInput, filmHeroInput, OWN_EDIT_MAX_SECONDS, TAKE_CHECK_PROMPT_MAX_CHARS, TAKE_FRAMES_PER_HOUR, filmGuideQuery, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL,
   OWN_STILLS_SINGLE_MAX, putFilmFilesInput, runId, takeCheckInput, takeFramesInput, type FilmRun, filmCutRunInput, OWN_CUT_INCLUDED_SECONDS,
   OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, type TakeCheckRequest, createCutInput, CUT_MAX_QUIET_SEC, CUT_PREVIEW_MAX_STILLS,
-  cutId, filmCutPreviewInput, guideModesOf, updateCutInput } from "@clipwright/core";
+  cutId, filmCutPreviewInput, guideModesOf, HERO_RUNS_PER_HOUR, OWN_HERO_FREE_POSES_PER_DAY, OWN_HERO_FREE_POSES_WINDOW_HOURS, updateCutInput } from "@clipwright/core";
 
 import { withFailureReport, type McpToolResponse } from "./format.js";
 import { fetchImage, IMAGE_BUDGET_MS, type ImageBlock } from "./images.js";
@@ -43,7 +43,9 @@ export const RENDER_FILM_DESCRIPTION = "Paid when the film is delivered, after q
   "on its words, the sound events under it, the frozen theme. Returns at once; call get_film_run until it is succeeded (video_url) or failed.";
 export const QUOTE_FILM_HERO_DESCRIPTION = "Free. What make_film_hero would hold: every pose of the hero (with mascot_id, every pose the mascot " +
   "lacks), the most it can charge. Show it and wait for the go-ahead.";
-export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published, after quote_film_hero. Draws a hero in nine poses and saves it as a mascot of " +
+export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published, after quote_film_hero; a drawn pose whose face shows but whose mouth cannot move with the voice is " +
+  "published with a warning and not charged (a pose with no face to animate is charged). At most " + HERO_RUNS_PER_HOUR + " heroes an hour, and none while the " +
+  "account has received " + OWN_HERO_FREE_POSES_PER_DAY + " such uncharged poses in the last " + OWN_HERO_FREE_POSES_WINDOW_HOURS + " hours. Draws a hero in nine poses and saves it as a mascot of " +
   "your assets: from character_reference or character_details, else invented to fit the meaning of script (or of voice_run_id's text). " +
   "With mascot_id alone, completes that saved mascot instead: only the poses it lacks are drawn, in its look, and added to it. " +
   "A person's photo is drawn as a cartoon unless character_details ask for a photoreal look; a photoreal hero keeps a still face. " +

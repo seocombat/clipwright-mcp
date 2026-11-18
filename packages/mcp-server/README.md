@@ -1,6 +1,6 @@
 # @clipwright/mcp-server
 
-Your coding agent writes the script; [Clipwright](https://clipwright.io/?ref=npm) renders
+Your coding agent writes the script; [Clipwright™](https://clipwright.io/?ref=npm) renders
 a short vertical video of an actor speaking it, 720×1280 by default and 1080×1920 on request. It also
 makes faceless videos of a length you pick, 30 to 90 seconds, from a script or a short brief: narration
 over an opening animated clip and image scenes, with no on-camera presenter. The agent

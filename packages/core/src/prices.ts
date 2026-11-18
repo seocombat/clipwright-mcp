@@ -18,8 +18,8 @@ import {
   TREND_FREE_PAGES_PER_DAY, TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_REELS,
 } from "./trend-search.js";
 import { isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
-import { isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
-  OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_EDIT_CREDITS,
+import { HERO_RUNS_PER_HOUR, isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
+  OWN_HERO_FREE_POSES_PER_DAY, OWN_HERO_FREE_POSES_WINDOW_HOURS, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_EDIT_CREDITS,
   OWN_EDIT_MAX_SECONDS, OWN_TAKE_CHECK_CREDITS, OWN_CUT_BED_CREDITS, OWN_CUT_CREDITS, OWN_CUT_EXTRA_SECOND_CREDITS,
   OWN_CUT_INCLUDED_SECONDS, OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND,
   OWN_TAKE_CHECK_PICTURE_CREDITS, OWN_TAKE_CHECK_PICTURE_LONG_CREDITS, TAKE_PICTURE_SHORT_TIER_SECONDS } from "./own-agent-price.js";
@@ -267,7 +267,7 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
       notes: `tier ${tier}${tier === "standard" ? " (the default)" : ""}. A drawn explainer film, made in about half an hour and charged only when ` +
         "delivered, by its length. A mascot is the hero for free; a character you name, or one we draw to fit the script, adds its " +
         `${FACELESS_EXPLAINER_POSE_PICTURES} pose pictures, ${FACELESS_IMAGE_CREDITS} credits each for the pictures made, charged only with a ` +
-        "delivered video." })) : []),
+        "delivered video; a drawn pose whose mouth cannot move with the voice is shown with a warning and not charged." })) : []),
     // The «own agent» film runs (#1337) are sold only while the mode is offered.
     ...(ownAgent ? [
       paid({ tool: "preview_stills", route: "POST /v1/film-stills", quote_tool: "quote_stills", unit: "still", credits: OWN_STILL_CREDITS,
@@ -281,7 +281,10 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
           { label: `each second over ${OWN_FILM_INCLUDED_SECONDS} s`, unit: "second", credits: OWN_FILM_EXTRA_SECOND_CREDITS }],
         notes: "Charged only for a delivered film, by its length; a render that fails costs nothing." }),
       paid({ tool: "make_film_hero", route: "POST /v1/film-heroes", quote_tool: "quote_film_hero", unit: "image", credits: OWN_HERO_POSE_CREDITS,
-        notes: `A hero in up to ${OWN_HERO_POSES} pose pictures, saved as a mascot of your assets; each pose is charged once it is published, and a ` +
+        notes: `A hero in up to ${OWN_HERO_POSES} pose pictures, saved as a mascot of your assets; each pose is charged once it is published, except ` +
+          "a drawn pose whose face shows but whose mouth cannot move with the voice, or whose face could not be read, which is published " +
+          `with a warning and not charged (a pose with no face to animate is charged); at most ${HERO_RUNS_PER_HOUR} heroes an hour, and ` +
+          `none while the account has received ${OWN_HERO_FREE_POSES_PER_DAY} such uncharged poses in the last ${OWN_HERO_FREE_POSES_WINDOW_HOURS} hours; a ` +
           "film that uses the mascot makes and charges none again. Completing a saved mascot charges only the poses it adds. A hero that " +
           "publishes no pose costs nothing." }),
     ] : []),

@@ -25,7 +25,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
   create_asset: "Save a picture or clip as an asset until you delete it. source: {run_id} of a succeeded generation, " +
     "{upload_id}, a public https {url} (kind: \"video\" for an MP4), {base64, media_type} of a PNG or JPEG up to 700000 bytes, " +
     "or {put: {media_type, bytes, sha256}}, then PUT the file to upload.put_url within 15 minutes; locally also {path}. A clip: " +
-    "MP4, h264 or hevc, up to 120 seconds and 100 MB. Own material takes rights_confirmed: true, stating that you may use the " +
+    "MP4, MOV or WebM up to 120 seconds and 100 MB; another codec than H.264 or HEVC (AV1, VP9) or a fragmented MP4 is re-encoded " +
+    "to H.264, and 10-bit or HDR video to SDR, said in get_asset warnings. PUT with put_headers. Own material takes rights_confirmed: true, stating that you may use the " +
     "people and works in it; a reference only to analyse " +
     "takes analysis_only: true and is never rendered. Free. Up to 2000 assets and 1 GB (20 GB once credits were bought, as a pack or a plan), 100 " +
     "new per day.",
@@ -115,7 +116,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "short link not seen before quotes the full price. A YouTube or unknown link is refused. Free.",
   list_prices: "Every tool's price in credits: lines per unit added up, with minimum_credits, or a formula; free tools cost 0. " +
     "Exact numbers come from the quote tool. Free.",
-  get_asset: "Read one asset with a fresh url (an hour) and a small preview picture to look at. awaiting_upload: PUT the file; " +
+  get_asset: "Read one asset with a fresh url (an hour) and a small preview picture to look at; warnings says when a clip was " +
+    "re-encoded. awaiting_upload: PUT the file; " +
     "processing: read again shortly; failed: " +
     "error.code; deleted: asset_not_found. Free.",
   delete_upload: "Delete an upload: unusable at once, erased after 7 days unless another upload of the same picture is kept. " +

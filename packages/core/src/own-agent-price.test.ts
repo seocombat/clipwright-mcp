@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { FACELESS_IMAGE_CREDITS } from "./faceless-price.js";
 import { isOwnAgentEnabled, OWN_AGENT_TARIFF, OWN_AGENT_TARIFF_V1, ownAgentCharge, ownAgentTerms, ownAgentTermsNow, ownCutCredits, ownEditCredits, ownFilmRenderCredits, ownHeroCredits, ownStillsCredits,
   ownTakeCheckCredits, ownVoiceCredits, type OwnAgentTerms } from "./own-agent-price.js";
 
@@ -7,7 +8,7 @@ import { isOwnAgentEnabled, OWN_AGENT_TARIFF, OWN_AGENT_TARIFF_V1, ownAgentCharg
 describe("the own-agent tariff", () => {
   it("freezes the proposal as a snapshot its schema accepts", () => {
     expect(ownAgentTerms.parse(ownAgentTermsNow())).toEqual({ tariff: OWN_AGENT_TARIFF, still_credits: 1, render_credits: 100, included_seconds: 60,
-      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 7, edit_credits: 10, music_credits: 60, take_check_credits: 10, picture_check_credits: 20,
+      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 9, edit_credits: 10, music_credits: 60, take_check_credits: 10, picture_check_credits: 20,
       picture_check_long_credits: 38, free_stills: 120,
       free_stills_window_hours: 24, cut_credits: 45, cut_included_seconds: 60, cut_extra_second_credits: 1, cut_bed_credits: 35,
       cut_take_sound_credits_per_second: 4, cut_music_credits: 60 });
@@ -117,15 +118,18 @@ describe("the own-agent tariff", () => {
     expect(() => ownStillsCredits(24, ownAgentTermsNow(), 121)).toThrow(/outside these terms/);
   });
 
-  /** #1356. Mutants: price a pose at anything but the done-for-you's 7, take a tenth pose, or price a hero on terms frozen before poses. */
-  it("prices a hero's published poses at 7 each, up to nine, and none on terms that price no pose", () => {
-    expect([ownHeroCredits(9), ownHeroCredits(7), ownHeroCredits(0)]).toEqual([63, 49, 0]);
+  /** #1356, #1692. Mutants: price a new pose at anything but 9, a run frozen at 7 at today's 9, take a tenth pose, or price a hero on terms
+   *  frozen before poses; or move the done-for-you explainer's pose with the DIY one. */
+  it("prices a hero's published poses at 9 each, up to nine, a run frozen at 7 at 7, and none on terms that price no pose", () => {
+    expect([ownHeroCredits(9), ownHeroCredits(7), ownHeroCredits(0)]).toEqual([81, 63, 0]);
     expect(() => ownHeroCredits(10)).toThrow();
     const { pose_credits: _, ...before } = ownAgentTermsNow();
     expect(ownAgentTerms.parse(before)).toEqual(before);
-    expect(() => ownAgentCharge({ skill: "film_hero", poses: 9 }, before, 63)).toThrow(/price no hero pose/);
+    expect(() => ownAgentCharge({ skill: "film_hero", poses: 9 }, before, 81)).toThrow(/price no hero pose/);
+    expect(ownAgentCharge({ skill: "film_hero", poses: 9 }, { ...before, pose_credits: 7 }, 63)).toBe(63);
     expect(ownAgentCharge({ skill: "film_hero", poses: 7 }, { ...before, pose_credits: 5 }, 63)).toBe(35);
-    expect(() => ownAgentCharge({ skill: "film_hero", poses: 9 }, ownAgentTermsNow(), 62)).toThrow(/over its hold/);
+    expect(() => ownAgentCharge({ skill: "film_hero", poses: 9 }, ownAgentTermsNow(), 80)).toThrow(/over its hold/);
+    expect(FACELESS_IMAGE_CREDITS).toBe(7);
   });
 
   /** Mutants: charge the extra seconds from zero, floor a started second, or round each word instead of the take once. */

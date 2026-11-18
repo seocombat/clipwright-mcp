@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FACELESS_EXPLAINER_POSE_PICTURES, FACELESS_IMAGE_CREDITS } from "./faceless-price.js";
+import { FACELESS_EXPLAINER_POSE_PICTURES } from "./faceless-price.js";
 import { MUSIC_BED_CREDITS } from "./music.js";
 
 // The «own agent» tariff (#1291 F2): your agent writes the film; Clipwright sells its stills, voice with word timings, render and hero. Prices
@@ -27,8 +27,8 @@ export const OWN_VOICE_CREDITS_PER_SECOND = 2;
 export const OWN_STILLS_MAX_PER_CALL = 24, OWN_FILM_MAX_SECONDS = 120, OWN_VOICE_MAX_SECONDS = 120;
 /** Up to this many stills come one picture each; a round of more always comes with a sheet (#1372). */
 export const OWN_STILLS_SINGLE_MAX = 8;
-/** A hero's pose picture, priced as the done-for-you explainer's, and the poses a hero is made of. */
-export const OWN_HERO_POSE_CREDITS = FACELESS_IMAGE_CREDITS, OWN_HERO_POSES = FACELESS_EXPLAINER_POSE_PICTURES;
+/** A hero's published pose picture (#1692; 7 on runs admitted before), and the poses a hero is made of. */
+export const OWN_HERO_POSE_CREDITS = 9, OWN_HERO_POSES = FACELESS_EXPLAINER_POSE_PICTURES;
 /** An edit of the account's own clips, voice and captions into one cut, charged once per delivered cut up to OWN_EDIT_MAX_SECONDS long. */
 export const OWN_EDIT_CREDITS = 10, OWN_EDIT_MAX_SECONDS = 60;
 /** A take's frames on contact sheets (take_frames): free, at most this many frames a call, and this many calls an account starts an hour. */

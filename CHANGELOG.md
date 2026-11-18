@@ -18,6 +18,30 @@ listed under.
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-11-18
+
+### Added
+
+- `render_edit` and `quote_edit` take `clips[].sound: true` on a clip made by `generate_video` with `audio: true`: that window
+  plays the clip's own sound, brought to the level of speech, at speed 1 and never under the voice's words. The price stays
+  10 credits. A voice that speaks over a sounding window is refused before any charge; a clip made with sound and used
+  without it gets a note in `warnings[]`; an edit whose delivered file lost a window's sound costs nothing.
+
+### Changed
+
+- *Server-side:* `make_film_hero` costs 9 credits for each pose it keeps, up to 81 for a full hero and 9 for each pose that
+  completes a saved mascot; it was 7, up to 63. A hero already started is charged at the price it was started at. The
+  done-for-you explainer's hero poses stay at 7.
+- *Server-side:* `check_take` is stricter:
+  - in a take with hard cuts, a fault is placed in the shots it falls in. A shot is cleared only when a second look confirms
+    it; otherwise it stays closed and `warnings[]` says so;
+  - a take in which nothing moves fails with `FROZEN_TAKE`; a slow push-in still passes;
+  - with a product, an object the direction names and keeps in view that a frame lacks is a finding.
+- *Server-side:* `get_ad_guide` leads an ad the board-and-plates way, with a new `board` section: a 21:9 `flare` board of four
+  9:16 shots, each checked before any clip is made; plates of 10 to 15 seconds as the default shot; speech inside the clip in
+  English only, other languages narrated; product action on Seedance and people on Omni, with 360p drafts first; a look at
+  `take_frames` before one paid `check_take` per take.
+
 ## [0.65.0] - 2026-11-18
 
 ### Added

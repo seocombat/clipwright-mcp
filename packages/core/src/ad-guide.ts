@@ -7,7 +7,7 @@ import { guideCatalog } from "./film-guide.js";
 export const AD_GUIDE_PATH = "/v1/ad-guide";
 
 /** One part of the guide: `ugc`, the make_ugc rules; the rest, the steps of making the ad yourself, in production order. */
-export const AD_GUIDE_SECTION_IDS = ["ugc", "order", "script", "product_sheet", "photo_edit", "hero", "location", "props", "states", "models",
+export const AD_GUIDE_SECTION_IDS = ["ugc", "order", "script", "product_sheet", "photo_edit", "hero", "location", "props", "states", "board", "models",
   "motion_test", "shot_list", "devices", "takes", "audit", "repair", "edit", "final_check", "spend"] as const;
 export type AdGuideSectionId = (typeof AD_GUIDE_SECTION_IDS)[number];
 

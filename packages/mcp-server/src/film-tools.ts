@@ -69,7 +69,8 @@ export const QUOTE_EDIT_DESCRIPTION = "Free. What render_edit would hold for thi
   "music.at in a clip's seconds (it is the edit's).";
 export const RENDER_EDIT_DESCRIPTION = "Paid once per delivered cut, after quote_edit. Cuts windows of your own delivered generate_video clips " +
   "(run_id) or video assets (asset_id) back to back, holds the last frame for hold seconds, lays the make_voice take (whole at voice.at, or " +
-  "its sentences as voice.pieces on the seconds their pictures start), lays music if asked and burns in captions: one vertical 9:16 720p " +
+  "its sentences as voice.pieces on the seconds their pictures start), plays a clip's own sound where it has sound: true (a clip made with " +
+  "audio: true, never under the voice's words), lays music if asked and burns in captions: one vertical 9:16 720p " +
   `MP4 at 25 fps, up to ${OWN_EDIT_MAX_SECONDS} s. music is a library track (free) or one made for the cut (charged only when the delivered ` +
   "cut carries it); it plays from music.at to the end, lower under the voice. A clip up to 3% off 9:16 is cropped to fill it; one further off is shown whole with bars; warnings name each. An " +
   "edit that fails costs nothing. Returns at once; call get_film_run until it is succeeded (video_url) or failed. A clip you made with " +
@@ -99,7 +100,8 @@ export const CHECK_TAKE_DESCRIPTION = "Paid per delivered verdict, after quote_t
   "really is; moves: the seconds a hand meets the product, looked at first. ad_id and slot: the verdict joins that slot of the ad record. " +
   "format: fashion (people and clothes in motion) or product (a product in the hands, the default); motion, free, measures the take and each " +
   "clean window as subject motion (the camera's own move taken out), camera move and camera shake, names a window too static for this format " +
-  "and names shake on its own: advice to re-shoot, not a defect, so it never fails the take. " +
+  "and names shake on its own: advice to re-shoot, not a defect, so it never fails the take; only a take in which nothing moves at all fails, " +
+  "with FROZEN_TAKE. " +
   "render_edit cuts a clip you made with generate_video only after the verdict delivered last on its file passed; your own footage needs none. A " +
   "check that delivers no verdict costs nothing. Waits up to 45 s; an unfinished run names get_film_run to call. A passed take answers next (the record, or " +
   "the edit on its clean window); a failed one answers blocked with its repair and next: the take's own generate_video request to change. " +

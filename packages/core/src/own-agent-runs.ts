@@ -97,10 +97,15 @@ const editClip = z.strictObject({
   from: editSecond.describe("The second of the clip the cut starts at"),
   to: editSecond.describe("The second of the clip the cut ends at, after from"),
   speed: z.number().min(0.5).max(2).default(1).describe("Play speed; the clip lasts (to - from) / speed in the edit. 1.2 lifts a slow beat"),
+  sound: z.boolean().optional().describe("Play this window's own sound (a clip made with audio: true) at the level of speech; at speed 1, " +
+    "never over the voice's words"),
   slot: adSlotId.optional().describe("With ad_id: the slot of the ad this clip fills. A clip made with generate_video must have passed " +
     "check_take in that slot; your own footage needs no check"),
 }).refine(clip => (clip.run_id === undefined) !== (clip.asset_id === undefined), "name the clip by run_id or by asset_id, one of them")
-  .refine(clip => clip.to > clip.from, "to must be after from");
+  .refine(clip => clip.to > clip.from, "to must be after from")
+  .refine(clip => clip.sound !== true || clip.run_id !== undefined,
+    { path: ["sound"], message: "a clip's own sound is kept only from a generate_video run made with audio: true" })
+  .refine(clip => clip.sound !== true || clip.speed === 1, { path: ["sound"], message: "a clip's own sound plays at speed 1 only" });
 const voicePiece = z.strictObject({
   from: editSecond.describe("The second of the take the piece starts at (make_voice words give each word's start and end)"),
   to: editSecond.describe("The second of the take the piece ends at, after from"),
@@ -257,7 +262,7 @@ const motionNumbers = {
 export const takeMotionWindow = z.strictObject({ from: z.number().min(0), to: z.number().min(0), ...motionNumbers });
 export type TakeMotionWindow = z.infer<typeof takeMotionWindow>;
 /** How much a take moves, free with its check: the whole take and each clean window (the whole take when none is clean) against its */
-/** format's target. Advice only: it never changes the findings, the clean windows or a pass. */
+/** format's target. Advice: it never changes the findings, the clean windows or a pass; a take in which nothing moves fails with FROZEN_TAKE. */
 export const takeMotion = z.strictObject({
   format: z.enum(TAKE_MOTION_FORMATS),
   target: z.strictObject({ subject: z.number().nonnegative(), camera: z.number().nonnegative().nullable() }),

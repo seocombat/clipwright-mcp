@@ -112,6 +112,9 @@ export const CHECK_TAKE_DESCRIPTION = "Paid per delivered verdict, after quote_t
   "clean window as subject motion (the camera's own move taken out), camera move and camera shake, names a window too static for this format " +
   "and names shake on its own: advice to re-shoot, not a defect, so it never fails the take; only a take in which nothing moves at all fails, " +
   "with FROZEN_TAKE. " +
+  "A take up to 30 s is also read for speed: something hanging or drifting in the air (a salt flake, a drop, a flame rising slowly) " +
+  "is SLOW_MOTION with its seconds in why; it neither fails the take nor narrows the clean windows, so cut it, make the take again or keep it " +
+  "where a slow beat suits the shot. " +
   "render_edit cuts a clip you made with generate_video only after the verdict delivered last on its file passed; your own footage needs none. A " +
   "check that delivers no verdict costs nothing. Waits up to 45 s; an unfinished run names get_film_run to call. A passed take answers next (the record, or " +
   "the edit on its clean window); a failed one answers blocked with its repair and next: the take's own generate_video request to change. " +

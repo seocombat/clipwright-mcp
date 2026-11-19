@@ -18,6 +18,16 @@ listed under.
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-11-19
+
+### Added
+
+- *Server-side:* `check_take` also reads a take of up to 30 s for speed. Something that hangs or drifts in the air (a salt flake, a drop, a flame rising slowly) is `SLOW_MOTION`, with its seconds in `why`. The finding is soft: it neither fails the take nor narrows the clean windows, so cut it, make the take again, or keep it where a slow beat suits the shot. A take longer than 30 s is not read for speed, and a warning says so. The price of a check is unchanged.
+
+### Changed
+
+- `get_ad_guide`: a shot of fast action can skip the storyboard. It is made from the references and repaired from a good frame of the take.
+
 ## [0.71.0] - 2026-11-19
 
 ### Added

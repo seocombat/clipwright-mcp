@@ -136,4 +136,5 @@ export * from "./reference-display.js";
 export * from "./creator-profile.js";
 export * from "./trend-search.js";
 export * from "./trend-niches.js";
+export * from "./trend-keywords.js";
 export * from "./presenter-beats.js";

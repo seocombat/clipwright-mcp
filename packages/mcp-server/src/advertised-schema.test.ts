@@ -297,10 +297,10 @@ const ANSWER_FIELDS: Record<string, string[]> = {
 
 /** The full text each listed text was written from: a change to it fails here until the listed text says the same, then pin the new digest. */
 const WRITTEN_FROM: Record<string, string> = {
-  analyze_creator: "2aa74f417419deec", analyze_reference: "6caf3019638a9de6", brand_kit: "4b9a4745a0a42932", extract_brand: "338b5625b7b98458",
+  analyze_creator: "2aa74f417419deec", analyze_reference: "6caf3019638a9de6", brand_kit: "4b9a4745a0a42932", extract_brand: "c1280ebfa9dc1d7f",
   prepare_workflow_plan: "dcc184695ee43de7", create_actor: "64dc97d2adf395ca", create_asset: "4c229172813c701a",
   create_candidate: "ac7da0d7f8974609", create_upload: "ca48d9141527cf5e", delete_actor: "e625ea18d3d26377", delete_asset: "dd3a4991f04a444f",
-  delete_creator_profile: "c5ee9a4029150781", find_trends: "ad07026b3ce8090a", trend_niches: "595673e0321dc109", delete_run_media: "e4f93b3a9cd5ea05", delete_upload: "ebb515f237d976c0", generate_image: "92cdec4c8c45facb",
+  delete_creator_profile: "c5ee9a4029150781", find_trends: "ad07026b3ce8090a", trend_niches: "ea5068cb00521f72", delete_run_media: "e4f93b3a9cd5ea05", delete_upload: "ebb515f237d976c0", generate_image: "92cdec4c8c45facb",
   generate_video: "fea012beeefb1507", get_account: "330f88827c765beb", get_asset: "9e067fecc0033a04", get_creator_profile: "ccb8cc20d52ad7c9",
   get_reference_analysis: "cf4027c19e9a3dd3", get_run: "0ad53c727736d024", get_run_shots: "2b13db5cf3bca267", get_upload: "4bd3baac899982b4",
   list_actors: "89ca3249262caa88", list_assets: "15d7184ab3597f63", list_generation_models: "5737b2f41d69b048", list_moves: "067d552b22260a07", list_prices: "73634ccff928eacc",

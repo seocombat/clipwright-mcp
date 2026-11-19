@@ -1029,6 +1029,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     description: "Free. A public site's colours, fonts, logo and corners as a proposed design, and its own name and description as a " +
       "proposed script voice (voice.about), with a proposed brand_name and prompt_block; the user confirms them before brand_kit saves any. " +
+      "niches: up to three trend niches from the site's own words; save the confirmed ones with trend_niches, from left out. " +
       "logo_url: import with create_asset for design.logo_asset_id. " +
       "analysis_id instead of url: a style proposed from a finished analyze_reference of a video the user likes (colours, faces, motion, " +
       "transition and caption habits; never its logo, characters or frames). Draw a few sample stills with its theme_overrides on a film " +

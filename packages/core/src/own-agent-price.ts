@@ -60,9 +60,10 @@ export const OWN_CUT_BED_CREDITS = 35;
 export const OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND = 4;
 /** Newly described sounds a cut includes; one more is refused before money. */
 export const OWN_CUT_MAX_NEW_SOUNDS = 8;
-/** The distinct sources (pictures and clips) one cut may name, and the most their stored bytes and the voice's may add up to: the worker
- *  (medium-2x, 4 GB) keeps every source in memory for the run beside Chromium, ffmpeg and the mix, so 1 GB of sources leaves room. */
-export const OWN_CUT_MAX_SOURCES = 40, OWN_CUT_MAX_SOURCE_BYTES = 1_000_000_000;
+/** The beats of one cut sheet and the slots of a cut record: a 90 s video with a new shot about every second. */
+export const OWN_CUT_MAX_BEATS = 96;
+/** The distinct sources (pictures and clips) one cut may name, and the most their stored bytes and the voice's may add up to. */
+export const OWN_CUT_MAX_SOURCES = 96, OWN_CUT_MAX_SOURCE_BYTES = 1_000_000_000;
 /** The paid parts of a cut beside its length: a described bed, its listed takes' own sound in whole-take seconds, music. */
 export const ownCutParts = z.strictObject({ bed: z.boolean(), take_sound_seconds: z.number().nonnegative(), music: z.boolean() });
 export type OwnCutParts = z.infer<typeof ownCutParts>;

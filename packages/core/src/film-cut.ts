@@ -5,6 +5,7 @@ import { diyBlocked, diyNext } from "./diy-next.js";
 import { FACELESS_BEAT_KINDS, FACELESS_CAMERA_MOVES, FACELESS_CUT_LOOKS, FACELESS_SHOT_SIZES, FACELESS_SPEEDS } from "./faceless-direction-summary.js";
 import { filmLookDescription, filmLookTag } from "./film-look.js";
 import { maxCreditsField } from "./max-credits.js";
+import { OWN_CUT_MAX_BEATS } from "./own-agent-price.js";
 import { runId } from "./runs.js";
 import { uploadId } from "./uploads.js";
 
@@ -81,7 +82,7 @@ const beat = z.strictObject({
     .describe("Where a push, pull or punch-in closes, as shares of the picture's width and height from its top-left; the centre when omitted"),
   punch_ins: z.array(z.strictObject({ word, scale: z.number().min(1.1).max(2), hold_s: z.number().min(0.2).max(2) })).max(3).default([])
     .describe("Quick zooms on words of this beat"),
-  priority: z.number().int().min(1).max(40).default(20).describe("1 is the beat that matters most"),
+  priority: z.number().int().min(1).max(OWN_CUT_MAX_BEATS).default(20).describe("1 is the beat that matters most"),
   why,
   technique_ids: z.array(line(64)).min(1).max(6).describe("Short names of the techniques this beat uses"),
   text_visible: z.boolean().optional().describe("On a live beat: its frame shows readable text, a logo or a sign"),
@@ -124,7 +125,7 @@ export const filmCutInput = z.strictObject({
     palette: z.array(z.string().regex(/^#[0-9a-f]{6}$/iu)).min(3).max(5).describe("3 to 5 colours as #rrggbb: cards and outlines take theirs from it"),
     effect_colours: line(240).describe("The colours of sparkles, glows and outlines, named"),
   }),
-  beats: z.array(beat).min(2).max(40).describe("The beats in order, covering every word of the voice once"),
+  beats: z.array(beat).min(2).max(OWN_CUT_MAX_BEATS).describe("The beats in order, covering every word of the voice once"),
   events: z.array(z.strictObject({ word, device: line(64).describe("The text's style: headline, badge, stamp or label; any other device draws a headline"),
     text: z.string().trim().max(40).optional().describe("Drawn as big text on its word, such as a number; without text the event is a timing note for sound"),
     why: line(160) })).max(160).default([])
@@ -132,7 +133,7 @@ export const filmCutInput = z.strictObject({
   captions: z.strictObject({ on: z.boolean().default(true).describe("Burn the captions in; false for none"),
     accents: z.array(word).max(80).default([]).describe("The word of each caption phrase that carries its point") })
     .default({ on: true, accents: [] }),
-  transitions: z.array(z.strictObject({ after_word: word.describe("A beat's last word"), look: z.enum(FACELESS_CUT_LOOKS) })).max(40).default([])
+  transitions: z.array(z.strictObject({ after_word: word.describe("A beat's last word"), look: z.enum(FACELESS_CUT_LOOKS) })).max(OWN_CUT_MAX_BEATS).default([])
     .describe("Cuts other than hard, after a beat's last word"),
   sound: z.strictObject({
     bed: filmCutBed.nullable().describe(`One ambience under the whole voice, or null; ${FILM_CUT_BED_RULE}`),

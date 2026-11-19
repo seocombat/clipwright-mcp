@@ -44,8 +44,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     `No keywords: the primary saved niche (trend_niches). gallery_url: a page to share for ${TREND_GALLERY_DAYS} days. ` +
     `next_page: more places, free for ${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, ${TREND_FREE_PAGES_PER_DAY} a day, ` +
     `then ${TREND_PAGE_PAID_CREDITS} credits; up to ${TREND_SEARCH_MAX_PAGES} pages, search_id and page alone.`,
-  trend_niches: "Free. Alone: the saved niches, the first the primary, and suggested ones from analysed creators. niches: save the user's " +
-    "confirmed list, at most 3, replacing it; [] clears it.",
+  trend_niches: "Free. Alone: the saved niches, the first the primary, and suggested ones from analysed creators; none: extract_brand " +
+    "on the user's site. niches: save the user's confirmed list, at most 3, replacing it; [] clears it.",
   make_ugc: "Start a lip-synced UGC video; the actor is actor_id, image or the default. Format and resolution follow the request " +
     "and the source, defaulting to 720x1280. Captions are OPT-IN: ask the user first. " +
     "A field marked NOT HONORED YET does not reach the renderer. Poll get_run with its poll.arguments; a failed run whose video " +
@@ -162,7 +162,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "a revision. Strict, at most 256000 JSON bytes; keep accepted narration exact. After a lost save answer, read the saved document; " +
     "never auto-approve or buy.",
   brand_kit: "Free. Alone: the saved kit, styles, looks and faces. A field saves the confirmed one; \"\" or {} clears.",
-  extract_brand: "Free. A site's colours, fonts, logo, corners and name as a proposed design, voice, brand_name, prompt_block. " +
+  extract_brand: "Free. A site's colours, fonts, logo, corners and name as a proposed design, voice, brand_name, prompt_block; " +
+    "its words as trend niches. " +
     "logo_url: create_asset it for design.logo_asset_id. analysis_id: a style from a reference video's analysis.",
 };
 

@@ -82,7 +82,8 @@ export const editMusic = z.strictObject({
     'delivery: "auto" takes the mood from the captions and the voice, { mood } says it in your words, such as "moody deep house"; it may ' +
     "carry an invisible watermark"),
   volume: z.number().min(EDIT_MUSIC_MIN_VOLUME_DB).max(EDIT_MUSIC_MAX_VOLUME_DB).default(0)
-    .describe("dB from the music's own level: 0 plays it at full level where no voice speaks, -6 half as loud"),
+    .describe("dB from the music's own level, against the voice and the clips' own sound: 0 plays it at full level where no voice " +
+      "speaks, -6 half as loud. Every cut is delivered at one loudness, so music with nothing else to sound under plays the same at any volume"),
   at: z.number().min(0).max(600).default(0).describe("The second of the edit the music starts at"),
   fade_out: z.number().min(0).max(EDIT_MUSIC_LONGEST_FADE_OUT).default(EDIT_MUSIC_DEFAULT_FADE_OUT)
     .describe("Seconds the music fades out over at the cut's end"),

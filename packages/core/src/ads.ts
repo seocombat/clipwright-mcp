@@ -2,6 +2,7 @@ import { z } from "zod";
 import { adId, adSlotId } from "./ad-ids.js";
 import { assetId } from "./asset-identity.js";
 import { diyBlocked, diyNext } from "./diy-next.js";
+import { OWN_CUT_MAX_BEATS } from "./own-agent-price.js";
 import { FILM_EDIT_MAX_CLIPS, takeCheckVerdict } from "./own-agent-runs.js";
 import { runId } from "./runs.js";
 
@@ -15,7 +16,7 @@ export const AD_PATH = "/v1/ads/:id";
 /** The kinds of video a DIY record holds, and the most slots each kind's record has (the database checks the same numbers). */
 export const DIY_RECORD_KINDS = ["ad", "faceless"] as const;
 export type DiyRecordKind = (typeof DIY_RECORD_KINDS)[number];
-export const DIY_MAX_SLOTS: Readonly<Record<DiyRecordKind, number>> = { ad: FILM_EDIT_MAX_CLIPS, faceless: 40 };
+export const DIY_MAX_SLOTS: Readonly<Record<DiyRecordKind, number>> = { ad: FILM_EDIT_MAX_CLIPS, faceless: OWN_CUT_MAX_BEATS };
 /** An ad's slots: one cut each, as many as an edit takes. */
 export const AD_MAX_SLOTS = DIY_MAX_SLOTS.ad;
 /** The most ad records an account starts in any 24 h: free, so capped like every free write. */

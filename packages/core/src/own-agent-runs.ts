@@ -91,21 +91,30 @@ export const FILM_EDIT_CAPTION_STYLES = ["outline", "banner", "badge"] as const;
 export const FILM_EDIT_CAPTION_ALIGNS = ["center", "left"] as const;
 
 const editSecond = z.number().min(0).max(600);
+/** The bounds of a window's own sound, dB from the level the edit gives it. */
+export const EDIT_CLIP_MIN_VOLUME_DB = -24, EDIT_CLIP_MAX_VOLUME_DB = 3;
 const editClip = z.strictObject({
   run_id: runId.optional().describe("A delivered generate_video run of this account"),
   asset_id: assetId.optional().describe("Instead of run_id: a video asset of this account"),
   from: editSecond.describe("The second of the clip the cut starts at"),
   to: editSecond.describe("The second of the clip the cut ends at, after from"),
   speed: z.number().min(0.5).max(2).default(1).describe("Play speed; the clip lasts (to - from) / speed in the edit. 1.2 lifts a slow beat"),
-  sound: z.boolean().optional().describe("Play this window's own sound (a clip made with audio: true) at the level of speech; at speed 1, " +
-    "never over the voice's words"),
+  sound: z.boolean().optional().describe("Play this window's own sound (a clip made with audio: true); at speed 1, never over the voice's " +
+    "words. speech and volume say how it sits in the mix"),
+  speech: z.boolean().optional().describe("With sound: true. true: the window's sound is someone speaking, so it plays at the level of " +
+    "speech and the music goes lower under it as under the voice. false: room sound or effects, which never lower the music. Omitted: " +
+    "what the clip's latest check_take heard, else false"),
+  volume: z.number().min(EDIT_CLIP_MIN_VOLUME_DB).max(EDIT_CLIP_MAX_VOLUME_DB).optional()
+    .describe("With sound: true. dB from the level the edit gives this window's sound: 0 (the default) near the voice, -10 well under it"),
   slot: adSlotId.optional().describe("With ad_id: the slot of the ad this clip fills. A clip made with generate_video must have passed " +
     "check_take in that slot; your own footage needs no check"),
 }).refine(clip => (clip.run_id === undefined) !== (clip.asset_id === undefined), "name the clip by run_id or by asset_id, one of them")
   .refine(clip => clip.to > clip.from, "to must be after from")
   .refine(clip => clip.sound !== true || clip.run_id !== undefined,
     { path: ["sound"], message: "a clip's own sound is kept only from a generate_video run made with audio: true" })
-  .refine(clip => clip.sound !== true || clip.speed === 1, { path: ["sound"], message: "a clip's own sound plays at speed 1 only" });
+  .refine(clip => clip.sound !== true || clip.speed === 1, { path: ["sound"], message: "a clip's own sound plays at speed 1 only" })
+  .refine(clip => clip.sound === true || (clip.speech === undefined && clip.volume === undefined),
+    { path: ["sound"], message: "speech and volume describe a clip's own sound: they need sound: true" });
 const voicePiece = z.strictObject({
   from: editSecond.describe("The second of the take the piece starts at (make_voice words give each word's start and end)"),
   to: editSecond.describe("The second of the take the piece ends at, after from"),
@@ -278,6 +287,8 @@ export const takeCheckVerdict = z.strictObject({ duration_sec: z.number().positi
     whole_take: z.boolean(), why: z.string().nullable() })),
   clean: z.array(takeWindow),
   motion: takeMotion.optional(),
+  speech: z.boolean().optional().describe("A take with its own sound: whether someone speaks in it, on screen or off. render_edit plays " +
+    "a window of this take as speech when its speech is not given"),
   against: z.enum(TAKE_CHECK_AGAINST).optional(),
   action_at_s: z.number().min(0).nullable().optional().describe("Against picture: the second the first asked change shows; null when it never does"),
   subject: z.strictObject({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0).max(1), h: z.number().min(0).max(1) })

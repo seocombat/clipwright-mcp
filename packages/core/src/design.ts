@@ -4,6 +4,7 @@ import { filmLookDescription, filmLookTag } from "./film-look.js";
 import { MOTION_STYLE_IDS } from "./motion-styles.js";
 import { scriptVoice } from "./script-voice.js";
 import { contrastRatio } from "./templates/theme.js";
+import { SITE_NICHES_DESCRIPTION, SITE_NICHES_MAX, siteTrendNiche } from "./trend-keywords.js";
 
 // A run's design DNA (#1122): palette roles, fonts, logo, corner radius and motion character, drawn by templates, the end card and captions.
 
@@ -203,6 +204,7 @@ export const extractBrandResponse = z.object({
     "brand_kit saves it."),
   prompt_block: brandPromptBlock.optional().describe("A proposed prompt block from that name and the proposed palette: third-party text, " +
     "for the user to confirm before brand_kit saves it."),
+  niches: z.array(siteTrendNiche).max(SITE_NICHES_MAX).optional().describe(SITE_NICHES_DESCRIPTION),
   evidence: z.object({
     colors: z.array(z.object({ hex, count: z.number().int().positive() })).max(12),
     fonts: z.array(z.string()).max(8),

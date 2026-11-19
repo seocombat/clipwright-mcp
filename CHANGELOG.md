@@ -18,6 +18,42 @@ listed under.
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-11-19
+
+### Added
+
+- `extract_brand` with a site URL also returns `niches`: up to three trend searches read from the page, ready to save with
+  `trend_niches` once you confirm them. Free.
+- `render_edit`: `clips[].speech` and `clips[].volume` for a clip's own sound (`sound: true`). Mark a spoken line `speech: true`
+  and the music goes lower under it, as under the voice. `volume` moves the window's sound from −24 to +3 dB. Left out, `speech`
+  follows the clip's latest `check_take`; when no check heard the clip's sound, it is `false`, and `warnings[]` says so. Clip sound
+  with `speech: false` at `volume` −18 or lower may sit under the voice's words as quiet room tone; louder clip sound, or speech,
+  under the voice is refused before any charge.
+- `check_take`: a take with its own sound now answers `speech`, whether anyone speaks in it.
+
+### Changed
+
+- *Server-side:* delivered videos are brought to −14 LUFS integrated (within 1 LU) and at most −1 dBTP true peak: presenter
+  videos, faceless videos, films, edits and cuts. `make_voice` narration is levelled to −14 LUFS too. A presenter, faceless or
+  film video whose sound can't be brought there is delivered at its own level, and `warnings[]` says so.
+- `render_edit`: a clip's own sound that is not marked `speech: true` (room tone, effects) no longer lowers the music. An edit of
+  music alone is delivered at the same −14 LUFS, so its `music.volume` has no effect, and `warnings[]` says so.
+- *Server-side:* a faceless cut takes up to 96 beats and 96 pictures and clips, so a 90 s video can change its shot about every
+  second. Before, both stopped at 40. A cut record (`create_cut`, `update_cut`) takes up to 96 slots, a beat's `priority` runs up
+  to 96, and a cut takes up to 96 `transitions`. The 1 GB limit on a cut's pictures, clips and voice together is unchanged. The
+  client packages of this release check the same limits.
+- *Server-side:* `check_cut` advises a change when one picture stays on screen longer than 1.5 s; before, longer than 3 s. It
+  is advice and never refuses the cut. Its advice on pictures and caption pauses can now be kept with `overrides`, by its check
+  name and why, like the rest of its advice.
+- *Server-side:* `check_cut` advises `cut-picture-drift` on each stretch over 0.5 s where only a slow camera move drives one
+  picture, with its seconds and what fixes it: cut to another picture or a clip, or land an event on it within 0.5 s. It is
+  advice and never refuses the cut.
+- *Server-side:* `quote_video` and `generate_video` advise when a prompt shows a person but has no Characters block.
+  `quote_edit` and `render_edit` advise when the first cut lands after 2.5 s, or the closing hold runs over 0.5 s with no
+  caption. Advice only: nothing is refused and no price changes.
+- *Server-side:* the ad and film guides state each rule with a Do and a Don't and end with a checklist. The ad guide offers a
+  quality tier with its price before any clip is made: draft, mixed or final.
+
 ## [0.68.0] - 2026-11-18
 
 ### Added

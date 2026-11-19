@@ -6,6 +6,7 @@ import {
   TREND_SEARCH_MAX_DAYS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_MIN_DAYS, trendPage, trendSearchId, type FindTrendsRequest, type TrendReel,
 } from "./trend-search.js";
 import { maxCreditsField } from "./max-credits.js";
+import { SITE_NICHES_MAX } from "./trend-keywords.js";
 
 /** Saved niches (#1201): up to three topics an account keeps, the first its primary. A trend search that names no keywords searches */
 /** the primary one. Saving and reading them is free. */
@@ -185,4 +186,5 @@ export const digestReels = <R extends Pick<TrendReel, "top" | "takeoff">>(reels:
 export const TREND_NICHES_DESCRIPTION = "Free. With no niches: the account's saved niches, the first the primary. niches: save the user's confirmed list " +
   `(at most ${TREND_NICHES_MAX}, it replaces the saved one; [] clears it). find_trends and quote_trends with no keywords search the primary niche. ` +
   `The read also answers suggested: up to ${TREND_NICHE_SUGGESTIONS_MAX} niches from the hashtags of creators this account analysed. Show them; ` +
-  "a niche is saved only once the user confirms it. With no suggestions, you may propose two or three wordings from the about that extract_brand returned.";
+  "a niche is saved only once the user confirms it. With no suggestions, ask for the user's site: extract_brand answers niches, up to " +
+  `${SITE_NICHES_MAX} read from its own words.`;

@@ -107,7 +107,7 @@ export const CHECK_TAKE_DESCRIPTION = "Paid per delivered verdict, after quote_t
   "whole_take when it cannot be cut out, then clean: the windows without defects, 0.5 s or longer, to cut from. A take with its own sound is " +
   "also heard: a voice that does not fit the person on screen who speaks is VOICE_MISMATCH, a fault of its sound that leaves the clean " +
   "windows as they are; render_edit then cuts the take only silent (no sound: true). product_image: the product as it " +
-  "really is; moves: the seconds a hand meets the product, looked at first. ad_id and slot: the verdict joins that slot of the ad record. " +
+  "really is, a link or { run_id } of your generate_image picture, { upload_id } or { asset_id }; moves: the seconds a hand meets the product, looked at first. ad_id and slot: the verdict joins that slot of the ad record. " +
   "format: fashion (people and clothes in motion) or product (a product in the hands, the default); motion, free, measures the take and each " +
   "clean window as subject motion (the camera's own move taken out), camera move and camera shake, names a window too static for this format " +
   "and names shake on its own: advice to re-shoot, not a defect, so it never fails the take; only a take in which nothing moves at all fails, " +
@@ -206,26 +206,45 @@ export async function waitForFilmRun(client: Pick<ClipwrightClient, "getFilmRun"
 export async function stillPictures(run: FilmRun, fetchImpl?: typeof fetch): Promise<{ images: ImageBlock[]; note: string | null }> {
   if (run.state !== "succeeded") return { images: [], note: null };
   if (run.take_frames) {
-    const urls = run.take_frames.sheets.map(sheet => sheet.image_url), deadline = Date.now() + IMAGE_BUDGET_MS;
-    const images = (await Promise.all(urls.map(url => fetchImage(url, { ...(fetchImpl ? { fetchImpl } : {}), deadline })))).filter(i => i !== null);
-    return { images, note: images.length === urls.length ? null : `${urls.length - images.length} of ${urls.length} sheets did not load: call ` +
+    const urls = run.take_frames.sheets.map(sheet => sheet.image_url), { images, loaded, over } = await inlined(urls, fetchImpl);
+    if (over) return { images, note: `${over} of ${urls.length} sheets are past one answer's picture size, so they come as links: open the ` +
+      `image_url of each sheet after the first ${images.length}.` };
+    return { images, note: loaded === urls.length ? null : `${urls.length - loaded} of ${urls.length} sheets did not load: call ` +
       "get_film_run with this run_id to read them again, at no charge." };
   }
   const stills = run.stills, heroSheet = run.hero?.sheet_url;
   if (!stills) {
     if (!heroSheet) return { images: [], note: null };
-    const image = await fetchImage(heroSheet, { ...(fetchImpl ? { fetchImpl } : {}), deadline: Date.now() + IMAGE_BUDGET_MS });
-    return image ? { images: [image], note: null }
-      : { images: [], note: "The pose sheet did not load: call get_film_run with this run_id to read it again, at no charge." };
+    const { images, over } = await inlined([heroSheet], fetchImpl);
+    return images.length ? { images, note: null } : { images: [], note: over ? "The pose sheet is past one answer's picture size: open its sheet_url."
+      : "The pose sheet did not load: call get_film_run with this run_id to read it again, at no charge." };
   }
   const many = stills.frames.length > OWN_STILLS_SINGLE_MAX;
   if (many && !stills.sheet_url) return { images: [], note: `These ${stills.frames.length} stills have no sheet, so none is sent as a picture: ` +
     "open each image_url." };
-  const urls = stills.sheet_url ? [stills.sheet_url] : stills.frames.map(f => f.image_url), deadline = Date.now() + IMAGE_BUDGET_MS;
-  const images = (await Promise.all(urls.map(url => fetchImage(url, { ...(fetchImpl ? { fetchImpl } : {}), deadline })))).filter(i => i !== null);
-  if (images.length === urls.length) return { images, note: null };
-  const what = stills.sheet_url ? "The sheet did not load" : `${urls.length - images.length} of ${urls.length} stills did not load`;
+  const urls = stills.sheet_url ? [stills.sheet_url] : stills.frames.map(f => f.image_url), { images, loaded, over } = await inlined(urls, fetchImpl);
+  if (over) return { images, note: stills.sheet_url ? "The sheet is past one answer's picture size: open its sheet_url." : `${over} of ` +
+    `${urls.length} stills are past one answer's picture size, so they come as links: open the image_url of each still after the first ${images.length}.` };
+  if (loaded === urls.length) return { images, note: null };
+  const what = stills.sheet_url ? "The sheet did not load" : `${urls.length - loaded} of ${urls.length} stills did not load`;
   return { images, note: `${what}: call get_film_run with this run_id to read the pictures again, at no charge.` };
+}
+
+/** The most base64 one answer's pictures carry (#1758): an MCP client drops an answer over 16 MB, so the text and a margin stay under it. */
+export const FILM_INLINE_IMAGES_MAX_CHARS = 12_000_000;
+
+/** The pictures in order while their base64 fits FILM_INLINE_IMAGES_MAX_CHARS; `over` counts the loaded ones past it, sent as links. */
+async function inlined(urls: readonly string[], fetchImpl?: typeof fetch): Promise<{ images: ImageBlock[]; loaded: number; over: number }> {
+  const deadline = Date.now() + IMAGE_BUDGET_MS;
+  const fetched = (await Promise.all(urls.map(url => fetchImage(url, { ...(fetchImpl ? { fetchImpl } : {}), deadline })))).filter(i => i !== null);
+  const images: ImageBlock[] = [];
+  let chars = 0;
+  for (const image of fetched) {
+    if (chars + image.data.length > FILM_INLINE_IMAGES_MAX_CHARS) break;
+    chars += image.data.length;
+    images.push(image);
+  }
+  return { images, loaded: fetched.length, over: fetched.length - images.length };
 }
 
 /** A run's answer: the run, with its pictures when it drew stills. Image blocks, as the analysis read answers them; the shared response type

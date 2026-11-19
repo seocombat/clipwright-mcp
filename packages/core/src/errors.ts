@@ -471,6 +471,7 @@ const BARE_ERROR_CODES = [
   "editing_window_not_set",
   "explainer_busy",
   "feedback_limited",
+  "film_asset_not_ready",
   "film_draft_limited",
   "film_draft_not_found",
   "film_draft_stale",

@@ -18,6 +18,28 @@ listed under.
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-11-19
+
+### Added
+
+- `quote_take_check` and `check_take`: `product_image` also takes your own picture by reference: `{ run_id }` of a
+  `generate_image` run, `{ upload_id }` or `{ asset_id }`, besides a link. The picture is pinned when the check is admitted,
+  so a file changed afterwards fails the check at no charge.
+- `take_frames` reads your delivered `render_edit` cut by its `run_id`, so the finished ad can be read frame by frame before
+  you hand it over. `check_take` still takes only clips and video assets.
+
+### Changed
+
+- `take_frames` sheets are JPEG. A long take's sheets no longer exceed a client's message size, and the number of frames and
+  sheets is unchanged. The MCP server inlines sheets, stills and the hero sheet up to one answer's picture size and sends the
+  rest as links, with a note naming them.
+- *Server-side:* `check_take` on a take whose direction plans hard cuts with `CUT` headers judges each planned shot on its
+  own. A drift between the shots of such a take no longer fails the whole take.
+- *Server-side:* a tool that reads an asset still processing answers 409 `film_asset_not_ready` with a link to `get_asset`,
+  the same on every tool, before any charge. Wait for the asset, then repeat the call unchanged.
+- *Server-side:* `get_ad_guide` has two required steps. Read the hook's frames at 12 a second and confirm the hook's event
+  lands by 1.5 s. Count the face's share of the cut at 4 frames a second before `quote_edit` (at least 35%).
+
 ## [0.70.0] - 2026-11-19
 
 ### Added

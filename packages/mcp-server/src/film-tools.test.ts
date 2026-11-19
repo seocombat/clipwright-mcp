@@ -8,7 +8,7 @@ import { FILM_GUIDE_FORMATS, guideModesOf, OWN_STILLS_SINGLE_MAX, parseApiFailur
 import type { ClipwrightClient } from "@clipwright/sdk";
 import { listTools } from "./remote.js";
 import { ClipwrightApiError } from "@clipwright/sdk";
-import { AD_DIY_TOOLS, FILM_POLL_MS, FILM_WAIT_MS, ownAgentOpenFor, registerFilmDraftTools, stdioModes, stillPictures, waitForFilmRun } from "./film-tools.js";
+import { AD_DIY_TOOLS, FILM_INLINE_IMAGES_MAX_CHARS, FILM_POLL_MS, FILM_WAIT_MS, ownAgentOpenFor, registerFilmDraftTools, stdioModes, stillPictures, waitForFilmRun } from "./film-tools.js";
 
 // #1291 F2, #1337: the «own agent» film tools are listed only where the mode is offered, so the public tool list is unchanged before launch.
 
@@ -354,6 +354,29 @@ describe("a take's audit as a client calls it", () => {
     fetchedBy(fetched));
     expect(content.map(c => c.type)).toEqual(["text", "image", "image"]);
     expect(fetched).toEqual(["https://r2.test/sheet1.png", "https://r2.test/sheet2.png"]);
+  });
+
+  // #1758 D3. Mutant: no budget for the answer's pictures, and four 5 MB sheets (old PNG ones) come to 27 MB, which the client drops.
+  it("keeps one answer's pictures under its budget and sends the sheets past it as links", async () => {
+    const four = [1, 2, 3, 4].map(i => ({ image_url: `https://r2.test/sheet${i}.png`, from: (i - 1) * 3, to: i * 3 - 0.125, frames: 24 }));
+    const big = fetchedBy([], () => new Response(new Uint8Array(5_000_000)));
+    const content = await callFilmTool("take_frames", { run_id: "run_clip" },
+      [run("succeeded", { skill: "film_take_frames", take_frames: { fps: 8, frames: 96, sheets: four } })], run("queued", { skill: "film_take_frames" }), big);
+    const inline = content.reduce((sum, c) => sum + (c.data?.length ?? 0), 0);
+    expect(inline).toBeLessThanOrEqual(FILM_INLINE_IMAGES_MAX_CHARS);
+    expect(inline + content[0]!.text!.length).toBeLessThan(16_000_000);
+    expect(content.map(c => c.type)).toEqual(["text", "image"]);
+    const body = JSON.parse(content[0]!.text!) as FilmRun & { pictures?: string };
+    expect(body.take_frames!.sheets.map(s => s.image_url)).toEqual(four.map(s => s.image_url));
+    expect(body.pictures).toMatch(/3 of 4 sheets .*image_url/);
+    // The same budget holds stills and a hero sheet: eight 3 MB stills send what fits, and a sheet past the budget alone goes as its link.
+    const stills = await stillPictures(run("succeeded", { stills: { frames: frames(OWN_STILLS_SINGLE_MAX), sheet_url: null, refusals: [] } }),
+      fetchedBy([], () => new Response(new Uint8Array(3_000_000))));
+    expect(stills.images.reduce((sum, i) => sum + i.data.length, 0)).toBeLessThanOrEqual(FILM_INLINE_IMAGES_MAX_CHARS);
+    expect(stills.note).toMatch(/image_url/);
+    const hero = await stillPictures(run("succeeded", { skill: "film_hero", hero: { mascot_id: `ast_${"a".repeat(32)}`, poses: ["neutral"], character: null,
+      sheet_url: "https://r2.test/hero.png" } }), fetchedBy([], () => new Response(new Uint8Array(FILM_INLINE_IMAGES_MAX_CHARS))));
+    expect([hero.images, hero.note]).toEqual([[], expect.stringMatching(/sheet_url/)]);
   });
 
   // Mutants: check_take answering at once without the verdict, its schema dropping a field, or its text hiding the charge rule.

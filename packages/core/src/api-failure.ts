@@ -587,6 +587,10 @@ export const UPLOAD_NOT_FINISHED_NEXT_ACTION =
   "with get_upload, then repeat this call. If the message says the upload is finishing, the file is already there: " +
   "wait a few seconds and repeat. Nothing was charged and no run was created.";
 
+export const ASSET_NOT_READY_NEXT_ACTION =
+  "Wait for the asset the message names: call get_asset with its id until its state is ready, then repeat this same call unchanged. " +
+  "If get_asset says it failed, create the asset again. Nothing was charged and no run was created.";
+
 /** A refused key is fixed by the human, not by changing the call: `get_account` takes no arguments to fix. */
 export const UNAUTHORIZED_NEXT_ACTION =
   "STOP. Clipwright did not accept this connection's key or sign-in: it is missing, mistyped or revoked. Nothing was " +
@@ -795,6 +799,15 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
       };
 
     case "client_error":
+      // An asset still being processed is waited out, not fixed: the same call goes through once get_asset says ready (#1759).
+      if (failure.status === 409 && (failure.code === "film_asset_not_ready" || failure.code === "asset_not_ready")) return {
+        ...base,
+        status: "RETRY_LATER",
+        code: failure.code,
+        retryable: true,
+        ...(failure.next && { next: failure.next }),
+        next_action: ASSET_NOT_READY_NEXT_ACTION,
+      };
       return {
         ...base,
         status: "FAILED",

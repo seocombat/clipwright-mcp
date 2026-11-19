@@ -208,6 +208,8 @@ const ONE_TAKE = "name the take by run_id or by asset_id, one of them";
 
 export const takeFramesInput = z.strictObject({
   ...takeSource,
+  run_id: runId.optional().describe("The take: a delivered generate_video run of this account, or a delivered render_edit run to read the " +
+    "finished edit"),
   fps: z.number().int().min(TAKE_FRAMES_MIN_FPS).max(TAKE_FRAMES_MAX_FPS).default(TAKE_FRAMES_DEFAULT_FPS)
     .describe("Frames a second: 8 to read the whole take, 12 to 24 on a contact"),
   from: takeSecond.optional().describe("The second of the take the frames start at; omitted, its start"),
@@ -252,8 +254,9 @@ export const takeCheckInput = z.strictObject({
     .describe("With against picture: the look a colour outside it is named against"),
   picture: filmCutPicture.optional().describe("With against picture: the picture the take is checked against; needed only when the take " +
     "was not made from a first frame, and it must be that first frame when it was"),
-  product_image: qualifiedImageUrl.optional()
-    .describe("https picture of the product as it really is (your upload or a saved asset): the take's product is compared with it"),
+  product_image: z.union([qualifiedImageUrl, filmCutPicture]).optional()
+    .describe("The product as it really is, the take's product compared with it: an https link to your upload or a saved asset, or the " +
+      "picture by run_id (a delivered generate_image run of this account, such as a product sheet), upload_id or asset_id"),
   moves: z.array(takeSecond).max(TAKE_CHECK_MAX_MOVES).optional()
     .describe("Seconds of the take where a hand meets the product (a grip, a lid, a set-down): looked at first"),
   ad_id: adId.optional().describe("With slot: the ad record the verdict joins, as a take of that slot"),

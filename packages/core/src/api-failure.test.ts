@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agentFailureReport,
+  ASSET_NOT_READY_NEXT_ACTION,
   TAKE_UNCHECKED_NEXT_ACTION,
   UNAUTHORIZED_NEXT_ACTION,
   UPLOAD_NOT_FINISHED_NEXT_ACTION,
@@ -810,6 +811,19 @@ describe("upload_not_finished", () => {
   // The same 409 says "is finishing, retry in a few seconds" while another read holds the lease (#766): the file is there.
   it("the finishing variant is named, so the agent waits instead of uploading again", async () => {
     expect(UPLOAD_NOT_FINISHED_NEXT_ACTION).toMatch(/says the upload is finishing, the file is already there: wait a few seconds and repeat/);
+  });
+});
+
+/** #1759. Mutant: drop the branch, and an asset still being processed reads «STOP. Do NOT retry unchanged», as on 19.11, though the */
+/** unchanged retry is exactly what goes through once the asset is ready. */
+describe("film_asset_not_ready and asset_not_ready", () => {
+  it.each(["film_asset_not_ready", "asset_not_ready"] as const)("409 %s waits on get_asset and repeats the same call, never STOP", code => {
+    const next = { action: "get_asset", method: "GET" as const, path: "/v1/assets/ast_1", body: { asset_id: "ast_1" }, add: [], note: "wait" };
+    const report = agentFailureReport(parseApiFailure({ status: 409,
+      bodyText: JSON.stringify(apiErrorBody({ code, message: "asset_id: ast_1 is still being processed", next })), now: NOW }));
+    expect(report).toMatchObject({ status: "RETRY_LATER", code, retryable: true, next_action: ASSET_NOT_READY_NEXT_ACTION, next });
+    expect(ASSET_NOT_READY_NEXT_ACTION).toMatch(/get_asset .* until its state is ready, then repeat this same call unchanged/);
+    expect(report.next_action).not.toMatch(/STOP/);
   });
 });
 

@@ -115,6 +115,21 @@ const editClip = z.strictObject({
   .refine(clip => clip.sound !== true || clip.speed === 1, { path: ["sound"], message: "a clip's own sound plays at speed 1 only" })
   .refine(clip => clip.sound === true || (clip.speech === undefined && clip.volume === undefined),
     { path: ["sound"], message: "speech and volume describe a clip's own sound: they need sound: true" });
+/** The room sound under a whole edit: its level bounds and default, dB from the level of speech, and the shortest span it is taken from. */
+export const EDIT_AMBIENCE_MIN_VOLUME_DB = -40, EDIT_AMBIENCE_MAX_VOLUME_DB = -18, EDIT_AMBIENCE_DEFAULT_VOLUME_DB = -20, EDIT_AMBIENCE_MIN_SPAN_SEC = 1;
+const editAmbience = z.strictObject({
+  run_id: runId.optional().describe("A delivered generate_video run of this account made with audio: true, whose own sound is the place's"),
+  asset_id: assetId.optional().describe("Instead of run_id: a video asset of this account with its own sound"),
+  from: editSecond.describe("The second of the clip the room sound starts at"),
+  to: editSecond.describe(`The second of the clip it ends at, at least ${EDIT_AMBIENCE_MIN_SPAN_SEC} s after from: a stretch with no one speaking ` +
+    "and no sharp sound in it"),
+  volume: z.number().min(EDIT_AMBIENCE_MIN_VOLUME_DB).max(EDIT_AMBIENCE_MAX_VOLUME_DB).default(EDIT_AMBIENCE_DEFAULT_VOLUME_DB)
+    .describe(`dB from the level of speech: ${EDIT_AMBIENCE_DEFAULT_VOLUME_DB} (the default) is a quiet room under the voice, ` +
+      `${EDIT_AMBIENCE_MAX_VOLUME_DB} the loudest`),
+}).refine(a => (a.run_id === undefined) !== (a.asset_id === undefined), "name the room sound by run_id or by asset_id, one of them")
+  // A hair under the bound passes: 2.3 − 1.3 is 0.9999999999999998 in floating point (Codex r1).
+  .refine(a => a.to - a.from >= EDIT_AMBIENCE_MIN_SPAN_SEC - 1e-9,
+    { path: ["to"], message: `the room sound is taken from at least ${EDIT_AMBIENCE_MIN_SPAN_SEC} s: to must be that far after from` });
 const voicePiece = z.strictObject({
   from: editSecond.describe("The second of the take the piece starts at (make_voice words give each word's start and end)"),
   to: editSecond.describe("The second of the take the piece ends at, after from"),
@@ -156,6 +171,9 @@ export const filmEditInput = z.strictObject({
     .describe("Seconds the last frame is held at the end, for the packshot"),
   music: editMusic.optional().describe("Music from at to the end: a library track (free) or one made for the cut (paid on delivery); " +
     "under a voice it plays lower"),
+  ambience: editAmbience.optional().describe("Free: the place's quiet room sound, a stretch of one of your clips' own sound repeated " +
+    "smoothly under the whole cut whatever its windows and their speed, so every window can play silent and sped up. It never lowers the " +
+    "music and the voice stays on top of it; it goes with a voice, music or a clip's own sound"),
   ad_id: adId.optional().describe("The ad record this cut belongs to: every clip then names its slot, and a clip made with generate_video " +
     "that has not passed check_take in its slot is refused before any credits, unless the slot is people_only; your own footage needs no check"),
   max_credits: maxCreditsField,

@@ -304,7 +304,7 @@ describe("the run tools as a client calls them (#1337)", () => {
     for (const name of ["quote_edit", "render_edit"]) {
       const tool = tools.find(t => t.name === name)!;
       expect(Object.keys(tool.inputSchema.properties ?? {}).sort())
-        .toEqual(["ad_id", ...name === "render_edit" ? ["attempt"] : [], "captions", "clips", "hold", "max_credits", "music", "voice"]);
+        .toEqual(["ad_id", "ambience", ...name === "render_edit" ? ["attempt"] : [], "captions", "clips", "hold", "max_credits", "music", "voice"]);
       expect(tool.inputSchema.required).toEqual(["clips"]);
     }
     expect(tools.find(t => t.name === "render_edit")!.description).toMatch(/^Paid once per delivered cut, after quote_edit\..*up to 3% off 9:16 is cropped to fill it; one further off is shown whole with bars.*costs nothing/s);

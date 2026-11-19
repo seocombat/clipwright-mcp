@@ -18,6 +18,17 @@ listed under.
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-11-19
+
+### Added
+
+- `render_edit` and `quote_edit`: `ambience`, free. Name a stretch of at least 1 s of one clip's own sound (`run_id` of a clip
+  made with `audio: true`, or `asset_id` of your video with sound) and it plays, repeated smoothly, under the whole cut at
+  `volume` −20 dB from the level of speech by default (−40 to −18). It never lowers the music, and the voice stays on top of it.
+  The windows can then play silent and sped up while the place's room sound runs under every second. A source where `check_take`
+  heard someone speak, a foreign or missing clip, a stretch past the clip's end or under 1 s, a level over −18, and a cut with no
+  voice, music or clip sound to lie under are refused before any charge. The edit's price does not change.
+
 ## [0.69.0] - 2026-11-19
 
 ### Added

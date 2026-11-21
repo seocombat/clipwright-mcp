@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { diyBlocked, diyNext, type DiyBlocked, type DiyNext } from "./diy-next.js";
+import { diyNext, type DiyNext } from "./diy-next.js";
 import { EDIT_ISSUE_CODES } from "./edit-validate.js";
 import { workflowCommandError } from "./contracts/v1/workflow-execution.js";
 
@@ -85,21 +85,6 @@ export const accountNotAdmittedError = z.object({
 });
 export type AccountNotAdmittedError = z.infer<typeof accountNotAdmittedError>;
 
-/** An edit cuts a clip made with generate_video whose file has no passing check_take: before any run or hold, */
-/** with the check to run next and what unblocks the cut, as the record's next and blocked. */
-export const takeUncheckedError = z.object({
-  error: z.object({
-    code: z.literal("take_unchecked"),
-    message: z.string().min(1),
-    next: diyNext,
-    blocked: diyBlocked,
-  }),
-});
-export type TakeUncheckedError = z.infer<typeof takeUncheckedError>;
-
-export function takeUncheckedBody(args: { message: string; next: DiyNext; blocked: DiyBlocked }): TakeUncheckedError {
-  return takeUncheckedError.parse({ error: { code: "take_unchecked", ...args } });
-}
 
 /** Builds the "not enough credits" body. The wording lives here so every place that */
 /** answers 402 explains the refusal the same way. */
@@ -463,6 +448,7 @@ const BARE_ERROR_CODES = [
   "creator_profile_limited",
   "creator_profile_not_found",
   "creator_url_unsupported",
+  "cut_busy",
   "cut_limited",
   "cut_not_found",
   "cut_preview_limited",
@@ -544,7 +530,6 @@ export const API_ERROR_CODES: readonly string[] = [
   scriptEncodingLostError.shape.error.shape.code.value,
   insufficientCreditsError.shape.error.shape.code.value,
   maxCreditsExceededError.shape.error.shape.code.value,
-  takeUncheckedError.shape.error.shape.code.value,
   debtOutstandingError.shape.error.shape.code.value,
   accountNotAdmittedError.shape.error.shape.code.value,
   editConflictError.shape.error.shape.code.value,

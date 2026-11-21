@@ -141,6 +141,12 @@ import {
   type GenerationModels,
   generationQuote,
   type GenerationQuote,
+  UPSCALE_QUOTE_PATH,
+  UPSCALE_RUN_PATH,
+  upscaleQuote,
+  type UpscaleQuote,
+  upscaleRequest,
+  type UpscaleRequest,
   FEEDBACK_PATH,
   feedbackRequest,
   type FeedbackRequest,
@@ -288,6 +294,7 @@ import {
   ownAgentIdempotencyKeyFor,
   revisionIdempotencyKeyFor,
   uploadRequestIdempotencyKeyFor,
+  upscaleIdempotencyKeyFor,
   assetBytesIdempotencyKeyFor,
   assetRequestIdempotencyKeyFor,
 } from "@clipwright/core/idempotency";
@@ -1205,7 +1212,8 @@ export class ClipwrightClient {
     return parseResponse(filmGuide, await this.#request(path, false), path, false);
   }
 
-  /** The ad guide for make_ugc and for making the ad yourself, or one section of it. Free. */
+  /** The ad guide for make_ugc and for making the ad yourself. With no section, its index: which section to read, every section's */
+  /** title, and the order and final check; `section` reads one part whole. Free. */
   async getAdGuide(query: AdGuideQuery = {}): Promise<AdGuide> {
     const { section } = adGuideQuery.parse(query);
     const path = section ? `${AD_GUIDE_PATH}?section=${encodeURIComponent(section)}` : AD_GUIDE_PATH;
@@ -1273,6 +1281,25 @@ export class ClipwrightClient {
   /** Starts a clip generation, returned at once (state=queued); the same request and attempt return the same run. */
   async generateVideo(request: GenerateVideoRequest, opts?: StartUgcOptions): Promise<RunRead> {
     return this.#startGeneration("generate_video", GENERATE_VIDEO_RUN_PATH, generateVideoRequest.parse(request), opts);
+  }
+
+  /** What one upscale of a delivered clip or picture would cost, its output size and its source's; spends no credits. */
+  async quoteUpscale(request: UpscaleRequest): Promise<UpscaleQuote> {
+    const parsed = upscaleRequest.parse(request);
+    return parseResponse(upscaleQuote, await this.#request(UPSCALE_QUOTE_PATH, false, { method: "POST", body: JSON.stringify(parsed) }),
+      UPSCALE_QUOTE_PATH, false);
+  }
+
+  /** Starts an upscale, returned at once (state=queued) as a generate_video or generate_image run; the same request and attempt return the same run. */
+  async upscale(request: UpscaleRequest, opts?: StartUgcOptions): Promise<RunRead> {
+    const parsed = upscaleRequest.parse(request);
+    const key = opts?.idempotencyKey ?? `${upscaleIdempotencyKeyFor(parsed, this.#getClientId())}:${attemptSuffix(opts?.attempt)}`;
+    // `true`: once sent, the run may have been created and its credits held.
+    const body = await this.#request(UPSCALE_RUN_PATH, true, { method: "POST", body: JSON.stringify(parsed), headers: { "Idempotency-Key": key } });
+    const read = tolerant(runReadSchema).safeParse(body);
+    if (read.success) return read.data;
+    if (typeof body !== "object" || body === null || Array.isArray(body)) throw new ClipwrightResponseError(UPSCALE_RUN_PATH, true, read.error);
+    return body as RunRead;
   }
 
   async #quoteGeneration(path: string, request: GenerateImageRequest | GenerateVideoRequest): Promise<GenerationQuote> {

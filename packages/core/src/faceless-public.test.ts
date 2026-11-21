@@ -6,7 +6,6 @@ import {
   FACELESS_QUOTE_PATH, FACELESS_RUN_PATH, makeFacelessInput, facelessPlannerInput, facelessQuoteResponse,
   offeredFacelessInput, offeredFacelessInputShape,
 } from "./faceless-public.js";
-import { EXPLAINER_TIER_TARIFFS, SKILL_FILM_TARIFFS } from "./faceless-price.js";
 import { buildOpenApiDocument } from "./openapi.js";
 import { run } from "./runs.js";
 import { parseSkill } from "./skills.js";
@@ -185,10 +184,11 @@ describe("faceless shared contracts", () => {
 });
 
 // #1359 C1: the field says what each format does with the character, so a standard run's use of it is never a guess.
-it("describes character_reference per format, in customer terms", () => {
+// #1358: the explainer is no longer made here, so the field names the one format that uses it.
+it("describes character_reference in customer terms", () => {
   const text = offeredFacelessInputShape.character_reference.description ?? "";
-  expect(text).toContain("Standard format: the figure is in every picture we generate and in the opening clip; your own scene_images are shown as they are.");
-  expect(text).toContain("Format explainer: the figure is the hero, a person's photo drawn as a cartoon unless character_details ask for a photoreal look.");
+  expect(text).toContain("The figure is in every picture we generate and in the opening clip; your own scene_images are shown as they are.");
+  expect(text).not.toMatch(/explainer/i);
   expect(text).toContain("a public https image, or a picture you uploaded or saved in your assets.");
   expect(text).not.toMatch(/flare|fal|seedance|kie|CLIPWRIGHT|reference role/i);
   // OpenAPI reads the same schema: both branches of MakeFacelessInput carry the very text MCP offers.
@@ -214,18 +214,18 @@ describe("the explainer's tier", () => {
     expect(facelessContracts.facelessTierRefusal(makeFacelessInput.parse({ ...explainer, tier: "pro" }))).toBeNull();
     expect(facelessContracts.facelessTierRefusal(makeFacelessInput.parse(video))).toBeNull();
   });
-  it("names no level on other formats", () => {
-    const text = offeredFacelessInputShape.tier.description ?? "";
-    expect(text).not.toMatch(/Other formats|pictures that move|live footage|tiers\b/);
-    expect(text).toMatch(/Elsewhere tier is refused\.$/);
+  // #1358. Mutants: the retired film still offered with its levels and prices, or the field leading nowhere.
+  it("sends an explainer to the film the user writes, and offers no level", () => {
+    const tier = offeredFacelessInputShape.tier.description ?? "", format = offeredFacelessInputShape.format.description ?? "";
+    expect(format).toContain("not offered here");
+    expect(format).toContain("get_film_guide");
+    expect(tier).toBe("Format explainer only, which is not offered here.");
+    expect(`${tier} ${format} ${offeredFacelessInputShape.mascot_id.description}`).not.toMatch(/standard|\bpro\b|half an hour|credits/);
+    expect(`${tier} ${format}`).not.toMatch(/sonnet|opus|claude|anthropic|agent|CLIPWRIGHT|tariff/i);
   });
-  it("is described in customer terms with the prices billing charges", () => {
-    const text = offeredFacelessInputShape.tier.description ?? "";
-    expect(text).toContain(`'standard' (default): ${SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS.standard].filmCredits} credits for a film up to 60 s plus ` +
-      `${SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS.standard].perExtraSecond} each second over`);
-    expect(text).toContain(`${SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS.pro].filmCredits} credits for a film up to 60 s plus ` +
-      `${SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS.pro].perExtraSecond} each second over`);
-    expect(offeredFacelessInputShape.format.description).toContain("about half an hour");
-    expect(`${text} ${offeredFacelessInputShape.format.description}`).not.toMatch(/sonnet|opus|claude|anthropic|agent|CLIPWRIGHT|tariff/i);
+  // #1358 (Codex r2). Mutant: any word added to the public refusal, a vendor's name among them, passes a check by containment.
+  it("refuses the format in customer words that lead to the film the user writes", () => {
+    expect(facelessContracts.FACELESS_EXPLAINER_DISABLED_MESSAGE).toBe("format explainer is not offered on make_faceless: write the explainer " +
+      "film yourself, starting with get_film_guide, each part quoted before it is made; omit format for a narrated video over pictures");
   });
 });

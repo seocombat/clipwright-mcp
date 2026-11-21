@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   actorIdempotencyKeyFor, assetBytesIdempotencyKeyFor, assetRequestIdempotencyKeyFor, assetRequestIdentity, candidateIdempotencyKeyFor,
-  facelessIdempotencyKeyFor, idempotencyKeyFor, requestHash, revisionIdempotencyKeyFor,
+  facelessIdempotencyKeyFor, idempotencyKeyFor, requestHash, revisionIdempotencyKeyFor, upscaleIdempotencyKeyFor,
 } from "./idempotency.js";
 
 /** Every paid-run key: a new key builder must join this table, not get its own ad hoc test. */
@@ -16,6 +16,8 @@ const keyBuilders = [
     input: { name: "Ada", description: "A calm lighthouse keeper with grey hair", gender: "female", approximate_age: 55 },
     explicit: { name: "Ada", description: "A calm lighthouse keeper with grey hair", gender: "female", approximate_age: 55, quality: "medium" },
     other: { name: "Ada", description: "A cheerful baker with flour on her apron", gender: "female", approximate_age: 55 } },
+  { name: "upscale", key: upscaleIdempotencyKeyFor, input: { source: { run_id: "run_take1" } },
+    explicit: { source: { run_id: "run_take1" }, max_credits: undefined }, other: { source: { run_id: "run_take2" } } },
   { name: "make_faceless", key: facelessIdempotencyKeyFor,
     input: { input_mode: "script", script: "Mira reached the harbor.", duration_seconds: 30 },
     explicit: { input_mode: "script", script: "Mira reached the harbor.", duration_seconds: 30, captions: true },
@@ -32,6 +34,14 @@ describe.each(keyBuilders)("$name idempotency key", ({ key, input, explicit, oth
   it("differs for a different request", () => {
     expect(key(input, "client-aaaa")).not.toBe(key(other, "client-aaaa"));
   });
+});
+
+// Mutant: hash the upscale request without its own namespace, and it shares a key with any request of the same body (#1774).
+it("an upscale key is its own namespace, apart from the request's bare hash", () => {
+  const request = { source: { run_id: "run_take1" } };
+  expect(upscaleIdempotencyKeyFor(request, "client-aaaa"))
+    .not.toBe(createHash("sha256").update(`client-aaaa${JSON.stringify(request)}`).digest("hex"));
+  expect(() => upscaleIdempotencyKeyFor({ source: { run_id: "run_take1" }, model: "x" }, "client-aaaa")).toThrow();
 });
 
 describe("revision idempotency key", () => {

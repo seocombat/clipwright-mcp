@@ -27,6 +27,8 @@ export interface AvatarClipRequest {
   aspectRatio: AspectRatio;
   /** Unset: the adapter resolves the default actor. */
   image?: ImageSource;
+  /** The vendor model the client picked by name (#1773); unset, the backend's own model. */
+  model?: "avatar6_turbo";
 }
 
 export interface AvatarClipResult {

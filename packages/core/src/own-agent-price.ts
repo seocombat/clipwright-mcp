@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FACELESS_EXPLAINER_POSE_PICTURES } from "./faceless-price.js";
-import { MUSIC_BED_CREDITS } from "./music.js";
+import { FILM_MUSIC_BED_CREDITS, MUSIC_BED_CREDITS } from "./music.js";
 
 // The «own agent» tariff (#1291 F2): your agent writes the film; Clipwright sells its stills, voice with word timings, render and hero. Prices
 // are frozen per run at admission, and only delivered work is charged.
@@ -29,6 +29,15 @@ export const OWN_STILLS_MAX_PER_CALL = 24, OWN_FILM_MAX_SECONDS = 120, OWN_VOICE
 export const OWN_STILLS_SINGLE_MAX = 8;
 /** A hero's published pose picture (#1692; 7 on runs admitted before), and the poses a hero is made of. */
 export const OWN_HERO_POSE_CREDITS = 9, OWN_HERO_POSES = FACELESS_EXPLAINER_POSE_PICTURES;
+/** A head with every sprite saved (make_film_hero head), once per head. */
+export const OWN_HERO_HEAD_CREDITS = 120;
+/** Heads of one account that may fail in a trailing day before another is refused: each failure can have paid its pictures. */
+export const OWN_HEAD_FAILED_PER_DAY = 3;
+/** A published talking sprite of a sprite hero (a whole sprite hero: 81 + 12 × 8 = 177), priced only while sprite heroes are offered. */
+export const OWN_HERO_SPRITE_CREDITS = 8;
+/** The poses of a sprite hero that talk, each with its mouth half and open and a blink; the rest do not talk. */
+export const OWN_HERO_TALKING_POSES = ["neutral", "palm", "point", "up"] as const;
+export const OWN_HERO_MAX_SPRITES = OWN_HERO_TALKING_POSES.length * 3;
 /** An edit of the account's own clips, voice and captions into one cut, charged once per delivered cut up to OWN_EDIT_MAX_SECONDS long. */
 export const OWN_EDIT_CREDITS = 10, OWN_EDIT_MAX_SECONDS = 60;
 /** A take's frames on contact sheets (take_frames): free, at most this many frames a call, and this many calls an account starts an hour. */
@@ -44,6 +53,9 @@ export const OWN_HERO_FREE_POSES_PER_DAY = 27;
 export const OWN_HERO_FREE_POSES_WINDOW_HOURS = 24;
 /** preview_cut runs an account starts an hour, in the same window, whatever their stills cost; working number. */
 export const CUT_PREVIEWS_PER_HOUR = 20;
+/** render_cut runs an account may have queued or rendering at once; past it, a start is refused before any charge. */
+export const CUTS_IN_FLIGHT_PER_ACCOUNT = 4;
+export const CUT_BUSY_RETRY_SECONDS = 120;
 /** A take judged frame by frame against its direction (check_take), charged once per delivered verdict. */
 export const OWN_TAKE_CHECK_CREDITS = 10;
 /** A take judged against the picture it was made from (check_take against picture), once per delivered verdict; working number. */
@@ -78,10 +90,16 @@ export const ownAgentTerms = z.strictObject({
   voice_credits_per_second: z.number().int().nonnegative(),
   /** A published hero pose; absent on terms frozen before the hero was sold, and a hero run without it is never charged. */
   pose_credits: z.number().int().nonnegative().optional(),
+  /** A saved head with every sprite; absent on terms frozen before heads were sold, which price none. */
+  head_credits: z.number().int().nonnegative().optional(),
+  /** A published talking sprite; present only on terms frozen while sprite heroes are offered, and a hero admitted without it has no sprites. */
+  sprite_credits: z.number().int().nonnegative().optional(),
   /** A delivered edit; absent on terms frozen before the edit was sold, and an edit run without it is never charged. */
   edit_credits: z.number().int().nonnegative().optional(),
   /** Music made for an edit and carried by the delivered cut; absent on terms frozen before it was sold, which price none. A library bed is free. */
   music_credits: z.number().int().nonnegative().optional(),
+  /** The same for a film (render_film), its own price; absent on terms frozen before it was sold, which price none. */
+  film_music_credits: z.number().int().nonnegative().optional(),
   /** A delivered take verdict; absent on terms frozen before the check was sold, and a check run without it is never charged. */
   take_check_credits: z.number().int().nonnegative().optional(),
   /** A delivered verdict against a picture; absent on terms frozen before it was sold, which price none. */
@@ -106,15 +124,22 @@ export type OwnAgentTerms = z.infer<typeof ownAgentTerms>;
 const CUT_TERMS = ["cut_credits", "cut_included_seconds", "cut_extra_second_credits", "cut_bed_credits", "cut_take_sound_credits_per_second",
   "cut_music_credits"] as const;
 
-export const ownAgentTermsNow = (): OwnAgentTerms => ({ tariff: OWN_AGENT_TARIFF, still_credits: OWN_STILL_CREDITS, render_credits: OWN_FILM_RENDER_CREDITS,
+export const ownAgentTermsNow = (options: { sprites?: boolean } = {}): OwnAgentTerms => ({ tariff: OWN_AGENT_TARIFF, still_credits: OWN_STILL_CREDITS,
+  render_credits: OWN_FILM_RENDER_CREDITS,
   included_seconds: OWN_FILM_INCLUDED_SECONDS, extra_second_credits: OWN_FILM_EXTRA_SECOND_CREDITS, voice_credits_per_second: OWN_VOICE_CREDITS_PER_SECOND,
-  pose_credits: OWN_HERO_POSE_CREDITS, edit_credits: OWN_EDIT_CREDITS, music_credits: MUSIC_BED_CREDITS, take_check_credits: OWN_TAKE_CHECK_CREDITS,
+  pose_credits: OWN_HERO_POSE_CREDITS, head_credits: OWN_HERO_HEAD_CREDITS, ...(options.sprites ? { sprite_credits: OWN_HERO_SPRITE_CREDITS } : {}),
+  edit_credits: OWN_EDIT_CREDITS, music_credits: MUSIC_BED_CREDITS, film_music_credits: FILM_MUSIC_BED_CREDITS,
+  take_check_credits: OWN_TAKE_CHECK_CREDITS,
   picture_check_credits: OWN_TAKE_CHECK_PICTURE_CREDITS, picture_check_long_credits: OWN_TAKE_CHECK_PICTURE_LONG_CREDITS, free_stills: OWN_FREE_STILLS, free_stills_window_hours: OWN_FREE_STILLS_WINDOW_HOURS, cut_credits: OWN_CUT_CREDITS, cut_included_seconds: OWN_CUT_INCLUDED_SECONDS,
   cut_extra_second_credits: OWN_CUT_EXTRA_SECOND_CREDITS, cut_bed_credits: OWN_CUT_BED_CREDITS,
   cut_take_sound_credits_per_second: OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND, cut_music_credits: MUSIC_BED_CREDITS });
 
 /** Whether the mode is offered. */
 export const isOwnAgentEnabled = (env: Readonly<Record<string, string | undefined>>): boolean => env.CLIPWRIGHT_OWN_AGENT === "1";
+/** Whether make_film_hero draws a head from a photo. */
+export const isFilmHeadEnabled = (env: Readonly<Record<string, string | undefined>>): boolean => env.CLIPWRIGHT_FILM_HEAD === "1";
+/** Whether a new hero's talking poses get mouth and blink sprites, priced by the frozen terms. */
+export const isHeroSpritesEnabled = (env: Readonly<Record<string, string | undefined>>): boolean => env.CLIPWRIGHT_HERO_SPRITES === "1";
 
 const seconds = (s: number, max: number, what: string): number => {
   if (!Number.isFinite(s) || s <= 0 || s > max) throw new Error(`${what} of ${s} s is outside 0–${max} s`);
@@ -125,9 +150,12 @@ const frames = (n: number): number => {
   return n;
 };
 
-/** A film of `s` seconds: the base up to the included length, each started second over it on top. */
-export const ownFilmRenderCredits = (s: number, terms: OwnAgentTerms = ownAgentTermsNow()): number =>
-  terms.render_credits + terms.extra_second_credits * Math.max(0, seconds(s, OWN_FILM_MAX_SECONDS, "a film") - terms.included_seconds);
+/** A film of `s` seconds: the base, each started second over the included length, and with `music` the track made for it. */
+export function ownFilmRenderCredits(s: number, terms: OwnAgentTerms = ownAgentTermsNow(), music = false): number {
+  const film = terms.render_credits + terms.extra_second_credits * Math.max(0, seconds(s, OWN_FILM_MAX_SECONDS, "a film") - terms.included_seconds);
+  if (music && terms.film_music_credits === undefined) throw new Error("these terms price no film music");
+  return film + (music ? terms.film_music_credits! : 0);
+}
 /** A take of `s` seconds, rounded up once. */
 export const ownVoiceCredits = (s: number, terms: OwnAgentTerms = ownAgentTermsNow()): number =>
   terms.voice_credits_per_second * seconds(s, OWN_VOICE_MAX_SECONDS, "a take");
@@ -137,11 +165,18 @@ export function ownStillsCredits(n: number, terms: OwnAgentTerms = ownAgentTerms
     throw new Error(`${free} free stills is outside these terms`);
   return terms.still_credits * Math.max(0, frames(n) - free);
 }
-/** `n` published hero poses; terms without a pose price price none. */
-export function ownHeroCredits(n: number, terms: OwnAgentTerms = ownAgentTermsNow()): number {
+/** `n` published hero poses and `sprites` published talking sprites, or with `head` one saved head; terms that price none of them price none. */
+export function ownHeroCredits(n: number, terms: OwnAgentTerms = ownAgentTermsNow(), sprites = 0, head = false): number {
+  if (head) {
+    if (terms.head_credits === undefined) throw new Error("these terms price no head");
+    if (n !== 0 && n !== 1) throw new Error(`${n} heads is outside 0–1`);
+    return terms.head_credits * n;
+  }
   if (!Number.isSafeInteger(n) || n < 0 || n > OWN_HERO_POSES) throw new Error(`${n} poses is outside 0–${OWN_HERO_POSES}`);
   if (terms.pose_credits === undefined) throw new Error("these terms price no hero pose");
-  return terms.pose_credits * n;
+  if (!Number.isSafeInteger(sprites) || sprites < 0 || sprites > OWN_HERO_MAX_SPRITES) throw new Error(`${sprites} sprites is outside 0–${OWN_HERO_MAX_SPRITES}`);
+  if (sprites > 0 && terms.sprite_credits === undefined) throw new Error("these terms price no sprite");
+  return terms.pose_credits * n + (terms.sprite_credits ?? 0) * sprites;
 }
 
 /** An edit of `s` seconds: one flat price up to the longest edit, and with `music` the track made for it on top; terms that price no edit, or
@@ -160,8 +195,9 @@ export type OwnAgentDelivery =
   /** A cut's preview stills, priced as a draft's stills; `free`, the ones its admission granted free out of the account's allowance. */
   | { skill: "film_cut_preview"; frames: number; free?: number }
   | { skill: "film_voice"; seconds: number }
-  | { skill: "film_render"; seconds: number }
-  | { skill: "film_hero"; poses: number }
+  /** `music`: the delivered film carries a track made for it; a library bed is free and never sets it. */
+  | { skill: "film_render"; seconds: number; music?: boolean }
+  | { skill: "film_hero"; poses: number; sprites?: number; head?: boolean }
   /** `music`: the delivered cut carries a track made for it; a library bed is free and never sets it. */
   | { skill: "film_edit"; seconds: number; music?: boolean }
   /** `sheets`: the contact sheets drawn; free. */
@@ -200,11 +236,11 @@ export function ownTakeFramesCredits(sheets: number): number {
 export function ownAgentCharge(delivery: OwnAgentDelivery, terms: OwnAgentTerms, heldCredits: number): number {
   const charge = delivery.skill === "film_stills" || delivery.skill === "film_cut_preview" ? ownStillsCredits(delivery.frames, terms, delivery.free)
     : delivery.skill === "film_voice" ? ownVoiceCredits(delivery.seconds, terms)
-    : delivery.skill === "film_hero" ? ownHeroCredits(delivery.poses, terms)
+    : delivery.skill === "film_hero" ? ownHeroCredits(delivery.poses, terms, delivery.sprites ?? 0, delivery.head === true)
     : delivery.skill === "film_edit" ? ownEditCredits(delivery.seconds, terms, delivery.music === true)
     : delivery.skill === "film_take_frames" ? ownTakeFramesCredits(delivery.sheets)
     : delivery.skill === "film_take_check" ? ownTakeCheckCredits(delivery.checks, terms, delivery.against, delivery.long === true)
-    : delivery.skill === "film_cut" ? ownCutCredits(delivery, terms) : ownFilmRenderCredits(delivery.seconds, terms);
+    : delivery.skill === "film_cut" ? ownCutCredits(delivery, terms) : ownFilmRenderCredits(delivery.seconds, terms, delivery.music === true);
   if (!Number.isSafeInteger(heldCredits) || charge > heldCredits) throw new Error(`${delivery.skill} charge ${charge} is over its hold ${heldCredits}`);
   return charge;
 }

@@ -79,7 +79,7 @@ export function listVoices(
   // Presets and catalog voices are ElevenLabs voices: a model of another vendor never supports them.
   const supportedModels = (language: string) => ELEVENLABS_TTS_MODELS.filter((id) => languagesOf(id).includes(language));
 
-  const presets: VoiceCatalogEntry[] = [...Object.entries(VOICE_PRESETS), ...Object.entries(servicePresets)].map(([name, preset]) => ({
+  const presets: VoiceCatalogEntry[] = [...Object.entries(VOICE_PRESETS), ...Object.entries(servicePresets)].map(([name, { tempo: _tempo, ...preset }]: [string, VoicePreset]) => ({
     name,
     kind: "preset",
     skill: "make_ugc",

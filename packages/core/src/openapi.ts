@@ -27,6 +27,7 @@ import { API_ENDPOINTS, type ApiEndpoint, endpointLabel } from "./endpoints.js";
 import { facelessQuoteResponse } from "./faceless-public.js";
 import { feedbackRequest, feedbackResponse } from "./feedback.js";
 import { generateImageRequest, generateVideoRequest, generationModels, generationQuote } from "./generations.js";
+import { upscaleQuote, upscaleRequest } from "./upscale.js";
 import { pricesResponse } from "./prices.js";
 import { PUBLIC_API_BASE_URL, PUBLIC_APP_BASE_URL } from "./public-endpoints.js";
 import { healthResponse, publicSkillsResponse } from "./public-responses.js";
@@ -213,14 +214,14 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
   "POST /v1/take-checks/quote": { exposure: "excluded", reason: "Not offered yet: film runs join the contract when their mode launches (#1337)." },
   "POST /v1/take-checks": { exposure: "excluded", reason: "Not offered yet: film runs join the contract when their mode launches (#1337)." },
   "GET /v1/film-runs/{id}": { exposure: "excluded", reason: "Not offered yet: film runs join the contract when their mode launches (#1337)." },
-  "POST /v1/film-cuts/check": { exposure: "excluded", reason: "Not offered yet: the cut check joins the contract when faceless cuts open to every account." },
-  "POST /v1/film-cuts/quote": { exposure: "excluded", reason: "Not offered yet: the cut joins the contract when faceless cuts open to every account." },
-  "POST /v1/film-cuts": { exposure: "excluded", reason: "Not offered yet: the cut joins the contract when faceless cuts open to every account." },
-  "POST /v1/cut-previews/quote": { exposure: "excluded", reason: "Not offered yet: the preview joins the contract when faceless cuts open to every account." },
-  "POST /v1/cut-previews": { exposure: "excluded", reason: "Not offered yet: the preview joins the contract when faceless cuts open to every account." },
-  "POST /v1/cuts": { exposure: "excluded", reason: "Not offered yet: cut records join the contract when faceless cuts open to every account." },
-  "POST /v1/cuts/{id}": { exposure: "excluded", reason: "Not offered yet: cut records join the contract when faceless cuts open to every account." },
-  "GET /v1/cuts/{id}": { exposure: "excluded", reason: "Not offered yet: cut records join the contract when faceless cuts open to every account." },
+  "POST /v1/film-cuts/check": { exposure: "excluded", reason: "Offered through MCP (check_cut)." },
+  "POST /v1/film-cuts/quote": { exposure: "excluded", reason: "Offered through MCP (quote_cut, render_cut)." },
+  "POST /v1/film-cuts": { exposure: "excluded", reason: "Offered through MCP (quote_cut, render_cut)." },
+  "POST /v1/cut-previews/quote": { exposure: "excluded", reason: "Offered through MCP (quote_cut_preview, preview_cut)." },
+  "POST /v1/cut-previews": { exposure: "excluded", reason: "Offered through MCP (quote_cut_preview, preview_cut)." },
+  "POST /v1/cuts": { exposure: "excluded", reason: "Offered through MCP (create_cut, get_cut, update_cut)." },
+  "POST /v1/cuts/{id}": { exposure: "excluded", reason: "Offered through MCP (create_cut, get_cut, update_cut)." },
+  "GET /v1/cuts/{id}": { exposure: "excluded", reason: "Offered through MCP (create_cut, get_cut, update_cut)." },
   "GET /v1/film-guide": { exposure: "excluded", reason: "Not offered yet: the film guide joins the contract when its mode launches (#1356)." },
   "GET /v1/film-kit": { exposure: "excluded", reason: "Not offered yet: the film kit joins the contract when its mode launches (#1356)." },
   "GET /v1/ad-guide": { exposure: "excluded", reason: "Not offered yet: the ad guide joins the contract when it opens to every account (#1539)." },
@@ -258,6 +259,10 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
     body: named("GenerateVideoRequest", generateVideoRequest), responses: { 200: named("GenerationQuote", generationQuote) } },
   "POST /v1/skills/generate_video/run": { exposure: "public", operationId: "generateVideo", tag: "Skills",
     body: named("GenerateVideoRequest", generateVideoRequest), responses: { 202: Run, 200: Run } },
+  "POST /v1/skills/upscale/quote": { exposure: "public", operationId: "quoteUpscale", tag: "Skills",
+    body: named("UpscaleRequest", upscaleRequest), responses: { 200: named("UpscaleQuote", upscaleQuote) } },
+  "POST /v1/skills/upscale/run": { exposure: "public", operationId: "upscale", tag: "Skills",
+    body: named("UpscaleRequest", upscaleRequest), responses: { 202: Run, 200: Run } },
   "POST /v1/reference-analyses/quote": { exposure: "public", operationId: "quoteAnalysis", tag: "Reference analysis",
     body: named("AnalyzeReferenceRequest", analyzeReferenceRequest), responses: { 200: named("AnalysisQuote", analysisQuoteResponse) } },
   "POST /v1/reference-analyses": { exposure: "public", operationId: "analyzeReference", tag: "Reference analysis",

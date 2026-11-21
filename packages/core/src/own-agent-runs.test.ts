@@ -33,6 +33,19 @@ describe("own-agent run bounds", () => {
   });
 });
 
+describe("check_take's speed field (#1664)", () => {
+  // Codex r2. Mutant: the schema filling speed in, so a body sent before the field parses differently, its key hashes differently and a
+  // retry of an admitted check is refused instead of answered with its run.
+  it("adds no speed to a body that names none, keeps the one it names, and refuses it against a picture", () => {
+    const motion = { run_id: "run_take1", direction: "A hand lifts the jar." };
+    expect(takeCheckInput.parse(motion)).toEqual(motion);
+    expect(takeCheckInput.parse({ ...motion, speed: true }).speed).toBe(true);
+    expect(takeCheckInput.safeParse({ run_id: "run_take1", against: "picture", speed: true, cut_id: `fv_${"a".repeat(32)}`, slot: "s1",
+      look: { words: "flat" }, direction: { start: "A mug.", changes: [], end: "A mug." } }).error?.issues.map(i => i.path.join(".")))
+      .toContain("speed");
+  });
+});
+
 describe("check_take against a picture (faceless DIY F2)", () => {
   const direction = { start: "The fox sits by the lamp.", changes: [{ at_s: 1.2, cause: "the lamp flickers", result: "the fox turns its head" }],
     end: "The fox looks at the lens.", locks: ["one fox"] };

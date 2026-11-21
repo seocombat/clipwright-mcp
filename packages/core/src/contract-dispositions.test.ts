@@ -61,10 +61,12 @@ describe("FIELD_DISPOSITIONS — completeness guard", () => {
     expect(Object.keys(FIELD_DISPOSITIONS).sort()).toEqual([...FIELDS].sort());
   });
 
-  it("the table matches today's contract (52 fields)", () => {
+  it("the table matches today's contract (54 fields)", () => {
     // Pinned: growing the shape is a deliberate contract change, not a side effect (#778 and its later fields, each named by its own
-    // assertion below or in its own test; #1491 propose, with scene and proposal withdrawn).
-    expect(FIELDS).toHaveLength(52);
+    // assertion below or in its own test; #1491 propose, with scene and proposal withdrawn; #1773 presenter_engine and voice_run_id).
+    expect(FIELDS).toHaveLength(54);
+    expect(FIELD_DISPOSITIONS.voice_run_id).toEqual({ kind: "implemented", provenBy: "egress" });
+    expect(FIELD_DISPOSITIONS.presenter_engine).toEqual({ kind: "implemented", provenBy: "egress" });
     expect(FIELDS).not.toContain("scene");
     expect(FIELDS).not.toContain("proposal");
     expect(FIELD_DISPOSITIONS.propose).toEqual({ kind: "implemented", provenBy: "admission" });

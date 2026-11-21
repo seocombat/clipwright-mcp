@@ -116,7 +116,7 @@ export const MCP_UGC_DESCRIPTIONS = {
     "image. A source more than 15% off the request is refused (aspect_conflict) before any charge.",
   caption_mode: "full (default): every spoken word. highlights: only around caption_emphasis quotes (lead-in, quote, short tail); requires " +
     "caption_emphasis. Captions hide under a full-frame insert.",
-  visible_ai_label: "Visible AI label, default true. False hides only the visible label; invisible marking and signed provenance stay.",
+  visible_ai_label: "Not available right now: a request that sets it is refused.",
   layout_windows: "Text-anchored presenter reframings: split (9:16 only) or card; no overlap with each other or an insert; needs what " +
     "inserts need. A covered or blurred presenter is billed as face time.",
   end_hold_s: "Seconds the last frame holds after the last word, the presenter frozen and every layer kept; production seconds. Needs " +

@@ -6,23 +6,28 @@ import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
 import {
   FACELESS_CREDITS_PER_1500_FRAMES, FACELESS_IMAGE_CREDITS, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MIN_BASE_CREDITS,
   FACELESS_MIN_SELECTED_SECONDS, FACELESS_OPENER_CREDITS, FACELESS_SHOT_CREDITS_PER_SECOND, facelessScenesEnabled, quoteFaceless,
-  EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, EXPLAINER_TIERS, FACELESS_EXPLAINER_POSE_PICTURES, facelessExplainerEnabled,
+  EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, EXPLAINER_TIERS, FACELESS_EXPLAINER_POSE_PICTURES, explainerFilmOffered,
   SKILL_FILM_TARIFFS,
 } from "./faceless-price.js";
 import { PRESENTER_ENGINES, SHOT_ENGINES } from "./face-billing.js";
 import { listGenerationModels } from "./generations.js";
-import { PARTS_FACE_TARIFF, PRESENTER_ENGINE_LABELS, SCENE_CREDITS, SHOT_CREDITS_PER_SECOND, SHOT_ENGINE_LABELS } from "./parts-pricing.js";
+import { PARTS_DURATION_TARIFF, PARTS_FACE_TARIFF, PRESENTER_CREDITS_PER_SECOND, PRESENTER_ENGINE_LABELS, SCENE_CREDITS, SHOT_CREDITS_PER_SECOND,
+  SHOT_ENGINE_LABELS } from "./parts-pricing.js";
+import { isHeygenAvatar6Enabled } from "./presenter-engine.js";
+import { UPSCALE_CAPABILITIES, UPSCALE_QUOTE_PATH, UPSCALE_RUN_PATH } from "./upscale.js";
 import { REFERENCE_ANALYSIS_CREDITS, REFERENCE_DATA_CREDITS } from "./reference-analysis.js";
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
 import {
   TREND_FREE_PAGES_PER_DAY, TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_REELS,
 } from "./trend-search.js";
-import { isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
+import { FILM_MUSIC_BED_CREDITS, isMusicEnabled, MUSIC_BED_CREDITS } from "./music.js";
 import { HERO_RUNS_PER_HOUR, isOwnAgentEnabled, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
   OWN_HERO_FREE_POSES_PER_DAY, OWN_HERO_FREE_POSES_WINDOW_HOURS, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_EDIT_CREDITS,
   OWN_EDIT_MAX_SECONDS, OWN_TAKE_CHECK_CREDITS, OWN_CUT_BED_CREDITS, OWN_CUT_CREDITS, OWN_CUT_EXTRA_SECOND_CREDITS,
   OWN_CUT_INCLUDED_SECONDS, OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND,
-  OWN_TAKE_CHECK_PICTURE_CREDITS, OWN_TAKE_CHECK_PICTURE_LONG_CREDITS, TAKE_PICTURE_SHORT_TIER_SECONDS } from "./own-agent-price.js";
+  OWN_TAKE_CHECK_PICTURE_CREDITS, OWN_TAKE_CHECK_PICTURE_LONG_CREDITS, OWN_TAKE_FRAMES_MAX, TAKE_PICTURE_SHORT_TIER_SECONDS, OWN_HERO_HEAD_CREDITS,
+  OWN_HERO_MAX_SPRITES, OWN_HERO_SPRITE_CREDITS, OWN_HERO_TALKING_POSES, isFilmHeadEnabled, isHeroSpritesEnabled, ownAgentTermsNow,
+  ownHeroCredits } from "./own-agent-price.js";
 import { CUT_PREVIEW_MAX_STILLS } from "./film-cut.js";
 
 /** The public price list (#927): every number is read from the constant billing charges by, never typed here. */
@@ -93,6 +98,7 @@ const FREE_TOOLS: Readonly<Record<string, string>> = {
   quote_actor: "POST /v1/skills/create_actor/quote",
   quote_image: "POST /v1/skills/generate_image/quote",
   quote_video: "POST /v1/skills/generate_video/quote",
+  quote_upscale: `POST ${UPSCALE_QUOTE_PATH}`,
   quote_revision: "POST /v1/runs/{id}/revisions/quote",
   quote_candidate: "POST /v1/runs/{id}/candidates/quote",
   quote_workflow_plan: "POST /v1/workflow-plans/{id}/quote",
@@ -157,23 +163,45 @@ function generationEntries(): PriceEntry[] {
   });
 }
 
-/** The ad tools' entries (render_edit, check_take, take_frames). They serve only the ad epic's accounts, which read the price from the quote,
- *  so the public list leaves them out until the epic opens to everyone. */
-export const AD_DIY_PRICES: readonly PriceEntry[] = Object.freeze([
-  paid({ tool: "render_edit", route: "POST /v1/film-edits", quote_tool: "quote_edit", unit: "call", credits: OWN_EDIT_CREDITS,
+/** An upscale's two prices from its table (#1774): a clip per second of the source, a picture per picture. */
+function upscaleEntries(): PriceEntry[] {
+  const { video, image } = UPSCALE_CAPABILITIES;
+  const clipCredits = [...new Set(video.rows.filter((row) => row.measured).map((row) => row.unit_credits))];
+  return [
+    ...clipCredits.map((credits) => paid({ tool: "upscale", route: `POST ${UPSCALE_RUN_PATH}`, variant: "clip", unit: "clip_second", credits,
+      quote_tool: "quote_upscale", notes: "Per second of the source clip, charged once the larger clip is delivered; a failed upscale costs nothing." })),
+    ...(image.measured ? [paid({ tool: "upscale", route: `POST ${UPSCALE_RUN_PATH}`, variant: "picture", unit: "image",
+      credits: image.unit_credits, quote_tool: "quote_upscale",
+      notes: "The picture doubled on each side, charged once it is delivered; a failed upscale costs nothing." })] : []),
+  ];
+}
+
+/** The DIY modes the list sells: a mode open to every account. A mode served to listed accounts only is left out, since the list is public
+ *  and keyless; those accounts read the price from the quote. */
+export interface DiyModesSold { readonly ad: boolean; readonly faceless: boolean }
+export const NO_DIY_MODES: DiyModesSold = Object.freeze({ ad: false, faceless: false });
+
+/** The ad tools' entries (render_edit, check_take), sold while the ad DIY mode is open to everyone. */
+const adDiyPrices = (music: boolean): PriceEntry[] => [
+  paid({ tool: "render_edit", route: "POST /v1/film-edits", quote_tool: "quote_edit",
+    lines: [{ label: `the cut, up to ${OWN_EDIT_MAX_SECONDS} s`, unit: "call", credits: OWN_EDIT_CREDITS },
+      // Music is sold only while it can be ordered (#1063).
+      ...(music ? [{ label: "music made for the cut", unit: "track", credits: MUSIC_BED_CREDITS } satisfies PriceEntryLine] : [])],
     notes: `One cut of your own clips with your voice and captions, up to ${OWN_EDIT_MAX_SECONDS} s, vertical 720p. Charged only for a ` +
-      "delivered cut; an edit that fails costs nothing." }),
+      "delivered cut; an edit that fails costs nothing." +
+      (music ? " A library music bed is free; music made for the cut is charged only when the delivered cut carries it." : "") }),
   paid({ tool: "check_take", route: "POST /v1/take-checks", quote_tool: "quote_take_check", unit: "call", credits: OWN_TAKE_CHECK_CREDITS,
     notes: "One of your clips judged frame by frame against the prompt it was made with: each defect with its seconds and how to repair " +
       "it, and the clean windows. Charged only for a delivered verdict; a check that delivers no verdict costs nothing." }),
-  { action: "take_frames", tool: "take_frames", route: "POST /v1/take-frames", variant: null, lines: [{ label: null, unit: "call" as const, credits: 0 }],
-    formula: null, minimum_credits: null, quote_tool: null,
-    notes: "Free: one of your clips as contact sheets, each frame labelled with its second, up to 96 frames a call." },
-]);
+];
 
-/** The faceless cut's entry (render_cut). It serves only the faceless DIY accounts, which read the price from the quote, so the public list
- *  leaves it out until faceless cuts open to everyone. */
-export const FACELESS_DIY_PRICES: readonly PriceEntry[] = Object.freeze([
+/** take_frames, free, sold while either DIY mode is open to everyone. */
+const TAKE_FRAMES_PRICE: PriceEntry = { action: "take_frames", tool: "take_frames", route: "POST /v1/take-frames", variant: null,
+  lines: [{ label: null, unit: "call", credits: 0 }], formula: null, minimum_credits: null, quote_tool: null,
+  notes: `Free: one of your clips as contact sheets, each frame labelled with its second, up to ${OWN_TAKE_FRAMES_MAX} frames a call.` };
+
+/** The faceless cut's entries (render_cut, check_take against a picture, preview_cut), sold while faceless DIY is open to everyone. */
+const facelessDiyPrices = (): PriceEntry[] => [
   paid({ tool: "render_cut", route: "POST /v1/film-cuts", quote_tool: "quote_cut", lines: [
     { label: `the cut, up to ${OWN_CUT_INCLUDED_SECONDS} s`, unit: "call", credits: OWN_CUT_CREDITS },
     { label: `each second over ${OWN_CUT_INCLUDED_SECONDS}`, unit: "second", credits: OWN_CUT_EXTRA_SECOND_CREDITS },
@@ -195,10 +223,17 @@ export const FACELESS_DIY_PRICES: readonly PriceEntry[] = Object.freeze([
   paid({ tool: "preview_cut", route: "POST /v1/cut-previews", quote_tool: "quote_cut_preview", unit: "still", credits: OWN_STILL_CREDITS,
     notes: `Up to ${CUT_PREVIEW_MAX_STILLS} frames of your checked cut sheet as the video draws them, on the words you name. The first ` +
       `${OWN_FREE_STILLS} preview stills of an account in any ${OWN_FREE_STILLS_WINDOW_HOURS} h are free; a preview that fails costs nothing.` }),
-]);
+];
+
+/** The DIY entries the given modes sell, in list order; none unless the own-agent mode is on, as the tools themselves. */
+export const diyPriceEntries = (diy: DiyModesSold, music: boolean): PriceEntry[] => [
+  ...(diy.ad ? adDiyPrices(music) : []),
+  ...(diy.faceless ? facelessDiyPrices() : []),
+  ...(diy.ad || diy.faceless ? [TAKE_FRAMES_PRICE] : []),
+];
 
 function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = false, facelessScenes = false, music = false, explainer = false,
-  ownAgent = false): PriceEntry[] {
+  ownAgent = false, avatar6 = false, diy: DiyModesSold = NO_DIY_MODES, heroSprites = false, filmHead = false): PriceEntry[] {
   const unit = EDIT_UNIT_PRICES;
   const parts = PARTS_FACE_TARIFF;
   const shotRates = parts.shotCreditsPerSecond ?? SHOT_CREDITS_PER_SECOND;
@@ -223,6 +258,15 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         (liveShots ? " A live shot's seconds take its own line in place of the presenter's; talking shots stay on the presenter line." : "") +
         (scenes ? " A scene made for the video is charged only when it is drawn in the delivered video." : "") +
         (music ? " Music is added only when you ask for it and charged only when the delivered video carries it." : "") })),
+    // Avatar 6 Turbo is sold only while it can be ordered (#1773), on short and long 9:16 videos (#1776).
+    ...(avatar6 ? [paid({ tool: "make_ugc", route: "POST /v1/skills/make_ugc/run", variant: "HeyGen Avatar 6 Turbo presenter",
+      quote_tool: "quote_ugc", minimum_credits: PARTS_DURATION_TARIFF.minimumCredits,
+      lines: [{ label: PRESENTER_ENGINE_LABELS.heygen_avatar6_turbo, unit: "face_second", credits: PRESENTER_CREDITS_PER_SECOND.heygen_avatar6_turbo },
+        { label: "production (voice and render)", unit: "second", credits: PARTS_DURATION_TARIFF.productionCreditsPerSecond }],
+      notes: "presenter_engine avatar6_turbo, the default of a 9:16 video, short or long, whose presenter picture is within 2% of 9:16, " +
+        "with no call, interview, presenter_gaze or talking shot and no presenter part longer than about 36 s; any other video renders " +
+        "on HeyGen Avatar IV. Presenter seconds are the seconds a presenter take fills, counted once over the video and rounded up; " +
+        "production seconds are every second of the finished video." })] : []),
     paid({ tool: "analyze_reference", route: "POST /v1/reference-analyses", unit: "call", credits: REFERENCE_ANALYSIS_CREDITS,
       quote_tool: "quote_analysis", notes: "Held at the start and charged once the analysis succeeds; a failed one costs nothing. " +
         "Starting it again on the same asset answers the same analysis for free." }),
@@ -278,15 +322,33 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         notes: "A narrated take with each word's timing, charged by its delivered seconds; a take that fails costs nothing." }),
       paid({ tool: "render_film", route: "POST /v1/film-renders", quote_tool: "quote_render",
         lines: [{ label: `film up to ${OWN_FILM_INCLUDED_SECONDS} s`, unit: "call", credits: OWN_FILM_RENDER_CREDITS },
-          { label: `each second over ${OWN_FILM_INCLUDED_SECONDS} s`, unit: "second", credits: OWN_FILM_EXTRA_SECOND_CREDITS }],
-        notes: "Charged only for a delivered film, by its length; a render that fails costs nothing." }),
-      paid({ tool: "make_film_hero", route: "POST /v1/film-heroes", quote_tool: "quote_film_hero", unit: "image", credits: OWN_HERO_POSE_CREDITS,
-        notes: `A hero in up to ${OWN_HERO_POSES} pose pictures, saved as a mascot of your assets; each pose is charged once it is published, except ` +
+          { label: `each second over ${OWN_FILM_INCLUDED_SECONDS} s`, unit: "second", credits: OWN_FILM_EXTRA_SECOND_CREDITS },
+          // Music is sold only while it can be ordered (#1063).
+          ...(music ? [{ label: "music made for the film", unit: "track", credits: FILM_MUSIC_BED_CREDITS } satisfies PriceEntryLine] : [])],
+        notes: "Charged only for a delivered film, by its length; a render that fails costs nothing." +
+          (music ? " A library music bed is free; music made for the film is charged only when the delivered film carries it." : "") }),
+      paid({ tool: "make_film_hero", route: "POST /v1/film-heroes", quote_tool: "quote_film_hero",
+        lines: [{ label: null, unit: "image", credits: OWN_HERO_POSE_CREDITS },
+          // Talking sprites are sold only while a new hero gets them (#1823).
+          ...(heroSprites ? [{ label: "talking sprite", unit: "image", credits: OWN_HERO_SPRITE_CREDITS } satisfies PriceEntryLine] : [])],
+        notes: (heroSprites ? `A new drawn hero's ${OWN_HERO_TALKING_POSES.length} talking poses also get ${OWN_HERO_MAX_SPRITES} sprites ` +
+          `(mouth half open, mouth open and a blink for each), each charged once it is published: a whole hero is ` +
+          `${ownHeroCredits(OWN_HERO_POSES, ownAgentTermsNow({ sprites: true }), OWN_HERO_MAX_SPRITES)} credits. A photoreal hero gets no ` +
+          "sprites. " : "") +
+          `A hero in up to ${OWN_HERO_POSES} pose pictures, saved as a mascot of your assets; each pose is charged once it is published, except ` +
           "a drawn pose whose face shows but whose mouth cannot move with the voice, or whose face could not be read, which is published " +
           `with a warning and not charged (a pose with no face to animate is charged); at most ${HERO_RUNS_PER_HOUR} heroes an hour, and ` +
           `none while the account has received ${OWN_HERO_FREE_POSES_PER_DAY} such uncharged poses in the last ${OWN_HERO_FREE_POSES_WINDOW_HOURS} hours; a ` +
           "film that uses the mascot makes and charges none again. Completing a saved mascot charges only the poses it adds. A hero that " +
           "publishes no pose costs nothing." }),
+      // A head drawn from a photo is sold only while it can be ordered (#1823).
+      ...(filmHead ? [paid({ tool: "make_film_hero", route: "POST /v1/film-heroes", quote_tool: "quote_film_hero", variant: "head",
+        unit: "call", credits: OWN_HERO_HEAD_CREDITS,
+        notes: "head true with your photo or your actor's picture: the head drawn as a cartoon that talks, blinks and changes its look, saved " +
+          "as a mascot a film's actor wears. One price per head, charged only when the head is saved with all its pictures; a head that " +
+          "fails costs nothing." })] : []),
+      // The DIY tools (#1539) run as own-agent runs, so they are sold only beside them.
+      ...diyPriceEntries(diy, music),
     ] : []),
     paid({ tool: "revise_run", route: "POST /v1/runs/{id}/revisions", quote_tool: "quote_revision",
       formula: `each shot generated anew: picture ${unit.picture}, clip ${unit.clip}, clip with a new picture ${unit.clip_with_new_picture}; ` +
@@ -306,6 +368,7 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
         credits: credits.variant, quote_tool: "quote_actor", notes: `Each requested format besides the ${ACTOR_PORTRAIT_ASPECT} portrait, once published.` }),
     ]),
     ...generationEntries(),
+    ...upscaleEntries(),
     paid({ tool: "run_workflow_plan", route: "POST /v1/workflow-plans/{id}/run", quote_tool: "quote_workflow_plan",
       formula: "the price of the native run it starts, make_ugc or make_faceless, as its quote states it" }),
     ...Object.entries(FREE_TOOLS).map(([tool, route]): PriceEntry => ({ action: tool, tool, route, variant: null,
@@ -313,12 +376,14 @@ function buildPriceList(liveShots: boolean, scenes: boolean, facelessShots = fal
   ];
 }
 
-/** The price list as the given environment sells it: live-shot and scene lines only while their switches are on. */
-export function priceListFor(env: Record<string, string | undefined>): readonly PriceEntry[] {
+/** The price list as the given environment sells it: live-shot and scene lines only while their switches are on. `diy` names the DIY modes
+ *  open to everyone; the API decides them from its account lists, and the site's prerendered list passes none. */
+export function priceListFor(env: Record<string, string | undefined>, diy: DiyModesSold = NO_DIY_MODES): readonly PriceEntry[] {
   const longForm = env.CLIPWRIGHT_LONG_FORM_QUALIFICATION === "1" && env.CLIPWRIGHT_COMPOSE === "1" && env.CLIPWRIGHT_REMOTE_FETCH === "1";
   const liveShots = env.CLIPWRIGHT_LIVE_SHOTS === "1" && longForm, scenes = env.CLIPWRIGHT_SCENES === "1" && longForm;
   return Object.freeze(pricesResponse.parse({ prices: buildPriceList(liveShots, scenes, env.CLIPWRIGHT_FACELESS_SHOTS === "1",
-    scenes && facelessScenesEnabled(env), isMusicEnabled(env), facelessExplainerEnabled(env), isOwnAgentEnabled(env)) }).prices);
+    scenes && facelessScenesEnabled(env), isMusicEnabled(env), explainerFilmOffered(env), isOwnAgentEnabled(env),
+    isHeygenAvatar6Enabled(env), diy, isHeroSpritesEnabled(env), isFilmHeadEnabled(env)) }).prices);
 }
 
 export const PRICE_LIST: readonly PriceEntry[] = priceListFor(typeof process === "undefined" ? {} : process.env);

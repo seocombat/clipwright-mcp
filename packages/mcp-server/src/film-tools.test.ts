@@ -116,6 +116,12 @@ describe("the film tools (#1291 F2, #1337)", () => {
     }
     expect(Object.keys(ad.find(t => t.name === "make_voice")!.inputSchema.properties ?? {})).not.toContain("cut_id");
     expect(Object.keys(find("make_voice").inputSchema.properties ?? {})).toContain("cut_id");
+    // #1773: make_voice's voice is a name form, not a list, so the client lets the API decide a name it was not shipped with.
+    // make_voice lists quote_voice's fields by type (#1803), so the name form is read on quote_voice.
+    for (const [name, pattern] of [["make_voice", "undefined"], ["quote_voice", "string"]] as const) {
+      const voice = (find(name).inputSchema.properties as Record<string, { enum?: unknown; pattern?: string; type?: string }>).voice!;
+      expect([voice.enum, voice.type, typeof voice.pattern], name).toEqual([undefined, "string", pattern]);
+    }
     const drawn = run("succeeded", { skill: "film_cut_preview", stills: { frames: [{ at: 3, seconds: 1.2, frame: 30, image_url: "https://r2.test/p.png",
       findings: [] }], sheet_url: null, refusals: [] } });
     const started: unknown[] = [];
@@ -288,8 +294,9 @@ describe("the run tools as a client calls them (#1337)", () => {
     for (const name of ["quote_film_hero", "make_film_hero"]) {
       const tool = tools.find(t => t.name === name)!;
       expect(Object.keys(tool.inputSchema.properties ?? {}).sort())
-        .toEqual(name === "make_film_hero" ? ["attempt", "character_details", "character_reference", "mascot_id", "max_credits", "script", "voice_run_id"]
-          : ["character_details", "character_reference", "mascot_id", "max_credits", "script", "voice_run_id"]);
+        .toEqual(name === "make_film_hero"
+          ? ["attempt", "character_details", "character_reference", "head", "mascot_id", "max_credits", "script", "voice_run_id"]
+          : ["character_details", "character_reference", "head", "mascot_id", "max_credits", "script", "voice_run_id"]);
       expect(tool.inputSchema.required ?? []).toEqual([]);
     }
     expect(tools.find(t => t.name === "make_film_hero")!.description).toMatch(/per pose published.*mascot_id/s);
@@ -307,7 +314,7 @@ describe("the run tools as a client calls them (#1337)", () => {
         .toEqual(["ad_id", "ambience", ...name === "render_edit" ? ["attempt"] : [], "captions", "clips", "hold", "max_credits", "music", "voice"]);
       expect(tool.inputSchema.required).toEqual(["clips"]);
     }
-    expect(tools.find(t => t.name === "render_edit")!.description).toMatch(/^Paid once per delivered cut, after quote_edit\..*up to 3% off 9:16 is cropped to fill it; one further off is shown whole with bars.*costs nothing/s);
+    expect(tools.find(t => t.name === "render_edit")!.description).toMatch(/^Input: the same fields as quote_edit, plus attempt\. Paid once per delivered cut, after quote_edit\..*up to 3% off 9:16 is cropped to fill it; one further off is shown whole with bars.*costs nothing/s);
   });
 });
 
@@ -338,7 +345,9 @@ describe("the ad record as a client calls it (#1539 stage 2)", () => {
   it("names the mistakes to avoid in every ad tool's description, and the ad fields on check_take and render_edit", async () => {
     const tools = await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true });
     for (const name of AD_DIY_TOOLS) expect(tools.find(t => t.name === name)!.description, name).toMatch(/Mistakes to avoid: \S/);
-    expect(tools.find(t => t.name === "render_edit")!.description).toMatch(/ad_slot_unchecked\) before any credits/);
+    // #1664: the check is optional. Mutant: a description that still makes it required.
+    for (const name of ["render_edit", "check_take", "get_ad"]) expect(tools.find(t => t.name === name)!.description, name).toMatch(/optional/);
+    expect(tools.map(t => t.description).join(" ")).not.toMatch(/take_unchecked|ad_slot_unchecked\) before|frames are not a check/);
     expect(tools.find(t => t.name === "get_ad")!.inputSchema.required).toEqual(["ad_id"]);
     expect(Object.keys(tools.find(t => t.name === "update_ad")!.inputSchema.properties ?? {}).sort()).toEqual(["ad_id", "brief", "slots"]);
   });
@@ -389,11 +398,12 @@ describe("a take's audit as a client calls it", () => {
     const tools = await listTools({ fileAccess: "refuse", ownAgent: true, adGuide: true });
     for (const name of ["quote_take_check", "check_take"]) {
       expect(Object.keys(tools.find(t => t.name === name)!.inputSchema.properties ?? {}).sort())
-        .toEqual(["ad_id", "asset_id", ...name === "check_take" ? ["attempt"] : [], "direction", "format", "max_credits", "moves", "product_image", "run_id", "slot"]);
+        .toEqual(["ad_id", "asset_id", ...name === "check_take" ? ["attempt"] : [], "direction", "format", "max_credits", "moves", "product_image", "run_id",
+          "slot", "speed"]);
     }
     expect(Object.keys(tools.find(t => t.name === "take_frames")!.inputSchema.properties ?? {}).sort())
       .toEqual(["asset_id", "attempt", "crop", "fps", "from", "max_credits", "run_id", "to"]);
-    expect(tools.find(t => t.name === "check_take")!.description).toMatch(/^Paid per delivered verdict, after quote_take_check\..*costs nothing/s);
+    expect(tools.find(t => t.name === "check_take")!.description).toMatch(/^Input: the same fields as quote_take_check, plus attempt\. Paid per delivered verdict, after quote_take_check\..*costs nothing/s);
     expect(tools.find(t => t.name === "take_frames")!.description).toMatch(/^Free\..*at most 96 frames/s);
   });
 
@@ -413,7 +423,8 @@ describe("a take's audit as a client calls it", () => {
     for (const name of ["quote_take_check", "check_take"]) {
       const direction = (list: typeof ad) => (list.find(t => t.name === name)!.inputSchema.properties as Record<string, Record<string, unknown>>).direction!;
       expect([direction(ad).type, direction(ad).anyOf, JSON.stringify(direction(ad))], name).toEqual(["string", undefined, expect.not.stringMatching(/picture|start/)]);
-      expect(JSON.stringify(direction(faceless)), name).toMatch(/changes/);
+      // check_take lists quote_take_check's fields by type (#1803): the object form's fields are read on the quote.
+      expect(JSON.stringify(direction(faceless)), name).toMatch(name === "check_take" ? /"type":"object"/ : /changes/);
     }
   });
 });

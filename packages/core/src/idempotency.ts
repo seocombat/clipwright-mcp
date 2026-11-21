@@ -10,6 +10,7 @@ import { generateImageRequest, generateVideoRequest } from "./generations.js";
 import { filmEditInput, filmHeroInput, filmRenderInput, filmStillsInput, filmVoiceInput, takeCheckInput, takeFramesInput } from "./own-agent-runs.js";
 import type { OwnAgentSkill } from "./own-agent-price.js";
 import { runId } from "./runs.js";
+import { upscaleRequest } from "./upscale.js";
 import { measuredVideoSize, type RunVideo } from "./video-size.js";
 import { makeUgcInput } from "./skills.js";
 import { uploadImportRequest, uploadIntentRequest } from "./uploads.js";
@@ -88,6 +89,14 @@ export function candidateIdempotencyKeyFor(sourceRunId: string, request: unknown
 /** The key of a single generation: the skill and its request, parsed, under the client's prefix. */
 export function generationIdempotencyKeyFor(skill: "generate_image" | "generate_video", request: unknown, clientId: string): string {
   const parsed = { skill, request: skill === "generate_image" ? generateImageRequest.parse(request) : generateVideoRequest.parse(request) };
+  return createHash("sha256")
+    .update(clientId + JSON.stringify(canonicalize(parsed)))
+    .digest("hex");
+}
+
+/** The key of an upscale (#1774): its own namespace, so an upscale and a generation never share a key. */
+export function upscaleIdempotencyKeyFor(request: unknown, clientId: string): string {
+  const parsed = { op: "upscale", request: upscaleRequest.parse(request) };
   return createHash("sha256")
     .update(clientId + JSON.stringify(canonicalize(parsed)))
     .digest("hex");

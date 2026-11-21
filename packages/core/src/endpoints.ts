@@ -18,6 +18,7 @@ import { AD_PATH, ADS_PATH } from "./ads.js";
 import { FILM_EDITS_PATH, FILM_EDITS_QUOTE_PATH, FILM_HEROES_PATH, FILM_HEROES_QUOTE_PATH, FILM_RENDERS_PATH, FILM_RENDERS_QUOTE_PATH, FILM_RUN_PATH, FILM_STILLS_PATH, FILM_STILLS_QUOTE_PATH, FILM_VOICES_PATH,
   FILM_VOICES_QUOTE_PATH, TAKE_CHECKS_PATH, TAKE_CHECKS_QUOTE_PATH, TAKE_FRAMES_PATH, TAKE_FRAMES_QUOTE_PATH } from "./own-agent-runs.js";
 import { GENERATION_MODELS_PATH } from "./generations.js";
+import { UPSCALE_QUOTE_PATH, UPSCALE_RUN_PATH } from "./upscale.js";
 import { PRICES_PATH } from "./prices.js";
 import { REFERENCE_ANALYSES_PATH, REFERENCE_ANALYSIS_PATH, REFERENCE_ANALYSIS_QUOTE_PATH } from "./reference-analysis.js";
 import { RUN_MEDIA_PATH } from "./run-media.js";
@@ -118,6 +119,9 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   { method: "POST", path: "/v1/skills/generate_image/run", billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: "/v1/skills/generate_video/quote", billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: "/v1/skills/generate_video/run", billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  // An upscale of a delivered clip or picture (#1774): a generate_video or generate_image run in mode upscale.
+  { method: "POST", path: UPSCALE_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
+  { method: "POST", path: UPSCALE_RUN_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   // Reference analysis (reference-to-video S1c): paid since #927; its own hourly cap stands in the handler too. The Trends page uses it (#917).
   { method: "POST", path: REFERENCE_ANALYSIS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: true, mcp: true },
   { method: "POST", path: REFERENCE_ANALYSES_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: true, mcp: true },
@@ -168,7 +172,7 @@ export const API_ENDPOINTS: readonly ApiEndpoint[] = [
   // Stills of the checked cut as the video draws them, quoted first like the rest.
   { method: "POST", path: CUT_PREVIEWS_QUOTE_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: CUT_PREVIEWS_PATH, billed: true, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
-  // The cut record of a customer's own agent: free, for the faceless DIY accounts.
+  // The cut record of a customer's own agent: free, for every account.
   { method: "POST", path: CUTS_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "POST", path: CUT_PATH, billed: false, onQuickstart: false, jsonBody: true, cabinet: false, mcp: true },
   { method: "GET", path: CUT_PATH, billed: false, onQuickstart: false, jsonBody: false, cabinet: false, mcp: true },

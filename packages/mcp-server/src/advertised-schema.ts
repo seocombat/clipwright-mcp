@@ -85,28 +85,34 @@ const withoutDescriptions = (schema: unknown): string =>
 export const PAID_TWINS: Record<string, string> = {
   make_ugc: "quote_ugc", revise_run: "quote_revision", generate_video: "quote_video", generate_image: "quote_image",
   create_actor: "quote_actor", make_faceless: "quote_faceless", create_candidate: "quote_candidate", analyze_reference: "quote_analysis",
-  find_trends: "quote_trends",
+  find_trends: "quote_trends", upscale: "quote_upscale", render_edit: "quote_edit", check_take: "quote_take_check", render_film: "quote_render",
+  preview_stills: "quote_stills", make_film_hero: "quote_film_hero", make_voice: "quote_voice",
 };
 
-/** The paid tool's fields its quote lacks, or undefined when the quote's fields differ from the paid tool's. */
+/** The cut tools take one cut sheet: listed in full once, on check_cut, which the agent runs first and after every change. */
+export const SHARED_INPUTS: Record<string, string> = {
+  quote_cut: "check_cut", quote_cut_preview: "check_cut", preview_cut: "check_cut", render_cut: "check_cut",
+};
+
+/** The tool's fields its source lacks, or undefined when a field of the source is missing or differs; */
+/** which are required may differ (check_cut takes no cut_id yet), since a twin lists its own `required`. */
 export function twinExtras(paid: Tool, quote: Tool): string[] | undefined {
   const [own, theirs] = [paid, quote].map(tool => JSON.parse(withoutDescriptions(tool.inputSchema)) as Schema);
   const ownFields = (isSchema(own!.properties) ? own!.properties : {}) as Schema;
   const quoteFields = (isSchema(theirs!.properties) ? theirs!.properties : {}) as Schema;
   const shared = Object.keys(quoteFields);
-  const same = shared.every(key => JSON.stringify(ownFields[key]) === JSON.stringify(quoteFields[key]))
-    && JSON.stringify(((own!.required ?? []) as string[]).filter(key => shared.includes(key))) === JSON.stringify(theirs!.required ?? []);
+  const same = shared.every(key => key in ownFields && JSON.stringify(ownFields[key]) === JSON.stringify(quoteFields[key]));
   return same ? Object.keys(ownFields).filter(key => !shared.includes(key)) : undefined;
 }
 
-/** Each paid tool advertised by its quote, with the fields only it takes; a pair whose fields drifted keeps its own schema. */
+/** Each tool advertised by its source's fields, with the fields only it takes; a pair whose fields drifted keeps its own schema. */
 export function findTwins(tools: readonly Tool[]): Map<string, { of: string; plus: string[] }> {
   const byName = new Map(tools.map(tool => [tool.name, tool]));
   const twins = new Map<string, { of: string; plus: string[] }>();
-  for (const [paid, quote] of Object.entries(PAID_TWINS)) {
-    const [paidTool, quoteTool] = [byName.get(paid), byName.get(quote)];
-    const plus = paidTool && quoteTool ? twinExtras(paidTool, quoteTool) : undefined;
-    if (plus !== undefined) twins.set(paid, { of: quote, plus });
+  for (const [name, of] of [...Object.entries(PAID_TWINS), ...Object.entries(SHARED_INPUTS)]) {
+    const [tool, source] = [byName.get(name), byName.get(of)];
+    const plus = tool && source ? twinExtras(tool, source) : undefined;
+    if (plus !== undefined) twins.set(name, { of, plus });
   }
   return twins;
 }
@@ -154,6 +160,8 @@ export function typeShape(field: unknown): unknown {
   if (!isSchema(field)) return field;
   const shape: Schema = {};
   for (const keyword of ["type", "format"]) if (keyword in field) shape[keyword] = field[keyword];
+  // A format keeps its pattern: zod's starts_with is no JSON Schema format, and the list says it by the pattern alone.
+  if ("format" in field && "pattern" in field) shape.pattern = field.pattern;
   if (isSchema(field.items)) shape.items = typeShape(field.items);
   // oneOf turns anyOf: branches stripped of what told them apart could match a value twice.
   const branches = ["anyOf", "oneOf"].flatMap(keyword => (Array.isArray(field[keyword]) ? (field[keyword] as unknown[]) : []).map(typeShape));
@@ -163,7 +171,7 @@ export function typeShape(field: unknown): unknown {
   return shape;
 }
 
-/** A paid twin's description starts by naming the quote whose fields it takes. */
+/** A twin's description starts by naming the tool whose fields it takes. */
 const withTwinNote = (description: string, twin: { of: string; plus: string[] }): string =>
   `Input: the same fields as ${twin.of}${twin.plus.length === 0 ? "" : `, plus ${twin.plus.join(", ")}`}. ${description}`.trim();
 
@@ -199,7 +207,9 @@ function advertise(tools: readonly Tool[]): Tool[] {
     }
     if (twin !== undefined && isSchema(schema.properties)) {
       // A marked text stays on the twin as on its quote: the agent calls the paid tool too, and its text says to read the marks.
+      // A field only the twin takes is listed whole: its source has no copy to read its bounds from.
       schema.properties = Object.fromEntries(Object.entries(schema.properties).map(([key, field]) => {
+        if (twin.plus.includes(key)) return [key, field];
         const marked = isSchema(field) && typeof field.description === "string" && MARKED_FIELD.test(field.description);
         return [key, marked ? { ...(typeShape(field) as Schema), description: field.description } : typeShape(field)];
       }));

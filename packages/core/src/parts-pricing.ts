@@ -1,17 +1,20 @@
 import { z } from "zod";
 import {
-  identifier, partsFaceTariffSchema, presenterRatesSchema, PRESENTER_ENGINES, SHOT_ENGINES,
-  type FaceBillingInterval, type PartsFaceTariff, type PresenterEngine, type ShotEngine, type TakeEngine,
+  identifier, partsFaceTariffSchema, presenterRatesSchema, SHORT_PRESENTER_ENGINES, TAKE_ENGINES,
+  type FaceBillingInterval, type PartsFaceTariff, type PresenterEngine, type ShortPresenterEngine, type ShotEngine, type TakeEngine,
 } from "./face-billing.js";
 import { unionFaceFrames } from "./long-form-pricing.js";
 import type { Resolution } from "./skills.js";
 
-// Parts prices: one tariff for short and long make_ugc.
-// parts-v2: the HeyGen second 12 → 9; parts-v1, long-form-v1 and 30 a second stay with their snapshots.
+// parts-v5 (#1773), one tariff for short and long make_ugc: IV 9 → 10, the short path's Avatar 6 Turbo at 12.
+// parts-v2 (9), parts-v1, long-form-v1 and 30 a second stay with their snapshots.
 
-export const PARTS_PRICING_VERSION = "parts-v2";
+export const PARTS_PRICING_VERSION = "parts-v5";
 /** Credits per second a presenter is in the video, covered or not, by the engine that rendered the take. */
-export const PRESENTER_CREDITS_PER_SECOND: Readonly<Record<PresenterEngine, number>> = Object.freeze({ heygen: 9, omnihuman: 22 });
+export const PRESENTER_CREDITS_PER_SECOND: Readonly<Record<ShortPresenterEngine, number>> = Object.freeze({ heygen: 10, omnihuman: 22,
+  heygen_avatar6_turbo: 12 });
+/** parts-v2's presenter seconds, as runs admitted on it, parts-v3 and parts-v4 froze them. */
+const PARTS_V2_PRESENTER_CREDITS_PER_SECOND: Readonly<Record<PresenterEngine, number>> = Object.freeze({ heygen: 9, omnihuman: 22 });
 /** Voice and render, per second of the finished video. */
 export const PRODUCTION_CREDITS_PER_SECOND = 1;
 /** A call scene's live avatar: one HeyGen photo avatar of the still, per still in the delivered video. */
@@ -21,8 +24,8 @@ export const DELIVERED_VIDEO_MINIMUM_CREDITS = 50;
 /** A graphic made for the run (#1107), per scene drawn in the delivered video. */
 export const SCENE_CREDITS = 25;
 
-export const PRESENTER_ENGINE_LABELS: Readonly<Record<PresenterEngine, string>> = Object.freeze({
-  heygen: "presenter, HeyGen Avatar IV", omnihuman: "presenter, OmniHuman 2.0",
+export const PRESENTER_ENGINE_LABELS: Readonly<Record<ShortPresenterEngine, string>> = Object.freeze({
+  heygen: "presenter, HeyGen Avatar IV", omnihuman: "presenter, OmniHuman 2.0", heygen_avatar6_turbo: "presenter, HeyGen Avatar 6 Turbo",
 });
 
 type MethodShotEngine = "shot_omni" | "shot_seedance" | "shot_omni_no_text" | "shot_seedance_no_text";
@@ -43,17 +46,22 @@ export const SHOT_ENGINE_LABELS: Readonly<Record<ShotEngine, string>> = Object.f
 });
 const TAKE_ENGINE_LABELS: Readonly<Record<TakeEngine, string>> = { ...PRESENTER_ENGINE_LABELS, ...SHOT_ENGINE_LABELS };
 
-/** The long-form run's tariff, frozen at admission like long-form-v1 before it. */
-export const PARTS_FACE_TARIFF: PartsFaceTariff = Object.freeze({
-  version: 3, pricingVersion: PARTS_PRICING_VERSION, presenterCreditsPerSecond: PRESENTER_CREDITS_PER_SECOND,
+/** parts-v2 as runs admitted on it froze it; parts-v3 and parts-v4 grew from it. No admission writes it any more. */
+export const PARTS_V2_FACE_TARIFF: PartsFaceTariff = Object.freeze({
+  version: 3, pricingVersion: "parts-v2", presenterCreditsPerSecond: PARTS_V2_PRESENTER_CREDITS_PER_SECOND,
   shotCreditsPerSecond: Object.freeze({ shot_talking_action: SHOT_CREDITS_PER_SECOND.shot_talking_action, shot_action: SHOT_CREDITS_PER_SECOND.shot_action }),
   productionCreditsPerSecond: PRODUCTION_CREDITS_PER_SECOND, liveAvatarStillCredits: LIVE_AVATAR_STILL_CREDITS,
   minimumCredits: DELIVERED_VIDEO_MINIMUM_CREDITS, rounding: "ceil_aggregate_seconds", failurePolicy: "verified_delivery_only",
 } as const);
 
+/** The long-form run's tariff, fixed when the run starts like long-form-v1 before it. Its presenter parts render on IV, OmniHuman */
+/** or Turbo (#1776). */
+export const PARTS_FACE_TARIFF: PartsFaceTariff = Object.freeze({ ...PARTS_V2_FACE_TARIFF, pricingVersion: PARTS_PRICING_VERSION,
+  presenterCreditsPerSecond: PRESENTER_CREDITS_PER_SECOND });
+
 /** parts-v3 (#1535): parts-v2 and the Omni live-shot second, as runs admitted on it froze it; no admission writes it any more. */
 export const PARTS_OMNI_PRICING_VERSION = "parts-v3";
-export const PARTS_OMNI_FACE_TARIFF: PartsFaceTariff = Object.freeze({ ...PARTS_FACE_TARIFF, pricingVersion: PARTS_OMNI_PRICING_VERSION,
+export const PARTS_OMNI_FACE_TARIFF: PartsFaceTariff = Object.freeze({ ...PARTS_V2_FACE_TARIFF, pricingVersion: PARTS_OMNI_PRICING_VERSION,
   shotCreditsPerSecond: Object.freeze({ shot_talking_action: SHOT_CREDITS_PER_SECOND.shot_talking_action,
     shot_action: SHOT_CREDITS_PER_SECOND.shot_action, shot_omni: SHOT_CREDITS_PER_SECOND.shot_omni }) });
 
@@ -78,6 +86,8 @@ export const durationPartsTariffSchema = z.object({
   presenterCreditsPerSecond: presenterRatesSchema,
   productionCreditsPerSecond: z.number().int().nonnegative().max(2_147_483_647),
   minimumCredits: z.number().int().nonnegative().max(2_147_483_647),
+  /** The HeyGen engine admission chose for the take (#1773); the bill charges only a take its witness says that engine made. */
+  presenterEngine: z.enum(["heygen", "heygen_avatar6_turbo"]).optional(),
 }).strict().readonly();
 export type DurationPartsTariff = z.infer<typeof durationPartsTariffSchema>;
 
@@ -85,6 +95,11 @@ export const PARTS_DURATION_TARIFF: DurationPartsTariff = Object.freeze({
   version: 1, pricingVersion: PARTS_PRICING_VERSION, presenterCreditsPerSecond: PRESENTER_CREDITS_PER_SECOND,
   productionCreditsPerSecond: PRODUCTION_CREDITS_PER_SECOND, minimumCredits: DELIVERED_VIDEO_MINIMUM_CREDITS,
 } as const);
+
+/** The short run's snapshot, its engine frozen beside the rates. */
+export function durationPartsTariffFor(engine: "heygen" | "heygen_avatar6_turbo"): DurationPartsTariff {
+  return Object.freeze({ ...PARTS_DURATION_TARIFF, presenterEngine: engine });
+}
 
 /** One line of an itemized price: what was counted, how many, at what rate, and the product. */
 export const partsLineSchema = z.object({
@@ -148,12 +163,12 @@ export function calculatePartsCharge(measure: PartsMeasure, tariffInput: PartsFa
   const stills = BigInt(z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).parse(measure.liveAvatarStills));
   const lines: PartsLine[] = [];
   let billableFaceSeconds = 0n;
-  for (const engine of [...PRESENTER_ENGINES, ...SHOT_ENGINES]) {
+  for (const engine of TAKE_ENGINES) {
     const intervals = measure.presenter[engine];
     if (intervals === undefined || intervals.length === 0) continue;
-    const rate = (PRESENTER_ENGINES as readonly string[]).includes(engine) ? tariff.presenterCreditsPerSecond[engine as PresenterEngine]
-      : tariff.shotCreditsPerSecond?.[engine as ShotEngine];
-    // A snapshot admitted before live shots has no shot rate: such a take is never priced by a guess.
+    const rate = (SHORT_PRESENTER_ENGINES as readonly string[]).includes(engine)
+      ? tariff.presenterCreditsPerSecond[engine as ShortPresenterEngine] : tariff.shotCreditsPerSecond?.[engine as ShotEngine];
+    // A tariff fixed before live shots or Turbo has no rate for them: such a take is never priced by a guess.
     if (rate === undefined) throw new RangeError(`the tariff has no rate for ${engine}`);
     const seconds = ceilSeconds(unionFaceFrames(intervals), fps);
     billableFaceSeconds += seconds;
@@ -161,22 +176,28 @@ export function calculatePartsCharge(measure: PartsMeasure, tariffInput: PartsFa
   }
   lines.push(line("production (voice and render)", "second", ceilSeconds(outputFrames, fps), tariff.productionCreditsPerSecond));
   if (stills > 0n) lines.push(line("live avatar on a call", "still", stills, tariff.liveAvatarStillCredits));
-  const faceFrames = unionFaceFrames([...PRESENTER_ENGINES, ...SHOT_ENGINES].flatMap((engine) => [...(measure.presenter[engine] ?? [])]));
+  const faceFrames = unionFaceFrames(TAKE_ENGINES.flatMap((engine) => [...(measure.presenter[engine] ?? [])]));
   return settle(lines, tariff.minimumCredits, delivered, Number(faceFrames), Number(billableFaceSeconds));
 }
 
+export const PRODUCTION_LINE = "production (voice and render)";
+/** A run that speaks a delivered make_voice (#1773 C5) is voiced already: its production line names the render alone, at the same rate. */
+export const PRODUCTION_RENDER_LINE = "production (render)";
+
 /** A short video's price: the presenter is in every second of its one take. Rounding is the legacy rule: whole seconds, at least one. */
-/** `heldSec` is the still the video holds past its take (#1452): production seconds, never the presenter's, since it is no vendor work. */
-export function calculateDurationPartsCharge(durationSec: number, engine: PresenterEngine, tariffInput: DurationPartsTariff,
-  delivered: boolean, heldSec = 0): PartsCharge {
+/** `heldSec` is the still the video holds past its take (#1452): production seconds only. An unpriced engine throws, never guessed. */
+export function calculateDurationPartsCharge(durationSec: number, engine: ShortPresenterEngine, tariffInput: DurationPartsTariff,
+  delivered: boolean, heldSec = 0, deliveredVoice = false): PartsCharge {
   const tariff = durationPartsTariffSchema.parse(tariffInput);
+  const rate = tariff.presenterCreditsPerSecond[engine];
+  if (rate === undefined) throw new RangeError(`the tariff has no rate for ${engine}`);
   if (!Number.isFinite(durationSec) || durationSec < 0) throw new RangeError("duration must be a finite, non-negative number of seconds");
   if (!Number.isFinite(heldSec) || heldSec < 0 || heldSec > durationSec) throw new RangeError("the held still must lie within the video");
   const seconds = BigInt(Math.max(1, Math.ceil(durationSec)));
   // Rounded to the microsecond first: 9.4 − 2.4 is 7.000000000000001 in floating point and must not bill an eighth second.
   const take = heldSec === 0 ? seconds : BigInt(Math.max(1, Math.ceil(Number((durationSec - heldSec).toFixed(6)))));
-  const lines = [line(PRESENTER_ENGINE_LABELS[engine], "face_second", take, tariff.presenterCreditsPerSecond[engine]),
-    line("production (voice and render)", "second", seconds, tariff.productionCreditsPerSecond)];
+  const lines = [line(PRESENTER_ENGINE_LABELS[engine], "face_second", take, rate),
+    line(deliveredVoice ? PRODUCTION_RENDER_LINE : PRODUCTION_LINE, "second", seconds, tariff.productionCreditsPerSecond)];
   return settle(lines, tariff.minimumCredits, delivered, 0, Number(take));
 }
 

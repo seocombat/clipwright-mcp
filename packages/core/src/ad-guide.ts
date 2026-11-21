@@ -13,13 +13,14 @@ export type AdGuideSectionId = (typeof AD_GUIDE_SECTION_IDS)[number];
 
 export const adGuideQuery = z.strictObject({
   section: z.enum(AD_GUIDE_SECTION_IDS).optional()
-    .describe("One part of the guide instead of all of it: ugc (the make_ugc rules) or one step of making the ad yourself"),
+    .describe("One part of the guide, whole: ugc (the make_ugc rules) or one step of making the ad yourself. Without it you get the index"),
 });
 export type AdGuideQuery = z.infer<typeof adGuideQuery>;
 
 export const adGuide = z.strictObject({
   brand: brandGuideBlock.optional(),
-  guide: z.string().min(1).describe("The ad guide, Markdown: the word → device catalogue, the hook, poses, live shots, captions, hands and density"),
+  guide: z.string().min(1).describe("The ad guide, Markdown. Without section: which section to read, every section's title, the order " +
+    "and the final check of making the ad yourself. With section: that part"),
   /** Since #1539 stage 2: the whole guide's version, the same for every section; an ad record notes the version it was made with. */
   version: z.string().regex(/^[a-f0-9]{12}$/).optional().describe("The guide's version: it changes whenever any part of the guide does"),
   guides: guideCatalog.optional(),

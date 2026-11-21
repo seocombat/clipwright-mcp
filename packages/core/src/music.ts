@@ -5,6 +5,8 @@ import type { PartsLine } from "./parts-pricing.js";
 
 /** Credits for the music of one video. */
 export const MUSIC_BED_CREDITS = 60;
+/** Credits for a track made for one film of render_film (owner 20.11). */
+export const FILM_MUSIC_BED_CREDITS = 20;
 export const MUSIC_MOOD_MAX_CHARS = 400;
 
 export const MUSIC_DESCRIPTION = "Background music under the voice, made for this video by AI; it may carry an invisible watermark; off unless " +

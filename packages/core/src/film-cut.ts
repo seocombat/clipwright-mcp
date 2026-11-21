@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { assetId } from "./asset-identity.js";
 import { cutId } from "./cut-ids.js";
-import { diyBlocked, diyNext } from "./diy-next.js";
+import { diyNext } from "./diy-next.js";
 import { FACELESS_BEAT_KINDS, FACELESS_CAMERA_MOVES, FACELESS_CUT_LOOKS, FACELESS_SHOT_SIZES, FACELESS_SPEEDS } from "./faceless-direction-summary.js";
 import { filmLookDescription, filmLookTag } from "./film-look.js";
 import { maxCreditsField } from "./max-credits.js";
@@ -193,8 +193,6 @@ export const filmCutCheck = z.strictObject({
     live_sec: z.number().nonnegative(),
   }).nullable(),
   warnings: z.array(z.string()),
-  next: diyNext.optional().describe("A passed sheet: its quote_cut; a take not yet cleared to play: its check_take quote; a refused " +
-    "sheet: check_cut again, add naming the fields to fix"),
-  blocked: diyBlocked.optional().describe("Why a take of the cut cannot play yet, and what unblocks it"),
+  next: diyNext.optional().describe("A passed sheet: its quote_cut; a refused sheet: check_cut again, add naming the fields to fix"),
 });
 export type FilmCutCheck = z.infer<typeof filmCutCheck>;

@@ -30,7 +30,7 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "people and works in it; a reference only to analyse " +
     "takes analysis_only: true and is never rendered. Free. Up to 2000 assets and 1 GB (20 GB once credits were bought, as a pack or a plan), 100 " +
     "new per day.",
-  list_voices: "Voices for voice of make_ugc, or with skill=make_faceless of make_faceless; the other skill refuses a voice " +
+  list_voices: "Voices for make_ugc, or with skill=make_faceless for make_faceless; the other skill refuses the voice " +
     "before any charge. Filter by language, gender, age, use_case and model; an unknown value is refused with the allowed ones. " +
     "Play preview_url before a paid render; it expires. Free.",
   analyze_creator: "Profile an Instagram or TikTok creator from a profile or video link: latest 12 videos with views and " +
@@ -61,14 +61,11 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "refused at no charge. Refused with actor_generation_disabled while off. portrait (a human-faced mascot too) becomes " +
     "the 9:16 portrait at no charge; one without one well-framed face is refused at no charge.",
   revise_run: `A NEW run rendering a make_faceless video again with changes or document (exactly one). ${REPEAT("attempt 2")} ` +
-    `${REVISION_CHARGE_TEXT} Limits on revisions running and failed, and a close some days after the original, are named by ` +
-    `the refusal. ${PAID_EDITS_CLOSED} Poll get_run.`,
+    `${REVISION_CHARGE_TEXT} A refusal names its limit. ${PAID_EDITS_CLOSED} Poll get_run.`,
   delete_run_media: "Delete a finished run's files at once; storage erases them after 7 days. The charge stays; nothing is " +
-    "refunded. Refused with run_not_finished, run_media_in_use (another unfinished run uses them) or deletion_held (ask " +
-    "support). An analyze_reference run loses its analysis too: a new one is paid. Free.",
+    "refunded. Refused with run_not_finished, run_media_in_use or deletion_held. An analyze_reference run loses its analysis too: a new one is paid. Free.",
   create_candidate: "A NEW edit_shot run making one picture or clip for one shot of a make_faceless run, to keep or discard in a " +
-    `revision. ${CANDIDATE_CHARGE_TEXT} ${REPEAT("take 2")} Limits on candidates running and failed are named by the ` +
-    `refusal. ${CANDIDATES_CLOSED} Poll get_run.`,
+    `revision. ${CANDIDATE_CHARGE_TEXT} ${REPEAT("take 2")} A refusal names its limit. ${CANDIDATES_CLOSED} Poll get_run.`,
   get_run_shots: "Read the shots of a make_faceless or make_ugc video: frame size and rate, timed words, and each shot's span, " +
     "kind, words and preview_url (it expires). A field named in `withheld` is null on every shot. planned=false is a normal " +
     "answer: editable.reason says why. paid_edits.enabled says whether a video can be made from an edit; while it is false, " +
@@ -78,7 +75,7 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "(upload_not_finished before the PUT). Use the " +
     "upload_id within 24 hours. Free; 200 uploads per day.",
   make_faceless: "Start a faceless video from a script or brief: an opening clip and image scenes. You select 30–90 seconds; it " +
-    "ends with its narration, at least 25 seconds (an explainer, as long as its narration) and at most a quarter past the selection, " +
+    "ends with its narration, at least 25 seconds and at most a quarter past the selection, " +
     "never beyond 90. Captions are on " +
     "unless turned off. Poll get_run. attempt=2,3,… starts a NEW run.",
   quote_image: "Price one generate_image call WITHOUT spending credits. A reference is {upload_id, rights_confirmed: true} " +
@@ -89,6 +86,9 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     "shot: the clip as framing, subject, beats of 1 to 5 seconds, camera, light and continuity, each written as what the frame shows " +
     "(describe_tool quote_video says how). A reference is " +
     `as quote_image states it. A generation that fails is charged nothing. ${CLOSED_GENERATIONS}`,
+  quote_upscale: "Price an upscale WITHOUT spending credits: a draft clip to 720p, a picture doubled. A failed one costs nothing.",
+  upscale: "Upscale a delivered clip (a 480p draft) or picture: a NEW run, charged once delivered; a failed one costs nothing. An " +
+    "identical request returns its run; attempt 2 starts another.",
   get_account: "This account's credits. Free. debt_credits above zero refuses make_ugc (debt_outstanding) until credits are " +
     "bought; else balance_credits is what a run can spend: plan_credits (this month's, spent first) plus pack_credits; plan " +
     "names the monthly plan. holds_credits are held by runs in progress. support_replies holds our replies.",
@@ -147,7 +147,7 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
   plan_reference_remake: "Compile a reference remake into a workflow plan from an analysis_id of analyze_reference and the user's " +
     "script; free, starts no run. audience: whom the viewer trusts and where (maker, seller, expert at home, user), argued from " +
     "the analysis and shown to the user; actor, setting and script match it. warnings name what it does not " +
-    "reproduce. Missing media: make it with generate_image or generate_video and compile again. plan_id, base_version and " +
+    "reproduce. Missing media: generate it and compile again. plan_id, base_version and " +
     "review_notes save the next revision; a note changes nothing by itself: a shot goes in assets[].anchor or line_edits, pauses in " +
     "pause_trim, the product in hand and its demo in product. Only an approved revision runs.",
   get_upload: "Read an upload: fresh url, content_digest, size and usable_until. After create_upload: upload_not_finished until " +
@@ -198,7 +198,7 @@ export const LISTED_FIELDS: Record<string, Record<string, string>> = {
   quote_faceless: {
     duration_seconds: "30 to 90 seconds; the charge never exceeds the quote. A script must estimate 21 seconds to the selection " +
       "plus 5, at most 90.",
-    voice: "A list_voices name with skill=make_faceless; omitted, narrator_en_wise_lady, or the fastest voice for an English explainer. " +
+    voice: "A list_voices name with skill=make_faceless; omitted, narrator_en_wise_lady. " +
       "An unknown or make_ugc voice is refused before any charge.",
   },
   quote_actor: {

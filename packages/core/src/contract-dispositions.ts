@@ -59,6 +59,8 @@ export const FIELD_DISPOSITIONS = {
   voice_pace: { kind: "implemented", provenBy: "egress" },
   // The trimmed take is what the avatar vendor receives; a skipped joint or a take without timings is named in warnings[].
   pause_trim: { kind: "implemented", provenBy: "egress" },
+  // The delivered make_voice's file is the take the avatar vendor receives, in place of a synthesis (#1773 C5).
+  voice_run_id: { kind: "implemented", provenBy: "egress" },
 
   // Fields that do not reach the render and are reported as not honored.
   person: {
@@ -92,6 +94,8 @@ export const FIELD_DISPOSITIONS = {
   // to produce its own request body.
   resolution: { kind: "implemented", provenBy: "egress" },
   aspect_ratio: { kind: "implemented", provenBy: "egress" },
+  // Picks the vendor endpoint of the paid take (#1773); an asked Turbo the run cannot honour is said in warnings[] by admission.
+  presenter_engine: { kind: "implemented", provenBy: "egress" },
 
   // Gated by `CLIPWRIGHT_REMOTE_FETCH`: `resolveDispositions` rejects it when the flag is off.
   image: { kind: "implemented", provenBy: "egress" },

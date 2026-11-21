@@ -25,7 +25,7 @@ describe("parts tariff, as the public pricing states it", () => {
   it("a short video holding its last frame past the take bills the hold as production seconds only", () => {
     const held = core.calculateDurationPartsCharge(40, "heygen", tariff, true, 5);
     expect(held.lines.map((line) => [line.unit, line.quantity])).toEqual([["face_second", 35], ["second", 40]]);
-    expect([held.credits, core.calculateDurationPartsCharge(35, "heygen", tariff, true).credits]).toEqual([35 * 9 + 40, 350]);
+    expect([held.credits, core.calculateDurationPartsCharge(35, "heygen", tariff, true).credits]).toEqual([35 * 10 + 40, 385]);
     expect(core.calculateDurationPartsCharge(9.4, "heygen", tariff, false, 2.4).billableFaceSeconds).toBe(7);
     expect(() => core.calculateDurationPartsCharge(3, "heygen", tariff, true, 4)).toThrow(RangeError);
   });
@@ -44,9 +44,9 @@ describe("parts tariff, as the public pricing states it", () => {
       shot_talking_action: [{ startFrame: 150, endFrame: 351 }], shot_action: [{ startFrame: 351, endFrame: 500 }] },
     outputFrames: 500, fps: 25, liveAvatarStills: 1 }, core.PARTS_FACE_TARIFF, true);
     expect(charge.lines.map((line) => [line.label, line.quantity, line.unit_credits])).toEqual([
-      ["presenter, HeyGen Avatar IV", 6, 9], ["live shot, speaking while acting", 9, 30], ["live shot, acting under voice-over", 6, 30],
+      ["presenter, HeyGen Avatar IV", 6, 10], ["live shot, speaking while acting", 9, 30], ["live shot, acting under voice-over", 6, 30],
       ["production (voice and render)", 20, 1], ["live avatar on a call", 1, 400]]);
-    expect(charge.credits).toBe(6 * 9 + 9 * 30 + 6 * 30 + 20 + 400);
+    expect(charge.credits).toBe(6 * 10 + 9 * 30 + 6 * 30 + 20 + 400);
     expect(charge.billableFaceSeconds).toBe(21);
   });
 
@@ -57,6 +57,40 @@ describe("parts tariff, as the public pricing states it", () => {
       liveAvatarStills: 0 }, old, true)).toThrow(RangeError);
     expect(core.calculatePartsCharge({ presenter: { heygen: [{ startFrame: 0, endFrame: 50 }] }, outputFrames: 50, fps: 25,
       liveAvatarStills: 0 }, old, true).credits).toBe(core.PARTS_FACE_TARIFF.minimumCredits);
+  });
+});
+
+// #1776: a long video's presenter on HeyGen Avatar 6 Turbo, at the 12 a second the short path sells it at.
+describe("parts-v5: Turbo units of a long video", () => {
+  const fps = 10, seconds = (from: number, to: number) => ({ startFrame: Math.round(from * fps), endFrame: Math.round(to * fps) });
+  const turbo = [seconds(0, 6.2), seconds(10, 18.4), seconds(20, 25.1)];
+
+  /** C6. Mutants: the Turbo intervals skipped, priced at IV's 10, or each unit rounded on its own (7 + 9 + 6 = 22 s). */
+  it("bills Turbo units of 6.2, 8.4 and 5.1 s in a 35 s video 275, and with a 4 s head on Avatar IV 315", () => {
+    const charge = (presenter: core.PartsMeasure["presenter"]) => core.calculatePartsCharge({ presenter, outputFrames: 35 * fps, fps,
+      liveAvatarStills: 0 }, core.PARTS_FACE_TARIFF, true);
+    expect(charge({ heygen_avatar6_turbo: turbo }).lines.map((line) => [line.label, line.quantity, line.unit_credits])).toEqual([
+      ["presenter, HeyGen Avatar 6 Turbo", 20, 12], ["production (voice and render)", 35, 1]]);
+    expect(charge({ heygen_avatar6_turbo: turbo }).credits).toBe(275);
+    expect(charge({ heygen_avatar6_turbo: turbo, heygen: [seconds(30, 34)] }).credits).toBe(12 * 20 + 10 * 4 + 35);
+    expect(core.TAKE_ENGINES).toContain("heygen_avatar6_turbo");
+  });
+
+  /** C2. Mutant: a Turbo second on a snapshot frozen without its rate priced by a fallback the run was never quoted. */
+  it("prices no Turbo unit on a snapshot without the Turbo rate", () => {
+    for (const tariff of [core.PARTS_V2_FACE_TARIFF, { ...core.PARTS_FACE_TARIFF, presenterCreditsPerSecond: { heygen: 10, omnihuman: 22 } }]) {
+      expect(() => core.calculatePartsCharge({ presenter: { heygen_avatar6_turbo: turbo }, outputFrames: 35 * fps, fps, liveAvatarStills: 0 },
+        tariff, true)).toThrow("no rate for heygen_avatar6_turbo");
+    }
+  });
+
+  /** C2. The plan freezes Turbo on a plain unit only; any other engine name is refused, so an IV plan has no such field. */
+  it("freezes a plan unit's Turbo engine and refuses any other name there", () => {
+    const unit = { unitId: "segment:1", requestHash: "a".repeat(64), audioDurationSec: 6.2, faceIntervals: [seconds(0, 6.2)] };
+    const plan = (extra: object) => ({ version: 1, fps, outputFrames: 350, fullSpeechDurationSec: 20, units: [{ ...unit, ...extra }] });
+    expect(core.faceBillingPlanContentSchema.safeParse(plan({ engine: "heygen_avatar6_turbo" })).success).toBe(true);
+    expect(core.faceBillingPlanContentSchema.safeParse(plan({ engine: "heygen" })).success).toBe(false);
+    expect(core.faceBillingPlanContentSchema.safeParse(plan({})).success).toBe(true);
   });
 });
 
@@ -75,11 +109,14 @@ describe("parts-v3: the Omni live-shot second", () => {
 
   /** Mutant: the Omni rate added to parts-v2, which changes every snapshot, quote and /pricing line of an account outside the list. */
   it("leaves parts-v2 byte for byte, and names the new tariff", () => {
-    expect(JSON.stringify(core.PARTS_FACE_TARIFF)).toBe(JSON.stringify({ version: 3, pricingVersion: "parts-v2",
+    expect(JSON.stringify(core.PARTS_V2_FACE_TARIFF)).toBe(JSON.stringify({ version: 3, pricingVersion: "parts-v2",
       presenterCreditsPerSecond: { heygen: 9, omnihuman: 22 }, shotCreditsPerSecond: { shot_talking_action: 30, shot_action: 30 },
       productionCreditsPerSecond: 1, liveAvatarStillCredits: 400, minimumCredits: 50, rounding: "ceil_aggregate_seconds",
       failurePolicy: "verified_delivery_only" }));
-    expect(omni).toEqual({ ...core.PARTS_FACE_TARIFF, pricingVersion: "parts-v3",
+    // parts-v5 (#1773) is parts-v2 with the IV second at 10 and, on the long path too (#1776), Turbo's at 12.
+    expect(core.PARTS_FACE_TARIFF).toEqual({ ...core.PARTS_V2_FACE_TARIFF, pricingVersion: "parts-v5",
+      presenterCreditsPerSecond: { heygen: 10, omnihuman: 22, heygen_avatar6_turbo: 12 } });
+    expect(omni).toEqual({ ...core.PARTS_V2_FACE_TARIFF, pricingVersion: "parts-v3",
       shotCreditsPerSecond: { shot_talking_action: 30, shot_action: 30, shot_omni: 20 } });
     expect(core.partsFaceTariffSchema.parse(omni)).toEqual(omni);
     expect(core.FACE_BILLING_TARIFFS).toEqual([core.PARTS_FACE_TARIFF]);

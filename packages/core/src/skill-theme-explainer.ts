@@ -18,6 +18,9 @@ export const EXPLAINER_THEME: SkillThemeManifest = {
     accent: { rule: "role(accent)", default: "#2346FF" },
     accentDark: { rule: "shade(accent, -0.12)", default: "#152FCC" },
     accentSoft: { rule: "mix(accent, surface, 0.85)", default: "#DDE4FF" },
+    // The brand's own accent stays the fill colour; text in the accent colour and text on an accent fill are their own tokens that move to read.
+    accentText: { rule: "readable(accent, paper)", default: "#2346FF" },
+    onAccent: { rule: "role(accent_ink)", default: "#FFFFFF" },
     white: { rule: "fixed()", default: "#FFFFFF" },
     card: { rule: "role(surface)", default: "#FFFDF8" },
     line: { rule: "mix(ink, background, 0.85)", default: "#E0DACD" },
@@ -49,7 +52,7 @@ export const EXPLAINER_THEME: SkillThemeManifest = {
     "hero.antenna": { rule: "fixed()", default: "#2346FF" },
   },
   pairs: [
-    ["ink", "paper"], ["ink", "card"], ["ink2", "paper"], ["ink2", "card"], ["accent", "paper"], ["accent", "card"], ["white", "accent"],
+    ["ink", "paper"], ["ink", "card"], ["ink2", "paper"], ["ink2", "card"], ["accentText", "paper"], ["accentText", "card"], ["onAccent", "accent"],
     ["accentOnDark", "board"], ["boardText", "board"], ["chalk", "board"], ["winText", "win"], ["winText", "win2"],
   ],
   fonts: {

@@ -213,6 +213,8 @@ export interface VoicePreset {
   description: string;
   /** The speech model the voice is tuned for; clients may override with `tts_model`. */
   model: TtsModelId;
+  /** A server preset's constant tempo, applied to the take after its pauses are trimmed; omitted means as spoken. Never listed. */
+  tempo?: number;
 }
 
 /** The starter set of presets. Order matters only for presentation; the default is set */

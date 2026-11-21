@@ -46,7 +46,7 @@ describe("capability table", () => {
     for (const model of GENERATION_IMAGE_MODELS) {
       // Flare's 21:9 board (#1686) costs its own measured $0.0597, so it has its own price; every other image row is the model's.
       for (const row of GENERATION_CAPABILITIES[model].rows) {
-        expect(row.unit_credits, `${model} ${row.aspect_ratio}`).toBe(model === "flare" && row.aspect_ratio === "21:9" ? 16 : D1_IMAGE[model]);
+        expect(row.unit_credits, `${model} ${row.aspect_ratio}`).toBe(model === "flare" && row.aspect_ratio === "21:9" ? 20 : D1_IMAGE[model]);
       }
     }
     expect(Object.keys(D1_VIDEO).sort()).toEqual([...GENERATION_VIDEO_MODELS].sort());
@@ -154,7 +154,7 @@ describe("findCapabilityRow and priceGeneration", () => {
     expect(priceGeneration(video({ camera: "pan" }))).toEqual({ unit_credits: 11, units: 4, credits: 44 });
     expect(priceGeneration(video({ model: "seedance-2.0", resolution: "1080p", duration_s: 15 }))).toEqual({ unit_credits: 94, units: 15, credits: 1410 });
     expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "9:16" })).toEqual({ unit_credits: 7, units: 1, credits: 7 });
-    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "21:9" })).toEqual({ unit_credits: 16, units: 1, credits: 16 });
+    expect(priceGeneration({ prompt: "x", model: "flare", aspect_ratio: "21:9" })).toEqual({ unit_credits: 20, units: 1, credits: 20 });
     expect(priceGeneration({ prompt: "x", model: "seedream-5.0-flash", aspect_ratio: "9:16" })).toEqual({ unit_credits: 5, units: 1, credits: 5 });
     // 21:9 is measured on Flare and on Seedream 5.5's cleanup (#1686): every other image model refuses it before money.
     for (const model of ["seedream-5.0-flash", "gemini-3-pro-image", "gemini-nano-banana-2.1"] as const) {

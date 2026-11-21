@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { FIELD_DISPOSITIONS, resolveDispositions } from "./contract-dispositions.js";
+import { editMusic } from "./edit-music.js";
 import { quoteFaceless } from "./faceless-price.js";
 import { isMusicEnabled, MUSIC_BED_CREDITS, musicLine, musicRequest, ONE_LINE_TEXT } from "./music.js";
 import { partsLineSchema } from "./parts-pricing.js";
 import { makeUgcInput } from "./skills.js";
+
+describe("the shared editMusic field", () => {
+  /** Mutant: wording tied to the edit tool, which the film tool shares. */
+  it("is worded for any video, not for a cut", () => {
+    const text = JSON.stringify(z.toJSONSchema(editMusic));
+    expect(text).not.toMatch(/\bcut\b|\bedit\b/i);
+    expect(text).toContain("the video");
+  });
+});
 
 /** #1063 S1: music is a field the client must ask for, with its own line on the quote and a switch that refuses it when off. */
 

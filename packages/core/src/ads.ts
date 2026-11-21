@@ -7,7 +7,7 @@ import { FILM_EDIT_MAX_CLIPS, takeCheckVerdict } from "./own-agent-runs.js";
 import { runId } from "./runs.js";
 
 // An ad record (#1539): one per ad a customer's own agent makes, tying its brief, the slots of its shot list, each slot's takes with their
-// check_take verdicts, and its edits. Free; the record also says which call comes next and what blocks the edit.
+// check_take verdicts, and its edits. Free; the record also says which call comes next. A check is optional (owner 20.11, #1664).
 
 export { adId, adSlotId } from "./ad-ids.js";
 
@@ -34,8 +34,7 @@ export const adSlot = z.strictObject({
   id: adSlotId,
   shot: z.string().trim().min(1).max(500).describe("What the shot shows, in a line: its action and the spoken line it carries"),
   people_only: z.boolean().optional().describe("Only people in this shot, with no product, label or detail anywhere in it (a face for " +
-    "the hook, a person talking): a take made with generate_video goes into the edit without check_take. Once a slot has a check, this " +
-    "cannot be turned on"),
+    "the hook, a person talking). Kept and shown; it changes nothing, as no slot asks for a check"),
 });
 export type AdSlot = z.infer<typeof adSlot>;
 
@@ -52,8 +51,8 @@ export const updateAdInput = z.strictObject({
 }).refine(change => change.brief !== undefined || change.slots !== undefined, "send brief, slots or both");
 export type UpdateAdInput = z.infer<typeof updateAdInput>;
 
-/** `no_take`: nothing checked yet (a people_only slot's edit admits unchecked takes); `checking`: a check runs and none passed; `failed`:
- *  every checked take failed; `passed`: the edit admits a take of the slot (own footage counts without a passing check). */
+/** Read from the slot's checks only (a check is optional, #1664): `no_take`: nothing checked yet; `checking`: a check runs and none passed;
+ *  `failed`: every checked take failed; `passed`: a checked take passed (own footage counts without a passing check). */
 export const AD_SLOT_STATES = ["no_take", "checking", "failed", "passed"] as const;
 
 const adCheck = z.strictObject({
@@ -68,9 +67,8 @@ const adCheck = z.strictObject({
 export const adTake = z.strictObject({
   run_id: runId.nullable().describe("The take's generate_video run, or null for a video asset"),
   asset_id: assetId.nullable(),
-  own_footage: z.boolean().describe("Your own footage, not a clip made with generate_video: the edit needs no check of it, and its checks are advice"),
-  /** Whether render_edit with this ad_id cuts the take now: own footage always; a clip made with generate_video when it was checked in this
-   *  slot and the latest verdict on its file, from any check, passed (in a people_only slot: no check of the file that did not pass). */
+  own_footage: z.boolean().describe("Your own footage, not a clip made with generate_video"),
+  /** Own footage, or a clip made with generate_video whose file's latest verdict, from any check, passed. Advice: render_edit cuts any take. */
   passed: z.boolean(),
   checks: z.array(adCheck),
 });

@@ -8,8 +8,8 @@ import { isOwnAgentEnabled, OWN_AGENT_TARIFF, OWN_AGENT_TARIFF_V1, ownAgentCharg
 describe("the own-agent tariff", () => {
   it("freezes the proposal as a snapshot its schema accepts", () => {
     expect(ownAgentTerms.parse(ownAgentTermsNow())).toEqual({ tariff: OWN_AGENT_TARIFF, still_credits: 1, render_credits: 100, included_seconds: 60,
-      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 9, edit_credits: 10, music_credits: 60, take_check_credits: 10, picture_check_credits: 20,
-      picture_check_long_credits: 38, free_stills: 120,
+      extra_second_credits: 2, voice_credits_per_second: 2, pose_credits: 9, head_credits: 120, edit_credits: 10, music_credits: 60, film_music_credits: 20, take_check_credits: 10,
+      picture_check_credits: 20, picture_check_long_credits: 38, free_stills: 120,
       free_stills_window_hours: 24, cut_credits: 45, cut_included_seconds: 60, cut_extra_second_credits: 1, cut_bed_credits: 35,
       cut_take_sound_credits_per_second: 4, cut_music_credits: 60 });
   });
@@ -103,6 +103,21 @@ describe("the own-agent tariff", () => {
     expect([ownEditCredits(10, frozen, true), ownAgentCharge({ skill: "film_edit", seconds: 10, music: true }, frozen, 35)]).toEqual([35, 35]);
   });
 
+  // render_film's music, 20 on its own term (owner 20.11). Mutants: left off the charge, charged unproven, on terms without it, or at 60.
+  it("adds a made track's 20 to a film that carries it, and never on terms without a film music price", () => {
+    const now = ownAgentTermsNow();
+    expect([now.film_music_credits, now.music_credits, ownEditCredits(19, now, true)]).toEqual([20, 60, 70]);
+    expect([ownFilmRenderCredits(46, now), ownFilmRenderCredits(46, now, true), ownFilmRenderCredits(76, now, true)]).toEqual([100, 120, 152]);
+    expect(ownAgentCharge({ skill: "film_render", seconds: 46, music: true }, now, 120)).toBe(120);
+    expect(ownAgentCharge({ skill: "film_render", seconds: 46, music: false }, now, 120)).toBe(100);
+    expect(ownAgentCharge({ skill: "film_render", seconds: 46 }, now, 120)).toBe(100);
+    expect(() => ownAgentCharge({ skill: "film_render", seconds: 46, music: true }, now, 100)).toThrow("over its hold");
+    const { film_music_credits: _m, ...old } = now;
+    expect(() => ownFilmRenderCredits(46, old, true)).toThrow("these terms price no film music");
+    expect(ownFilmRenderCredits(46, old)).toBe(100);
+    expect(ownAgentCharge({ skill: "film_render", seconds: 46, music: true }, { ...now, film_music_credits: 25 }, 125)).toBe(125);
+  });
+
   /** #1369 stage 2. Mutants: keep the old tariff name for the new price, accept free stills on the old one, or charge granted stills. */
   it("names free stills a new tariff and charges only the delivered stills past the grant", () => {
     const { free_stills: _f, free_stills_window_hours: _w, ...rest } = ownAgentTermsNow();
@@ -130,6 +145,21 @@ describe("the own-agent tariff", () => {
     expect(ownAgentCharge({ skill: "film_hero", poses: 7 }, { ...before, pose_credits: 5 }, 63)).toBe(35);
     expect(() => ownAgentCharge({ skill: "film_hero", poses: 9 }, ownAgentTermsNow(), 80)).toThrow(/over its hold/);
     expect(FACELESS_IMAGE_CREDITS).toBe(7);
+  });
+
+  /** Mutants: price a head per pose, a head on terms without its price, sprites on terms frozen without the switch, or past twelve. */
+  it("prices one head at 120, a sprite hero's talking sprites at 8 on top of its poses, and neither on terms that price none", () => {
+    const sprites = ownAgentTermsNow({ sprites: true });
+    expect([ownHeroCredits(1, ownAgentTermsNow(), 0, true), ownHeroCredits(0, ownAgentTermsNow(), 0, true)]).toEqual([120, 0]);
+    expect([ownHeroCredits(9, sprites, 12), ownHeroCredits(8, sprites, 9), ownHeroCredits(9, sprites)]).toEqual([177, 144, 81]);
+    expect([ownAgentTermsNow().sprite_credits, sprites.sprite_credits]).toEqual([undefined, 8]);
+    expect(ownAgentCharge({ skill: "film_hero", poses: 1, head: true }, ownAgentTermsNow(), 120)).toBe(120);
+    expect(ownAgentCharge({ skill: "film_hero", poses: 9, sprites: 12 }, sprites, 177)).toBe(177);
+    const { head_credits: _, ...before } = ownAgentTermsNow();
+    expect(() => ownHeroCredits(1, before, 0, true)).toThrow(/price no head/);
+    expect(() => ownHeroCredits(2, ownAgentTermsNow(), 0, true)).toThrow();
+    expect(() => ownHeroCredits(9, ownAgentTermsNow(), 1)).toThrow(/price no sprite/);
+    expect(() => ownHeroCredits(9, sprites, 13)).toThrow();
   });
 
   /** Mutants: charge the extra seconds from zero, floor a started second, or round each word instead of the take once. */

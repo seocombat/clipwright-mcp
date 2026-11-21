@@ -55,6 +55,8 @@ const EXPECTED: Record<string, { readOnlyHint: boolean; destructiveHint: boolean
   generate_image: { readOnlyHint: false, destructiveHint: false },
   quote_video: { readOnlyHint: true, destructiveHint: false },
   generate_video: { readOnlyHint: false, destructiveHint: false },
+  quote_upscale: { readOnlyHint: true, destructiveHint: false },
+  upscale: { readOnlyHint: false, destructiveHint: false },
   quote_ugc: { readOnlyHint: true, destructiveHint: false },
   quote_actor: { readOnlyHint: true, destructiveHint: false },
   list_voices: { readOnlyHint: true, destructiveHint: false },

@@ -184,6 +184,7 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
         "quote_revision",
         "quote_trends",
         "quote_ugc",
+        "quote_upscale",
         "quote_video",
         "quote_workflow_plan",
         "revise_run",
@@ -193,6 +194,7 @@ describe("an unwritable ~/.clipwright does not stop the server from starting", (
         "trend_niches",
         "update_asset",
         "upload_image",
+        "upscale",
       ]);
     } finally {
       await close();

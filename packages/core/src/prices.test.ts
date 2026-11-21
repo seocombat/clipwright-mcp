@@ -8,9 +8,12 @@ import { listGenerationModels } from "./generations.js";
 import { MUSIC_BED_CREDITS } from "./music.js";
 import { OPENAPI_ROUTES } from "./openapi.js";
 import { PARTS_DURATION_TARIFF, PARTS_FACE_TARIFF } from "./parts-pricing.js";
-import { AD_DIY_PRICES, FACELESS_DIY_PRICES, FREE_RUN_ROUTES, isPaidEntry, PRICE_LIST, priceEntry, priceLine, priceListFor, PRICES_PATH, pricesResponse, priceText, withPriceLine } from "./prices.js";
+import { OWN_AGENT_SKILLS, OWN_HERO_MAX_SPRITES, OWN_HERO_POSES, ownAgentTermsNow, ownHeroCredits, type OwnAgentSkill, type OwnAgentTerms, TAKE_PICTURE_SHORT_TIER_SECONDS } from "./own-agent-price.js";
+import { FREE_RUN_ROUTES, isPaidEntry, NO_DIY_MODES, PRICE_LIST, priceEntry, priceLine, priceListFor, PRICES_PATH, pricesResponse, priceText, withPriceLine,
+  type PriceUnit } from "./prices.js";
 
 const LIVE_SHOTS_ON = { CLIPWRIGHT_LIVE_SHOTS: "1", CLIPWRIGHT_LONG_FORM_QUALIFICATION: "1", CLIPWRIGHT_COMPOSE: "1", CLIPWRIGHT_REMOTE_FETCH: "1" };
+const ALL_DIY = { ad: true, faceless: true } as const;
 import { REFERENCE_ANALYSIS_CREDITS } from "./reference-analysis.js";
 
 const LABELS = new Map(API_ENDPOINTS.map((endpoint) => [endpointLabel(endpoint), endpoint]));
@@ -30,12 +33,8 @@ const only = (tool: string, variant: string | null = null) => {
 describe("the price list covers the registry", () => {
   /** Mutants: a billed route left without a price; a paid entry on a free route; an entry naming no route. */
   it("every billed route has a paid entry, and every entry's route is a registry row of the same billedness", () => {
-    // The own-agent film routes (#1337) are sold only with their switch on, so the coverage is read on that list; the ad tools' entries
-    // (AD_DIY_PRICES) stand apart until the ad epic opens to everyone.
-    const sold = [...priceListFor({ CLIPWRIGHT_OWN_AGENT: "1" }), ...AD_DIY_PRICES, ...FACELESS_DIY_PRICES];
-    // Mutant: an ad tool's price on the public list while it serves only the ad epic's accounts.
-    for (const entry of AD_DIY_PRICES) expect(priceListFor({ CLIPWRIGHT_OWN_AGENT: "1", CLIPWRIGHT_AD_EPIC_ACCOUNTS: "1" })
-      .filter((one) => one.route === entry.route), entry.action).toEqual([]);
+    // The own-agent film routes (#1337) and the DIY tools are sold only with their switches on, so the coverage is read on that list.
+    const sold = priceListFor({ CLIPWRIGHT_OWN_AGENT: "1" }, ALL_DIY);
     // A billed route that starts a run held at 0 (FREE_RUN_ROUTES) is listed at 0 instead: billed, and no price.
     for (const endpoint of API_ENDPOINTS.filter((row) => row.billed)) {
       const label = endpointLabel(endpoint), free = FREE_RUN_ROUTES.has(label);
@@ -97,7 +96,11 @@ describe("the explainer lines of the price list", () => {
   it("sells each level's film, its second over 60 s and the hero's pose picture, only while the switch is on", () => {
     const explainer = (list: readonly (typeof PRICE_LIST)[number][]) => list.filter(item => item.tool === "make_faceless" && item.variant?.startsWith("explainer"));
     expect(explainer(PRICE_LIST)).toEqual([]);
-    const entries = explainer(priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" }));
+    // #1358. Mutants: the lines read from the format flag alone, or the film switch read as a number, so «01» or «1 » sells the film.
+    expect(explainer(priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1" }))).toEqual([]);
+    for (const off of ["", "0", "01", "1 ", " 1", "true", "1.0"])
+      expect(explainer(priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1", CLIPWRIGHT_SKILL_AGENT: off })), off).toEqual([]);
+    const entries = explainer(priceListFor({ CLIPWRIGHT_FACELESS_EXPLAINER: "1", CLIPWRIGHT_SKILL_AGENT: "1" }));
     expect(entries.map(entry => [entry.variant, entry.lines.map(line => [line.unit, line.credits])])).toEqual([
       ["explainer standard", [["call", SKILL_FILM_TARIFFS["skill-agent-sonnet-v2"].filmCredits], ["second", SKILL_FILM_TARIFFS["skill-agent-sonnet-v2"].perExtraSecond], ["image", 7]]],
       ["explainer pro", [["call", SKILL_FILM_TARIFFS["skill-agent-opus-v1"].filmCredits], ["second", SKILL_FILM_TARIFFS["skill-agent-opus-v1"].perExtraSecond], ["image", 7]]]]);
@@ -149,7 +152,8 @@ describe("each price is the constant billing charges by", () => {
       expect(entry.quote_tool).toBe("quote_ugc");
     }
     // The short run's terms are the same constants: the list cannot name one price and the short path charge another.
-    expect(PARTS_DURATION_TARIFF.presenterCreditsPerSecond).toBe(PARTS_FACE_TARIFF.presenterCreditsPerSecond);
+    // The short tariff adds the Turbo second (#1773), which no long-form unit renders on.
+    expect(PARTS_DURATION_TARIFF.presenterCreditsPerSecond).toEqual({ ...PARTS_FACE_TARIFF.presenterCreditsPerSecond, heygen_avatar6_turbo: 12 });
     expect([PARTS_DURATION_TARIFF.productionCreditsPerSecond, PARTS_DURATION_TARIFF.minimumCredits])
       .toEqual([PARTS_FACE_TARIFF.productionCreditsPerSecond, PARTS_FACE_TARIFF.minimumCredits]);
   });
@@ -205,6 +209,104 @@ describe("each price is the constant billing charges by", () => {
     expect([...new Set(priced)].sort()).toEqual([...new Set(listed)].sort());
     expect(entriesOf("generate_video").every((entry) => part(entry)[0] === "clip_second")).toBe(true);
     expect(entriesOf("generate_image").every((entry) => part(entry)[0] === "image")).toBe(true);
+  });
+});
+
+/** Each own-agent run kind's tool, as the MCP server names it. A new kind without a tool here does not compile. */
+const SKILL_TOOLS: Readonly<Record<OwnAgentSkill, string>> = {
+  film_stills: "preview_stills", film_voice: "make_voice", film_render: "render_film", film_hero: "make_film_hero", film_edit: "render_edit",
+  film_take_frames: "take_frames", film_take_check: "check_take", film_cut: "render_cut", film_cut_preview: "preview_cut",
+};
+/** The fields of the frozen terms that are not a price: the tariff, lengths and allowances. */
+const NOT_A_PRICE: ReadonlySet<keyof OwnAgentTerms> = new Set(["tariff", "included_seconds", "cut_included_seconds", "free_stills",
+  "free_stills_window_hours"] as const);
+const LONG = `against a picture, a take over ${TAKE_PICTURE_SHORT_TIER_SECONDS} s`;
+/** Where each price the admission freezes is shown: the tool, its variant, the line's unit and how its label starts (null: no label). */
+const TERM_LINES: Readonly<Record<string, readonly [tool: string, variant: string | null, unit: PriceUnit, label: string | null]>> = {
+  still_credits: ["preview_stills", null, "still", null], render_credits: ["render_film", null, "call", "film up to"],
+  extra_second_credits: ["render_film", null, "second", "each second over"], voice_credits_per_second: ["make_voice", null, "second", null],
+  pose_credits: ["make_film_hero", null, "image", null], sprite_credits: ["make_film_hero", null, "image", "talking sprite"],
+  head_credits: ["make_film_hero", "head", "call", null], edit_credits: ["render_edit", null, "call", "the cut"],
+  music_credits: ["render_edit", null, "track", "music"], film_music_credits: ["render_film", null, "track", "music"],
+  take_check_credits: ["check_take", null, "call", null], picture_check_credits: ["check_take", "against a picture", "call", null],
+  picture_check_long_credits: ["check_take", LONG, "call", null], cut_credits: ["render_cut", null, "call", "the cut"],
+  cut_extra_second_credits: ["render_cut", null, "second", "each second over"], cut_bed_credits: ["render_cut", null, "call", "a described bed"],
+  cut_take_sound_credits_per_second: ["render_cut", null, "second", "a take's own sound"], cut_music_credits: ["render_cut", null, "track", "music"],
+};
+
+describe("the DIY and own-agent prices an admission freezes (#1539)", () => {
+  const everything = priceListFor({ CLIPWRIGHT_OWN_AGENT: "1", CLIPWRIGHT_MUSIC: "1", CLIPWRIGHT_FILM_HEAD: "1", CLIPWRIGHT_HERO_SPRITES: "1" }, ALL_DIY);
+  const entry = (list: readonly (typeof PRICE_LIST)[number][], tool: string, variant: string | null) => {
+    const found = list.filter((one) => one.tool === tool && one.variant === variant);
+    expect(found, `${tool} (${variant})`).toHaveLength(1);
+    return found[0]!;
+  };
+
+  /** Mutants: a run kind admitted with no entry on the list; a frozen price retyped on the list or left off it; a new price in the terms
+   *  the list does not show. */
+  it("shows every run kind's tool and every price its terms freeze, at the frozen number", () => {
+    for (const skill of OWN_AGENT_SKILLS) expect(everything.filter((one) => one.tool === SKILL_TOOLS[skill]), skill).not.toEqual([]);
+    // The terms a sprite hero freezes: every other kind's terms are these without sprite_credits.
+    const terms = ownAgentTermsNow({ sprites: true });
+    const priced = Object.keys(terms).filter((key) => !NOT_A_PRICE.has(key as keyof OwnAgentTerms)).sort();
+    expect(Object.keys(TERM_LINES).sort()).toEqual(priced);
+    // Each price is found by its unit and label, then compared: two lines of one unit cannot swap their numbers unseen.
+    for (const [key, [tool, variant, unit, label]] of Object.entries(TERM_LINES)) {
+      const lines = entry(everything, tool, variant).lines.filter((line) => line.unit === unit &&
+        (label === null ? line.label === null : line.label?.startsWith(label) === true));
+      expect(lines.map((line) => line.credits), key).toEqual([terms[key as keyof OwnAgentTerms]]);
+    }
+    // The cut's preview stills are priced as a draft's stills; take_frames is listed free.
+    expect(entry(everything, "preview_cut", null).lines).toEqual([{ label: null, unit: "still", credits: terms.still_credits }]);
+    expect(isPaidEntry(entry(everything, "take_frames", null))).toBe(false);
+    expect(entry(everything, "render_film", null).lines[0]!.label).toBe(`film up to ${terms.included_seconds} s`);
+    expect(entry(everything, "render_cut", null).lines[0]!.label).toBe(`the cut, up to ${terms.cut_included_seconds} s`);
+  });
+
+  /** Mutants: a mode's tools sold while it is closed or the own-agent switch is off; take_frames listed twice or dropped with one mode. */
+  it("sells each mode's tools only while it is open to everyone and the own-agent mode is on", () => {
+    const tools = (list: readonly (typeof PRICE_LIST)[number][]) => list.map((one) => one.tool).filter((tool) =>
+      ["render_edit", "check_take", "take_frames", "render_cut", "preview_cut"].includes(tool!));
+    const on = { CLIPWRIGHT_OWN_AGENT: "1" };
+    expect(tools(priceListFor(on))).toEqual([]);
+    expect(tools(priceListFor(on, NO_DIY_MODES))).toEqual([]);
+    expect(tools(priceListFor({}, ALL_DIY))).toEqual([]);
+    expect(tools(priceListFor(on, { ad: true, faceless: false }))).toEqual(["render_edit", "check_take", "take_frames"]);
+    expect(tools(priceListFor(on, { ad: false, faceless: true }))).toEqual(["render_cut", "check_take", "check_take", "preview_cut", "take_frames"]);
+    expect(tools(priceListFor(on, ALL_DIY)).filter((tool) => tool === "take_frames")).toHaveLength(1);
+    expect(entry(priceListFor(on, { ad: true, faceless: false }), "check_take", null)).toBeDefined();
+  });
+
+  /** Mutants: the edit's music line sold while music cannot be ordered, or dropped while it can; the faceless cut's music, which its admission
+   *  does not gate on the music switch, dropped with it. */
+  it("prices the edit's music only while music can be ordered, and the faceless cut's music always", () => {
+    const sold = (env: Record<string, string>, tool: string) => entry(priceListFor({ CLIPWRIGHT_OWN_AGENT: "1", ...env }, ALL_DIY), tool, null);
+    expect(sold({}, "render_edit").lines.map((line) => line.unit)).toEqual(["call"]);
+    expect(sold({ CLIPWRIGHT_MUSIC: "1" }, "render_edit").lines.at(-1))
+      .toEqual({ label: "music made for the cut", unit: "track", credits: MUSIC_BED_CREDITS });
+    for (const music of [{}, { CLIPWRIGHT_MUSIC: "1" }])
+      expect(sold(music, "render_cut").lines.filter((line) => line.unit === "track")).toEqual([{ label: "music", unit: "track", credits: MUSIC_BED_CREDITS }]);
+  });
+
+  /** Mutants: the head or the sprite line sold while admission refuses it, or dropped while admission sells it; each switch gating the other's
+   *  line; the whole sprite hero's sum retyped. */
+  it("sells the head and the talking sprites only while admission takes them", () => {
+    const hero = (env: Record<string, string>) => priceListFor({ CLIPWRIGHT_OWN_AGENT: "1", ...env }).filter((one) => one.tool === "make_film_hero");
+    const shape = (env: Record<string, string>) => hero(env).map((one) => [one.variant, one.lines.map((line) => line.label)]);
+    expect(shape({})).toEqual([[null, [null]]]);
+    expect(shape({ CLIPWRIGHT_HERO_SPRITES: "1" })).toEqual([[null, [null, "talking sprite"]]]);
+    expect(shape({ CLIPWRIGHT_FILM_HEAD: "1" })).toEqual([[null, [null]], ["head", [null]]]);
+    expect(shape({ CLIPWRIGHT_FILM_HEAD: "1", CLIPWRIGHT_HERO_SPRITES: "1" })).toEqual([[null, [null, "talking sprite"]], ["head", [null]]]);
+    expect(priceListFor({ CLIPWRIGHT_FILM_HEAD: "1", CLIPWRIGHT_HERO_SPRITES: "1" }).some((one) => one.tool === "make_film_hero")).toBe(false);
+    // The whole hero as admission holds it, so the sentence moves with any of its prices; 177 is the owner's number today.
+    const whole = ownHeroCredits(OWN_HERO_POSES, ownAgentTermsNow({ sprites: true }), OWN_HERO_MAX_SPRITES);
+    expect(whole).toBe(177);
+    expect(hero({ CLIPWRIGHT_HERO_SPRITES: "1" })[0]!.notes).toContain(`a whole hero is ${whole} credits`);
+  });
+
+  it("each DIY tool's price line names its quote tool", () => {
+    for (const tool of ["render_edit", "check_take", "render_cut", "preview_cut"])
+      expect(priceLine(tool, everything), tool).toMatch(/^Price: .+\. Quote first with quote_\w+\.$/);
   });
 });
 

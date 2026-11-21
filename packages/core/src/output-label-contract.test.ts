@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { MCP_UGC_DESCRIPTIONS } from "./mcp-ugc-descriptions.js";
 import { makeUgcInput, makeUgcInputShape } from "./skills.js";
 import { z } from "zod";
 import { contractFlagsFromEnv, rejectedFields, resolveDispositions } from "./contract-dispositions.js";
@@ -12,11 +13,16 @@ it("keeps absence distinct from explicit opt-out without rewriting request hashe
 it.each([null, "false", 0, {}, []])("refuses nonboolean visible label input %#", value => {
   expect(makeUgcInput.safeParse({ script: "Hello there", visible_ai_label: value }).success).toBe(false);
 });
-it("publishes a boolean with an explicit machine-marking-independent explanation", () => {
+it("tells MCP clients too that the label option is unavailable, without promising a label", () => {
+  const text = MCP_UGC_DESCRIPTIONS.visible_ai_label;
+  expect(text).toContain("Not available right now");
+  expect(text).not.toMatch(/add|apply|hide|mark|provenance|true|default/i);
+});
+it("publishes a boolean whose text says it is unavailable and that videos carry no label", () => {
   const schema = z.toJSONSchema(z.object(makeUgcInputShape));
   expect(schema.properties?.visible_ai_label).toMatchObject({ type: "boolean" });
   const label = schema.properties?.visible_ai_label;
-  expect(label && typeof label === "object" ? label.description : undefined).toContain("does not disable");
+  expect(label && typeof label === "object" ? label.description : undefined).toContain("Not available right now");
   expect(schema.required ?? []).not.toContain("visible_ai_label");
 });
 

@@ -31,6 +31,7 @@ import {
   FACELESS_VOICE_NAMES,
   generateImageRequest,
   generateVideoRequest,
+  upscaleRequest,
   MODEL_VOICE_MODEL,
   MODEL_VOICE_NAMES,
   voicesQueryShape,
@@ -141,7 +142,8 @@ export interface CreateServerOptions {
 export const GET_AD_GUIDE_DESCRIPTION = "Free. Read it before you write an ad with make_ugc: the word → device catalogue (which list_moves " +
   "names fit which words), the hook, poses, live shots by action, captions, hands and timeline, and density. Then the method for making " +
   "the ad yourself shot by shot: product and hero sheets, location, state stills, a motion test, the shot list, takes, a frame audit, " +
-  "repair, and the edit with render_edit. section reads one part: ugc, or one step of making the ad yourself. version changes whenever the " +
+  "repair, and the edit with render_edit. With no section it answers the index: which section to read, every section's title, and the " +
+  "order and final check of making the ad yourself. section reads one part whole: ugc, or one step. version changes whenever the " +
   "guide does; read it again when it differs from the one your ad record (get_ad) notes.";
 
 /** What `upload_image` answers a path on a server that reads no files; the tool list stays the same on both transports. */
@@ -221,6 +223,16 @@ export const CREATOR_START_WAIT_SECONDS = 40;
 /** How a paid edit or generation answers a repeat: one sentence, said the same way in every tool. */
 const REPEAT_TEXT = (another: string) => `Repeating an identical request returns the run it started, starting nothing new; pass ${another} for another one.`;
 
+/** An upscale (#1774): the same take or picture, larger, priced from its own table. */
+const UPSCALE_QUOTE_DESCRIPTION = "Price one upscale WITHOUT spending credits: a delivered clip or picture made larger. source is {run_id} " +
+  "of a succeeded generate_video or generate_image run of this account until its reusable_until, {asset_id} of a picture asset, or " +
+  "{upload_id, rights_confirmed: true}. A draft clip is lifted to 720p at the sizes list_generation_models lists under " +
+  "upscale; a picture is doubled on each side. Answers credits, the output width and height, the source's size and warnings. The same " +
+  "take, larger: lettering the draft drew wrong stays wrong. An upscale that fails is charged nothing.";
+const UPSCALE_DESCRIPTION = "Upscale a delivered clip or picture (paid), as quote_upscale explains: a NEW run of skill generate_video or " +
+  "generate_image, charged once the larger file is delivered. Use it on a 480p draft take before an edit, or on a small portrait before " +
+  "create_asset and create_actor. Poll get_run; generation.url is the larger file and generation.upscaled_from names its source.";
+
 export const MAX_INLINE_FRAMES = 8;
 /** The read's query without `display`: the MCP read always asks for the breakdown. */
 const { display: _display, ...readQuery } = referenceAnalysisQuery.shape;
@@ -278,7 +290,7 @@ function uploadNextAction(upload: { width: number; height: number; expires_at: s
 export function createServer(client: ClipwrightClient, options: CreateServerOptions = { fileAccess: "local" }): McpServer {
   const ownAgent = options.ownAgent === true;
   const server = new McpServer({ name: "clipwright", version: packageVersion() }, { instructions: mcpServerInstructions({ ownAgent, explainer: options.explainer,
-    adGuide: options.adGuide }) });
+    adGuide: options.adGuide, facelessDiy: ownAgent && options.facelessDiy === true }) });
   answerInvalidArguments(server);
   registerWorkflowTools(server, client);
   // The ad tools (render_edit, take_frames, check_take) go only where get_ad_guide is offered: the ad epic's accounts.
@@ -560,6 +572,32 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     },
     async ({ attempt, ...request }) =>
       withFailureReport(async () => formatGetRun(await client.generateVideo(generateVideoRequest.parse(request), { attempt }))),
+  );
+
+  const upscaleTool = z.strictObject(upscaleRequest.shape), upscaleRunTool = upscaleTool.extend(agentRetryShape);
+  server.registerTool(
+    "quote_upscale",
+    {
+      title: "Quote an upscale",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description: UPSCALE_QUOTE_DESCRIPTION,
+      inputSchema: upscaleTool,
+    },
+    async (args) => withFailureReport(async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.quoteUpscale(upscaleRequest.parse(args))) }],
+    })),
+  );
+
+  server.registerTool(
+    "upscale",
+    {
+      title: "Upscale",
+      annotations: { readOnlyHint: false, destructiveHint: false },
+      description: withPriceLine("upscale", `${UPSCALE_DESCRIPTION} ${generationTerms}`),
+      inputSchema: upscaleRunTool,
+    },
+    async ({ attempt, ...request }) =>
+      withFailureReport(async () => formatGetRun(await client.upscale(upscaleRequest.parse(request), { attempt }))),
   );
 
   server.registerTool(
@@ -939,7 +977,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
         "Without `skill` the list holds the make_ugc voices only. Each voice names in `skill` the one skill that speaks it; " +
         "the other refuses it before any charge. skill=make_faceless lists " +
         `the ${FACELESS_VOICE_NAMES.length} narration voices of make_faceless (kind faceless_voice, with a ` +
-        `language and a gender; default ${DEFAULT_FACELESS_VOICE}, for an English explainer the fastest voice; no voice_id). ` +
+        `language and a gender; default ${DEFAULT_FACELESS_VOICE}; no voice_id). ` +
         "make_ugc voices: the presets, then the " +
         `${MODEL_VOICE_NAMES.length} voices of ${MODEL_VOICE_MODEL} (kind model_voice), then catalog voices in ` +
         `${CATALOG_LANGUAGES.length} languages. Filter by \`language\` (native; any voice speaks any supported ` +

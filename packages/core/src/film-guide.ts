@@ -18,14 +18,48 @@ export const FILM_KIT_FILES = [
   "src/lib/objects.tsx",
   "src/lib/product.tsx",
   "src/lib/depth.tsx",
+  "src/lib/split.tsx",
+  "src/lib/charts.tsx",
+  "src/lib/type.tsx",
+  "src/lib/captions.tsx",
+  "src/lib/transitions.tsx",
+  "src/lib/video.tsx",
+  "src/lib/sound.tsx",
+  "src/lib/chapters.tsx",
+  "src/lib/panels.tsx",
+  "src/lib/actor.tsx",
   "src/Film.tsx",
   "src/types.ts",
   "src/theme.ts",
   "src/hero/HeroSticker.tsx",
   "films/espresso-hit/Movie.tsx",
   "films/espresso-hit/scenes.tsx",
+  "CATALOGUE.md",
+  "catalogue/recipes-1.md",
+  "catalogue/recipes-2.md",
+  "catalogue/asks.md",
+  "src/lib/tiles.tsx",
+  "src/lib/apps.tsx",
+  "src/lib/installer.tsx",
+  "src/lib/screens.tsx",
+  "src/lib/cards.tsx",
+  "src/lib/devices.tsx",
+  "src/lib/media.tsx",
+  "src/lib/boards.tsx",
+  "src/lib/data.tsx",
+  "src/lib/grids.tsx",
+  "src/lib/course.tsx",
+  "src/lib/series.tsx",
+  "src/lib/badges.tsx",
+  "src/lib/route.tsx",
+  "src/lib/calls.tsx",
 ] as const;
 export type FilmKitFile = (typeof FILM_KIT_FILES)[number];
+/** Whether a path names one of the kit's files. The query checks it against the list while its schema says only "a string", so a new kit */
+/** file grows neither the tool list nor the answers an older client parses. */
+export const isFilmKitFile = (path: string): path is FilmKitFile => (FILM_KIT_FILES as readonly string[]).includes(path);
+/** A kit file's path in an answer: any path, so a client built before a file was added still reads a kit that has it. */
+const kitPath = z.string().min(1);
 
 /** The videos the guide teaches: the explainer film, and the faceless videos an agent cuts from its own pictures, clips and voice. */
 export const FILM_GUIDE_FORMATS = ["explainer", "story", "list", "own_pictures", "cartoon"] as const;
@@ -73,7 +107,7 @@ export const filmGuide = z.strictObject({
   guide: z.string().min(1).describe("The explainer guide, Markdown: the steps, the tools and routes, the rules the checks refuse"),
   method: z.string().min(1).describe("Its appendix, Markdown: the craft behind every step"),
   kit_version: kitVersion,
-  kit_files: z.array(z.strictObject({ path: z.enum(FILM_KIT_FILES), bytes: z.number().int().positive() }))
+  kit_files: z.array(z.strictObject({ path: kitPath, bytes: z.number().int().positive() }))
     .describe("The scene kit's files get_film_kit serves, in reading order"),
   kept_sounds: z.array(z.string()).max(FILM_KEPT_SOUNDS_MAX)
     .describe("Sounds your account's films made and kept, newest first: name one exactly in sfx and it plays again, made nothing new"),
@@ -87,12 +121,15 @@ export const filmGuide = z.strictObject({
 export type FilmGuide = z.infer<typeof filmGuide>;
 
 export const filmKitQuery = z.strictObject({
-  path: z.enum(FILM_KIT_FILES).optional().describe("One kit file; every file when omitted"),
+  path: z.string().refine(isFilmKitFile, { message: "not a kit file: kit_files of get_film_guide lists them" }).optional()
+    .describe("One kit file as kit_files of get_film_guide names it; omitted, the list of files with their size and what each holds"),
 });
 export type FilmKitQuery = z.infer<typeof filmKitQuery>;
 
 export const filmKit = z.strictObject({
   kit_version: kitVersion,
-  files: z.array(z.strictObject({ path: z.enum(FILM_KIT_FILES), text: z.string() })),
+  files: z.array(z.strictObject({ path: kitPath, text: z.string() })).describe("The file asked for by path; none without a path"),
+  index: z.array(z.strictObject({ path: kitPath, bytes: z.number().int().positive(), about: z.string() })).optional()
+    .describe("Without a path: every kit file in reading order, its size and what it holds; read each one with path"),
 });
 export type FilmKit = z.infer<typeof filmKit>;

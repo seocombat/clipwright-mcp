@@ -86,4 +86,17 @@ describe("a pose in a film: works, still or faceless (#1705, #1724)", () => {
       null, undefined, "pose"].map(mascotPoseFace)).toEqual(Array.from({ length: 10 }, () => "faceless"));
     expect([{ mouth: { ...mouth, ink: "#2A0F12" } }, { eyes }, {}].map(mascotPoseWorks)).toEqual([true, false, false]);
   });
+
+  /** Mutants: let a pose move its mouth without both mouth sprites or their anchors, read a drawn mouth before the sprites, or free a quiet pose. */
+  it("moves a mouth with its half and open sprites and their anchors, keeps it still without them, and charges a quiet pose", () => {
+    const sprite = { key: "k", bytes: 1, sha256: "a".repeat(64) }, anchors = { eyes: [{ x: 0.4, y: 0.4 }, { x: 0.6, y: 0.4 }], mouth: { x: 0.5, y: 0.6 } };
+    expect([{ sprites: { half: sprite, open: sprite }, anchors }, { sprites: { half: sprite, open: sprite, blink: sprite }, anchors, head: true }]
+      .map(mascotPoseFace)).toEqual(["works", "works"]);
+    expect([{ sprites: { half: sprite }, anchors }, { sprites: { half: sprite, open: sprite } }, { sprites: {}, anchors, quiet: true },
+      { sprites: { blink: sprite }, anchors, mouth: { x: 0.5, y: 0.6, w: 0.2, ink: "#2A0F12" } }].map(mascotPoseFace))
+      .toEqual(["still", "still", "still", "still"]);
+    expect([{ quiet: true }, { quiet: true, unread: true }].map(mascotPoseFace)).toEqual(["quiet", "quiet"]);
+    // Code review: a picture handed to a film names its sprites by address; it works as the stored pose does.
+    expect(mascotPoseFace({ sprites: { half: "https://x/h.png", open: "https://x/o.png" }, anchors })).toBe("works");
+  });
 });

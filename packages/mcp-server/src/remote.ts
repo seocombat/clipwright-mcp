@@ -9,6 +9,9 @@ import { createServer, type CreateServerOptions } from "./server.js";
 
 // The two pieces a remote host needs from this package, so the MCP SDK has one copy: the tool list and one stateless POST.
 
+/** The widest list the hosted server serves: every mode an account can be offered; the explainer follows the server's own flag. */
+export const HOSTED_FULL_LIST_OPTIONS = { fileAccess: "refuse", ownAgent: true, adGuide: true, facelessDiy: true } as const satisfies CreateServerOptions;
+
 /** The tools exactly as a client lists them, from a server that never reaches the API. */
 export async function listTools(options: CreateServerOptions): Promise<Tool[]> {
   const sdk = new ClipwrightClient({ apiKey: "cw_unused", baseUrl: "http://unused.invalid", clientId: "tool-list" });

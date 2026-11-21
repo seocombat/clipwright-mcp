@@ -12,8 +12,8 @@ import { isPresenterMatteEnabled, needsPresenterCutout, PRESENTER_MATTE_DISABLED
 import { assetId } from "./asset-identity.js";
 import { FACELESS_REJECTED_FIELDS } from "./contract-dispositions.js";
 import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MAX_SELECTED_SECONDS, FACELESS_MAX_SHOTS, FACELESS_MIN_OUTPUT_FRAMES, FACELESS_MIN_SELECTED_SECONDS,
-  EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, EXPLAINER_TIERS, explainerObjectCeiling, facelessQuote, FACELESS_EXPLAINER_POSE_PICTURES,
-  FACELESS_IMAGE_CREDITS, quoteFaceless, SKILL_FILM_TARIFFS, type FacelessQuote, type SkillFilmTariff } from "./faceless-price.js";
+  EXPLAINER_TIER_TARIFFS, EXPLAINER_TIERS, explainerObjectCeiling, facelessQuote, quoteFaceless, type FacelessQuote,
+  type SkillFilmTariff } from "./faceless-price.js";
 import { DEFAULT_FACELESS_VOICE } from "./faceless-voices.js";
 import { resolveFacelessCustomerAnchors } from "./faceless-customer-anchors.js";
 import { FACELESS_TRANSITION_LOOKS } from "./faceless-media-record.js";
@@ -78,7 +78,8 @@ function refuseSounds(input: { input_mode: string; transitions?: false | { look:
 }
 
 export const FACELESS_FORMATS = ["standard", "explainer"] as const;
-export const FACELESS_EXPLAINER_DISABLED_MESSAGE = "format explainer is not available on make_faceless right now; omit format";
+export const FACELESS_EXPLAINER_DISABLED_MESSAGE = "format explainer is not offered on make_faceless: write the explainer film yourself, " +
+  "starting with get_film_guide, each part quoted before it is made; omit format for a narrated video over pictures";
 export const FACELESS_EXPLAINER_BRIEF_REFUSAL = "format explainer needs input_mode script: write it as a hook, three to five steps and a result";
 
 const common = {
@@ -87,9 +88,8 @@ const common = {
   style_reference: qualifiedImageUrl.optional(),
   // Described here once: the MCP shape and OpenAPI both read this schema (#1359).
   character_reference: qualifiedImageUrl.optional()
-    .describe("A picture of a person or figure: a public https image, or a picture you uploaded or saved in your assets. Standard format: the figure is in every picture we generate and in the opening clip; " +
-      "your own scene_images are shown as they are. Format explainer: the figure is the hero, a person's photo drawn as a cartoon unless " +
-      "character_details ask for a photoreal look."),
+    .describe("A picture of a person or figure: a public https image, or a picture you uploaded or saved in your assets. The figure is in every picture we generate and in the opening clip; " +
+      "your own scene_images are shown as they are."),
   character_details: z.string().trim().min(1).max(2000).optional(),
   /** A saved mascot of this account (#1257) the explainer's hero is drawn from: its poses are not made again, and the quote shows none. */
   mascot_id: assetId.optional(),
@@ -327,9 +327,6 @@ export function explainerTierTotals(input: MakeFacelessInput): { tier: (typeof E
   const total = (tier: (typeof EXPLAINER_TIERS)[number]) => quoteFacelessInput(input, { explainerFilm: EXPLAINER_TIER_TARIFFS[tier] }).totalCredits;
   return { tier: input.tier ?? "standard", standard: total("standard"), pro: total("pro") };
 }
-const tierFilm = (tier: (typeof EXPLAINER_TIERS)[number]) => SKILL_FILM_TARIFFS[EXPLAINER_TIER_TARIFFS[tier]];
-const tierPrice = (tier: (typeof EXPLAINER_TIERS)[number]) =>
-  `${tierFilm(tier).filmCredits} credits for a film up to ${EXPLAINER_FILM_INCLUDED_SECONDS} s plus ${tierFilm(tier).perExtraSecond} each second over`;
 
 /** The API routes repeat these paths as literals, and a test keeps them equal. */
 export const FACELESS_QUOTE_PATH = "/v1/skills/make_faceless/quote";
@@ -345,18 +342,16 @@ export const offeredFacelessInputShape = {
   brief: briefInput.shape.brief.optional()
     .describe("What the video is about; the narration is written from it. Required when input_mode is 'brief'; must be absent when it is 'script'."),
   duration_seconds: common.duration_seconds
-    .describe("Selected length, 30 to 90 seconds, on a 1/25 s frame boundary. The video ends with its narration and runs at least 25 seconds (an explainer, as long as its narration), usually at most a quarter past the selection and 90 seconds; when the narration takes longer, the video runs to its end. A video more than 5 seconds longer than the selection says so in warnings[]. The charge never exceeds the quote. A script is accepted when its estimated length is 21 seconds to the selection plus 5, at most 90."),
+    .describe("Selected length, 30 to 90 seconds, on a 1/25 s frame boundary. The video ends with its narration and runs at least 25 seconds, usually at most a quarter past the selection and 90 seconds; when the narration takes longer, the video runs to its end. A video more than 5 seconds longer than the selection says so in warnings[]. The charge never exceeds the quote. A script is accepted when its estimated length is 21 seconds to the selection plus 5, at most 90."),
   style_reference: common.style_reference
     .describe("Public https image whose visual style the scenes follow."),
   character_reference: common.character_reference,
   character_details: common.character_details
     .describe("Fixed visual details of that person or figure, such as hair, clothing and absent accessories; kept in every generated scene."),
   mascot_id: common.mascot_id
-    .describe("A mascot saved in your assets (list_assets with mascot true), for format explainer: its hero, already drawn, with no pose pictures made or charged. " +
-      "Replaces character_reference and character_details."),
+    .describe("Format explainer only, which is not offered here."),
   scene_images: common.scene_images
-    .describe("Your images, each placed at a word range or quote of the narration. Free. With format explainer: " +
-      `up to ${EXPLAINER_MAX_PRODUCT_PICTURES} pictures of your product, each shown as it is on its words, held by the hero, as a card or full frame.`),
+    .describe("Your images, each placed at a word range or quote of the narration. Free."),
   captions: common.captions.describe("Burned-in captions; on by default."),
   transitions: scriptInput.shape.transitions
     .describe("Flash or light leak on the cuts, with its sound: every scene change, or the one nearest each anchor (script only). " +
@@ -371,21 +366,14 @@ export const offeredFacelessInputShape = {
   scenes: z.unknown().optional().describe("Script only: as make_ugc scenes."),
   motion_style: z.unknown().optional().describe("As make_ugc motion_style; spans script only. Free."),
   moves: z.unknown().optional().describe(`Script only: ${MOVES_DESCRIPTION}`),
-  format: common.format.describe("'explainer': a drawn explainer cartoon, an event on every word, a hero in the corner; script only. " +
-    "It fits a chain of concrete actions told by one narrator: a how-to by steps, how something works, a workflow, a tool walkthrough, " +
-    "N mistakes or N ways, with something to show on every phrase. Reasoning without actions, a dialogue or a story about people fits " +
-    "poorly. Every script quote answers explainer_fit: offer the format where it fits; where it does not, show its reason and its " +
-    "rewrite into actions before asking. The hero: mascot_id, else your brand's mascot, free; else the character you name or one that fits " +
-    `the script, its ${FACELESS_EXPLAINER_POSE_PICTURES} pose pictures at ${FACELESS_IMAGE_CREDITS} each on the quote. Priced as one film by tier; ` +
-    "a film takes about half an hour. Without voice, an English script is read by our fastest voice."),
-  tier: common.tier.describe(`Format explainer: 'standard' (default): ${tierPrice("standard")}. 'pro': more careful direction and ` +
-    `richer scenes, ${tierPrice("pro")}. Pose pictures are on top. quote_faceless names both totals: show them and let the user pick. ` +
-    "Elsewhere tier is refused."),
+  // The film made for the user is retired (#1358): the field stays so an admitted run's stored input still parses.
+  format: common.format.describe("'explainer' is not offered here: for an explainer film, write it yourself starting with get_film_guide."),
+  tier: common.tier.describe("Format explainer only, which is not offered here."),
   // No shape here keeps tools/list small, as for templates: the field is make_ugc's, which the client and the server check strictly.
-  pause_trim: z.unknown().optional().describe("Script only: as make_ugc pause_trim, same default with templates, scenes, shots or format explainer."),
+  pause_trim: z.unknown().optional().describe("Script only: as make_ugc pause_trim, same default with templates, scenes or shots."),
   voice: common.voice
     .describe("Narration voice: a name from list_voices with skill=make_faceless (kind faceless_voice). " +
-      `Omitted means ${DEFAULT_FACELESS_VOICE}; for an English explainer, the fastest voice. Choose a voice in the language of the narration: a voice reads any ` +
+      `Omitted means ${DEFAULT_FACELESS_VOICE}. Choose a voice in the language of the narration: a voice reads any ` +
       "language, with the accent of its own. The API refuses an unknown name and a make_ugc voice before any charge. " +
       "A raw voice_id is not accepted here."),
   resolution: common.resolution,

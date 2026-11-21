@@ -4,6 +4,7 @@ import { generationShot, shotIssues } from "./generation-shot.js";
 import { GENERATION_KINDS } from "./generations-output.js";
 import { maxCreditsField } from "./max-credits.js";
 import { runId } from "./runs.js";
+import { listedUpscale } from "./upscale.js";
 import { uploadId } from "./uploads.js";
 
 export const GENERATION_MODELS_PATH = "/v1/generations/models";
@@ -152,8 +153,8 @@ export const GENERATION_CAPABILITIES: GenerationCapabilities = deepFreeze({
   },
   flare: {
     kind: "image",
-    // 21:9 measured live 17.11 (#1686) with four references: a storyboard strip, priced on its own cost.
-    rows: [image("9:16", 1008, 1792, 7, true), image("16:9", 1792, 1008, 7), image("1:1", 1024, 1024, 7), image("21:9", 2352, 1008, 16, true)],
+    // 21:9 measured live 20.11 with four references: a storyboard strip, priced on its own cost.
+    rows: [image("9:16", 1008, 1792, 7, true), image("16:9", 1792, 1008, 7), image("1:1", 1024, 1024, 7), image("21:9", 2352, 1008, 20, true)],
   },
   // An editor of up to 14 pictures (product, person, place, prop); 9:16 is 0.8% off, inside the 2% match.
   "gemini-3-pro-image": {
@@ -455,6 +456,7 @@ const listedModel = z.strictObject({
 
 export const generationModels = z.strictObject({
   models: z.array(listedModel),
+  upscale: listedUpscale.optional(),
   contract_version: z.string().min(1),
 });
 export type GenerationModels = z.infer<typeof generationModels>;

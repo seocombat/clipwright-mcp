@@ -140,6 +140,9 @@ export const EXPLAINER_TIER_TARIFFS = { standard: "skill-agent-sonnet-v2", pro: 
 export const explainerTierTariff = (tier: ExplainerTier | undefined): SkillFilmTariff => EXPLAINER_TIER_TARIFFS[tier ?? "standard"];
 /** The explainer's film switch on `api` (#1291 F4): off, every explainer is refused before any reserve. */
 export const skillAgentEnabled = (env: Record<string, string | undefined>): boolean => env.CLIPWRIGHT_SKILL_AGENT === "1";
+/** Whether make_faceless sells the explainer film (#1358): both switches on. Every surface that offers the film reads this one answer, so
+ *  turning the film switch off retires the offer everywhere, while a run admitted before still settles by its frozen snapshot. */
+export const explainerFilmOffered = (env: Record<string, string | undefined>): boolean => facelessExplainerEnabled(env) && skillAgentEnabled(env);
 
 /** The picture counts a parts snapshot's base may hold for `selectedFrames`: a picture video's ceiling, or an explainer's poses with or without a
  * named character. */

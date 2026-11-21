@@ -5,13 +5,13 @@ import { cutId } from "./cut-ids.js";
 import { diyBlocked, diyNext } from "./diy-next.js";
 import { editMusic } from "./edit-music.js";
 import { EXPLAINER_MAX_PRODUCT_PICTURES, facelessCustomerSceneImage, qualifiedImageUrl } from "./faceless-public.js";
-import { FACELESS_VOICE_NAMES } from "./faceless-voices.js";
 import { filmCutPicture } from "./film-cut.js";
-import { filmDraftId } from "./film-drafts.js";
+import { filmDraftId, filmSceneVideo } from "./film-drafts.js";
 import { MASCOT_POSES } from "./mascots.js";
 import { maxCreditsField } from "./max-credits.js";
 import { OWN_AGENT_SKILLS, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL, OWN_STILLS_SINGLE_MAX, OWN_VOICE_MAX_SECONDS } from "./own-agent-price.js";
 import { runId } from "./runs.js";
+import { VOICE_NAME_PATTERN } from "./voices.js";
 
 // The paid runs of the «own agent» mode (#1291 F2): stills of a draft revision, a voice with word timings, the film's render, a hero saved as
 // a mascot. Each is quoted first, holds its ceiling at admission, is charged by what it delivered; its status lives in `/v1/runs/{id}`.
@@ -32,6 +32,8 @@ export const TAKE_CHECKS_QUOTE_PATH = "/v1/take-checks/quote";
 export const TAKE_CHECKS_PATH = "/v1/take-checks";
 export const FILM_RUN_PATH = "/v1/film-runs/:id";
 export const OWN_AGENT_FILM_TASK = "own-agent-film";
+export const OWN_AGENT_CUT_TASK = "own-agent-cut";
+export const OWN_AGENT_CUT_PREVIEW_TASK = "own-agent-cut-preview";
 
 /** The frame rate of a still's timeline (the SkillFilm composition's) and of the delivered film. */
 export const FILM_STILL_FPS = 30, FILM_RENDER_FPS = 25;
@@ -57,6 +59,7 @@ export const filmStillsInput = z.strictObject({
   sheet: z.boolean().default(false)
     .describe(`Also tile the stills, in order, into one picture (3 across); always on for more than ${OWN_STILLS_SINGLE_MAX} stills`),
   scene_images: sceneImages,
+  scene_video: filmSceneVideo.optional(),
   max_credits: maxCreditsField,
 });
 export type FilmStillsInput = z.infer<typeof filmStillsInput>;
@@ -65,7 +68,11 @@ export type FilmStillsRequest = z.input<typeof filmStillsInput>;
 
 export const filmVoiceInput = z.strictObject({
   text: z.string().trim().min(1).max(OWN_VOICE_MAX_CHARS).describe("The script, spoken exactly as written"),
-  voice: z.enum(FACELESS_VOICE_NAMES).optional().describe("A narrator (list_voices with skill=make_faceless); the fastest of the script's language when omitted"),
+  // A name form, as make_ugc's voice: the server checks the name, so the voices can grow without a client release.
+  voice: z.string({ error: "voice must be a voice name from list_voices, as a string" })
+    .regex(VOICE_NAME_PATTERN, "voice is not a voice name: take one from list_voices with skill=make_faceless").optional()
+    .describe("A narrator (list_voices with skill=make_faceless); the fastest of the script's language when omitted. The API refuses a name " +
+      "list_voices does not return, before any charge"),
   cut_id: cutId.optional().describe("The cut record this voice is for: the record then names it as its voice and says what comes next"),
   max_credits: maxCreditsField,
 });
@@ -76,6 +83,9 @@ export const filmRenderInput = z.strictObject({
   revision: z.number().int().min(0).describe("The draft revision to render; a draft that moved on is refused with 409"),
   voice_run_id: runId.describe("A delivered make_voice run of this account: the film is cut to its length and its words time the captions"),
   scene_images: sceneImages,
+  scene_video: filmSceneVideo.optional(),
+  music: editMusic.optional().describe("Music under the film from at to the end: a library track (free) or one made for the film (paid on " +
+    "delivery); under the voice it plays lower"),
   max_credits: maxCreditsField,
 });
 export type FilmRenderInput = z.infer<typeof filmRenderInput>;
@@ -103,11 +113,10 @@ const editClip = z.strictObject({
     "words. speech and volume say how it sits in the mix"),
   speech: z.boolean().optional().describe("With sound: true. true: the window's sound is someone speaking, so it plays at the level of " +
     "speech and the music goes lower under it as under the voice. false: room sound or effects, which never lower the music. Omitted: " +
-    "what the clip's latest check_take heard, else false"),
+    "what the clip's latest check_take heard, if one ran, else false"),
   volume: z.number().min(EDIT_CLIP_MIN_VOLUME_DB).max(EDIT_CLIP_MAX_VOLUME_DB).optional()
     .describe("With sound: true. dB from the level the edit gives this window's sound: 0 (the default) near the voice, -10 well under it"),
-  slot: adSlotId.optional().describe("With ad_id: the slot of the ad this clip fills. A clip made with generate_video must have passed " +
-    "check_take in that slot; your own footage needs no check"),
+  slot: adSlotId.optional().describe("With ad_id: the slot of the ad this clip fills"),
 }).refine(clip => (clip.run_id === undefined) !== (clip.asset_id === undefined), "name the clip by run_id or by asset_id, one of them")
   .refine(clip => clip.to > clip.from, "to must be after from")
   .refine(clip => clip.sound !== true || clip.run_id !== undefined,
@@ -174,8 +183,7 @@ export const filmEditInput = z.strictObject({
   ambience: editAmbience.optional().describe("Free: the place's quiet room sound, a stretch of one of your clips' own sound repeated " +
     "smoothly under the whole cut whatever its windows and their speed, so every window can play silent and sped up. It never lowers the " +
     "music and the voice stays on top of it; it goes with a voice, music or a clip's own sound"),
-  ad_id: adId.optional().describe("The ad record this cut belongs to: every clip then names its slot, and a clip made with generate_video " +
-    "that has not passed check_take in its slot is refused before any credits, unless the slot is people_only; your own footage needs no check"),
+  ad_id: adId.optional().describe("The ad record this cut belongs to: every clip then names its slot"),
   max_credits: maxCreditsField,
 }).refine(edit => edit.ad_id !== undefined || edit.clips.every(clip => clip.slot === undefined), "a clip's slot needs ad_id")
   .refine(edit => edit.ad_id === undefined || edit.clips.every(clip => clip.slot !== undefined), "with ad_id, every clip names its slot");
@@ -240,7 +248,7 @@ export const pictureTakeAsk = z.strictObject({
 });
 export type PictureTakeAsk = z.infer<typeof pictureTakeAsk>;
 const hexColour = z.string().regex(/^#[0-9a-fA-F]{6}$/, "a colour is #RRGGBB");
-const PICTURE_ONLY = ["look", "picture", "cut_id"] as const, MOTION_ONLY = ["product_image", "moves", "format", "ad_id"] as const;
+const PICTURE_ONLY = ["look", "picture", "cut_id"] as const, MOTION_ONLY = ["product_image", "moves", "format", "ad_id", "speed"] as const;
 
 export const takeCheckInput = z.strictObject({
   ...takeSource,
@@ -264,6 +272,7 @@ export const takeCheckInput = z.strictObject({
   slot: adSlotId.optional().describe("With ad_id or cut_id: the slot of the record this take is for; on a cut record, a slot that needs a take"),
   format: z.enum(TAKE_MOTION_FORMATS).optional().describe("What the take's motion is measured against: fashion (people and clothes in " +
     "motion: fashion, lifestyle, sport) or product (a product worked in the hands); omitted, product"),
+  speed: z.boolean().optional().describe("true: also look for things hanging in the air (slow motion), same price; off by default"),
   max_credits: maxCreditsField,
 }).refine(oneTake, ONE_TAKE)
   .superRefine((v, ctx) => {
@@ -333,16 +342,24 @@ export const filmHeroInput = z.strictObject({
   voice_run_id: runId.optional().describe("With no character and no script: a delivered make_voice run of this account, whose text is the script"),
   mascot_id: assetId.optional().describe("Alone, instead of the fields above: a saved mascot of this account (list_assets with mascot true) that lacks " +
     "poses. Only the poses it lacks are drawn, in its look, and added to it, so the same mascot_id then has them"),
+  head: z.boolean().optional().describe("true with character_reference, your own photo saved as an asset with rights_confirmed (create_asset) or " +
+    "your actor's picture (list_actors): draws only the head as a cartoon that talks, blinks, " +
+    "smiles, looks surprised and looks aside, saved as a mascot whose mascot_id a film's actor wears; one price per head, charged only when the " +
+    "head is saved with all its pictures"),
   max_credits: maxCreditsField,
 }).refine(value => value.mascot_id !== undefined || FILM_HERO_SOURCE_FIELDS.some(field => value[field] !== undefined),
   "name the hero with character_reference or character_details, pass script or voice_run_id, or pass mascot_id")
   .refine(value => value.mascot_id === undefined || FILM_HERO_SOURCE_FIELDS.every(field => value[field] === undefined),
-    `mascot_id completes a saved mascot and takes no other field: drop ${FILM_HERO_SOURCE_FIELDS.join(", ")}`);
+    `mascot_id completes a saved mascot and takes no other field: drop ${FILM_HERO_SOURCE_FIELDS.join(", ")}`)
+  .refine(value => value.head !== true || (value.character_reference !== undefined && value.script === undefined
+    && value.voice_run_id === undefined && value.mascot_id === undefined),
+    "head is drawn from character_reference (with character_details if you like): pass it, and drop script, voice_run_id and mascot_id");
 export type FilmHeroInput = z.infer<typeof filmHeroInput>;
 
-/** The seconds a take is held at before it is spoken: every character at the slowest pace, two seconds of lead and tail. */
-export function ownVoiceCeilingSeconds(text: string): number {
-  return Math.ceil(text.length / OWN_VOICE_SLOWEST_CHARS_PER_SECOND) + 2;
+/** The seconds a take is held at before it is spoken: every character at the slowest pace, two seconds of lead and tail. A voice played */
+/** at a constant `tempo` is held at that pace times the tempo, as its take is measured after it is sped up. */
+export function ownVoiceCeilingSeconds(text: string, tempo = 1): number {
+  return Math.ceil(text.length / (OWN_VOICE_SLOWEST_CHARS_PER_SECOND * tempo)) + 2;
 }
 
 /** A film's frames on its voice: the take, then the tail, at the delivered rate. */

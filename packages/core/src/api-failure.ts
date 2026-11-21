@@ -11,10 +11,9 @@ import {
   insufficientCreditsError,
   maxCreditsExceededError,
   runNotEditableError,
-  takeUncheckedError,
   type BareApiErrorCode,
 } from "./errors.js";
-import type { DiyBlocked, DiyNext } from "./diy-next.js";
+import type { DiyNext } from "./diy-next.js";
 import { PUBLIC_APP_BASE_URL } from "./public-endpoints.js";
 import { rateLimitedError } from "./rate-limit.js";
 import { workflowCommandErrorRead } from "./contracts/v1/workflow-execution.js";
@@ -155,9 +154,8 @@ export interface ClientFailure extends WorkflowDiagnostics {
   message: string;
   /** Code from the body, if the body followed the contract at all. */
   code: string | undefined;
-  /** The one call that fixes the refusal, when the server names it (#1666); on `take_unchecked`, the check to run and what unblocks the cut. */
+  /** The one call that fixes the refusal, when the server names it (#1666). */
   next?: DiyNext;
-  blocked?: DiyBlocked;
 }
 
 export type ApiFailure =
@@ -477,12 +475,6 @@ export function parseApiFailure(input: ApiFailureInput): ApiFailure {
     return { kind: error.code, status, message: error.message, issues: error.issues, warnings: error.warnings };
   }
 
-  const unchecked = takeUncheckedError.safeParse(body);
-  if (unchecked.success && status === 409) {
-    const { error } = unchecked.data;
-    return { kind: "client_error", status, message: error.message, code: error.code, next: error.next, blocked: error.blocked };
-  }
-
   // From here the body is foreign or unparsed. The generic envelope still gives
   // text and code; otherwise the message is built from the status.
   const generic = apiError.safeParse(body);
@@ -572,15 +564,9 @@ export interface AgentFailureReport {
   /** The rules an edit or workflow document breaks. */
   issues?: EditIssueRead[] | WorkflowFailure["issues"];
   warnings?: string[];
-  /** On `take_unchecked`: the check to run next, with its arguments, and what unblocks the cut. */
+  /** The one call that fixes the refusal, when the server names it. */
   next?: DiyNext;
-  blocked?: DiyBlocked;
 }
-
-export const TAKE_UNCHECKED_NEXT_ACTION =
-  "Do not render yet: each clip the message names was made with generate_video and has no passing check_take on its file. Quote " +
-  "the check in next (add direction: the shot's part of the prompt the take was made with), run check_take after the user's go-ahead, " +
-  "and cut only takes that pass. Nothing was charged and no run was created.";
 
 export const UPLOAD_NOT_FINISHED_NEXT_ACTION =
   "Finish the upload first: PUT the file to the put_url from create_upload with the given put_headers, confirm it " +
@@ -814,10 +800,8 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
         code: failure.code ?? `http_${failure.status}`,
         retryable: false,
         ...(failure.next && { next: failure.next }),
-        ...(failure.blocked && { blocked: failure.blocked }),
         // An unfinished presigned upload is fixed by the upload itself, not by changing this call (clipwright#758).
-        next_action: failure.code === "take_unchecked" ? TAKE_UNCHECKED_NEXT_ACTION :
-          failure.code === "upload_not_finished" ? UPLOAD_NOT_FINISHED_NEXT_ACTION :
+        next_action: failure.code === "upload_not_finished" ? UPLOAD_NOT_FINISHED_NEXT_ACTION :
           failure.code === "unauthorized" ? UNAUTHORIZED_NEXT_ACTION :
           failure.next ? refusalNextAction(failure.next) :
           "STOP. Do NOT retry: the request itself was rejected, so repeating it unchanged gives " +

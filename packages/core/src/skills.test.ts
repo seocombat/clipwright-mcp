@@ -418,6 +418,9 @@ describe("makeUgcInput — script length gate", () => {
       "CUT_MAX_QUIET_SEC",
       // The trend search window's upper bound (#1394): how old a found reel may be, priced per search, never a render length.
       "TREND_SEARCH_MAX_DAYS",
+      // The longest Turbo unit (#1776 D6): past it a video renders on Avatar IV, or the worker refuses before any take; never a price bound.
+      "TURBO_UNIT_MAX_SEC",
+      "TURBO_UNIT_MAX_ESTIMATE_SEC",
     ];
     const durationCaps = Object.keys(contract).filter(
       (name) =>
@@ -601,9 +604,10 @@ describe("agent protocol: `failed` is no longer promised to be final", () => {
 
 // Mutants (#1216): the offer said where the format is refused, moved out of the brief, or naming a field the tools do not have.
 describe("server instructions offer the explainer only where it is sold", () => {
-  const instructions = async (flag: string | undefined): Promise<string> => {
+  const instructions = async (flag: string | undefined, film: string | undefined = flag): Promise<string> => {
     vi.resetModules();
     vi.stubEnv("CLIPWRIGHT_FACELESS_EXPLAINER", flag);
+    vi.stubEnv("CLIPWRIGHT_SKILL_AGENT", film);
     try {
       return (await import("./skills.js")).MCP_SERVER_INSTRUCTIONS;
     } finally {
@@ -614,6 +618,12 @@ describe("server instructions offer the explainer only where it is sold", () => 
 
   it("is absent with the format off", async () => {
     expect(await instructions(undefined)).not.toContain("offer the explainer");
+  });
+
+  // #1358. Mutant: the offer read from the format flag alone, so a server with the film switched off still sells the film made for the user.
+  it("is absent with the film switch off, the format flag on", async () => {
+    expect(await instructions("1", "")).not.toContain("offer the explainer");
+    expect(await instructions("1", "1")).toContain("offer the explainer (make_faceless, format explainer)");
   });
 
   it("follows the declined brief, names real fields and picks the hero by meaning", async () => {
@@ -630,9 +640,10 @@ describe("server instructions offer the explainer only where it is sold", () => 
   });
 
   /** #1356 C2. Mutants: the second way said without the film tools, left out beside them, or placed after the hero. */
-  const offer = async (flag: string | undefined, ownAgent: boolean): Promise<string> => {
+  const offer = async (flag: string | undefined, ownAgent: boolean, film: string | undefined = flag): Promise<string> => {
     vi.resetModules();
     vi.stubEnv("CLIPWRIGHT_FACELESS_EXPLAINER", flag);
+    vi.stubEnv("CLIPWRIGHT_SKILL_AGENT", film);
     try {
       const text = (await import("./skills.js")).mcpServerInstructions({ ownAgent });
       const brief = text.indexOf("If the user declines the brief, go on as asked."), visuals = text.indexOf("\n\nCompose the visuals");
@@ -655,6 +666,8 @@ describe("server instructions offer the explainer only where it is sold", () => 
     expect(own).toContain(`offer the explainer beside the remake: ${SECOND_WAY}; it spends your own model time, about half an hour. Pick its hero`);
     expect(own).not.toContain("make_faceless");
     expect(await offer(undefined, false)).toBe("If the user declines the brief, go on as asked.");
+    // #1358: the format flag on and the film switch off offer the user's own way alone.
+    expect(await offer("1", true, "")).toBe(own);
   });
 
   /** #1356 C5. Mutant: the caller's answer ignored for the environment's flag. */
@@ -672,6 +685,30 @@ describe("server instructions offer the explainer only where it is sold", () => 
     vi.stubEnv("CLIPWRIGHT_FACELESS_EXPLAINER", "1");
     try {
       expect((await import("./skills.js")).mcpServerInstructions({ ownAgent: false, explainer: false })).not.toContain("offer the explainer");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  /** Faceless DIY opened 2026-11-20. Mutants: offered without the cut tools, past the 4,096 chars Claude Code reads (music on, explainer sold */
+  /** or not), over 300 chars, a step or the quote left out, or naming a vendor, a number or a switch. */
+  it("offers the faceless DIY way only with the cut tools, whole within the first 4,096 chars, every step named and each part quoted", async () => {
+    vi.resetModules();
+    vi.stubEnv("CLIPWRIGHT_MUSIC", "1");
+    try {
+      const { FACELESS_DIY_INSTRUCTION, mcpServerInstructions } = await import("./skills.js");
+      expect(FACELESS_DIY_INSTRUCTION.length).toBeLessThanOrEqual(300);
+      for (const explainer of [false, true]) {
+        const prod = mcpServerInstructions({ ownAgent: true, explainer, adGuide: true, facelessDiy: true });
+        expect(prod).toContain("makes four choices");
+        // Codex b r1: its own paragraph between the report rule and the brief, not merely somewhere before the cut.
+        const at = prod.indexOf(`download the file.\n\n${FACELESS_DIY_INSTRUCTION}\n\nStart from what works.`) + "download the file.".length;
+        expect([at > 0, at + FACELESS_DIY_INSTRUCTION.length + 2 <= 4096], `${explainer} at ${at}`).toEqual([true, true]);
+      }
+      expect(mcpServerInstructions({ ownAgent: true, explainer: false, adGuide: true })).not.toContain("create_cut");
+      expect(FACELESS_DIY_INSTRUCTION).toMatch(/make_faceless.*get_film_guide.*create_cut.*check_cut.*quote_cut.*render_cut.*quoted first/);
+      expect(FACELESS_DIY_INSTRUCTION).not.toMatch(/\d|CLIPWRIGHT_|Lambda|explainer/i);
     } finally {
       vi.unstubAllEnvs();
       vi.resetModules();

@@ -18,6 +18,89 @@ listed under.
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-11-20
+
+### Added
+
+- `make_ugc` and `quote_ugc`: `presenter_engine` picks the presenter model, `avatar6_turbo` (HeyGen Avatar 6 Turbo) at 12
+  credits per presenter second or `avatar_iv` (HeyGen Avatar IV) at 10. Turbo is the default of a 9:16 video, short or long,
+  whose presenter picture is within 2% of 9:16, with no `call`, `interview`, `presenter_gaze` or talking shot and no presenter
+  part longer than about 36 s. Any other video renders on Avatar IV, and an asked Turbo says why in `warnings[]`. A Turbo
+  video opens on the picture's pose for 0.6 s before the first word; those seconds are free. A 35 s ad costs 385 on Avatar IV
+  and 455 on Turbo. The price is frozen when the run is admitted.
+- `quote_upscale` and `upscale`, with `quoteUpscale` and `upscale` in the SDK: a delivered clip or picture made larger, as a
+  new `generate_video` or `generate_image` run. A 480p or 360p draft clip goes to 720p at 2 credits per second of the clip; a
+  PNG or JPEG picture is doubled on each side for 4 credits. The source is a `run_id`, an `asset_id` or an `upload_id`; a
+  size the table does not hold is refused before any charge. The run names its source in `upscaled_from`. It is the same
+  take, larger: lettering the draft drew wrong stays wrong. A failed upscale costs nothing.
+- `render_film` and `quote_render`: `music`, as on `render_edit`. A library bed (`track`) is free; a track made for the film
+  (`generate`) is 20 credits, a line of its own on the quote, charged only when the delivered film carries it. The music
+  plays under the voice and dips under each phrase. The quote warns when the voice leaves too little room for a made track.
+- `check_film`, `preview_stills` and `render_film`: `scene_video`, a video asset or a delivered `generate_video` clip that
+  `<Presenter>` plays without its sound in a split screen: cards above, the presenter below, the caption on the seam. A
+  `make_ugc` video becomes an asset with `create_asset`.
+- `make_ugc`: `voice_run_id` has the presenter speak a delivered `make_voice` run instead of a new voice, so a presenter
+  take can match a film's narration. One take only; the voice is not charged again, and production is 1 credit a second.
+- *Server-side:* the film kit that `get_film_kit` serves has a second look and more elements. `chapters` switch between a
+  light and a dark ground with an opening, `SpokenCaption`, `TypeLine`, `StatusList`, `ValueChips`, `ConfirmCard`,
+  `CommentCta`, `EndFade` and a ring `Gauge`. `BigNumber` gives a key number its own beat. `Actor` is a character that walks, talks, clicks and stamps; it
+  can be the account's hero or your own head picture with drawn or swapped eyes and mouth. Kit elements now make their own
+  sounds in the delivered film; `sound={false}` mutes one and `<Film sounds={false}>` mutes them all. `get_film_guide`
+  teaches the split screen, the motion look and mixing looks in one film.
+- `make_film_hero`: `head: true` with your photo or your actor's picture draws the head as a cartoon that talks, blinks and
+  changes its look, saved as a mascot a film's actor wears. A head costs 120 credits, charged only when it is saved with all its
+  pictures; a head that fails costs nothing. A new drawn hero's four talking poses also get twelve talking sprites (mouth half
+  open, mouth open and a blink for each) at 8 credits each, charged once each is published: a whole hero is 177 credits.
+- *Server-side:* the faceless way of making a film yourself is open to every account: `create_cut`, `check_cut`, `preview_cut`,
+  `render_cut` and the faceless parts of `get_film_guide`.
+- *Server-side:* `list_prices` lists the tools for making a film or an ad yourself, each with its price.
+
+### Changed
+
+- *Server-side:* `check_take` is optional. `render_edit`, `render_cut`, their quotes and `check_cut` no longer refuse a clip that has
+  no check, a failed check or a window across a defect the check found; a verdict on the clip's file is said in `warnings[]`. Read each
+  take on `take_frames` (free) and run the paid check on a product shot or when the user asks. `get_ad` and `get_cut` no longer block
+  the edit on their slots' checks. Sound refusals stay: a clip whose check heard a voice that does not fit plays only silent.
+- `check_take` takes `speed: true` to also look for things hanging in the air (`SLOW_MOTION`); without it that look no longer runs.
+  The price is the same either way.
+- `get_film_kit` without `path` answers the index of the kit's files, with each file's size and what it holds; read one file a
+  call with `path`. The kit's files are split so that each one fits a single tool answer.
+- *Server-side:* the explainer made for you (`make_faceless` and `quote_faceless` with `format: "explainer"`) is no longer
+  offered: the request is refused before any charge and points to `get_film_guide`, where you write the explainer film yourself,
+  each part quoted before it is made.
+
+- *Server-side:* a `make_ugc` presenter second on `avatar_iv` (HeyGen Avatar IV) costs 10 credits, was 9; runs admitted
+  earlier keep their price.
+- *Server-side:* a `generate_image` `flare` 21:9 board costs 20 credits, was 16; runs admitted earlier keep their price.
+  Other `flare` pictures stay at 7.
+- *Server-side:* `get_ad_guide` without `section` answers its index, about 5 KB: the section to read next (`ugc` for
+  `make_ugc`), every section's title, and the order and final check of making the ad yourself. `section` still returns one
+  part whole.
+- *Server-side:* `get_ad_guide` teaches a Process ad, where the seller makes the product on screen. The maker's face shows
+  at work in one window instead of by the first second, things keep their real height in the scene, and food close-ups
+  may be made at 720p.
+- *Server-side:* `render_edit` sets a clip's own room sound (`speech: false`) and `ambience` further under the voice and
+  softens their low rumble and hiss. A quiet mix is lifted further to the delivery loudness. A cut whose only sound is the
+  clips' room sound is delivered quiet with a warning instead of failing.
+- `make_voice` takes any narrator name `list_voices` returns; the API refuses an unknown name before any charge, so new
+  voices need no client update.
+- *Dashboard:* /pricing and the landing page show Avatar 6 Turbo as the default presenter. The terms for credit packs and
+  plans no longer name a fixed rate per second for a video from a plain script: the rate is the one on /pricing and in the
+  quote.
+
+### Removed
+
+- **Breaking:** the `take_unchecked` error, its schema and its `next_action` text are gone from `@clipwright/core`: the API no longer
+  sends it.
+
+### Fixed
+
+- `get_film_kit` and `get_film_guide` no longer fail when the server lists a kit file the client does not know.
+- *Server-side:* a `render_edit` window that runs to its clip's end holds the clip's last frame. A clip whose frame rate is
+  not a whole number no longer fails `render_edit`, `render_cut` or `check_take` at its last frame.
+- *Server-side:* `check_take` judges a take along the stretches its direction names ("3.4-5.7 s: …") when they match the
+  take's own cuts.
+
 ## [0.72.0] - 2026-11-19
 
 ### Added

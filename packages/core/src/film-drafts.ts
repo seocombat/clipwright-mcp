@@ -116,12 +116,23 @@ export const filmDraft = z.strictObject({
 });
 export type FilmDraft = z.infer<typeof filmDraft>;
 
+/** The presenter take a film's <Presenter> plays (#1773 C6): one video of this account, silent in the film, from `from` seconds on. */
+export const filmSceneVideo = z.strictObject({
+  asset_id: assetId.optional().describe("A video asset of this account. A make_ugc video becomes one with create_asset and the url get_run gives"),
+  run_id: runId.optional().describe("A delivered generate_video run of this account"),
+  from: z.number().min(0).max(600).default(0).describe("The second of the video the film's first frame shows"),
+}).refine(v => (v.asset_id === undefined) !== (v.run_id === undefined), { message: "name exactly one of asset_id and run_id" })
+  .describe("The video your <Presenter> plays, without its sound, second by second beside the film; past its end its last frame holds. " +
+    "Lips match the film's voice only when the video was made from this same voice");
+export type FilmSceneVideo = z.infer<typeof filmSceneVideo>;
+
 export const FILM_DRAFT_CHECK_PATH = "/v1/film-drafts/:id/check";
 /** The free check (#1356): a draft revision, or the same changes put_film_files takes laid over it unsaved, read on a delivered voice. */
 export const checkFilmInput = z.strictObject({
   revision: z.number().int().min(0).describe("The draft revision to check; a draft that moved on is refused with 409"),
   voice_run_id: runId.describe("A delivered make_voice run of this account: the check reads its words and length"),
   scene_images: z.array(facelessCustomerSceneImage).max(EXPLAINER_MAX_PRODUCT_PICTURES).optional().describe("The product pictures you will send to stills and render"),
+  scene_video: filmSceneVideo.optional(),
   files: z.record(z.string(), z.string().max(FILM_FILE_MAX_BYTES).nullable()).optional()
     .describe("Changes to check without saving them, as put_film_files takes them: text replaces a file, null deletes it"),
   cues: putFilmFilesInput.shape.cues, sfx: putFilmFilesInput.shape.sfx, captions: putFilmFilesInput.shape.captions,

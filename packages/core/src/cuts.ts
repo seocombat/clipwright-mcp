@@ -33,8 +33,8 @@ export type FacelessBrief = z.infer<typeof facelessBrief>;
 
 export const cutSlot = z.strictObject({
   id: cutSlotId,
-  needs: z.enum(CUT_SLOT_NEEDS).describe("take: a clip made with generate_video, checked against its picture; picture: a picture; card: a " +
-    "text card; footage: the user's own video, which needs no check"),
+  needs: z.enum(CUT_SLOT_NEEDS).describe("take: a clip made with generate_video from its picture; picture: a picture; card: a " +
+    "text card; footage: the user's own video"),
   shot: z.string().trim().min(1).max(500).describe("What the shot shows, in a line, and the words it plays on"),
 });
 export type CutSlot = z.infer<typeof cutSlot>;

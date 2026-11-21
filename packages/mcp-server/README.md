@@ -24,13 +24,16 @@ serve the same tools.
 Add the URL to your client. On first use the client opens a browser, you sign
 in to Clipwright and approve the app. **Claude Code and the device-code flow
 below were verified live on 2026-10-18;** the other commands come from each
-client's own documentation and have not been tried with Clipwright yet.
+client's own documentation and have not been tried with Clipwright yet, except
+ChatGPT: ChatGPT on the web was checked live on 2026-11-20 with free quotes, a
+paid trend search and paid reference breakdowns; adding the server, sign-in and creating the plugin were not
+tested, and neither was the phone app.
 
 - **Claude Code** (verified live): `claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp`,
   then run `/mcp` in a session and sign in.
 - **Claude.ai and Claude Desktop:** Customize → Connectors → Add custom
   connector, then paste the URL.
-- **ChatGPT**, on the web: chatgpt.com/plugins → the plus button → Add custom
+- **ChatGPT**, on the web: chatgpt.com/plugins → Add → Add custom
   MCP server, paste the URL, choose OAuth, then Create as a plugin and install
   it. In a chat, type `@` and pick it.
 - **Cursor:** in `~/.cursor/mcp.json`,
@@ -219,6 +222,10 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
 - `generate_image`, `generate_video` — **make one image or one silent clip;
   this costs money.** One that fails is charged nothing. An identical request returns the same run; `attempt` starts
   another on purpose. Poll `get_run`; `generation.url` is the file.
+- `quote_upscale`, `upscale` — **a delivered clip or picture made larger; the
+  upscale costs money**, its quote is free. A 480p or 360p draft clip goes to 720p,
+  a picture is doubled on each side; the same take, larger, so lettering the draft
+  drew wrong stays wrong. One that fails is charged nothing.
 - `upload_image` — a PNG/JPEG from a local `path` or a public https `url` →
   `upload_id` and a signed https url to pass as `image`. Free; 20 per day, at
   most 30 url downloads per hour, the url lives 24 hours. Set `aspect_ratio`
@@ -293,14 +300,12 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
 - `quote_faceless` — price of a faceless video before making one. Free.
 - `make_faceless` — **makes a faceless video from your script or from a short
   brief; this costs money.** You pick 30 to 90 seconds; the video ends with its
-  narration, at least 25 seconds (an explainer, as long as its narration) and usually at most a quarter past your pick
+  narration, at least 25 seconds and usually at most a quarter past your pick
   and 90 (a longer narration runs to its end), and costs at most the quote. Narration plays over an opening
   animated clip and image scenes, with captions on by default. `voice` picks
   the narration voice by name. Returns a
-  `run_id` immediately; poll `get_run` until `succeeded`. With `format: "explainer"` it makes a drawn explainer
-  film, open to every account: `tier` `standard` (the default, 700 credits up to 60 seconds plus 12 a second over)
-  or `pro` (1200 plus 20). The quote names both; a film takes about half an hour. A busy service answers
-  `explainer_busy` with `Retry-After`.
+  `run_id` immediately; poll `get_run` until `succeeded`. An explainer film is one your agent writes, starting
+  with `get_film_guide`; `make_faceless` refuses `format: "explainer"` before any charge.
 - `delete_actor` — removes a personal actor of this account. Videos already made
   with it stay as they are. Free.
 - `get_actor_defaults`, `set_actor_defaults` — read and save an actor's B-roll

@@ -244,6 +244,11 @@ export function resolveSkillTheme(manifest: SkillThemeManifest, input: ResolveSk
     if (!changed) break;
   }
   warnings.push(...moved.values());
+  // The accent is never moved: marks and fills draw the brand's colour. Under 3:1 on the paper they read pale, and the client is told.
+  if (tokens.accent !== undefined && tokens.paper !== undefined && contrastRatio(tokens.accent, tokens.paper) < ACCENT_FILL_MIN_CONTRAST) {
+    warnings.push(`accent ${tokens.accent} reads at ${contrastRatio(tokens.accent, tokens.paper).toFixed(2)}:1 on the paper, so marks and labels in the ` +
+      `accent colour will look pale; text in the accent colour is moved to read at ${DESIGN_MIN_CONTRAST}:1`);
+  }
   const brandFonts = { ...input.brand?.fonts, ...stripUndefined(input.overrides?.fonts) };
   const cyrillic = input.language !== undefined && CYRILLIC_LANGUAGES.has(input.language.toLowerCase().slice(0, 2));
   const fonts: Record<string, string> = {};
@@ -268,6 +273,9 @@ export function resolveSkillTheme(manifest: SkillThemeManifest, input: ResolveSk
     : input.brand?.palette || input.brand?.fonts ? "brand_kit" : "kit";
   return { version: 1, tokens, fonts, variation, hero: manifest.hero, logo: manifest.logo, source, warnings };
 }
+
+/** Under this a mark or fill in the accent colour is hard to find on the paper. */
+const ACCENT_FILL_MIN_CONTRAST = 3;
 
 const worstContrast = (colour: string, grounds: readonly string[]): number => Math.min(...grounds.map(g => contrastRatio(colour, g)));
 

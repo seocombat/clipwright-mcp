@@ -4,6 +4,7 @@ import { assetId } from "./asset-identity.js";
 import { ASSET_VIDEO_MAX_SECONDS } from "./assets.js";
 import { maxCreditsField } from "./max-credits.js";
 import { referenceUntrusted } from "./reference-display.js";
+import { filmKitMap, referenceFilmNext } from "./reference-film-kit.js";
 import { MAX_REFERENCE_SEGMENTS, MAX_REFERENCE_TRANSCRIPT_WORDS, referenceHook, referenceLanguage, referenceProfileAnswer, referenceSegment, referenceWord,
   type ReferenceProfileAnswer } from "./reference-profile.js";
 
@@ -306,6 +307,9 @@ export const referenceAnalysis = z.strictObject({
   untrusted_content: referenceUntrusted,
   /** Since #1172: the remake plan call once a full analysis succeeded with a profile; `null` otherwise. */
   next: referenceAnalysisNext.nullable(),
+  /** Since #1806, both only with a profile where coded films are offered; next_film only for a reel that is mostly graphics or a screen. */
+  film_kit: filmKitMap.optional(),
+  next_film: referenceFilmNext.optional().describe("A second way: the reel built as a coded film"),
   /** Since #990: only when the read asks for display=markdown. */
   display_markdown: z.string().optional().describe("The analysis as a compact markdown breakdown, built from the fields above."),
   display_hint: z.string().optional(),
@@ -347,6 +351,11 @@ export const referenceAnalysisRead = referenceAnalysis.extend({
   untrusted_content: z.object({ note: z.string(), fields: z.array(z.string()) }).optional(),
   // A server from before #1172 sends no next; a later one may name another call.
   next: z.object({ action: z.string(), method: z.string(), path: z.string(), body: z.record(z.string(), z.unknown()) }).loose().nullable().optional(),
+  // A later server may name a term, an element or a step this client does not know.
+  film_kit: z.array(z.object({ beat_index: z.number(), start_s: z.number(), end_s: z.number(),
+    uses: z.array(z.object({ term: z.string(), elements: z.array(z.string()) }).loose()) }).loose()).optional(),
+  next_film: z.object({ action: z.string(), method: z.string(), path: z.string(), steps: z.array(z.string()), share: z.number(),
+    credits_estimate: z.number(), note: z.string() }).loose().optional(),
   // A server from before #927 sends no money fields.
   credits_reserved: referenceAnalysis.shape.credits_reserved.optional(),
   credits_charged: referenceAnalysis.shape.credits_charged.optional(),

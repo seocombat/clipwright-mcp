@@ -27,15 +27,21 @@ const legacyFaceBillingTariffSchema = z.object({
 export const PRESENTER_ENGINES = ["heygen", "omnihuman"] as const;
 export type PresenterEngine = (typeof PRESENTER_ENGINES)[number];
 
+/** The presenter engines with HeyGen Avatar 6 Turbo (#1773, #1776), which renders a short video and a long video's presenter parts. */
+export const SHORT_PRESENTER_ENGINES = [...PRESENTER_ENGINES, "heygen_avatar6_turbo"] as const;
+export type ShortPresenterEngine = (typeof SHORT_PRESENTER_ENGINES)[number];
+
 const tariffCredits = z.number().int().nonnegative().max(2_147_483_647);
-export const presenterRatesSchema = z.object({ heygen: tariffCredits.positive(), omnihuman: tariffCredits.positive() }).strict().readonly();
+/** The Turbo second is absent on every snapshot admitted before parts-v5, which then prices no Turbo take. */
+export const presenterRatesSchema = z.object({ heygen: tariffCredits.positive(), omnihuman: tariffCredits.positive(),
+  heygen_avatar6_turbo: tariffCredits.positive().optional() }).strict().readonly();
 
 /** Live-shot engines (#1103): talking_action and action; silent shots on Gemini Omni 1.2 (#1535) and Seedance 2.5 (#1539 C4), each also */
 /** with no text in frame (`_no_text`) at its own second. */
 export const SHOT_ENGINES = ["shot_talking_action", "shot_action", "shot_omni", "shot_seedance", "shot_omni_no_text", "shot_seedance_no_text"] as const;
 export type ShotEngine = (typeof SHOT_ENGINES)[number];
 /** Every engine a face unit may be charged at. */
-export const TAKE_ENGINES = [...PRESENTER_ENGINES, ...SHOT_ENGINES] as const;
+export const TAKE_ENGINES = [...SHORT_PRESENTER_ENGINES, ...SHOT_ENGINES] as const;
 export type TakeEngine = (typeof TAKE_ENGINES)[number];
 /** The model engines are absent on every snapshot admitted before them, which then prices no such shot. */
 export const shotRatesSchema = z.object({ shot_talking_action: tariffCredits.positive(), shot_action: tariffCredits.positive(),
@@ -88,6 +94,8 @@ const unitSchema = z.object({
   shot: z.enum(LIVE_SHOT_KINDS).optional(),
   /** A silent shot drawn on Gemini Omni 1.2 (#1535), frozen with the plan: it is charged at `shot_omni`. */
   shotModel: z.enum(SHOT_MODELS).optional(),
+  /** A presenter part made on HeyGen Avatar 6 Turbo (#1776), charged at its own second; absent, the part is made on Avatar IV or OmniHuman. */
+  engine: z.literal("heygen_avatar6_turbo").optional(),
 }).strict().readonly();
 
 const planShape = {

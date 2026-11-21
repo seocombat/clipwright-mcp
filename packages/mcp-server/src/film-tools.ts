@@ -38,12 +38,13 @@ export const PREVIEW_STILLS_DESCRIPTION = `Free for a draft's first ${OWN_FREE_S
   "storyboard's events) on the draft's theme and the voice's captions, and returns them as pictures with what the layout probe found on each. " +
   `sheet: one tiled picture instead of one per still, always above ${OWN_STILLS_SINGLE_MAX}. Look at every still and fix.`;
 export const QUOTE_RENDER_DESCRIPTION = "Free. What render_film would hold, charged only when delivered, and film_sec: how long the film " +
-  "runs, the voice then a short tail.";
+  "runs, the voice then a short tail. With music.generate, lines show the film and the music apart.";
 export const RENDER_FILM_DESCRIPTION = "Paid when the film is delivered, after quote_render. Renders the draft revision on the voice: captions " +
-  "on its words, the sound events under it, the frozen theme. Returns at once; call get_film_run until it is succeeded (video_url) or failed.";
+  "on its words, the sound events under it, the frozen theme, and music if asked: a library track (free) or one made for the film (charged " +
+  "only when the delivered film carries it), lower under the voice. Returns at once; call get_film_run until it is succeeded (video_url) or failed.";
 export const QUOTE_FILM_HERO_DESCRIPTION = "Free. What make_film_hero would hold: every pose of the hero (with mascot_id, every pose the mascot " +
   "lacks), the most it can charge. Show it and wait for the go-ahead.";
-export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published, after quote_film_hero; a drawn pose whose face shows but whose mouth cannot move with the voice is " +
+export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published (a head: once, saved whole), after quote_film_hero; a drawn pose whose face shows but whose mouth cannot move with the voice is " +
   "published with a warning and not charged (a pose with no face to animate is charged). At most " + HERO_RUNS_PER_HOUR + " heroes an hour, and none while the " +
   "account has received " + OWN_HERO_FREE_POSES_PER_DAY + " such uncharged poses in the last " + OWN_HERO_FREE_POSES_WINDOW_HOURS + " hours. Draws a hero in nine poses and saves it as a mascot of " +
   "your assets: from character_reference or character_details, else invented to fit the meaning of script (or of voice_run_id's text). " +
@@ -53,25 +54,22 @@ export const MAKE_FILM_HERO_DESCRIPTION = "Paid per pose published, after quote_
   "look at it before any stills. Then pass hero.mascot_id to create_film_draft: every later film uses it with no pose made or charged again.";
 export const CREATE_AD_DESCRIPTION = "Free. Starts the ad's record once the script and shot list are written: brief (product, audience, " +
   "message, notes with the product page's facts) and slots, one per shot in cut order ({ id: \"hook\", shot: \"what it shows and the line it " +
-  "carries\" }). Pass its ad_id and a slot to check_take for every take, and ad_id to render_edit: the cut is refused before any credits while a " +
-  "slot's take has not passed. A slot with people_only: true (no product, label or detail in any frame) takes generated takes unchecked. " +
-  "Mistakes to avoid: one slot for two shots; a new record per take; slot ids you will not reuse; people_only on a shot that shows the product.";
+  "carries\" }). Pass its ad_id and a slot to check_take when you check a take, and ad_id to render_edit with each clip's slot. " +
+  "people_only: true marks a shot with no product, label or detail in any frame. " +
+  "Mistakes to avoid: one slot for two shots; a new record per take; slot ids you will not reuse.";
 export const UPDATE_AD_DESCRIPTION = "Free. Replaces the record's brief, its slots or both. slots is the whole shot list again, not a patch: send " +
-  "every slot you keep. Mistakes to avoid: dropping a slot that has checked takes (refused; reword it instead); turning people_only on for a " +
-  "slot that has checked takes (refused; add a new slot instead); a new record when the shot list grows.";
-export const GET_AD_DESCRIPTION = "Free. The ad record: each slot's state (no_take, checking, failed, passed), its takes with every check_take " +
-  "verdict, the edits, and next: the call to make now with its arguments (a check for the first slot without a passing take, then the edit " +
-  "with each slot's passing take on its longest clean window). passed is what render_edit decides: a clip made with generate_video when it " +
-  "was checked in the slot and the latest verdict on its file passed, or in a people_only slot when its file has no check that did not pass; " +
-  "own_footage takes always, their checks only advice. A people_only slot never blocks the edit. blocked says why " +
-  "the edit would be refused and what unblocks it; your own footage needs no check in any slot. " +
-  "Mistakes to avoid: cutting a take the record shows as failed; guessing windows when next already has them.";
+  "every slot you keep. Mistakes to avoid: dropping a slot that has checked takes (refused; reword it instead); a new record when the shot " +
+  "list grows.";
+export const GET_AD_DESCRIPTION = "Free. The ad record: each slot's state (no_take, checking, failed, passed), read from its check_take " +
+  "verdicts only, its checked takes with every verdict, the edits, and next: the edit with each slot's latest take that passed on its longest " +
+  "clean window, and the slots still to fill with takes you judged on take_frames. passed: own footage, or the latest verdict on the take's " +
+  "file passed. The check is optional: render_edit cuts any take and says a verdict in warnings. " +
+  "Mistakes to avoid: guessing windows when next already has them.";
 export const QUOTE_EDIT_DESCRIPTION = "Free. What render_edit would hold for this edit list, and film_sec: how long the cut runs. Checks every " +
-  "clip, window, voice piece and caption first and names what is wrong; that every clip you made with generate_video passed check_take on its " +
-  "file (your own uploaded footage needs no check, with or without ad_id), and with ad_id that each generated clip passed in its slot " +
-  "(a people_only slot takes it unchecked, named in warnings). With music.generate, lines show " +
+  "clip, window, voice piece and caption first and names what is wrong; a check_take verdict on a clip's file, when there is one, is said in " +
+  "warnings (a failed verdict, a window across a defect or past the clean windows). With music.generate, lines show " +
   "the cut and the music apart. Answers next: render_edit with the same arguments. Show it and wait for the go-ahead. Mistakes to avoid: " +
-  "cutting a generated take before its check; from and to in the edit's seconds (they are the clip's own); captions in the clip's seconds " +
+  "from and to in the edit's seconds (they are the clip's own); captions in the clip's seconds " +
   "(they are the edit's); a window that keeps an empty first frame or leaves the take's clean windows; a voice that runs past the cut; " +
   "music.at in a clip's seconds (it is the edit's).";
 export const RENDER_EDIT_DESCRIPTION = "Paid once per delivered cut, after quote_edit. Cuts windows of your own delivered generate_video clips " +
@@ -80,12 +78,10 @@ export const RENDER_EDIT_DESCRIPTION = "Paid once per delivered cut, after quote
   "audio: true, never under the voice's words), lays music if asked and burns in captions: one vertical 9:16 720p " +
   `MP4 at 25 fps, up to ${OWN_EDIT_MAX_SECONDS} s. music is a library track (free) or one made for the cut (charged only when the delivered ` +
   "cut carries it); it plays from music.at to the end, lower under the voice. A clip up to 3% off 9:16 is cropped to fill it; one further off is shown whole with bars; warnings name each. An " +
-  "edit that fails costs nothing. Returns at once; call get_film_run until it is succeeded (video_url) or failed. A clip you made with " +
-  "generate_video whose file has not passed check_take is refused before any credits (409 take_unchecked, with next: the check to run); " +
-  "your own uploaded footage needs no check. With ad_id every clip names its slot, and a generated clip that has not passed check_take in " +
-  "its slot is refused (409 ad_slot_unchecked) before any credits, unless the slot is people_only and the file has no check that did not " +
-  "pass; your own footage goes in any slot unchecked. Mistakes to avoid: rendering without the quote's go-ahead; cutting a generated take " +
-  "before its check passes (frames you looked at are not a check); changing the arguments between quote and render; expecting a zoom (it " +
+  "edit that fails costs nothing. Returns at once; call get_film_run until it is succeeded (video_url) or failed. Read each take you made " +
+  "on take_frames (free) before you cut it; check_take is optional, worth it on a product shot or when the user asks, and a verdict on a " +
+  "clip's file is said in warnings. With ad_id every clip names its slot. Mistakes to avoid: rendering without the quote's go-ahead; cutting " +
+  "a take you have not looked at; changing the arguments between quote and render; expecting a zoom (it " +
   "has none); music under a voice-led ad at volume above -6; a music-only cut without music; a caption over the product, its print, the " +
   "hands or the face.";
 export const TAKE_FRAMES_DESCRIPTION = "Free. Your generate_video clip (run_id) or video asset (asset_id) as contact sheets: frames at fps (8 to " +
@@ -94,13 +90,12 @@ export const TAKE_FRAMES_DESCRIPTION = "Free. Your generate_video clip (run_id) 
   "seconds; crop (x, y, w, h, shares of the frame) enlarges one part, such as a hand on the product. Look at every frame: a hand that passes " +
   "through the product, a lid that lifts before it is touched, a product that changes shape. shots: the stretches between cuts and whips in " +
   "these seconds, each with its subject motion, camera move and camera shake (run it on a reference reel saved as a video asset to measure " +
-  "its energy shot by shot). Waits up to 45 s and returns the sheets as pictures; " +
-  "next is the check of this take. Mistakes to avoid: calling a take clean from 8 fps alone (read each contact again at 12 to 24 fps with a " +
-  "crop); calling a moment no frame shows clean; checking the thumbnail instead of every frame; cutting a take from its frames alone (frames " +
-  "are not a check: every take in the cut passes check_take, which also scores its motion).";
+  "its energy shot by shot). Waits up to 45 s and returns the sheets as pictures. This is your own look before a cut; check_take, paid, " +
+  "judges a product shot or a take the user wants checked. Mistakes to avoid: calling a take clean from 8 fps alone (read each contact " +
+  "again at 12 to 24 fps with a crop); calling a moment no frame shows clean; checking the thumbnail instead of every frame.";
 export const QUOTE_TAKE_CHECK_DESCRIPTION = "Free. What check_take would hold for this clip, and next: check_take with the same arguments. " +
   "Show it and wait for the go-ahead. Mistakes to avoid: leaving out ad_id and slot when the take is for an ad record (its verdict then does " +
-  "not count for the edit).";
+  "not join the record).";
 export const CHECK_TAKE_DESCRIPTION = "Paid per delivered verdict, after quote_take_check. Judges your generate_video clip (run_id) or video " +
   "asset (asset_id) frame by frame against direction, the shot's part of the prompt you made it with (up to 1500 characters): each defect with its code, the seconds it shows, its " +
   "repair level (asset: a new first frame or reference; action: the prompt's steps; camera: the framing; roll: the same prompt again) and " +
@@ -112,12 +107,12 @@ export const CHECK_TAKE_DESCRIPTION = "Paid per delivered verdict, after quote_t
   "clean window as subject motion (the camera's own move taken out), camera move and camera shake, names a window too static for this format " +
   "and names shake on its own: advice to re-shoot, not a defect, so it never fails the take; only a take in which nothing moves at all fails, " +
   "with FROZEN_TAKE. " +
-  "A take up to 30 s is also read for speed: something hanging or drifting in the air (a salt flake, a drop, a flame rising slowly) " +
-  "is SLOW_MOTION with its seconds in why; it neither fails the take nor narrows the clean windows, so cut it, make the take again or keep it " +
-  "where a slow beat suits the shot. " +
-  "render_edit cuts a clip you made with generate_video only after the verdict delivered last on its file passed; your own footage needs none. A " +
+  "With speed: true a take up to 30 s is also read for speed: something hanging or drifting in the air (a salt flake, a drop, a flame rising " +
+  "slowly) is SLOW_MOTION with its seconds in why; it neither fails the take nor narrows the clean windows, so cut it, make the take again or " +
+  "keep it where a slow beat suits the shot. " +
+  "The check is optional: render_edit and render_cut cut any take and say a verdict on its file in warnings. A " +
   "check that delivers no verdict costs nothing. Waits up to 45 s; an unfinished run names get_film_run to call. A passed take answers next (the record, or " +
-  "the edit on its clean window); a failed one answers blocked with its repair and next: the take's own generate_video request to change. " +
+  "the edit on its clean window); a failed one answers next: the take's own generate_video request to repair. " +
   "Mistakes to avoid: the whole prompt with its shared prefix as direction (send the shot's action and timeline); no product_image for a " +
   "labelled product; cutting around a whole_take defect; repeating the same request for an action or asset fault.";
 /** The faceless picture mode, told only where faceless DIY is on. */
@@ -133,7 +128,7 @@ export const GET_FILM_RUN_DESCRIPTION = "Free. One stills, voice, render, edit, 
 export const GET_FILM_GUIDE_DESCRIPTION = "Free. Read this first, before any other film tool: the explainer guide (each step's tool, the rules the " +
   "checks refuse, a whole example film), its method appendix, and the scene kit's files get_film_kit serves.";
 export const GET_FILM_KIT_DESCRIPTION = "Free. The scene kit's sources your film imports as scene-kit, with a reference film (films/espresso-hit): " +
-  "read index.ts and the reference first, then the drawers whose props you use. path: one file; every file when omitted.";
+  "read index.ts and the reference first, then the drawers whose props you use. path: one file a call; without it, the list of files.";
 /** The faceless formats the guide also teaches, said only where they are served. */
 export const FACELESS_GUIDE_FORMATS = " format: story, list, own_pictures or cartoon reads how to make that faceless video yourself from " +
   "make_voice, generate_image and generate_video instead; section reads one part of it (steps first). version: the whole guide's version, " +
@@ -147,8 +142,8 @@ export const RENDER_CUT_DESCRIPTION = "Paid once per delivered video, after quot
   "held frame or take window on its words with its camera move and punch-ins, cards, outlines and captions with their accents; the voice " +
   "centred in stereo with the bed, hits and effects under it, a take's own sound where take_sound lists it, and music when asked. One " +
   `vertical 9:16 720p MP4 at 25 fps, ${OWN_CUT_MIN_SECONDS} to ${OWN_CUT_MAX_SECONDS} s, with up to ${OWN_CUT_MAX_NEW_SOUNDS} described sounds made. A part that ` +
-  "could not be made is left out and not charged; a cut that fails costs nothing. A take you made with generate_video whose file has not " +
-  "passed check_take against its picture is refused before any credits (409 take_unchecked, with next: the check to run). Returns at once; " +
+  "could not be made is left out and not charged; a cut that fails costs nothing. A take's check against its picture is optional; a " +
+  "verdict on its file is said in warnings. Returns at once; " +
   "call get_film_run until it is succeeded (video_url) or failed; get_cut lists the render too.";
 export const CHECK_CUT_DESCRIPTION ="Free and instant. Checks a faceless cut sheet (story, list, own_pictures or cartoon) against your " +
   "make_voice words and your own pictures, held frames and generate_video takes: every source yours, delivered and within 15% of 9:16; the " +
@@ -160,8 +155,8 @@ export const CHECK_CUT_DESCRIPTION ="Free and instant. Checks a faceless cut she
   "playing a take past the second it leaves its picture, and holding a frame still where a picture with a camera move is meant.";
 export const CREATE_CUT_DESCRIPTION = "Free. Starts the faceless video's cut record once the script is approved: brief (format, topic, look, " +
   "language, script, voice_run_id, notes) and slots, the shot plan in order, one per shot ({ id: \"lamp\", needs: take, picture, card or " +
-  "footage, shot: \"what it shows and the words it plays on\" }). take is a clip you make with generate_video, checked against its picture; " +
-  "footage is the user's own video and needs no check. Pass its cut_id to make_voice, to the take checks with a take slot, and to the " +
+  "footage, shot: \"what it shows and the words it plays on\" }). take is a clip you make with generate_video from its picture; " +
+  "footage is the user's own video. Pass its cut_id to make_voice, to the take checks with a take slot, and to the " +
   "previews and the render: each names the record, and the record answers next: the call to make now. Mistakes to avoid: a picture or card " +
   "slot for a take; a footage slot for a clip made with generate_video; a new record per take.";
 export const UPDATE_CUT_DESCRIPTION = "Free. Replaces the record's brief, its slots or both. slots is the whole shot plan again, not a patch: " +
@@ -169,9 +164,8 @@ export const UPDATE_CUT_DESCRIPTION = "Free. Replaces the record's brief, its sl
   "takes, or making it a picture, card or footage slot (refused with 409; reword its shot instead).";
 export const GET_CUT_DESCRIPTION = "Free. The cut record: the brief, the guide version it was made under, the voice, each slot with its state " +
   "(take slots: no_take, checking, failed or passed, with every check_take verdict; other slots: none), the previews and renders, and next: " +
-  "the call to make now with its arguments (the voice, a check for each take slot without a passing take, then check_cut on a sheet with " +
-  "the voice's sentences as beats). blocked names the take slots without a pass. Mistakes to avoid: working from memory instead of next; " +
-  "rendering while blocked names a slot.";
+  "the call to make now with its arguments (the voice, then check_cut on a sheet with the voice's sentences as beats). A take's check is " +
+  "optional and never blocks the video. Mistakes to avoid: working from memory instead of next.";
 export const QUOTE_CUT_PREVIEW_DESCRIPTION = "Free. What preview_cut would hold: one still per asked word. free_units: how many of them are free " +
   `(an account's first ${OWN_FREE_STILLS} stills in any ${OWN_FREE_STILLS_WINDOW_HOURS} h, across its cut records); free_left: the free stills ` +
   "after them; the start counts them again. Checks the sheet as check_cut does and names what is wrong by field path; a take need not " +
@@ -330,7 +324,7 @@ export function registerFilmDraftTools(server: McpServer, client: ClipwrightClie
     inputSchema: { draft_id: filmDraftId, ...checkFilmInput.shape },
   }, async ({ draft_id, ...request }) => withFailureReport(async () => ({ content: [text(await client.checkFilm(draft_id, request))] })));
 
-  // A cut record is the faceless DIY list's: off it, a voice names none.
+  // A cut record is the faceless DIY mode's: without it, a voice names none.
   const { cut_id: _cut, ...explainerVoice } = filmVoiceInput.shape;
   const voiceShape = (facelessDiy ? filmVoiceInput.shape : explainerVoice) as typeof filmVoiceInput.shape;
   server.registerTool("quote_voice", { title: "Quote a film voice", annotations: { readOnlyHint: true, destructiveHint: false },
@@ -393,7 +387,7 @@ function registerAdDiyTools(server: McpServer, client: ClipwrightClient, waited:
   async ({ attempt, ...input }) => withFailureReport(async () => runAnswer(await client.renderEdit(input, { attempt }), fetchImpl)));
 }
 
-/** The cut record and its previews, on the faceless DIY list. */
+/** The cut record and its previews, in the faceless DIY mode. */
 function registerCutRecordTools(server: McpServer, client: ClipwrightClient, waited: (run: FilmRun) => Promise<McpToolResponse>): void {
   server.registerTool("create_cut", { title: "Start a cut record", annotations: { readOnlyHint: false, destructiveHint: false },
     description: CREATE_CUT_DESCRIPTION + GUIDE_FIRST, inputSchema: createCutInput.shape },
@@ -412,10 +406,10 @@ function registerCutRecordTools(server: McpServer, client: ClipwrightClient, wai
   async ({ attempt, ...input }) => withFailureReport(async () => waited(await client.previewCut(input, { attempt }))));
 }
 
-/** take_frames and the take check, on the ad and the faceless DIY lists; the picture mode's fields are listed only where faceless DIY is on. */
+/** take_frames and the take check, in the ad and the faceless DIY modes; the picture mode's fields are listed only where faceless DIY is on. */
 function registerTakeTools(server: McpServer, client: ClipwrightClient, waited: (run: FilmRun) => Promise<McpToolResponse>, picture: boolean): void {
   const { against: _a, look: _l, picture: _p, cut_id: _c, ...rest } = takeCheckInput.shape;
-  // Off the faceless DIY list, direction is the prompt text alone and a slot is an ad record's: the picture mode's fields are not offered there.
+  // Without the faceless DIY mode, direction is the prompt text alone and a slot is an ad record's: the picture mode's fields are not offered there.
   const motionShape = { ...rest, direction: rest.direction.options[0].describe("What the take was asked to show: the shot's part of the prompt " +
     `you made it with (its action and timeline), up to ${TAKE_CHECK_PROMPT_MAX_CHARS} characters`),
     slot: rest.slot.describe("With ad_id: the slot of the ad record this take is for") };

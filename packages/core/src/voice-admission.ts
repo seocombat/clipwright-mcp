@@ -4,6 +4,7 @@ import { serverUgcInputWith } from "./skills.js";
 import type { Gender } from "./default-actor.js";
 import { makeFacelessInput } from "./faceless-public.js";
 import { isFacelessVoiceName } from "./faceless-voices.js";
+import { filmVoiceInput } from "./own-agent-runs.js";
 import { normalizeVoiceLabel, type CatalogFileVoice } from "./voice-catalog.js";
 import { VOICE_CATALOG } from "./voice-catalog-data.js";
 import { vendorVerifiedModels } from "./voice-listing.js";
@@ -82,6 +83,19 @@ export const serverFacelessInput = makeFacelessInput.refine(
   (input) => input.voice === undefined || facelessVoiceRefusal(input.voice) === undefined,
   { path: ["voice"], error: (issue) => facelessVoiceRefusal((issue.input as { voice: string }).voice)! },
 );
+
+/** Why `make_voice` refuses a voice name: a `make_faceless` voice is spoken; a server's own preset only with `serviceVoices`, otherwise */
+/** it reads as an unknown name. */
+export function filmVoiceRefusal(voice: string, options: { serviceVoices?: boolean } = {}): string | undefined {
+  if (options.serviceVoices === true && !isVoicePresetName(voice) && voicePresetOf(voice) !== undefined) return undefined;
+  return facelessVoiceRefusal(voice);
+}
+
+/** API input of `make_voice`: the client schema checks the form of `voice`, the server its name with `voiceRefusal`. */
+export function serverFilmVoiceInputWith(voiceRefusal: (voice: string) => string | undefined) {
+  return filmVoiceInput.refine((input) => input.voice === undefined || voiceRefusal(input.voice) === undefined,
+    { path: ["voice"], error: (issue) => voiceRefusal((issue.input as { voice: string }).voice)! });
+}
 
 /** Voice gender by name: our fact for a preset, the vendor label for a catalog voice. */
 /** A raw `voice_id` has no gender, so `undefined`, not a guess. */

@@ -67,7 +67,28 @@ describe("resolving a brand onto the explainer kit", () => {
       }
     }
     const sunny = resolveSkillTheme(EXPLAINER_THEME, { brand: skillBrandOf({ look: "sunny_pop" }) });
-    expect(sunny.warnings.some(w => w.startsWith("accent #FFC21A was moved"))).toBe(true);
+    expect(sunny.warnings.some(w => w.startsWith("accent #FFC21A reads at"))).toBe(true);
+    expect(sunny.tokens.accent).toBe("#FFC21A");
+  });
+
+  /** The 19.11 draft: the accent was moved to #BA480E to read as text, and every mark drew the darker colour. Mutant: pair `accent` itself again. */
+  it("keeps the brand's accent for fills and moves only the text token (19.11 palette)", () => {
+    const palette = { background: "#F5F2EB", surface: "#FFFFFF", ink: "#231F1D", accent: "#F07A3E" } as const;
+    const theme = resolveSkillTheme(EXPLAINER_THEME, { overrides: { palette } });
+    expect(theme.tokens.accent).toBe("#F07A3E");
+    expect(theme.tokens.accentText).not.toBe("#F07A3E");
+    for (const ground of [theme.tokens.paper!, theme.tokens.card!]) expect(contrastRatio(theme.tokens.accentText!, ground)).toBeGreaterThanOrEqual(DESIGN_MIN_CONTRAST);
+    expect(contrastRatio(theme.tokens.onAccent!, theme.tokens.accent!)).toBeGreaterThanOrEqual(DESIGN_MIN_CONTRAST);
+    expect(theme.warnings.some(w => w.startsWith("accent #F07A3E was moved"))).toBe(false);
+    expect(theme.warnings.some(w => w.startsWith("accent #F07A3E reads at") && w.includes("pale"))).toBe(true);
+  });
+
+  it("takes the text on an accent fill from the brand's accent_ink and says nothing about an accent that reads", () => {
+    const own = resolveSkillTheme(EXPLAINER_THEME, { brand: { palette: EXPLAINER_THEME.roles } });
+    expect(own.tokens.accentText).toBe("#2346FF");
+    expect(own.tokens.onAccent).toBe("#FFFFFF");
+    const dark = resolveSkillTheme(EXPLAINER_THEME, { brand: skillBrandOf({ look: "electric_lime" }) });
+    expect(dark.tokens.onAccent).toBe("#0B0D0A");
   });
 
   /** Codex r1. Mutants: check only a token's first ground, or trust readableShade's answer, and a text reads 1:1 on its card while the

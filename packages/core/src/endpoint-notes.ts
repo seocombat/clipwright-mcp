@@ -157,4 +157,8 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
     "Prices one clip with this request, silent unless audio is set: credits per second times its duration, width, height and warnings. Charges nothing.",
   "POST /v1/skills/generate_video/run":
     "Starts one clip generation and answers at once with a run_id; the run's generation block holds the clip once delivered. A failed generation is charged nothing. While generations are closed it answers generations_disabled and charges nothing.",
+  "POST /v1/skills/upscale/quote":
+    "Prices one upscale of a delivered clip or picture: credits, the output width and height, the source size and warnings. Charges nothing.",
+  "POST /v1/skills/upscale/run":
+    "Starts one upscale and answers at once with a run_id of skill generate_video or generate_image; its generation block holds the larger file once delivered. The same take, larger: lettering the draft drew wrong stays wrong. A failed upscale is charged nothing.",
 };

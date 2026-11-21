@@ -206,8 +206,8 @@ For a source build, the command is `node` with the absolute path to
 | `CLIPWRIGHT_API_URL` | no | Defaults to `https://api.clipwright.io`; set it only for another environment. |
 
 After a restart, confirm that `tools/list`
-returns 58 tools: `make_ugc`, `get_run`, `get_run_shots`, `delete_run_media`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
-`list_generation_models`, `quote_image`, `generate_image`, `quote_video`, `generate_video`, `quote_ugc`, `list_actors`,
+returns 60 tools: `make_ugc`, `get_run`, `get_run_shots`, `delete_run_media`, `quote_revision`, `revise_run`, `quote_candidate`, `create_candidate`,
+`list_generation_models`, `quote_image`, `generate_image`, `quote_video`, `generate_video`, `quote_upscale`, `upscale`, `quote_ugc`, `list_actors`,
 `list_voices`, `list_template_sounds`, `list_moves`, `upload_image`, `create_upload`, `get_upload`, `delete_upload`, `create_asset`, `list_assets`, `get_asset`, `update_asset`,
 `delete_asset`, `quote_analysis`, `analyze_reference`, `get_reference_analysis`, `quote_creator_profile`, `analyze_creator`,
 `get_creator_profile`, `delete_creator_profile`, `quote_trends`, `find_trends`, `trend_niches`, `get_account`, `list_prices`, `create_actor`, `quote_actor`, `delete_actor`, `get_actor_defaults`,
@@ -347,22 +347,30 @@ quote or `list_prices`, never from memory or this page: they change.
 
 ### `quote_ugc` — free
 
-Its price fields for a 12-second script:
+Its price fields for a 12-second script with `presenter_engine: "avatar_iv"`:
 
 ```json
 {
   "skill": "make_ugc",
-  "credits_estimate": 120,
+  "credits_estimate": 132,
   "duration_estimate_sec": 12,
-  "tariff": "parts-v2",
+  "tariff": "parts-v5",
   "price_lines": [
-    { "label": "presenter, HeyGen Avatar IV", "unit": "face_second", "quantity": 12, "unit_credits": 9, "credits": 108 },
+    { "label": "presenter, HeyGen Avatar IV", "unit": "face_second", "quantity": 12, "unit_credits": 10, "credits": 120 },
     { "label": "production (voice and render)", "unit": "second", "quantity": 12, "unit_credits": 1, "credits": 12 }
   ],
   "minimum_credits": 50,
   "warnings": []
 }
 ```
+
+The presenter model is `presenter_engine`: `avatar6_turbo` (HeyGen Avatar 6
+Turbo, the default of a 9:16 video whose image is 9:16) or `avatar_iv`
+(HeyGen Avatar IV), each at its own presenter-second price in `price_lines`.
+A long video with inserts or segments renders on Turbo too, unless it has a
+call, an interview, `presenter_gaze` or a talking shot, or one presenter take
+longer than 36 seconds. Any other video renders on `avatar_iv`; an asked
+`avatar6_turbo` it cannot honour says why in `warnings[]`.
 
 Also read `source`, `actor`, `resolved_aspect_ratio` (what will ACTUALLY be
 rendered) and `tts_model`. The quote and the run share one verdict: a 400 on the
@@ -414,7 +422,7 @@ for `minimalist`. Quote each style's description from `caption_style` in
 which returns no word timings. Checked 2026-10-31.
 
 **`make_faceless` without `voice` narrates in English.** The default
-(`narrator_en_wise_lady`; for an English explainer, the fastest voice) reads a Russian or Spanish script with an English accent,
+(`narrator_en_wise_lady`) reads a Russian or Spanish script with an English accent,
 and `warnings[]` stays empty: the language warning fires only for a voice you
 named. Pick a voice in the narration's language from `list_voices` with
 `skill: "make_faceless"`. Without `skill`, `list_voices` lists only `make_ugc`
@@ -453,8 +461,7 @@ capital stays as written. The 2.5 models misread the mark and warn on Cyrillic.
 A retry never fixes stress; only the text does. Checked 2026-10-31.
 
 **`make_faceless` `duration_seconds` is a target, not a length.** The video ends
-with its narration and runs at least 25 seconds; an explainer runs as long as
-its narration. It usually ends within a
+with its narration and runs at least 25 seconds. It usually ends within a
 quarter past the selection and 90 seconds. A longer narration runs to its end,
 and the charge never exceeds the quote. A video more than 5 seconds past the
 selection names both lengths in `warnings[]`. A
@@ -468,18 +475,10 @@ exceed `credits_estimate`. `make_faceless` charges the delivered length and neve
 more than its quote. Read `credits_charged` on the finished run: it is `null`
 until the run settles, while `credits_reserved` holds the reserve. Checked 2026-10-31.
 
-**An explainer film comes in two tiers, and any account can order it.**
-`make_faceless` with `format: "explainer"` takes `tier`: `standard` (the
-default) is 700 credits for a film up to 60 seconds plus 12 for each second
-over; `pro` is 1200 plus 20, with more careful direction and richer scenes. A
-hero you name, or one drawn to fit the script, adds its 9 pose pictures at 7
-each; a saved mascot adds none. `quote_faceless` answers both totals in
-`explainer_tiers`: show them and let the user pick. A film takes about half an
-hour. One film runs at a time per account: a second one is refused with
-`explainer_busy` (429), and when every film slot is busy a new one is refused
-with `explainer_busy` (503). Both come before any credits are reserved, and
-`Retry-After` says how many seconds to wait; try again then.
-`tier` on any other format is refused.
+**An explainer film is one you write yourself.** Start with `get_film_guide`
+(free): it names each step and its tool, and every paid part (voice, hero
+poses, stills, render) is quoted before it is made. `make_faceless` refuses
+`format: "explainer"` and `tier` before any charge.
 
 **The price field has a different name in each quote.** `credits_estimate` in
 `quote_ugc`, `quote_actor` and `quote_analysis`; `credits` in `quote_image`,

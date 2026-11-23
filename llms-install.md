@@ -1,0 +1,30 @@
+# Installing the Clipwright MCP server
+
+1. The user needs a Clipwright API key (`cw_...`). They issue it themselves at
+   https://app.clipwright.io/api-keys after signing up at
+   https://clipwright.io/?ref=github.
+   Ask the user for the key; never invent one.
+2. Node.js 20 or newer must be on the PATH (`node --version`).
+3. Add the server to the MCP settings file (for Cline, `cline_mcp_settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "clipwright": {
+      "command": "npx",
+      "args": ["-y", "-p", "@clipwright/mcp-server", "clipwright-mcp"],
+      "env": {
+        "CLIPWRIGHT_API_KEY": "cw_..."
+      }
+    }
+  }
+}
+```
+
+4. Check the install by calling `get_account`: it is free and returns the balance.
+
+Rendering spends credits; an account opened by signing up starts with 1000 trial
+credits, enough for one breakdown and a 30-second talking-actor ad.
+Before `make_ugc`, `create_actor` or `make_faceless`, call `quote_ugc`,
+`quote_actor` or `quote_faceless` and show the user the price. `CLIPWRIGHT_CLIENT_ID` is optional; set it only where the
+home directory is shared, cloned or read-only (containers, CI).

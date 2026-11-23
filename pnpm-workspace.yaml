@@ -1,0 +1,5 @@
+packages:
+  - "packages/*"
+
+allowBuilds:
+  esbuild: true  # a dev dependency of core with a native binary

@@ -1,0 +1,213 @@
+import { z } from "zod";
+import { FACELESS_MAX_OUTPUT_FRAMES, FACELESS_MIN_OUTPUT_FRAMES } from "./faceless-price.js";
+import { parseCutStyle, type CutStyleProfile } from "./faceless-cut-style.js";
+import { assertStoryboardWords } from "./faceless-storyboard.js";
+import { facelessCutScore } from "./faceless-storyboard-v2-timing.js";
+import { LEXICAL_WORD } from "./speech-words.js";
+import type { WordTiming } from "./tts-backend.js";
+
+const index = z.number().int().nonnegative().safe();
+const phrase = z.strictObject({ wordStart: index, wordEnd: index, accentWord: index });
+const storySchema = z.strictObject({
+  script: z.string().trim().min(1),
+  narrationStartFrame: index.max(125),
+  beats: z.array(z.strictObject({
+    id: z.string().trim().min(1), wordStart: index, wordEnd: index,
+    mediaType: z.enum(["video", "image"]),
+    reason: z.enum(["place", "reveal", "action", "emphasis"]),
+    phase: z.enum(["setup", "development", "climax", "resolution"]),
+    visualPrompt: z.string().trim().min(1),
+  })).min(2),
+  captionPhrases: z.array(phrase).min(1).optional(),
+});
+export type FacelessPublicStory = z.infer<typeof storySchema>;
+export function facelessSpeechWordSpans(script: string): Array<{ word: string; start: number; end: number }> {
+  const matches = [...script.matchAll(LEXICAL_WORD)];
+  const normalizedCount = script.normalize("NFKC").match(LEXICAL_WORD)?.length ?? 0;
+  if (!matches.length || matches.length !== normalizedCount) throw new Error("unsupported faceless script word boundaries");
+  const compactOffset = Array<number>(script.length + 1).fill(0);
+  for (let i = 0; i < script.length; i++) compactOffset[i + 1] = compactOffset[i]! + (/\s/u.test(script[i]!) ? 0 : 1);
+  return matches.map((match, index) => {
+    const first = index === 0 ? 0 : match.index;
+    const last = matches[index + 1]?.index ?? script.length;
+    return { word: script.slice(first, last).replace(/\s/gu, ""), start: compactOffset[first]!, end: compactOffset[last]! };
+  });
+}
+export function facelessSpeechLexicalWords(script: string): string[] {
+  return facelessSpeechWordSpans(script).map(({ word }) => {
+    const normalized = word.normalize("NFKC").match(LEXICAL_WORD);
+    if (normalized?.length !== 1) throw new Error("unsupported faceless lexical word");
+    return normalized[0]!.replace(/[’]/gu, "'").normalize("NFD")
+      .replace(/\p{M}/gu, "").toLocaleLowerCase("und");
+  });
+}
+export function parseFacelessPublicStory(input: unknown, expectedScript?: string): FacelessPublicStory {
+  if (expectedScript !== undefined && (typeof input !== "object" || input === null ||
+      (input as { script?: unknown }).script !== expectedScript)) throw new Error("faceless story changed supplied script");
+  const story = storySchema.parse(input);
+  if (expectedScript !== undefined) story.script = expectedScript;
+  const wordCount = facelessSpeechWordSpans(story.script).length;
+  const phases = ["setup", "development", "climax", "resolution"] as const;
+  let nextWord = 0, lastPhase = 0;
+  const ids = new Set<string>();
+  for (const [index, beat] of story.beats.entries()) {
+    const phase = phases.indexOf(beat.phase);
+    if (ids.has(beat.id) || beat.wordStart !== nextWord || beat.wordEnd <= beat.wordStart || beat.wordEnd > wordCount ||
+        beat.mediaType !== (index === 0 ? "video" : "image") || phase < lastPhase) {
+      throw new Error("faceless story beats must cover all words in phase order with one opening video");
+    }
+    ids.add(beat.id); nextWord = beat.wordEnd; lastPhase = phase;
+  }
+  if (nextWord !== wordCount) throw new Error("faceless story beats do not cover all words");
+  if (story.captionPhrases) {
+    let end = 0;
+    for (const phrase of story.captionPhrases) {
+      if (phrase.wordStart !== end || phrase.wordEnd <= end || phrase.wordEnd > wordCount ||
+          phrase.accentWord < end || phrase.accentWord >= phrase.wordEnd) throw new Error("invalid faceless caption phrase");
+      end = phrase.wordEnd;
+    }
+    if (end !== wordCount) throw new Error("faceless caption phrases do not cover all words");
+  }
+  return story;
+}
+type Score = ReturnType<typeof facelessCutScore>;
+const PACE_OVER_PENALTY = 2;
+export const FACELESS_OPENER_MIN_FRAMES = 75, FACELESS_OPENER_MAX_FRAMES = 125;
+export const FACELESS_IMAGE_MIN_FRAMES = 25, FACELESS_IMAGE_MAX_FRAMES = 150;
+export const FACELESS_OPENER_BOUNDS_ERROR =
+  `mandatory opening VIDEO requires ${FACELESS_OPENER_MIN_FRAMES}–${FACELESS_OPENER_MAX_FRAMES} frames`;
+export type FacelessPublicPlan = {
+  version: "faceless_public_v1";
+  outputFrames: number;
+  script: string;
+  words: WordTiming[];
+  narrationStartFrame: number;
+  captionPhrases: z.infer<typeof phrase>[];
+  imageMaxFrames?: number;
+  endHoldFrames?: number;
+  shots: Array<{
+    id: string; mediaType: "video" | "image"; startFrame: number; endFrame: number;
+    beatIds: string[]; visualPrompts: string[]; phase: FacelessPublicStory["beats"][number]["phase"];
+    motion?: "PAN_UP" | "PAN_DOWN" | "ZOOM_IN" | "ZOOM_OUT"; cutAfterWord?: number; score: Score;
+    action?: true;
+  }>;
+};
+export type FacelessPublicPlanOptions = { keepBeats?: ReadonlySet<number>;
+  openerWordGap?: boolean;
+  keepTogether?: ReadonlyArray<{ first: number; end: number }>;
+  openerGapPastKept?: boolean;
+  capFrames?: ReadonlyArray<{ first: number; end: number; maxFrames: number }>;
+  imageMaxFrames?: number;
+  endHoldFrames?: number };
+
+export const facelessSpeechFrame = (seconds: number): number => Math.round(seconds * 25);
+
+export function planPublicFacelessStory(
+  input: FacelessPublicStory, words: readonly WordTiming[], inputStyle: CutStyleProfile, outputFrames: number,
+  options: FacelessPublicPlanOptions = {},
+): FacelessPublicPlan {
+  if (!Number.isSafeInteger(outputFrames) || outputFrames < FACELESS_MIN_OUTPUT_FRAMES || outputFrames > FACELESS_MAX_OUTPUT_FRAMES) {
+    throw new Error(`public faceless output must be ${FACELESS_MIN_OUTPUT_FRAMES}–${FACELESS_MAX_OUTPUT_FRAMES} frames`);
+  }
+  const imageMaxFrames = options.imageMaxFrames ?? FACELESS_IMAGE_MAX_FRAMES;
+  if (!Number.isSafeInteger(imageMaxFrames) || imageMaxFrames < FACELESS_IMAGE_MAX_FRAMES) throw new Error("invalid IMAGE duration ceiling");
+  const endHoldFrames = options.endHoldFrames ?? 0;
+  if (!Number.isSafeInteger(endHoldFrames) || endHoldFrames < 0) throw new Error("invalid end hold");
+  const story = parseFacelessPublicStory(input, input.script);
+  const style = parseCutStyle(inputStyle);
+  assertStoryboardWords(story.script, words);
+  const speechEnd = story.narrationStartFrame + words.at(-1)!.endSec * 25;
+  if (speechEnd > outputFrames + 1e-9 || outputFrames - speechEnd > 12.5 + endHoldFrames + 1e-9 ||
+      story.narrationStartFrame + words[0]!.startSec * 25 > 125) throw new Error("speech duration outside public output bounds");
+  const phases = { setup: 0, development: 1, climax: 2, resolution: 3 };
+  const ids = new Set<string>();
+  let nextWord = 0;
+  for (const [i, beat] of story.beats.entries()) {
+    if (ids.has(beat.id) || beat.wordStart !== nextWord || beat.wordEnd <= beat.wordStart || beat.wordEnd > words.length ||
+        beat.mediaType !== (i === 0 ? "video" : "image") ||
+        (i > 0 && phases[beat.phase] < phases[story.beats[i - 1]!.phase])) {
+      throw new Error("story beats require unique IDs, ordered phases, complete word coverage and one opening VIDEO");
+    }
+    nextWord = beat.wordEnd; ids.add(beat.id);
+  }
+  if (nextWord !== words.length) throw new Error("story beats must cover every word");
+  const captionPhrases = story.captionPhrases ?? story.beats.map(b => ({ wordStart: b.wordStart, wordEnd: b.wordEnd, accentWord: b.wordStart }));
+  nextWord = 0;
+  for (const p of captionPhrases) {
+    if (p.wordStart !== nextWord || p.wordEnd <= p.wordStart || p.wordEnd > words.length ||
+        p.accentWord < p.wordStart || p.accentWord >= p.wordEnd) throw new Error("caption phrases must partition all words");
+    nextWord = p.wordEnd;
+  }
+  if (nextWord !== words.length) throw new Error("caption phrases must cover all words");
+
+  const cutAfter = (afterWord: number) => ({ afterWord,
+    frame: story.narrationStartFrame + facelessSpeechFrame((words[afterWord]!.endSec + words[afterWord + 1]!.startSec) / 2) });
+  const inOpenerBounds = (frame: number) => frame >= FACELESS_OPENER_MIN_FRAMES && frame <= FACELESS_OPENER_MAX_FRAMES;
+  const held = (cut: { afterWord: number }) =>
+    options.keepTogether?.some(range => range.first <= cut.afterWord && cut.afterWord + 1 < range.end) ?? false;
+  const nodes = story.beats.slice(1).map((beat, i) => ({ beatIndex: i + 1, ...cutAfter(beat.wordStart - 1) }));
+  type State = { total: number; path: number[]; scores: Score[] };
+  const states: Array<State | undefined> = Array(nodes.length + 1);
+  const seedOpener = (k: number) => {
+    const openerScore = facelessCutScore(story.beats[nodes[k]!.beatIndex]!.reason, 0, { p25: 0, p75: 0 });
+    states[k] = { total: openerScore.net, path: [k], scores: [openerScore] };
+  };
+  for (const [k, node] of nodes.entries()) {
+    if (k > 0 && options.keepBeats?.has(k)) break;
+    if (inOpenerBounds(node.frame) && !held(node)) seedOpener(k);
+  }
+  if (!states.some(Boolean)) {
+    const next = story.beats[1]!, nextEndFrame = nodes[1]?.frame ?? outputFrames;
+    const pastKept = (cut: { afterWord: number }) =>
+      options.keepTogether?.some(range => range.end > next.wordStart && range.first <= cut.afterWord) ?? false;
+    const gap = options.openerWordGap ? Array.from({ length: next.wordEnd - next.wordStart - 1 }, (_, i) => cutAfter(next.wordStart + i))
+      .find(cut => inOpenerBounds(cut.frame) && (options.openerGapPastKept || !pastKept(cut))) : undefined;
+    if (!gap || nextEndFrame - gap.frame < 25) throw new Error(FACELESS_OPENER_BOUNDS_ERROR);
+    nodes[0] = { beatIndex: 1, ...gap };
+    seedOpener(0);
+  }
+  nodes.push({ beatIndex: story.beats.length, afterWord: words.length - 1, frame: outputFrames });
+  const final = nodes.length - 1;
+  for (let end = 1; end <= final; end++) {
+    if (end < final && held(nodes[end]!)) continue;
+    for (let start = 0; start < end; start++) {
+      const prior = states[start];
+      const duration = nodes[end]!.frame - nodes[start]!.frame;
+      if (!prior || duration < FACELESS_IMAGE_MIN_FRAMES || duration > imageMaxFrames + (end === final ? endHoldFrames : 0)) continue;
+      if (options.capFrames?.some(range => duration > range.maxFrames && range.first <= nodes[end]!.afterWord &&
+        range.end > nodes[start]!.afterWord + 1)) continue;
+      const phase = story.beats[nodes[start]!.beatIndex]!.phase;
+      const phaseRange = style.pacing.by_phase[phase];
+      const range = phaseRange && phaseRange.n > 0 ? phaseRange : style.pacing.global_image_frames;
+      const score = facelessCutScore(end === final ? null : story.beats[nodes[end]!.beatIndex]!.reason, duration, range, PACE_OVER_PENALTY);
+      const candidate = { total: prior.total + score.net, path: [...prior.path, end], scores: [...prior.scores, score] };
+      const best = states[end];
+      const firstDifference = best ? candidate.path.findIndex((v, i) => v !== best.path[i]) : -1;
+      if (!best || candidate.total > best.total + 1e-9 || (Math.abs(candidate.total - best.total) <= 1e-9 &&
+          (candidate.path.length < best.path.length || (candidate.path.length === best.path.length && firstDifference >= 0 &&
+            candidate.path[firstDifference]! < best.path[firstDifference]!)))) states[end] = candidate;
+    }
+  }
+  const selected = states[final];
+  if (!selected) throw new Error("no feasible public storyboard within IMAGE duration bounds");
+  let startFrame = 0; let beatStart = 0;
+  const beatFrame = (beat: number) => beat === 0 ? 0 : beat < story.beats.length ? cutAfter(story.beats[beat]!.wordStart - 1).frame : outputFrames;
+  const shots = selected.path.map((nodeIndex, i): FacelessPublicPlan["shots"][number] => {
+    const node = nodes[nodeIndex]!;
+    const included = story.beats.slice(beatStart, node.beatIndex);
+    const hold = style.motion.pan_transition_n > 0 && style.motion.pan_flip_probability !== null && style.motion.pan_flip_probability < .5;
+    const onScreen = included.map((_, k) => Math.min(node.frame, beatFrame(beatStart + k + 1)) - Math.max(startFrame, beatFrame(beatStart + k)));
+    const lead = onScreen.indexOf(Math.max(...onScreen));
+    const shot: FacelessPublicPlan["shots"][number] = {
+      id: included[0]!.id, mediaType: i ? "image" : "video", startFrame, endFrame: node.frame,
+      beatIds: included.map(b => b.id), visualPrompts: [included[i ? lead : 0]!.visualPrompt], phase: included[0]!.phase,
+      ...(i ? { motion: hold || i % 2 === 1 ? "PAN_UP" as const : "PAN_DOWN" as const } : {}),
+      ...(nodeIndex < final ? { cutAfterWord: node.afterWord } : {}), score: selected.scores[i]!,
+    };
+    startFrame = node.frame; beatStart = node.beatIndex;
+    return shot;
+  });
+  return { version: "faceless_public_v1", outputFrames, script: story.script, words: words.map(w => ({ ...w })),
+    narrationStartFrame: story.narrationStartFrame, captionPhrases,
+    ...(imageMaxFrames > FACELESS_IMAGE_MAX_FRAMES ? { imageMaxFrames } : {}), ...(endHoldFrames > 0 ? { endHoldFrames } : {}), shots };
+}

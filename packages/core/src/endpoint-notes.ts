@@ -1,0 +1,168 @@
+import { ASSET_DELETE_GRACE_DAYS } from "./assets.js";
+import { CANDIDATE_CHARGE_TEXT } from "./edit-candidate.js";
+import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
+import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_PER_HOUR, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
+import {
+  TREND_FREE_PAGES_PER_DAY, TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_PER_HOUR,
+  TREND_SEARCH_REELS,
+} from "./trend-search.js";
+import { FEEDBACK_PER_HOUR } from "./feedback.js";
+import { REFERENCE_ANALYSIS_MAX_SECONDS, REFERENCE_ANALYSIS_PER_HOUR, REFERENCE_DATA_CREDITS, REFERENCE_DATA_PER_HOUR, referenceAnalysisPriceRange }
+  from "./reference-analysis.js";
+
+export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
+  "GET /v1/public/workflows": "Lists public workflow methods and whether each is available now, without account plans or an account admission claim.",
+  "GET /v1/public/workflows/{id}": "Reads a method's guidance, limitations and what it can do right now.",
+  "POST /v1/workflow-plans": "Creates an immutable account-owned workflow draft. Charges nothing and starts no render.",
+  "GET /v1/workflow-plans/{id}": "Reads the account's current workflow revision and readiness.",
+  "POST /v1/workflow-plans/reference-remake": "Compiles a reference profile and the accepted script into a new reference-remake draft; its warnings name what the plan does not reproduce. Charges nothing, generates nothing and starts no render.",
+  "POST /v1/workflow-plans/{id}/revisions": "Saves a new draft against base_version. A matching lost-response retry returns that revision.",
+  "POST /v1/workflow-plans/{id}/approve": "Approves a ready revision and its digest. Charges nothing and starts no render.",
+  "POST /v1/workflow-plans/{id}/quote": "Quotes an approved workflow through native preparation. The quote expires after five minutes; no credits are reserved. Its launch is the ready body of the run request, with a fresh idempotency_key.",
+  "POST /v1/workflow-plans/{id}/run": "Admits the exact quoted native request once, returning a receipt and the existing native Run. Send the quote's launch unchanged as the body, with the Idempotency-Key header equal to launch.idempotency_key; the same accepted request replays its run.",
+  "GET /health": "Liveness of the API itself. Answers without a key.",
+  "GET /": "Names the service and points to this document. Answers without a key.",
+  "GET /robots.txt": "Tells crawlers not to index the API host. Answers without a key.",
+  "GET /openapi.json": "The OpenAPI 3.1 description of this API, built from the same schemas the API validates with. Answers without a key.",
+  "GET /v1/voices": "Voices you can name in voice or voice_id for make_ugc; skill=make_faceless lists the narration voices of make_faceless instead.",
+  "GET /v1/template-sounds":
+    "The sounds make_ugc templates play, by beat: where each beat plays, its default and every name template_sounds takes. Free.",
+  "GET /v1/moves": "The catalogue of moves to put on lines of a script as moves of make_ugc, make_faceless and a reference remake: what each " +
+    "does for the viewer, the lines it serves and its credits per use, filtered and paged; names gives full lines. Free.",
+  "GET /v1/account": "Balance, debt and holds of the account behind the key, and our replies to its support requests and feedback.",
+  "POST /v1/feedback":
+    `Tells us what is missing, confusing, wrong or slow, optionally about a run of this account; we read every one. Free. The same kind, text and run within 24 hours answer the same feedback_id; ${FEEDBACK_PER_HOUR} per hour.`,
+  "GET /v1/public/skills": "Catalogue of skills and their input, without a key.",
+  "GET /v1/public/prices":
+    "The price of every action in credits: a fixed number per unit, or a formula where the price depends on the input; the quote gives the exact number. Free, without a key.",
+  "GET /v1/actors": "Actors saved on the account, with the id make_ugc takes.",
+  "GET /v1/public/actor-previews/{actor_id}/{version}/{file}": "A library actor's picture as PNG, the link list_actors and quotes give. Answers without a key.",
+  "GET /v1/actors/{id}/defaults": "Reads the saved actor's default policy for people in inserts.",
+  "POST /v1/actors/{id}/defaults": "Sets the saved actor's default policy for people in inserts. A run can override it.",
+  "DELETE /v1/actors/{id}": "Forgets a saved actor. An actor used by a live run is kept.",
+  "GET /v1/brand-kit": "Reads the account's saved design: colours, fonts, logo, corners and motion. Null when none is saved.",
+  "POST /v1/brand-kit": "Saves the account's design, or clears it with null. A video that names neither design nor template_theme draws in it. Free.",
+  "POST /v1/brand/extract": "Reads a public site's colours, fonts, logo and corners into a proposed design with readable text, for you to confirm. " +
+    "Free; counts towards the hourly url downloads.",
+  "POST /v1/brand-styles/propose": "Reads a finished analysis of a video you like into a proposed style: colours, faces, corners, motion and its " +
+    "transition and caption habits, never its logo, characters or frames. Free. Draw sample stills with its theme_overrides before you save it.",
+  "POST /v1/brand-styles": "Saves a confirmed style under a name, beside the brand kit; saving a name again replaces it. A film draft names it in " +
+    "brand_style. Free.",
+  "GET /v1/runs/{id}": "State of one run of any skill, its warnings and its video url.",
+  "GET /v1/runs/{id}/shots":
+    "The shots of one run: each shot's span, words, description and preview, and whether the run can be edited.",
+  "GET /v1/runs/{id}/edit":
+    "The saved draft of an edit of one run, with its version. Version 0 is a run with no draft: its document changes nothing.",
+  "POST /v1/runs/{id}/edit":
+    "Saves the draft of an edit against the version it was read at. Charges nothing and renders nothing.",
+  "POST /v1/runs/{id}/revisions/quote":
+    `Prices a revision of a faceless run: what the document or the list of shot changes generates and what it costs. Charges nothing. ${REVISION_CHARGE_TEXT} While paid edits are closed it answers editing_disabled.`,
+  "POST /v1/runs/{id}/revisions":
+    `Starts a revision, a new faceless run made from the document, and holds the quoted credits. The same Idempotency-Key with the same request returns the first revision; another key is another revision, charged again. ${REVISION_CHARGE_TEXT} While paid edits are closed it answers editing_disabled and charges nothing.`,
+  "POST /v1/runs/{id}/candidates/quote":
+    `Prices one shot candidate of a faceless run: one picture or clip made for one shot, to keep or discard. Charges nothing. ${CANDIDATE_CHARGE_TEXT} While shot candidates are closed it answers editing_disabled.`,
+  "POST /v1/runs/{id}/candidates":
+    `Starts a shot candidate and holds the price of its one unit. ${CANDIDATE_CHARGE_TEXT} The same Idempotency-Key with the same request and take returns the first candidate; take + 1 makes another, charged again. While shot candidates are closed it answers editing_disabled and charges nothing.`,
+  "GET /v1/runs/{id}/candidates":
+    "The shot candidates of a faceless run's family, oldest first, each with its state, its charge and a preview once made. While shot candidates are closed it answers editing_disabled.",
+  "DELETE /v1/runs/{id}/media":
+    `Deletes the files of a finished run: no link to them is given from now on, and they are erased from storage after ${ASSET_DELETE_GRACE_DAYS} days. The run and its charge stay. Refused with run_media_in_use while another unfinished run uses them. Free.`,
+  "POST /v1/uploads":
+    "Takes image bytes and returns a signed https url, upload_id and content_digest (SHA-256 of the original bytes). Use upload_id as a workflow asset_id and copy content_digest directly; native video and actor calls use url.",
+  "GET /v1/uploads":
+    "Your uploads a revision still takes, newest first and one per picture, each with upload_id, the original content_digest, a freshly signed url and the moment it stops being usable. Free.",
+  "POST /v1/uploads/import":
+    "Downloads a public https PNG or JPEG (up to 10 MB, 20 seconds, 3 redirects) and returns the same upload shape. Private addresses are refused; 30 downloads per hour per account. Free.",
+  "POST /v1/uploads/intents":
+    "Returns a presigned PUT url for a local PNG or JPEG of the declared type, size and sha256. The upload_id is usable once the PUT lands; before that generations answer upload_not_finished. Free.",
+  "POST /v1/uploads/pages":
+    "Returns an upload_id and a page_url for a person to open in a browser and drop one photo (PNG or JPEG; other phone photos are converted). Use it when the photo is with the user and you cannot send it. The link takes one photo and expires after 30 minutes; read the upload with GET /v1/uploads/{id}. Free; counts toward 200 uploads per day.",
+  "POST /v1/public/upload-pages/{token}":
+    "The upload page sends the person's photo here under its link, with no API key. Agents do not call it: they read the upload with GET /v1/uploads/{id}. Free.",
+  "GET /v1/uploads/{id}":
+    "One upload with a freshly signed url and its usable_until. After a presigned PUT it confirms the file: upload_not_finished until it is there, upload_expired after 24 hours. Free.",
+  "DELETE /v1/uploads/{id}":
+    `Deletes an upload: no call takes it from now on, and its file is erased from storage after ${ASSET_DELETE_GRACE_DAYS} days unless another upload of the same picture is kept. Refused with upload_in_use while an unfinished run uses it. Free.`,
+  "POST /v1/assets":
+    "Saves a picture as an account asset, kept until you delete it: from a run_id, an upload_id, a public https url or base64. Your own material needs rights_confirmed: true, or analysis_only: true for a reference kept for analyze_reference alone, which no render or generation takes. 2000 assets and 1 GB per account, 20 GB once it has bought credits as a pack or a plan, 100 new ones per day. Free.",
+  "POST /v1/assets/bytes":
+    "Saves the PNG or JPEG in the body (up to 10 MB) as an asset; role, name and rights_confirmed=true (or analysis_only=true, for analyze_reference alone) travel in the query. Free.",
+  "GET /v1/assets":
+    "The account's live assets, newest first, each with a link signed for an hour, and the usage of the caps; filters role and kind, paged by cursor. Free.",
+  "GET /v1/assets/{id}": "One live asset with a link signed for an hour. Free.",
+  "POST /v1/assets/{id}": "Renames an asset or changes its role. Free.",
+  "DELETE /v1/assets/{id}":
+    "Deletes an asset: it leaves the list and generations at once, and a daily cleanup removes its file once 7 days have passed. Free.",
+  "POST /v1/reference-analyses/quote":
+    `Prices an analysis of this asset or link: ${referenceAnalysisPriceRange()} (the most for a link of unknown length), ` +
+    `${REFERENCE_DATA_CREDITS} with mode data, or 0 when its live analysis in that mode would answer. Charges nothing.`,
+  "POST /v1/reference-analyses":
+    `Starts reading an MP4 asset or a reel, up to ${REFERENCE_ANALYSIS_MAX_SECONDS.full} s, into a reference profile (or, with mode data, ` +
+    "its transcript, hook, scenes and frames) and " +
+    "answers at once; the same asset in the same mode answers the same analysis for free. Price: " +
+    `${referenceAnalysisPriceRange()} (${REFERENCE_DATA_CREDITS} for data), held at the start and charged once it succeeds, the most for a link of unknown length; a failed one costs nothing. ` +
+    `${REFERENCE_ANALYSIS_PER_HOUR} new full and ${REFERENCE_DATA_PER_HOUR} new data analyses per hour.`,
+  "GET /v1/reference-analyses/{id}":
+    "One reference analysis: queued, analyzing, succeeded with reference_profile or data and warnings, or failed with its error. Free.",
+  "POST /v1/creator-profiles/quote":
+    `Prices a creator profile for this link: ${CREATOR_PROFILE_CREDITS} credits, or 0 when a profile of the same creator from the last hour ` +
+    "would answer. Charges nothing.",
+  "POST /v1/creator-profiles":
+    `Starts profiling the creator behind an Instagram or TikTok profile or video link: their latest ${CREATOR_PROFILE_VIDEOS} videos with ` +
+    "views, likes, comments and shares, the median views and each video's x to it. Answers at once; the same creator within an hour " +
+    `answers the same profile for free. Holds ${CREATOR_PROFILE_CREDITS} credits, charged once it succeeds; a private or empty account, ` +
+    `or any failure, costs nothing. ${CREATOR_PROFILE_PER_HOUR} new profiles per hour.`,
+  "GET /v1/creator-profiles/{id}":
+    "One creator profile: queued, analyzing, succeeded with the profile and warnings, or failed with its error. Free.",
+  "DELETE /v1/creator-profiles/{id}":
+    "Deletes a finished creator profile at once; the run that made it and its charge stay. Refused with run_not_finished while it is being made. Free.",
+  "POST /v1/trend-searches/quote":
+    `Prices a topic search: ${TREND_SEARCH_CREDITS} credits, or 0 when a search of the same query from the last hour would answer or one of the ` +
+    `account's ${TREND_FREE_SEARCHES_PER_MONTH} free searches this month applies; free_searches_left says how many remain. With search_id ` +
+    `and page it prices a next page: 0, free for ${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, up to ` +
+    `${TREND_FREE_PAGES_PER_DAY} pages a day per account; past them, or while free pages are at capacity, ${TREND_PAGE_PAID_CREDITS} ` +
+    "credits, and warnings[] says why. Charges nothing.",
+  "POST /v1/trend-searches":
+    `Starts a search for reels on a topic, TikTok and Instagram ranked together unless platform names one: up to ${TREND_SEARCH_REELS} ` +
+    "reels per platform, one per creator, each with its views against its creator's median. Answers at once; the same query within an " +
+    `hour answers the same search for free. Holds ${TREND_SEARCH_CREDITS} credits, charged once it succeeds, a mix that reaches only one ` +
+    "platform included (warnings[] names the other); no reel found, or any failure, costs nothing. " +
+    `The first ${TREND_FREE_SEARCHES_PER_MONTH} searches each calendar month hold and charge nothing; a failed one does not count. ` +
+    `${TREND_SEARCH_PER_HOUR} new searches per hour. With search_id and page alone it starts a next page of a finished search ` +
+    `(its next_page): up to ${TREND_SEARCH_REELS} more creators per platform the earlier pages did not show, up to ${TREND_SEARCH_MAX_PAGES} ` +
+    `pages, within ${TREND_PAGE_WINDOW_SECONDS / 3600} hours of the search, free up to ${TREND_FREE_PAGES_PER_DAY} pages a day per account; ` +
+    `past them a page holds ${TREND_PAGE_PAID_CREDITS} credits, charged once it finds a new reel with a known x_median. The same page again answers it; ` +
+    "trend_page_unavailable (409) refuses a page that cannot start, before anything is held. Pages count on the same hourly cap.",
+  "GET /v1/trend-searches/{id}":
+    "One topic search: queued, searching, succeeded with the reels and warnings, or failed with its error. sort reads the same reels " +
+    "in another order. Free.",
+  "GET /v1/trend-niches": "Reads the account's saved niches, the primary first. Free.",
+  "POST /v1/trend-niches":
+    "Saves the account's niches, up to three, replacing the saved list; the first is the primary, and a trend search with no keywords " +
+    "searches it. Free.",
+  "POST /v1/skills/make_ugc/quote": "Prices a make_ugc call with this input. Charges nothing.",
+  "POST /v1/skills/make_ugc/run":
+    "Starts a video run and answers at once with a run_id. Poll the run for the result.",
+  "POST /v1/skills/create_actor/quote":
+    "Prices a create_actor call with this input. Charges nothing.",
+  "POST /v1/skills/create_actor/run":
+    "Starts an actor run and answers at once with a run_id. Poll the run for the result.",
+  "POST /v1/skills/make_faceless/quote":
+    "Prices a make_faceless call with this input. Charges nothing.",
+  "POST /v1/skills/make_faceless/run":
+    "Starts a faceless video run and answers at once with a run_id. Poll the run for the result.",
+  "GET /v1/generations/models":
+    "The models generate_image and generate_video take, with their measured modes, aspect ratios, resolutions, durations, output size and credits per image or per second. Free. While generations are closed it answers generations_disabled.",
+  "POST /v1/skills/generate_image/quote":
+    "Prices one image with this request: credits, width, height and warnings. Charges nothing.",
+  "POST /v1/skills/generate_image/run":
+    "Starts one image generation and answers at once with a run_id; the run's generation block holds the image once delivered. A failed generation is charged nothing. While generations are closed it answers generations_disabled and charges nothing.",
+  "POST /v1/skills/generate_video/quote":
+    "Prices one clip with this request, silent unless audio is set: credits per second times its duration, width, height and warnings. Charges nothing.",
+  "POST /v1/skills/generate_video/run":
+    "Starts one clip generation and answers at once with a run_id; the run's generation block holds the clip once delivered. A failed generation is charged nothing. While generations are closed it answers generations_disabled and charges nothing.",
+  "POST /v1/skills/upscale/quote":
+    "Prices one upscale of a delivered clip or picture: credits, the output width and height, the source size and warnings. Charges nothing.",
+  "POST /v1/skills/upscale/run":
+    "Starts one upscale and answers at once with a run_id of skill generate_video or generate_image; its generation block holds the larger file once delivered. The same take, larger: lettering the draft drew wrong stays wrong. A failed upscale is charged nothing.",
+};

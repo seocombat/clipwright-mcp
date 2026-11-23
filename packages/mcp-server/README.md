@@ -1,0 +1,344 @@
+# @clipwright/mcp-server
+
+Your coding agent writes the script; [Clipwright™](https://clipwright.io/?ref=npm) renders
+a short vertical video of an actor speaking it, 720×1280 by default and 1080×1920 on request. It also
+makes faceless videos of a length you pick, 30 to 90 seconds, from a script or a short brief: narration
+over an opening animated clip and image scenes, with no on-camera presenter. The agent
+asks for a free quote before it spends anything, and whatever the API cannot
+honor comes back in `warnings[]` instead of being dropped silently.
+
+The agent gets a `run_id` at once and polls until the video URL is ready.
+Clipwright returns the file; it does not publish anywhere. Quotes, voices,
+actors and the account balance are free. Renders spend credits: an account opened
+by signing up starts with 1000 trial credits, enough for one breakdown and a 30-second talking-actor ad. Buy more at
+[clipwright.io/pricing](https://clipwright.io/pricing?ref=npm).
+
+## Install
+
+There are two ways to connect: the hosted server at
+`https://mcp.clipwright.io/mcp`, or this package run locally over stdio. Both
+serve the same tools.
+
+### Hosted server, no key
+
+Add the URL to your client. On first use the client opens a browser, you sign
+in to Clipwright and approve the app. **Claude Code and the device-code flow
+below were verified live on 2026-10-18;** the other commands come from each
+client's own documentation and have not been tried with Clipwright yet, except
+ChatGPT: ChatGPT on the web was checked live on 2026-11-20 with free quotes, a
+paid trend search and paid reference breakdowns; adding the server, sign-in and creating the plugin were not
+tested, and neither was the phone app.
+
+- **Claude Code** (verified live): `claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp`,
+  then run `/mcp` in a session and sign in.
+- **Claude.ai and Claude Desktop:** Customize → Connectors → Add custom
+  connector, then paste the URL.
+- **ChatGPT**, on the web: chatgpt.com/plugins → Add → Add custom
+  MCP server, paste the URL, choose OAuth, then Create as a plugin and install
+  it. In a chat, type `@` and pick it.
+- **Cursor:** in `~/.cursor/mcp.json`,
+  `{"mcpServers": {"clipwright": {"url": "https://mcp.clipwright.io/mcp"}}}`.
+- **VS Code:** in `.mcp.json` at the workspace root,
+  `{"mcpServers": {"clipwright": {"type": "http", "url": "https://mcp.clipwright.io/mcp"}}}`.
+- **Gemini CLI:** `gemini mcp add --transport http clipwright https://mcp.clipwright.io/mcp`,
+  then `/mcp auth clipwright`.
+- **Codex:** `codex mcp add clipwright --url https://mcp.clipwright.io/mcp`,
+  then `codex mcp login clipwright`.
+
+The approval page lists the permissions the app asks for. There are two:
+
+- `mcp:read` — the tools marked read-only: account, runs, shots, voices,
+  actors, workflows and quotes.
+- `mcp:write` — every other tool. Some start paid runs and **spend credits**;
+  the rest change the account (actors, uploads, workflow plans).
+
+A connection without `mcp:write` gets `403 insufficient_scope` from those
+tools, and nothing is charged. Only an admitted account can approve.
+
+To disconnect an app, open [app.clipwright.io/api-keys](https://app.clipwright.io/api-keys),
+find it under **Connected apps** and revoke it. Its next request gets `401`. A
+connection lasts 90 days from approval; after that the app asks you to sign in
+again.
+
+On the hosted server `upload_image` cannot read a file on your machine. Pass a
+public https URL as `upload_image({url})` and the server downloads it, or call
+`create_upload` and PUT the file to the returned `put_url` with curl. Either
+way you get an `upload_id` for `first_frame`, `last_frame` and `references`.
+
+**An agent with no browser** signs in with a device code and the first-party
+client `clipwright-agent` (verified live 2026-10-18):
+
+```bash
+curl -s https://mcp.clipwright.io/device/auth -d client_id=clipwright-agent \
+  --data-urlencode "scope=mcp:read mcp:write offline_access" \
+  --data-urlencode "resource=https://mcp.clipwright.io/mcp"
+```
+
+Open `verification_uri` (`https://mcp.clipwright.io/device`) on any device,
+enter `user_code`, sign in and approve; the approval page repeats the code.
+Meanwhile poll `POST https://mcp.clipwright.io/token` with
+`grant_type=urn:ietf:params:oauth:grant-type:device_code`, the `device_code`
+and `client_id=clipwright-agent`, no more often than every 5 seconds: a faster
+poll gets `slow_down`. Send the `access_token` as `Authorization: Bearer` to
+`/mcp`; it lasts an hour. Renew it with `grant_type=refresh_token` and keep the
+newest refresh token each time. The device flow is open to this client only.
+
+### Hosted server with a `cw_*` key
+
+For CI and scripts, send a key instead of signing in. A key holds both
+permissions.
+
+```bash
+claude mcp add --transport http clipwright https://mcp.clipwright.io/mcp --header "Authorization: Bearer cw_..."
+```
+
+### n8n
+
+n8n's built-in **MCP Client** node calls one tool per node:
+
+- **Server Transport:** HTTP Streamable; **MCP Endpoint URL:** `https://mcp.clipwright.io/mcp`.
+- **Authentication:** Bearer Auth, with a credential whose token is your `cw_...` key.
+- **Tool:** pick from the list, for example `quote_ugc`; **Input Mode:** JSON.
+
+Verified live on 2026-10-20 with self-hosted n8n 2.43.8: `get_account`,
+`quote_ugc` and `get_run` returned through the node. A workflow to import,
+`n8n/clipwright-ugc.json` in [seocombat/clipwright-mcp](https://github.com/seocombat/clipwright-mcp),
+quotes a script, stops when the quote is above `max_credits`, starts `make_ugc`
+and polls `get_run` every 15 seconds. The whole workflow ran on n8n Cloud on
+2026-10-20 and returned a 1080×1920 MP4 in about three minutes. n8n's OAuth
+credential has not been run against Clipwright yet.
+
+### Local server over stdio
+
+```bash
+claude mcp add clipwright -e CLIPWRIGHT_API_KEY=cw_... -- npx -y -p @clipwright/mcp-server clipwright-mcp
+```
+
+Put your own key in place of `cw_...`. The command is one line and gives the
+shell nothing to expand, so bash, zsh and PowerShell run it alike. It needs
+Node.js 20 or newer.
+
+Any MCP host works — the local server speaks JSON-RPC over stdio. Issue keys at
+[app.clipwright.io/api-keys](https://app.clipwright.io/api-keys).
+
+## Environment
+
+These variables configure the local server.
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `CLIPWRIGHT_API_KEY` | yes | Your `cw_*` token. The process exits immediately without it. |
+| `CLIPWRIGHT_CLIENT_ID` | recommended | Identifies this **installation** and enters the idempotency key, so two installations never collapse into one run. Left unset, the server keeps one in `~/.clipwright/client-id`, which suits a single laptop. Set it yourself where a home directory is shared, cloned or read-only — containers, CI, copied images — as `SKILL.md` §2 explains. |
+| `CLIPWRIGHT_API_URL` | no | Defaults to the hosted API. |
+
+## Recipes
+
+Each recipe is a prompt we gave an agent with this server connected, the call the
+agent sent, and what the video cost. The videos play at
+[clipwright.io/mcp](https://clipwright.io/mcp#examples).
+
+### 1. A creator reel with on-screen graphics
+
+One presenter on camera, with graphics over her that react to what she says: the format of talking-head reels that sell a product. One prompt, no editor.
+
+The prompt, given verbatim, with our actor id, screenshot link and site named
+alongside it:
+
+> Make a 30-second vertical reel for my AI receptionist with my presenter actor and the voice Hope. Script: "Every missed call is a lost deal. Your receptionist sleeps, takes breaks, and sometimes gets annoyed. This one doesn't. It answers calls all day, works around the clock, and never gets annoyed. Here's a real one: a customer calls at two in the morning to book a cleaning, and it handles everything, the time, the price, the confirmation text. Small businesses miss a third of their calls. Not anymore. Set it up in ten minutes and stop losing deals while you sleep."
+>
+> While she lists what it does, show a checklist with three switches ("answers calls" and "works 24/7" off, "gets annoyed" on) and have a cursor flip each one as she says it. When she gets to the 2 a.m. customer, show an incoming call from +1 (305) 555-0147 on the right and answer it on "handles". Put my dashboard screenshot in the top right corner while she says "Small businesses miss a third of their calls." End on a card with my site and "create your assistant". Caption only the key lines, in the highlighter style, and zoom in a little on "Not anymore." Quote it before you render.
+
+What the agent sent: one `make_ugc` quote with `templates` (checklist, phone_call,
+end_card), one `overlays` picture, `caption_mode: "highlights"`,
+`caption_style: "highlighter"` and a `punch_in` on one emphasis line. Click,
+switch and ring sounds come with the templates by default. We checked the prompt
+with a fresh agent on this server on 2026-10-24; the video was rendered from the
+same call.
+
+The quote named the price before anything was spent; list_prices names every
+rate. [Watch it](https://clipwright.io/mcp#examples).
+
+## Tools
+
+- `list_workflows` — read workflow methods and current availability. Free.
+- `get_workflow` — read one method's required inputs, script rules, evidence and limitations. Free.
+- `prepare_workflow_plan` — create with a complete document, or save with both `plan_id` and `base_version`. Free; starts no run.
+- `plan_reference_remake` — the server compiles a reference ad's analysis (`analysis_id`, or the profile itself) and your exact script into a new plan; its warnings name what the plan does not reproduce. Free; starts no run and generates nothing.
+- `get_workflow_plan` — read the current owned plan, revision and readiness. Free.
+- `approve_workflow_plan` — explicitly approve a chosen revision and content digest. Free; starts no run.
+- `quote_workflow_plan` — quote the approved revision without spending credits.
+- `run_workflow_plan` — start a paid workflow using its exact quote fields and an explicit idempotency key. Returns its receipt and run id immediately; poll `get_run`. Recover an uncertain purchase with the original request and key.
+- `list_voices` — voices for `voice`: the presets, the thirty voices of the
+  speech model `gemini-3.8-flash-tts` and the catalog for `make_ugc`, with
+  filters by language, gender, age, use case and model, and a short audio
+  sample where the voice has one. The seventeen narration voices of
+  `make_faceless` are listed with `skill: "make_faceless"`. Free, spends no
+  credits.
+- `list_template_sounds` — the sounds `make_ugc` templates play, by beat: where
+  each beat plays, its default and every name `template_sounds` takes. Free.
+- `list_moves` — the catalogue of moves, motion and graphics to put on lines of
+  a script as `moves` of `make_ugc`, `make_faceless` and `plan_reference_remake`:
+  what each does for the viewer, the lines it suits and its credits. Free.
+- `list_actors` — ready-made faces with stable ids and verified formats. Free.
+- `quote_ugc` — estimated duration and price, plus a warning when `make_ugc`
+  with the same input would be refused for money or access. Free.
+- `get_account` — balance, debt and holds of the account. Free.
+- `list_prices` — what every tool costs in credits: a number per unit, or a
+  formula where the price depends on the input; free tools are listed at 0.
+  Free.
+- `send_feedback` — tell Clipwright what is missing, confusing, wrong or slow,
+  optionally about a run; we read every one. Free.
+- `describe_tool` — the full guidance of a tool, or of one of its fields, which
+  the tool list gives in short. Free.
+- `make_ugc` — **renders a clip; this is the call that costs money.** Returns a
+  `run_id` immediately instead of blocking, because a render takes minutes.
+- `get_run` — status of a run. Free; poll it every few seconds.
+- `get_run_shots` — the shots of a finished video: the span, kind, description
+  and preview link of each, with the narration words and their timing. Free and
+  read-only. A run with no shots to show answers with the reason instead.
+- `delete_run_media` — delete the files of a finished run: they stop opening at
+  once and are erased from storage after 7 days; the run and its charge stay.
+  Refused while another unfinished run uses them. Free.
+- `quote_revision` — price of a revision of a faceless video: what it would
+  change and what it costs. Free.
+- `revise_run` — **starts a revision: a new run that renders the video again
+  with the shots you change; this costs money.** Pass `changes` (a shot and what
+  to generate for it) or the whole edited `document`. A revision that delivers
+  is charged its quoted total; one that fails is charged nothing. An identical
+  request returns the same run;
+  `attempt` starts a second one on purpose. Returns a `run_id` immediately; poll
+  `get_run` until `succeeded`.
+- `quote_candidate` — price of a shot candidate of a faceless video: one picture
+  or clip made for one shot, to keep or discard in a revision. Free.
+- `create_candidate` — **makes a shot candidate; this costs money.** Pass the
+  shot and the operation to generate for it. A delivered candidate is charged
+  its one unit whether it is kept or discarded; one that fails is charged
+  nothing. An identical request
+  returns the same run; `take` makes another candidate on purpose. Returns a
+  `run_id` immediately; poll `get_run` until `succeeded`.
+- `list_generation_models` — the models of single generations with their
+  measured shapes and credits per image or per second. Free.
+- `quote_image`, `quote_video` — price of one image or one clip. Free.
+- `generate_image`, `generate_video` — **make one image or one silent clip;
+  this costs money.** One that fails is charged nothing. An identical request returns the same run; `attempt` starts
+  another on purpose. Poll `get_run`; `generation.url` is the file.
+- `quote_upscale`, `upscale` — **a delivered clip or picture made larger; the
+  upscale costs money**, its quote is free. A 480p or 360p draft clip goes to 720p,
+  a picture is doubled on each side; the same take, larger, so lettering the draft
+  drew wrong stays wrong. One that fails is charged nothing.
+- `upload_image` — a PNG/JPEG from a local `path` or a public https `url` →
+  `upload_id` and a signed https url to pass as `image`. Free; 20 per day, at
+  most 30 url downloads per hour, the url lives 24 hours. Set `aspect_ratio`
+  explicitly afterwards.
+- `create_upload` — a presigned PUT for a local PNG/JPEG when the server is
+  remote: PUT the file with curl, then use the `upload_id`. Free.
+- `get_upload` — one upload with a fresh url, its size and `usable_until`;
+  after `create_upload` it confirms the PUT. Free.
+- `delete_upload` — delete an upload: no tool takes it from then on, and its
+  file is erased from storage after 7 days. Refused while an unfinished run uses
+  it. Free.
+- `create_asset` — save a picture or an MP4 clip as an account asset, kept
+  until you delete it: from a `run_id`, an `upload_id`, a public `url` (a clip
+  with `kind: "video"`), `base64`, a presigned `put`, and a local `path` on
+  stdio. A clip is checked in the background: `get_asset` says when it is
+  ready. Your own material needs `rights_confirmed: true` once. Free; 2000
+  assets and 1 GB per account (20 GB once it has bought credits, as a pack or
+  a plan), 100 new
+  ones per day.
+- `list_assets`, `get_asset` — the account's assets with fresh urls and the
+  usage of the caps. Free.
+- `update_asset` — rename an asset or change its role. Free.
+- `delete_asset` — delete an asset; a daily cleanup removes its file once 7 days
+  have passed. Free.
+- `quote_analysis` — price of a reference analysis of an asset or a reel link:
+  set by the reel's length, with today's price for each length; the most a full
+  analysis costs for a link of unknown length; or 0 when an
+  existing analysis would answer. Free.
+- `analyze_reference` — read a reference ad (an MP4 asset or a reel link, up to
+  180 s; with `mode: "data"`, only its words, scenes and frames) into a
+  `reference_profile`: beats, graphics in our template vocabulary, captions,
+  pacing and what we cannot draw. Returns at once; poll
+  `get_reference_analysis`. The price follows the reel's length (see
+  `list_prices`), is held at the start and charged once it succeeds; a failed
+  analysis costs nothing. 10 new analyses per hour.
+- `get_reference_analysis` — the state of an analysis, with its breakdown and
+  warnings once it succeeded, and `next`: `plan_reference_remake` with its
+  `analysis_id`, for a video like the reference. The profile and the frame
+  links come with `include: ["profile", "frames"]`. Free.
+- `quote_creator_profile` — price of a creator profile for a link: 20 credits,
+  or 0 when a profile of the same creator from the last hour would answer. Free.
+- `analyze_creator` — profile the creator behind an Instagram or TikTok profile
+  or video link: their latest 12 videos with views, likes, comments and shares,
+  the median views and each video's x to it, top performers and cadence. Waits
+  for the result; an unfinished one is read with `get_creator_profile`. 20
+  credits held and charged once it succeeds; a private or empty account costs
+  nothing. 30 new profiles per hour.
+- `get_creator_profile` — the state of a creator profile, with its videos and
+  warnings once it succeeded. Free.
+- `delete_creator_profile` — delete a finished creator profile at once; the run
+  that made it and its charge stay. Free.
+- `quote_trends` — price of a trend search: 20 credits, or 0 when a search of
+  the same query from the last hour would answer. Free.
+- `find_trends` — reels that took off on a topic: keywords on TikTok and
+  Instagram in one ranking by default (`platform: mix`), or on one of them, up
+  to 10 reels per platform posted within `posted_within_days` (7 by default; 1
+  is the last 24 hours), one per creator,
+  ranked by the reel's views over its creator's median views. `language`
+  keeps reels in that language; a reel whose language cannot be told is kept.
+  Waits for the result; an unfinished one is read
+  with `get_trend_search`, free. 20 credits held and charged once it succeeds,
+  also when a mix reaches only one platform (`warnings[]` names the other); a
+  search that finds no reel costs nothing. 10 new searches per hour. Without
+  `keywords` it searches your main saved niche, with its platform and language.
+- `get_trend_search` — the state of a trend search or of its next page, with
+  its reels and warnings once it succeeded; `wait_seconds` waits up to 50
+  seconds for it. Free.
+- `trend_niches` — without arguments, the account's saved niches, the first
+  the main one, and up to three niches suggested from the hashtags of creators
+  you analysed; with `niches`, saves the list you confirmed, up to three,
+  replacing the saved one (`[]` clears it). Free.
+- `quote_actor` — price of a personal actor before creating one. Free.
+- `create_actor` — **creates a personal actor from a description; this costs
+  money.** Each requested format is a separate charged image. With `portrait`
+  (your own 9:16 image asset) that image becomes the actor's portrait at no
+  charge, and only the other formats are charged. Returns a `run_id`
+  immediately; poll `get_run` until `succeeded`, then pass `created_actor.actor_id`
+  to `make_ugc` as `actor_id`.
+- `quote_faceless` — price of a faceless video before making one. Free.
+- `make_faceless` — **makes a faceless video from your script or from a short
+  brief; this costs money.** You pick 30 to 90 seconds; the video ends with its
+  narration, at least 25 seconds and usually at most a quarter past your pick
+  and 90 (a longer narration runs to its end), and costs at most the quote. Narration plays over an opening
+  animated clip and image scenes, with captions on by default. `voice` picks
+  the narration voice by name. Returns a
+  `run_id` immediately; poll `get_run` until `succeeded`. An explainer film is one your agent writes, starting
+  with `get_film_guide`; `make_faceless` refuses `format: "explainer"` before any charge.
+- `delete_actor` — removes a personal actor of this account. Videos already made
+  with it stay as they are. Free.
+- `get_actor_defaults`, `set_actor_defaults` — read and save an actor's B-roll
+  default. It is stored only: today's talking-actor videos do not use it. Free.
+- `extract_brand` — reads a public site's colours, fonts, logo and corners into
+  a proposed `design` with readable text, for you to confirm. Free.
+- `brand_kit` — without `design`, reads the account's saved design and the looks
+  and faces to pick from; with `design`, saves it so a series keeps one look.
+  A video that names no `design` or `template_theme` draws in the kit. Free.
+
+Call `quote_ugc` before `make_ugc`: the quote is where the contract tells you
+what it will and will not honor. Anything the API cannot deliver comes back in
+`warnings[]` rather than being dropped silently, and unsupported fields are
+rejected up front instead of being accepted and ignored.
+
+Bumping the `attempt` field starts a **new paid render**. It is the way to retry
+a failed run on purpose, not a free refresh. For faceless videos `attempt`
+belongs to `make_faceless`: a quote takes none, and `quote_faceless` refuses it.
+
+`SKILL.md` ships inside the package with the full operating instructions.
+[clipwright.io/changelog](https://clipwright.io/changelog) says what changed in each
+release and what was removed.
+
+## Privacy
+
+The server sends your script or brief, chosen options and any uploaded image to the
+Clipwright API to quote and render the video. How that data is handled:
+[clipwright.io/privacy](https://clipwright.io/privacy). Documentation:
+[clipwright.io/docs](https://clipwright.io/docs?ref=npm).

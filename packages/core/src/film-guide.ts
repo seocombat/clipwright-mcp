@@ -56,7 +56,7 @@ const kitPath = z.string().min(1);
 
 export const FILM_GUIDE_FORMATS = ["explainer", "story", "list", "own_pictures", "cartoon"] as const;
 export type FilmGuideFormat = (typeof FILM_GUIDE_FORMATS)[number];
-export const FILM_GUIDE_SECTIONS = ["steps", "story", "words", "captions", "voice", "consistency", "pictures", "motion", "density", "repair"] as const;
+export const FILM_GUIDE_SECTIONS = ["workflow", "steps", "story", "words", "captions", "voice", "consistency", "pictures", "motion", "density", "repair"] as const;
 export type FilmGuideSection = (typeof FILM_GUIDE_SECTIONS)[number];
 
 export const RECENT_LOOKS_MAX = 5;
@@ -79,7 +79,7 @@ export const filmGuideQuery = z.strictObject({
   format: z.enum(FILM_GUIDE_FORMATS).optional().describe("The video to make: explainer (the default, a coded film), story, list (facts or " +
     "tips), own_pictures (the user's own pictures) or cartoon (a drawn hero in generated pictures)"),
   section: z.enum(FILM_GUIDE_SECTIONS).optional()
-    .describe("One part of a story, list, own_pictures or cartoon guide instead of all of it: steps, or one theme of the craft"),
+    .describe("One part of a story, list, own_pictures or cartoon guide instead of all of it: workflow, steps, or one theme of the craft"),
 }).refine(query => query.section === undefined || (query.format !== undefined && query.format !== "explainer"),
   { message: "section reads one part of a story, list, own_pictures or cartoon guide: name that format too", path: ["section"] });
 export type FilmGuideQuery = z.infer<typeof filmGuideQuery>;

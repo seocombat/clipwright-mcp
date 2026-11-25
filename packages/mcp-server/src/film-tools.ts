@@ -122,12 +122,17 @@ export const CHECK_TAKE_PICTURE_DESCRIPTION = " For a faceless take, against pic
 export const GET_FILM_RUN_DESCRIPTION = "Free. One stills, voice, render, edit, hero, take frames or take check run: its state, credits, warnings and what it delivered. " +
   "Waits up to 45 s for an unfinished run to end; call it again while it is still working. A delivered stills run answers its " +
   "pictures again, at no charge.";
-export const GET_FILM_GUIDE_DESCRIPTION = "Free. Read this first, before any other film tool: the explainer guide (each step's tool, the rules the " +
-  "checks refuse, a whole example film), its method appendix, and the scene kit's files get_film_kit serves.";
+const FILM_GUIDE_BODY = "Read it before any other film tool: the explainer guide (each step's tool, the rules the checks refuse, a whole " +
+  "example film), its method appendix, and the scene kit's files get_film_kit serves.";
+export const GET_FILM_GUIDE_DESCRIPTION = "Free. Read this first for an explainer: a how-to, how something works, a tool walkthrough, or N " +
+  `mistakes or N ways, also with no script yet. ${FILM_GUIDE_BODY}`;
+export const GET_FILM_GUIDE_FACELESS_DESCRIPTION = "Free. Read this first for a cartoon, a story, a list of facts or tips, a kids video, an " +
+  "explainer or a video from own pictures, also with no script yet: each format opens with its workflow, the questions and their " +
+  `defaults. ${FILM_GUIDE_BODY}`;
 export const GET_FILM_KIT_DESCRIPTION = "Free. The scene kit's sources your film imports as scene-kit, with a reference film (films/espresso-hit): " +
   "read index.ts and the reference first, then the drawers whose props you use. path: one file a call; without it, the list of files.";
 export const FACELESS_GUIDE_FORMATS = " format: story, list, own_pictures or cartoon reads how to make that faceless video yourself from " +
-  "make_voice, generate_image and generate_video instead; section reads one part of it (steps first). version: the whole guide's version, " +
+  "make_voice, generate_image and generate_video instead; section reads one part of it (workflow first). version: the whole guide's version, " +
   "the same for every section; a cut record keeps the one it was made under.";
 export const QUOTE_CUT_DESCRIPTION = "Free. What render_cut would hold for this cut sheet, line by line in items (the cut, seconds over " +
   `${OWN_CUT_INCLUDED_SECONDS}, a described bed, takes' own sound, music), and film_sec: how long it runs. Checks the sheet as check_cut does ` +
@@ -403,7 +408,7 @@ function registerTakeTools(server: McpServer, client: ClipwrightClient, waited: 
 function registerFilmGuideTools(server: McpServer, client: ClipwrightClient, facelessDiy: boolean): void {
   if (facelessDiy) {
     server.registerTool("get_film_guide", { title: "Read the film guide", annotations: { readOnlyHint: true, destructiveHint: false },
-      description: GET_FILM_GUIDE_DESCRIPTION + FACELESS_GUIDE_FORMATS, inputSchema: filmGuideQuery.shape },
+      description: GET_FILM_GUIDE_FACELESS_DESCRIPTION + FACELESS_GUIDE_FORMATS, inputSchema: filmGuideQuery.shape },
     async (query) => withFailureReport(async () => ({ content: [text(await client.getFilmGuide(query))] })));
     server.registerTool("check_cut", { title: "Check a faceless cut", annotations: { readOnlyHint: true, destructiveHint: false },
       description: CHECK_CUT_DESCRIPTION + GUIDE_FIRST, inputSchema: filmCutInput.shape },

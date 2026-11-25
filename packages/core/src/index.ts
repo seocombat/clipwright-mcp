@@ -29,6 +29,8 @@ export * from "./caption-language.js";
 export * from "./templates/index.js";
 export * from "./ugc-video-media.js";
 export * from "./ad-pause-trim.js";
+export * from "./edit-style-names.js";
+export * from "./edit-style.js";
 export * from "./faceless-public.js";
 export * from "./faceless-customer-anchors.js";
 export * from "./faceless-action-shots.js";

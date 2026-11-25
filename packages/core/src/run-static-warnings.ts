@@ -123,14 +123,14 @@ function ugcRunWarnings(
       ...voiceFactWarnings(preflight.voice),
     ];
   }
-  const { tts_model: storedModel, actor_snapshot: _snapshot, ...rest } = parsed.data;
+  const { tts_model: storedModel, actor_snapshot: _snapshot, edit_style: storedStyle, ...rest } = parsed.data;
   const pin = pinnedView.safeParse((storedInput as { actor_snapshot?: unknown }).actor_snapshot).data;
   const ttsModel = TTS_MODELS.find((model) => model === storedModel);
   const input: MakeUgcInput = { ...rest, tts_model: ttsModel };
   const spokenModel = TTS_MODELS.find((model) => model === parsed.data.resolved_tts_model)
     ?? ttsModelBeforeV4Default({ ...input, script: resolvedScript(input) }, input.actor_gender);
   return [
-    ...dispositionWarnings({ ...input, presenter_framing: renderedPresenterFraming(pin) }),
+    ...dispositionWarnings({ ...input, edit_style: storedStyle, presenter_framing: renderedPresenterFraming(pin) }),
     ...videoHoldWarnings(input, parsed.data.insert_assets),
     ...pictureQualityWarnings(input, parsed.data.insert_assets),
     ...(compositionVersionOf(parsed.data) === 1 ? legacyCaptionWarnings(input) : []),

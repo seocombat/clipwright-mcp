@@ -8,6 +8,7 @@ import { resolveFacelessCustomerAnchors } from '../faceless-customer-anchors.js'
 import type { FacelessSceneAnchor } from '../faceless-public.js';
 import { FIELD_DISPOSITIONS } from '../contract-dispositions.js';
 import { admittedUgcResolution, DEFAULT_RESOLUTION, makeUgcInputShape } from '../skills.js';
+import { STYLE_FIELD_DEFAULTS } from '../edit-style-names.js';
 import { referenceProfileWarnings } from '../reference-profile.js';
 import { queryWorkflowMethod } from './catalog.js';
 import { workflowProductReferenceWarnings } from './product-references.js';
@@ -22,7 +23,8 @@ const nativeFieldRequested = (input: Readonly<Record<string, unknown>>, field: s
     if (input[field] === undefined) return false;
     if (skill === 'make_ugc' && field in FIELD_DISPOSITIONS) {
         const standard = makeUgcInputShape[field as keyof typeof FIELD_DISPOSITIONS].safeParse(undefined);
-        if (standard.success && standard.data !== undefined) return input[field] !== standard.data;
+        const fallback = standard.success && standard.data !== undefined ? standard.data : STYLE_FIELD_DEFAULTS[field as keyof typeof STYLE_FIELD_DEFAULTS];
+        if (fallback !== undefined) return input[field] !== fallback;
     }
     return true;
 };

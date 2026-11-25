@@ -450,6 +450,7 @@ const BARE_ERROR_CODES = [
   "trend_search_limited",
   "trend_search_not_found",
   "trends_unavailable",
+  "trial_excludes_generation",
   "unauthorized",
   "unsupported_combination",
   "unsupported_media_type",

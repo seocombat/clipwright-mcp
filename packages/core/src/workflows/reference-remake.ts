@@ -30,6 +30,7 @@ import { isEnglishScript, measuredPaceOf, PACE_MATCH_SHARE, VOICE_PACE_RANGE, vo
 import { BREAK_TAG_SOURCE, FIXED_PACE_MODELS, resolveTtsModel } from '../voices.js';
 import type { CapabilityProfile } from '../contracts/v1/workflow-catalog.js';
 import { WORKFLOW_ADDED_MAX } from '../contracts/v1/workflow-brief.js';
+import type { EditStyleField } from '../edit-style.js';
 import { saveWorkflowPlan, workflowPlanDocument, type WorkflowPlanDocument } from '../contracts/v1/workflow-plan.js';
 import { workflowId, workflowText, type WorkflowIssue } from '../contracts/v1/workflow-primitives.js';
 import { queryWorkflowMethod } from './catalog.js';
@@ -332,8 +333,10 @@ function callStageOf(profile: ReferenceProfile, listening: number, note: (beat: 
     return stage.success ? stage.data : undefined;
 }
 
+export type RemakeStyle = (native: Record<string, unknown>) => { input: Record<string, unknown>; pins?: { fields: EditStyleField[]; left_out?: string[] } };
+
 export function compileReferenceRemake(input: unknown, capabilities: CapabilityProfile, planSpans: ReferenceSpanPlanner = proportionalSpans,
-    choose?: RemakeChooser, facts?: ReferenceAssetFacts): ReferenceRemakeResult {
+    choose?: RemakeChooser, facts?: ReferenceAssetFacts, style?: RemakeStyle): ReferenceRemakeResult {
     const parsed = planReferenceRemake.safeParse(input);
     if (!parsed.success) return { kind: 'invalid', issues: parsed.error.issues.map(issue => ({ kind: 'invalid_request', path: issue.path.join('.'), message: issue.message })) };
     const request = parsed.data, { script } = request, profile = request.reference_profile;
@@ -1462,11 +1465,12 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
             suggested_substitute: 'fewer graphics in the reference, or edit the plan' }];
     })();
     const firstSentence = parts({ start: 0, end: words.length })[0]!;
+    const styled = style?.(native);
     const document = workflowPlanDocument.safeParse({ v: 1,
         method: { method_id: method.id, version: method.version, content_digest: method.content_digest, capability_digest: capabilities.content_digest },
         brief: { audience: request.audience ?? 'Viewers of short ads in the style of the reference',
             message: request.message ?? script.slice(words[firstSentence.start]!.from, words[firstSentence.end - 1]!.to),
-            script, native: { skill: 'make_ugc', input: native },
+            script, native: { skill: 'make_ugc', input: styled?.input ?? native }, ...(styled?.pins ? { edit_style_default: styled.pins } : {}),
             reference_profile: { ...withoutWords(profile), music: '', unmapped,
                 beats: profile.beats.map((beat, index) => ({ ...beat, spoken_summary: '', graphics: beat.graphics.map((graphic, at) => ({ ...graphic, label_hint: '',
                     ...(converted.has(graphic) ? { kind: converted.get(graphic) } : scened.has(`${index}:${at}`) ? { kind: 'scene' as const } : {}) })) })) },

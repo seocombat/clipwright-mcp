@@ -55,7 +55,7 @@ export function compactTemplateCatalogText(kinds: readonly TemplateKind[] = offe
     }).join(". ") + ".";
 }
 
-const CAPTION_STYLE_TEXT = "Caption look when captions=true; hormozi is the default. " +
+const CAPTION_STYLE_TEXT = "Caption look when captions=true; omitted, edit_style's, otherwise hormozi. " +
   Object.entries(CAPTION_STYLE_ALIASES).map(([alias, preset]) => `${alias} draws ${preset}`).join("; ") +
   ". Every style's look and preview: https://clipwright.io/captions";
 
@@ -77,7 +77,7 @@ export const MCP_UGC_DESCRIPTIONS = {
   caption_emphasis: "Script words or phrases to emphasise, every occurrence, matched as an insert quote. An item is the quote or " +
     "{ quote, look }: punch (a lead-in line over a large glowing keyword), pill (alone in a pill), color (accent colour) or box (soft " +
     "accent box). Without look: punch draws punch, hormozi and accent color, others larger in their highlight colour. Needs " +
-    "captions=true; a quote not in script is refused before any charge.",
+    "captions=true; a quote not in script is refused before any charge. Omitted: the words edit_style picks.",
   voice: "Voice name from list_voices (presets sarah | george | eric | daria_ru_female); another name is refused before any charge. " +
     "Omitted: the default voice of the actor's gender (actor_id's or actor_gender's; george for the default actor and for image " +
     "alone). A gemini-3.8-flash-tts voice selects that model; a tts_model not speaking the voice is refused. Not with voice_id.",
@@ -85,7 +85,9 @@ export const MCP_UGC_DESCRIPTIONS = {
     "qualification on the server and broll_policy=anyone. Captions draw over them.",
   segments: "Ordered actor and image segments; need long-form qualification on the server and captions=false; image media " +
     "needs broll_policy=anyone.",
-  captions: "Burn word-timed captions in, over the presenter and inserts; not with segments.",
+  captions: "Burn word-timed captions in, over the presenter and inserts; not with segments. Omitted: as edit_style sets it, otherwise off.",
+  edit_style: "house-v1 | calm-v1 | bold-v1 | bare: a named set of captions, caption_style, caption_emphasis and edit_sounds; a field you " +
+    "pass wins. Omitted: the server's default style where it applies one. The quote's edit_style_applied names it. Price unchanged.",
   caption_position: "top, middle, lower or bottom (80% of the height); omitted, the caption_style's own place. Requires captions=true.",
   actor_id: "Saved actor ID from list_actors; not with image or actor_gender. Without voice or voice_id the voice follows its gender.",
   voice_id: "Raw vendor voice id (16–32 letters and digits) outside the catalog; an unknown id fails the run, not the request. Not with " +

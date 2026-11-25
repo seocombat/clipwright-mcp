@@ -37,5 +37,6 @@ export const account = z.object({
   support_replies: z.array(supportReply).default([]),
   free_trend_searches_left: z.number().int().nonnegative().optional(),
   free_trend_searches_reset_at: z.string().datetime().optional(),
+  warnings: z.array(z.string()).optional(),
 });
 export type Account = z.infer<typeof account>;

@@ -276,7 +276,8 @@ export type ReferenceAnalysisQuery = z.infer<typeof referenceAnalysisQuery>;
 export const REFERENCE_REPEAT_NOTE = "Asking again for the same asset_id, or the same reel by its full link, in the same mode is free and answers " +
   "the succeeded analysis at once, with no time limit. A short vt.tiktok.com or vm.tiktok.com link is followed to its video first, so it repeats like the full link.";
 
-export const REFERENCE_NEXT_NOTE = "To make a video like this reference, write the user's script on its hook, structure and pacing, never its words, " +
+export const REFERENCE_NEXT_NOTE = "To make a video like this reference, write the script on its hook, structure and pacing, never its words " +
+  "(the user's own, or yours from a few words of topic), " +
   "then call plan_reference_remake with this body plus script and actor_id; the plan reads the profile itself.";
 export const referenceAnalysisNext = z.strictObject({
   action: z.literal("plan_reference_remake"), method: z.literal("POST"), path: z.string(),
@@ -285,6 +286,12 @@ export const referenceAnalysisNext = z.strictObject({
   note: z.string(),
 });
 export type ReferenceAnalysisNext = z.infer<typeof referenceAnalysisNext>;
+export const referenceNoScriptNext = z.strictObject({
+  tools: z.array(z.string().min(1)).min(1).describe("The tools that start such a video, in the order they fit"),
+  credits_from: z.number().int().nonnegative().optional()
+    .describe("The least a delivered make_ugc or make_faceless video costs; the quotes give the price"),
+});
+export type ReferenceNoScriptNext = z.infer<typeof referenceNoScriptNext>;
 
 export const referenceAnalysis = z.strictObject({
   analysis_id: referenceAnalysisId,
@@ -311,6 +318,8 @@ export const referenceAnalysis = z.strictObject({
   next: referenceAnalysisNext.nullable(),
   film_kit: filmKitMap.optional(),
   next_film: referenceFilmNext.optional().describe("A second way: the reel built as a coded film"),
+  next_no_script: referenceNoScriptNext.optional()
+    .describe("With no script or product of the user's own: a video on this reel's topic, its script written by the agent"),
   display_markdown: z.string().optional().describe("The analysis as a compact markdown breakdown, built from the fields above."),
   display_hint: z.string().optional(),
 });
@@ -346,6 +355,7 @@ export const referenceAnalysisRead = referenceAnalysis.extend({
     uses: z.array(z.object({ term: z.string(), elements: z.array(z.string()) }).loose()) }).loose()).optional(),
   next_film: z.object({ action: z.string(), method: z.string(), path: z.string(), steps: z.array(z.string()), share: z.number(),
     credits_estimate: z.number(), note: z.string() }).loose().optional(),
+  next_no_script: z.object({ tools: z.array(z.string()), credits_from: z.number().optional() }).loose().optional(),
   credits_reserved: referenceAnalysis.shape.credits_reserved.optional(),
   credits_charged: referenceAnalysis.shape.credits_charged.optional(),
   balance_after_credits: referenceAnalysis.shape.balance_after_credits.optional(),

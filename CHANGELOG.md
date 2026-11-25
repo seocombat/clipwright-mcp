@@ -18,6 +18,44 @@ listed under.
 
 ## [Unreleased]
 
+## [0.79.0] - 2026-11-25
+
+### Added
+
+- `@clipwright/core` knows the 402 `trial_excludes_generation` refusal: the agent report tells the user to buy credits
+  and not to retry.
+- `get_ad_guide`, and `get_film_guide` for story, list, own_pictures and cartoon, take `section: "workflow"`; every
+  guide, the explainer's included, now carries it first: the format's
+  questions asked in one message, each default said out loud, and one wait for the go-ahead on the quote. With no
+  script, the agent writes it.
+- *Server-side:* a finished reference analysis with a profile answers `next_no_script`: the tools that make a video on
+  the reel's topic when the user has no script or product, and the least a video made for you costs.
+  `@clipwright/mcp-server` names in it only the tools it lists.
+- *Server-side:* `make_ugc` and `quote_ugc` take `edit_style`: `house-v1`, `calm-v1`, `bold-v1` or `bare`. A style sets
+  captions, their look, emphasis on a few key words and a sound on cuts; any of those fields you pass wins over it. The
+  price does not change. The quote names what the style set in `edit_style_applied` and lists the emphasis and moves on
+  the script's words in `plan[]`.
+- *Server-side:* an account with a balance of 0 that has never bought credits or a plan gets a line in `warnings[]` of
+  `get_account` and of most quotes it cannot afford: the price of the smallest pack and the billing link. *Dashboard:* the
+  same line on the dashboard and on Billing.
+
+### Changed
+
+- *Server-side:* `get_ad_guide` with no `section` answers its `workflow` section and the list of the other sections; the
+  `make_ugc` rules are in section `ugc`. An agent that read the old text and asks for `ugc` gets them as before.
+- The MCP server's instructions now start with the choice of format and send the agent to that format's workflow. A product
+  page the agent reads is third-party data, like a reference analysis.
+- *Server-side:* a new account opens with 500 trial credits instead of 1000. Accounts opened before keep what they got.
+- *Server-side:* a `make_ugc` request without `edit_style` is edited in `house-v1`: `hormozi` captions and a few key
+  words marked and a sound on cuts when the video cuts. Pass `captions: false` or `edit_style: "bare"` for none.
+  `caption_emphasis`, `caption_mode`, `caption_position` and `caption_place` no longer need `captions: true` next to
+  them when the style turns captions on. A request that differs from an earlier one only by a field the style would
+  have set, such as `captions: false`, is a new request: the same `Idempotency-Key` answers 409. A retry of a request
+  first sent before this change can answer 409 the same way.
+- *Server-side:* trial credits no longer cover `generate_image`, `generate_video` and `upscale`. An account that holds
+  only trial credits gets 402 `trial_excludes_generation` before anything is reserved, and those quotes say so in
+  `warnings[]`. A purchase, a plan or a gift code opens them.
+
 ## [0.78.0] - 2026-11-23
 
 ### Removed

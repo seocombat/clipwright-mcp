@@ -25,7 +25,7 @@ claude plugin install clipwright@clipwright
 The plugin connects the hosted server at `https://mcp.clipwright.io/mcp` and
 adds a skill that tells the agent to quote before it spends credits. Run `/mcp`
 in a session, choose `clipwright` and sign in with your Clipwright account: no
-key goes into a config file. The same repository is a Cursor plugin
+key goes into a config file. Install checked live on 2026-11-24. The same repository is a Cursor plugin
 (`.cursor-plugin/plugin.json`, `mcp.json`).
 
 ## n8n
@@ -49,7 +49,7 @@ in place of `cw_...`. It needs Node.js 20 or newer. Other hosts, the tool list a
 the environment variables: [`packages/mcp-server/README.md`](packages/mcp-server/README.md).
 
 Quotes, voices, actors and the balance are free. Renders spend credits: an
-account opened by signing up starts with 1000 trial credits, enough for one
+account opened by signing up starts with 500 trial credits, enough for one
 breakdown and a 30-second talking-actor ad. Buy more at
 [clipwright.io/pricing](https://clipwright.io/pricing?ref=github).
 

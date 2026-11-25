@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { priceLine, type PriceEntry } from "@clipwright/core";
 
-import { adMethodPointer, LISTED_DESCRIPTIONS, LISTED_FIELDS } from "./listed-texts.js";
+import { adMethodPointer, generateVideoRoute, LISTED_DESCRIPTIONS, LISTED_FIELDS, ugcRouteLine, withRoute, type ListedGuides } from "./listed-texts.js";
 
 
 type Schema = { [key: string]: unknown };
@@ -167,6 +167,8 @@ function pointer(root: Schema, path: string): [Schema | unknown[], string] {
 
 function advertise(tools: readonly Tool[], prices: readonly PriceEntry[]): Tool[] {
   const twins = findTwins(tools), guide = tools.some(tool => tool.name === "get_ad_guide");
+  const film = tools.find(tool => tool.name === "get_film_guide");
+  const guides = { ad: guide, film: film !== undefined, filmFormats: film?.inputSchema.properties?.format !== undefined };
   return tools.map(tool => {
     const twin = twins.get(tool.name);
     const schema = toDraft2020(structuredClone(tool.inputSchema) as Schema);
@@ -202,7 +204,7 @@ function advertise(tools: readonly Tool[], prices: readonly PriceEntry[]): Tool[
       delete node.description;
     });
     const { execution, outputSchema, ...rest } = tool;
-    const body = listedDescription(tool, prices, guide);
+    const body = listedDescription(tool, prices, guides);
     const description = twin === undefined ? body : withTwinNote(body ?? "", twin);
     return { ...rest, ...(execution === undefined || execution.taskSupport === "forbidden" ? {} : { execution }),
       ...(outputSchema === undefined ? {} : { outputSchema: toDraft2020(structuredClone(outputSchema) as Schema) as Tool["outputSchema"] }),
@@ -210,8 +212,10 @@ function advertise(tools: readonly Tool[], prices: readonly PriceEntry[]): Tool[
   });
 }
 
-export function listedDescription(tool: Pick<Tool, "name" | "description">, prices: readonly PriceEntry[], guide = false): string | undefined {
-  const short = tool.name === "make_ugc" ? `${LISTED_DESCRIPTIONS.make_ugc} ${adMethodPointer(guide)}` : LISTED_DESCRIPTIONS[tool.name];
+export function listedDescription(tool: Pick<Tool, "name" | "description">, prices: readonly PriceEntry[],
+  guides: ListedGuides = { ad: false, film: false, filmFormats: false }): string | undefined {
+  const short = tool.name === "make_ugc" ? `${ugcRouteLine(guides.ad, guides.filmFormats)} ${LISTED_DESCRIPTIONS.make_ugc} ${adMethodPointer(guides.ad)}`
+    : tool.name === "generate_video" ? withRoute(LISTED_DESCRIPTIONS.generate_video!, generateVideoRoute(guides)) : LISTED_DESCRIPTIONS[tool.name];
   if (short === undefined) return tool.description;
   const price = priceLine(tool.name, prices);
   return price !== null && tool.description?.endsWith(price) ? `${short} ${price}` : short;

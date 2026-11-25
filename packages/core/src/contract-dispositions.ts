@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AD_END_HOLD_WARNING, makeUgcInputShape, mcpCaptionPlace, mcpLiveShots, mcpPresenterGaze, mcpPresenterPlace, mcpUgcCall, mcpUgcInterview, mcpUgcOverlay, mcpUgcScene,
   mcpUgcTemplate } from "./skills.js";
 import { MCP_UGC_DESCRIPTIONS } from "./mcp-ugc-descriptions.js";
+import { editStyleLines } from "./edit-style.js";
 import { interviewWarnings } from "./ugc-interview.js";
 import { commentCtaFitWarnings, MAX_TEMPLATES, mcpTemplateSounds, seriesFitWarnings, templateFaceWarnings, templateMediaOf, templateSceneItems, templateSizeWarnings, type TemplateItem } from "./templates/index.js";
 import { framingWarnings } from "./ugc-framing.js";
@@ -65,6 +66,7 @@ export const FIELD_DISPOSITIONS = {
   },
   captions: { kind: "implemented", provenBy: "composition" },
   caption_style: { kind: "implemented", provenBy: "composition" },
+  edit_style: { kind: "implemented", provenBy: "admission" },
   caption_emphasis: { kind: "implemented", provenBy: "composition" },
   caption_mode: { kind: "implemented", provenBy: "composition" },
   caption_position: { kind: "implemented", provenBy: "composition" },
@@ -381,6 +383,7 @@ export function dispositionWarnings(
     scenes: Array.isArray(input.scenes) ? input.scenes : undefined })) warnings.push(MOTION_STYLE_UNUSED_WARNING);
   if (input.pause_trim_source === "ad_default") warnings.push(AD_PAUSE_TRIM_WARNING);
   if (input.end_hold_source === "ad_default") warnings.push(AD_END_HOLD_WARNING);
+  warnings.push(...editStyleLines(input));
   warnings.push(...templateFaceWarnings(input), ...templateSizeWarnings(input), ...seriesFitWarnings(input), ...commentCtaFitWarnings(input), ...framingWarnings(input),
     ...callWarnings(input), ...placeWarnings(input, framing => templateSceneItems(scene, framing)), ...interviewWarnings(input));
   return warnings;

@@ -5,7 +5,7 @@ const script = 'Missed calls cost you customers. It answers every call and books
     'It books the cleaning while you sleep. Set it up today.';
 
 export const referenceRemake = defineWorkflowMethod({
-    id: 'reference-remake', version: 1, content_digest: '6f6e9ea03d075b5c1b81c0410afdea926255fcb67a764e94f142c1944bf7b90c', authoring_status: 'ready',
+    id: 'reference-remake', version: 1, content_digest: '4aae39785abe064fd4aac90bd4174028bac9c0debdf4311412512e0420a2a7ff', authoring_status: 'ready',
     title: 'Remake a reference ad in its style with your script',
     purpose: 'Lay an accepted script on the beats, graphics, captions and sounds of an analysed reference ad, without changing a word.',
     required_inputs: ['audience', 'message', 'script'], required_features: ['exact_script', 'actor', 'voice', 'long_form'],

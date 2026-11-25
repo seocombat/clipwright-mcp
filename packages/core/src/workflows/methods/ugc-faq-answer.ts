@@ -1,7 +1,7 @@
 import { defineWorkflowMethod, nativeLimitations, nativeQa, verticalOutput } from './shared.js';
 
 export const ugcFaqAnswer = defineWorkflowMethod({
-    id: 'ugc-faq-answer', version: 1, content_digest: '3c7f46537acdaebc456d3c733ab2760224a9c01be5458b7b10a643b5ac9f1883', authoring_status: 'ready', title: 'Answer one product question',
+    id: 'ugc-faq-answer', version: 1, content_digest: '3b4e3247df42330aca763e92605ac60f7cd6a765cac5eb697319219fb22ae039', authoring_status: 'ready', title: 'Answer one product question',
     purpose: 'Answer a single audience question directly, explain the supplied facts, and give a useful next step.',
     required_inputs: ['audience', 'message', 'question', 'script'], required_features: ['exact_script', 'actor', 'voice'],
     script_rules: { structure: ['answer', 'explanation', 'next_step'], instructions: [

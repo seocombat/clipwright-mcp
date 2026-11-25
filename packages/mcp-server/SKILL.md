@@ -397,13 +397,19 @@ default actor renders, and only `warnings[]` says so. The `character` refusal
 suggests `person`, which still chooses no face. Choose one with `actor_id` from
 `list_actors`, an `image`, or a new actor from `create_actor`. Checked live 2026-10-31.
 
-**Captions are off in `make_ugc` and on in `make_faceless`.** `make_ugc` draws
-word-timed captions only with `captions: true`; `make_faceless` draws them unless
-`captions: false`. `make_faceless` takes only `captions`; the style, emphasis and
-mode fields below are `make_ugc` fields, and `make_faceless` refuses them. Whether a
-video has captions is the user's call:
+**`make_ugc` and `make_faceless` both draw captions unless told not to.** In
+`make_ugc` the house edit style adds word-timed `hormozi` captions, marks a few
+key words (a number, the offer, the product name or the call to action) and adds
+a sound on cuts when the video cuts. A video of `segments` gets no captions.
+`edit_style: "bare"` turns all of it off; `captions: false` turns off only the
+captions. Any caption field you pass wins over the style. The quote names what the
+style set in `edit_style_applied`. `make_faceless` draws captions unless
+`captions: false`. It takes only `captions`: the style, emphasis and mode fields
+below are `make_ugc` fields, and `make_faceless` refuses them. Whether a video has
+captions is the user's call:
 
-1. **Ask whether they want captions** before the quote. Never turn them on unprompted.
+1. **Ask whether they want captions** before the quote. If they say no, pass
+   `captions: false`, or `edit_style: "bare"` for a video with no added edits.
 2. **If yes, pick a style with them.** From a reference video take its look:
    bold uppercase cues with one coloured keyword is `hormozi`, one or two words
    popping in colour is `tiktok`, a sentence on a dark box is `youtube` or
@@ -411,14 +417,16 @@ video has captions is the user's call:
    each, and link https://clipwright.io/captions. Without a choice the server draws `hormozi`.
 3. **Mark key words with `caption_emphasis`**: quotes from `script` drawn larger
    or in the accent colour; `caption_mode: "highlights"` captions only around them.
+   Your list replaces the words the style would pick.
 
 The styles: `hormozi` (the default), `accent`, `tiktok`, `youtube`, `instagram`,
 `minimalist`, `neon`, `genz`, `campfire`, `midnight`, `plottwist`, `headline`,
 `promo`, `lecture`, `highlighter`, `studio`, `broadcast`, `arcade`, `clutch`,
 `bubblegum`, `crayon`, `lyrics`, `bassdrop`, `punch`; `minimal` is an older name
 for `minimalist`. Quote each style's description from `caption_style` in
-`tools/list`, not from memory. Captions are refused with `gemini-3.8-flash-tts`,
-which returns no word timings. Checked 2026-10-31.
+`tools/list`, not from memory. `captions: true` is refused with `gemini-3.8-flash-tts`,
+which returns no word timings. Checked 2026-10-31. With that model the house style
+leaves its captions out and says so in `warnings[]`.
 
 **`make_faceless` without `voice` narrates in English.** The default
 (`narrator_en_wise_lady`) reads a Russian or Spanish script with an English accent,

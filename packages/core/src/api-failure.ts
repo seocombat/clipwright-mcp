@@ -497,6 +497,10 @@ export const UNAUTHORIZED_NEXT_ACTION =
   "CLIPWRIGHT_API_KEY, never in the chat, and restarts the host. With the hosted connector, the human reconnects it and " +
   "signs in again. Then call get_account, which is free, to confirm.";
 
+export const PURCHASE_NEEDED_NEXT_ACTION =
+  "STOP. Do NOT retry: this call needs bought credits, and repeating it gives the same answer. Tell the user to buy a " +
+  `credit pack or pick a plan at ${PUBLIC_APP_BASE_URL}/billing, then call again. Nothing was charged and no run was created.`;
+
 export function refusalNextAction(next: DiyNext): string {
   const fields = next.add.length ? ` Change ${next.add.join(", ")} first.` : "";
   return `STOP. Do NOT retry unchanged: ${next.note}${fields} Then call ${next.action} (next has its route and arguments). ` +
@@ -701,6 +705,7 @@ export function agentFailureReport(failure: ApiFailure): AgentFailureReport {
         ...(failure.next && { next: failure.next }),
         next_action: failure.code === "upload_not_finished" ? UPLOAD_NOT_FINISHED_NEXT_ACTION :
           failure.code === "unauthorized" ? UNAUTHORIZED_NEXT_ACTION :
+          failure.status === 402 && failure.code === "trial_excludes_generation" ? PURCHASE_NEEDED_NEXT_ACTION :
           failure.next ? refusalNextAction(failure.next) :
           "STOP. Do NOT retry: the request itself was rejected, so repeating it unchanged gives " +
           "the same answer. Read the message, fix the call, or tell the user what is wrong.",

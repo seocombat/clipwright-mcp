@@ -45,6 +45,7 @@ export function ugcQuoteMarkdown(quote: QuoteResponse): string {
     "", `Estimate: the charge follows the finished video's measured length and can land above or below it.` +
       (minimum ? ` A delivered video costs at least ${credits(minimum)} credits.` : ""),
     ...designLines(quote.design),
+    ...planLines(quote.plan, quote.credits_estimate),
     ...suggestionLines(quote.suggestions),
     ...warningLines(quote.warnings),
   ].join("\n");
@@ -55,6 +56,15 @@ function suggestionLines(suggestions: QuoteResponse["suggestions"]): string[] {
   return ["", "**Suggested devices** · the request places none on its words, so the video is the presenter talking. These fit " +
     "its words; none is in this quote, and a new quote with them prices them:",
     ...suggestions.map(one => `- "${one.anchor.quote}": ${one.field} ${one.name}, ${one.why}`)];
+}
+
+function planLines(plan: QuoteResponse["plan"], total: number): string[] {
+  if (!plan?.length) return [];
+  const where = (source: string) => (source === "style" ? " (style)" : source === "suggested" ? " (suggested, not in this quote)" : "");
+  const cell = (text: string) => text.replace(/\s+/g, " ").replace(/[|`]/g, "/").trim();
+  return ["", "**Plan** · emphasis and moves on the script's words", "", "| Words | Device | Credits |", "|---|---|---:|",
+    ...plan.map(row => `| "${cell(row.words)}" | ${cell(row.device)}${where(row.source)} | ${credits(row.credits)} |`),
+    "", `The whole quote is about ${credits(total)} credits; suggested rows are not in it.`];
 }
 
 function designLines(design: QuoteResponse["design"]): string[] {

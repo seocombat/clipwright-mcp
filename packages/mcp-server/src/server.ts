@@ -79,6 +79,7 @@ import {
   ANALYZE_REFERENCE_DESCRIPTION,
   QUOTE_ANALYSIS_DESCRIPTION,
   analyzeReferenceRequest,
+  type ReferenceAnalysisRead,
   ANALYZE_CREATOR_DESCRIPTION,
   GET_CREATOR_PROFILE_DESCRIPTION,
   QUOTE_CREATOR_PROFILE_DESCRIPTION,
@@ -98,6 +99,8 @@ import {
   GET_REFERENCE_ANALYSIS_DESCRIPTION,
   referenceAnalysisId,
   referenceAnalysisQuery,
+  NO_SCRIPT_LINE_HEAD,
+  noScriptLine,
   REFERENCE_WAIT_MAX_SECONDS,
   withPriceLine,
   type PriceEntry,
@@ -115,7 +118,7 @@ import { registerFilmDraftTools } from "./film-tools.js";
 import { BASE_PRICES } from "./offer.js";
 import { fetchImage } from "./images.js";
 import { advertiseSlimTools, describeTool } from "./advertised-schema.js";
-import { adMethodPointer } from "./listed-texts.js";
+import { adMethodPointer, generateVideoRoute, ugcRouteLine, withRoute } from "./listed-texts.js";
 import { answerInvalidArguments } from "./invalid-arguments.js";
 
 function ugcKeyRefusal(key: string): string {
@@ -140,9 +143,11 @@ export interface CreateServerOptions {
   facelessDiy?: boolean;
 }
 
-export const GET_AD_GUIDE_DESCRIPTION = "Free. For a request to make an ad, a UGC video or a product video: the rules of an ad made with make_ugc (section ugc, also the answer with no section): the " +
+export const GET_AD_GUIDE_DESCRIPTION = "Free. Read this first for an ad, a product video, a UGC video or a testimonial: section workflow " +
+  "(also the answer with no section) picks the format, by default a multi-shot ad from generated clips, make_ugc for a person talking to " +
+  "camera, and lists its questions with their defaults, then names the other sections. section ugc: the rules of an ad made with make_ugc: the " +
   "word → device catalogue (which list_moves names fit which words), the hook, poses, live shots by action, captions, hands and timeline, " +
-  "and density, then a short list of the other sections. The other sections are the method for making the ad yourself shot by shot: " +
+  "and density. The other sections are the method for making the multi-shot ad yourself shot by shot: " +
   "product and hero sheets, location, state stills, a motion test, the shot list, takes, a frame audit, repair, and the edit with " +
   "render_edit; order holds their order. section reads one part whole. version changes whenever the guide does; read it again when it " +
   "differs from the one your ad record (get_ad) notes.";
@@ -203,6 +208,19 @@ export function lightAnalysis<T extends { reference_profile?: unknown; frames?: 
   return { ...light, omitted: { fields, note: REFERENCE_OMITTED_NOTE } } as Omit<T, "reference_profile" | "frames"> & { omitted: { fields: string[]; note: string } };
 }
 
+export function listedNoScript<T extends { next_no_script?: { tools: string[]; credits_from?: number | undefined } | undefined;
+  display_markdown?: string | undefined }>(analysis: T, listed: (tool: string) => boolean): T {
+  const next = analysis.next_no_script;
+  if (next === undefined || next.tools.every(listed)) return analysis;
+  const tools = next.tools.filter(listed), { next_no_script: _dropped, ...rest } = analysis;
+  const line = tools.length > 0 ? `\n\n${noScriptLine({ ...next, tools })}` : "";
+  const display = analysis.display_markdown?.replace(new RegExp(`\\n\\n${NO_SCRIPT_LINE_HEAD.replace(/[*?]/g, "\\$&")}[^\\n]*`), line);
+  return { ...rest, ...tools.length > 0 ? { next_no_script: { ...next, tools } } : {}, ...display === undefined ? {} : { display_markdown: display } } as T;
+}
+
+export const analysisAnswer = (analysis: ReferenceAnalysisRead, listed: (tool: string) => boolean, include: readonly string[] = []) =>
+  withPoll(lightAnalysis(listedNoScript(analysis, listed), include));
+
 export function withProfilePoll<T extends { profile_id: string; state: string; retry_after_seconds?: number | null | undefined }>(profile: T):
   T & { poll?: { tool: "get_creator_profile"; arguments: { profile_id: string; wait_seconds: number }; retry_after_seconds: number } } {
   if (profile.state !== "queued" && profile.state !== "analyzing") return profile;
@@ -226,7 +244,8 @@ const UPSCALE_QUOTE_DESCRIPTION = "Price one upscale without spending credits: a
   "take, larger: lettering the draft drew wrong stays wrong. An upscale that fails is charged nothing.";
 const UPSCALE_DESCRIPTION = "Upscale a delivered clip or picture (paid), as quote_upscale explains: a new run of skill generate_video or " +
   "generate_image, charged once the larger file is delivered. Use it on a 480p draft take before an edit, or on a small portrait before " +
-  "create_asset and create_actor. Poll get_run; generation.url is the larger file and generation.upscaled_from names its source.";
+  "create_asset and create_actor. Look at a draft clip with free take_frames first: the upscale keeps every flaw of the take. Poll " +
+  "get_run; generation.url is the larger file and generation.upscaled_from names its source.";
 
 export const MAX_INLINE_FRAMES = 8;
 const { display: _display, ...readQuery } = referenceAnalysisQuery.shape;
@@ -280,6 +299,8 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   const ownAgent = options.ownAgent === true;
   const prices = options.prices ?? BASE_PRICES;
   const priced = (tool: string, description: string): string => withPriceLine(tool, description, prices);
+  const listed = (tool: string): boolean => tool in ((server as unknown as { _registeredTools?: Record<string, object> })._registeredTools ?? {});
+  const ugcRoute = ugcRouteLine(options.adGuide === true, ownAgent && options.facelessDiy === true);
   const server = new McpServer({ name: "clipwright", title: MCP_SERVER_TITLE, version: packageVersion(),
     icons: MCP_SERVER_ICONS.map(icon => ({ ...icon, sizes: [...icon.sizes] })) }, { instructions: mcpServerInstructions({ ownAgent,
     explainer: options.explainer === true, adGuide: options.adGuide, facelessDiy: ownAgent && options.facelessDiy === true }) });
@@ -292,7 +313,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     {
       title: "Make a talking-actor video",
       annotations: { readOnlyHint: false, destructiveHint: false },
-      description: priced("make_ugc",`${MAKE_UGC_DESCRIPTION} ${MAKE_UGC_AGENT_PROTOCOL} ${adMethodPointer(options.adGuide === true)}`),
+      description: priced("make_ugc",`${ugcRoute} ${MAKE_UGC_DESCRIPTION} ${MAKE_UGC_AGENT_PROTOCOL} ${adMethodPointer(options.adGuide === true)}`),
       inputSchema: ugcTool.extend(agentRetryShape),
     },
     async (args) =>
@@ -539,11 +560,12 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     {
       title: "Generate a clip",
       annotations: { readOnlyHint: false, destructiveHint: false },
-      description: priced("generate_video",
-        "Generate one clip (silent unless audio: true) from a prompt or a shot, as quote_video explains (paid): a new run of skill generate_video, " +
-        "charged unit_credits per second of duration_s " +
+      description: priced("generate_video", withRoute(
+        "Generate one clip (silent unless audio: true) from a prompt or a shot, as quote_video explains (paid). It is a new run of skill " +
+        "generate_video, charged unit_credits per second of duration_s " +
         "once it is delivered. Modes: text; first_frame (first_frame, optional last_frame, of the requested aspect ratio " +
-        "within 2%); reference (1 to 4 references). Poll get_run; once it succeeded, generation.url is the clip. " + generationTerms),
+        "within 2%); reference (1 to 4 references). Poll get_run; once it succeeded, generation.url is the clip. " + generationTerms,
+        generateVideoRoute({ ad: options.adGuide === true, film: ownAgent, filmFormats: ownAgent && options.facelessDiy === true }))),
       inputSchema: videoRunTool,
     },
     async ({ attempt, ...request }) =>
@@ -582,9 +604,10 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Quote a video",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "Estimate the credit cost of a make_ugc call without spending credits; show the user the price before make_ugc. " +
+        `${ugcRoute} Estimate the credit cost of a make_ugc call without spending credits; show the user the price before make_ugc. ` +
         `${adMethodPointer(options.adGuide === true)} For such a request the quote's suggestions[] name devices that fit the script's ` +
-        "words, each with its words, field and why; the quote adds none of them.",
+        "words, each with its words, field and why; the quote adds none of them. plan[] lists every device on the words with its credits, " +
+        "and edit_style_applied the style and the fields it set.",
       inputSchema: ugcTool,
     },
     async (args) =>
@@ -818,7 +841,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       inputSchema: analyzeReferenceRequest.shape,
     },
     async (request) => withFailureReport(async () => ({
-      content: [{ type: "text", text: JSON.stringify(withPoll(lightAnalysis(await client.analyzeReference(request)))) }],
+      content: [{ type: "text", text: JSON.stringify(analysisAnswer(await client.analyzeReference(request), listed)) }],
     })),
   );
 
@@ -836,7 +859,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
     async ({ analysis_id, frames_as, include, ...query }) => withFailureReport(async () => {
       const analysis = await client.getReferenceAnalysis(analysis_id, { ...query, display: "markdown" });
       const images = frames_as === "images" ? await keyFrameImages(analysis.frames) : [];
-      return { content: [{ type: "text" as const, text: JSON.stringify(withPoll(lightAnalysis(analysis, include))) }, ...images] } as unknown as McpToolResponse;
+      return { content: [{ type: "text" as const, text: JSON.stringify(analysisAnswer(analysis, listed, include)) }, ...images] } as unknown as McpToolResponse;
     }),
   );
 

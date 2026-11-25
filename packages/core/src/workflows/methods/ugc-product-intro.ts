@@ -1,7 +1,7 @@
 import { defineWorkflowMethod, nativeLimitations, nativeQa, verticalOutput } from './shared.js';
 
 export const ugcProductIntro = defineWorkflowMethod({
-    id: 'ugc-product-intro', version: 1, content_digest: 'f3f387e87e99018fd2c99fb674a37a4f47f856f872e6efe542b0f93968a8d2d0', authoring_status: 'ready', title: 'Introduce a product through its benefit',
+    id: 'ugc-product-intro', version: 1, content_digest: '50c0e7eb2993e180862b3b7fbdb1f6b32d43e02426cedd28a18cc74eb092498d', authoring_status: 'ready', title: 'Introduce a product through its benefit',
     purpose: 'Help a defined audience understand one verified product benefit and take one next step.',
     required_inputs: ['audience', 'message', 'product', 'script'], required_features: ['exact_script', 'actor', 'voice'],
     script_rules: { structure: ['opening', 'problem', 'solution', 'cta'], instructions: [

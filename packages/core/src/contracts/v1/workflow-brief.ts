@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { makeUgcInput, ugcSegment } from '../../skills.js';
+import { makeUgcInput, makeUgcInputShape, ugcSegment } from '../../skills.js';
 import { makeFacelessInput } from '../../faceless-public.js';
 import { MAX_MOVES } from '../../moves.js';
+import { EDIT_STYLE_FIELDS, expandEditStyle, parseStyled } from '../../edit-style.js';
 import { referenceProfileInput, referenceProfileRead } from '../../reference-profile.js';
 import { workflowEvidenceSource } from './workflow-evidence.js';
 import { workflowFormat, workflowFormatRead, workflowText } from './workflow-primitives.js';
@@ -18,9 +19,13 @@ const noneWhenEmpty = <K extends 'inserts' | 'overlays' | 'layout_windows' | 'fr
     const { maxItems } = z.toJSONSchema(list, { io: 'input', unrepresentable: 'any' }) as { maxItems: number };
     return z.array(list.element).max(maxItems).transform(items => items.length ? items : undefined).pipe(native).optional() as unknown as (typeof makeUgcInput.shape)[K];
 };
-const workflowUgcInput = makeUgcInput.strict().safeExtend({ segments: strictUgcSegments, inserts: noneWhenEmpty('inserts'), overlays: noneWhenEmpty('overlays'),
+const workflowUgcInput = z.strictObject(makeUgcInputShape).safeExtend({ segments: strictUgcSegments, inserts: noneWhenEmpty('inserts'), overlays: noneWhenEmpty('overlays'),
     layout_windows: noneWhenEmpty('layout_windows'), framing: noneWhenEmpty('framing'), templates: noneWhenEmpty('templates'), scenes: noneWhenEmpty('scenes'),
-    presenter_gaze: noneWhenEmpty('presenter_gaze'), shots: noneWhenEmpty('shots'), caption_emphasis: noneWhenEmpty('caption_emphasis') });
+    presenter_gaze: noneWhenEmpty('presenter_gaze'), shots: noneWhenEmpty('shots'), caption_emphasis: noneWhenEmpty('caption_emphasis') })
+    .superRefine((value, context) => {
+        const parsed = parseStyled(makeUgcInput, expandEditStyle(value, { defaultStyle: false, longForm: false }));
+        if (!parsed.success) for (const issue of parsed.error.issues) context.addIssue({ code: z.ZodIssueCode.custom, path: issue.path, message: issue.message });
+    });
 const [nativeFacelessScript, nativeFacelessBrief] = makeFacelessInput.options;
 const nativeScript = nativeFacelessScript.shape.script;
 const { minLength, maxLength } = z.toJSONSchema(nativeScript, { io: 'input' });
@@ -48,6 +53,8 @@ const briefShape = {
     added: z.array(workflowText(200)).max(WORKFLOW_ADDED_MAX).optional(),
     move_warnings: z.array(workflowText(400)).max(MAX_MOVES).optional(),
     voice_warnings: z.array(workflowText(400)).max(WORKFLOW_VOICE_WARNINGS_MAX).optional(),
+    edit_style_default: z.strictObject({ fields: z.array(z.enum(EDIT_STYLE_FIELDS)).max(EDIT_STYLE_FIELDS.length),
+        left_out: z.array(workflowText(300)).max(20).optional() }).optional(),
     review_notes: z.array(workflowText(2000)).max(50).optional(),
     review_warnings: z.array(workflowText(400)).max(50).optional(),
 };

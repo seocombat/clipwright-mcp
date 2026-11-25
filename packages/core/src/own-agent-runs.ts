@@ -11,7 +11,7 @@ import { MASCOT_POSES } from "./mascots.js";
 import { maxCreditsField } from "./max-credits.js";
 import { OWN_AGENT_SKILLS, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL, OWN_STILLS_SINGLE_MAX, OWN_VOICE_MAX_SECONDS } from "./own-agent-price.js";
 import { runId } from "./runs.js";
-import { VOICE_NAME_PATTERN } from "./voices.js";
+import { TTS_MODEL_CHAR_CAP, VOICE_NAME_PATTERN } from "./voices.js";
 
 
 export const FILM_STILLS_QUOTE_PATH = "/v1/film-stills/quote";
@@ -36,7 +36,9 @@ export const OWN_AGENT_CUT_PREVIEW_TASK = "own-agent-cut-preview";
 export const FILM_STILL_FPS = 30, FILM_RENDER_FPS = 25;
 export const FILM_STILL_ANCHOR_LAG_SEC = 0.25;
 export const FILM_TAIL_SEC = 0.8;
-export const OWN_VOICE_SLOWEST_CHARS_PER_SECOND = 13, OWN_VOICE_MAX_CHARS = 1500;
+export const OWN_VOICE_SLOWEST_CHARS_PER_SECOND = 13, OWN_VOICE_MAX_CHARS = TTS_MODEL_CHAR_CAP.eleven_v4;
+export const OWN_VOICE_MIN_TEMPO = 0.85, OWN_VOICE_MAX_TEMPO = 1.2;
+export const OWN_HERO_SCRIPT_MAX_CHARS = 1500;
 
 const anchor = z.string().regex(/^[A-Za-z_]\w{0,40}$/, "an anchor is an identifier");
 const sceneImages = z.array(facelessCustomerSceneImage).max(EXPLAINER_MAX_PRODUCT_PICTURES).optional()
@@ -59,11 +61,14 @@ export type FilmStillsInput = z.infer<typeof filmStillsInput>;
 export type FilmStillsRequest = z.input<typeof filmStillsInput>;
 
 export const filmVoiceInput = z.strictObject({
-  text: z.string().trim().min(1).max(OWN_VOICE_MAX_CHARS).describe("The script, spoken exactly as written"),
+  text: z.string().trim().min(1).max(OWN_VOICE_MAX_CHARS).describe(`The script, spoken exactly as written in one take of up to ${OWN_VOICE_MAX_CHARS} characters`),
   voice: z.string({ error: "voice must be a voice name from list_voices, as a string" })
     .regex(VOICE_NAME_PATTERN, "voice is not a voice name: take one from list_voices with skill=make_faceless").optional()
     .describe("A narrator (list_voices with skill=make_faceless); the fastest of the script's language when omitted. The API refuses a name " +
       "list_voices does not return, before any charge"),
+  tempo: z.number().min(OWN_VOICE_MIN_TEMPO).max(OWN_VOICE_MAX_TEMPO).optional()
+    .describe(`How fast the take plays, ${OWN_VOICE_MIN_TEMPO} to ${OWN_VOICE_MAX_TEMPO} of the narrator's own read, its pitch kept: 1 is the ` +
+      "read as spoken, below 1 slower and longer. Omitted, the voice's own tempo"),
   cut_id: cutId.optional().describe("The cut record this voice is for: the record then names it as its voice and says what comes next"),
   max_credits: maxCreditsField,
 });
@@ -302,7 +307,7 @@ export const filmHeroInput = z.strictObject({
   character_reference: qualifiedImageUrl.optional().describe("https image of the character the poses are drawn after: a public picture, your upload, a " +
     "saved asset or your actor's picture (list_actors); a person's photo is drawn as a cartoon unless character_details ask for a photoreal look"),
   character_details: z.string().trim().min(1).max(2000).optional().describe("The character's look in words: shape, colours, one distinctive detail"),
-  script: z.string().trim().min(1).max(OWN_VOICE_MAX_CHARS).optional()
+  script: z.string().trim().min(1).max(OWN_HERO_SCRIPT_MAX_CHARS).optional()
     .describe("With no character named: the film's script, and a hero is invented to fit its meaning"),
   voice_run_id: runId.optional().describe("With no character and no script: a delivered make_voice run of this account, whose text is the script"),
   mascot_id: assetId.optional().describe("Alone, instead of the fields above: a saved mascot of this account (list_assets with mascot true) that lacks " +
@@ -344,6 +349,8 @@ export const ownAgentQuote = z.strictObject({
       `${OWN_FREE_STILLS_WINDOW_HOURS} h are`),
   free_left: z.number().int().nonnegative().optional().describe("Free stills the draft, or the account's previews, have left in the rolling day after this call"),
   frames: z.number().int().positive().optional(),
+  min_credits: z.number().int().nonnegative().optional()
+    .describe("A voice: the least this take is charged, by its script's length, however short it plays"),
   items: z.array(z.strictObject({ item: z.enum(["cut", "extra_seconds", "bed", "take_sound", "music"]), units: z.number().int().nonnegative(),
     credits: z.number().int().nonnegative() })).optional(),
   lines: z.array(ownAgentQuoteLine).optional(),

@@ -469,6 +469,7 @@ const BARE_ERROR_CODES = [
   "url_fetch_rate_limited",
   "url_fetch_refused",
   "url_import_disabled",
+  "voice_busy",
 ] as const;
 
 export type BareApiErrorCode = (typeof BARE_ERROR_CODES)[number];

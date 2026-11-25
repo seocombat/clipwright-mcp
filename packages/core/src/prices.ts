@@ -22,7 +22,7 @@ import {
 } from "./trend-search.js";
 import { FILM_MUSIC_BED_CREDITS, MUSIC_BED_CREDITS } from "./music.js";
 import { HERO_RUNS_PER_HOUR, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
-  OWN_HERO_FREE_POSES_PER_DAY, OWN_HERO_FREE_POSES_WINDOW_HOURS, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_EDIT_CREDITS,
+  OWN_HERO_FREE_POSES_PER_DAY, OWN_HERO_FREE_POSES_WINDOW_HOURS, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILL_CREDITS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_VOICE_FLOOR_CHARS_PER_SECOND, OWN_EDIT_CREDITS,
   OWN_EDIT_MAX_SECONDS, OWN_TAKE_CHECK_CREDITS, OWN_CUT_BED_CREDITS, OWN_CUT_CREDITS, OWN_CUT_EXTRA_SECOND_CREDITS,
   OWN_CUT_INCLUDED_SECONDS, OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, OWN_CUT_TAKE_SOUND_CREDITS_PER_SECOND,
   OWN_TAKE_CHECK_PICTURE_CREDITS, OWN_TAKE_CHECK_PICTURE_LONG_CREDITS, OWN_TAKE_FRAMES_MAX, TAKE_PICTURE_SHORT_TIER_SECONDS, OWN_HERO_HEAD_CREDITS,
@@ -306,7 +306,8 @@ function buildPriceList(offer: ServiceOffer, diy: DiyModesSold): PriceEntry[] {
           `${OWN_FREE_STILLS_WINDOW_HOURS} hours are free; each still past them is charged once it is drawn. quote_stills says how many of yours ` +
           "are free. A draft its check refuses costs nothing and uses none of the free stills." }),
       paid({ tool: "make_voice", route: "POST /v1/film-voices", quote_tool: "quote_voice", unit: "second", credits: OWN_VOICE_CREDITS_PER_SECOND,
-        notes: "A narrated take with each word's timing, charged by its delivered seconds; a take that fails costs nothing." }),
+        notes: "A narrated take with each word's timing, charged by its delivered seconds and at least one credit for every " +
+          `${OWN_VOICE_FLOOR_CHARS_PER_SECOND} characters of its script, however short it plays; a take that fails costs nothing.` }),
       paid({ tool: "render_film", route: "POST /v1/film-renders", quote_tool: "quote_render",
         lines: [{ label: `film up to ${OWN_FILM_INCLUDED_SECONDS} s`, unit: "call", credits: OWN_FILM_RENDER_CREDITS },
           { label: `each second over ${OWN_FILM_INCLUDED_SECONDS} s`, unit: "second", credits: OWN_FILM_EXTRA_SECOND_CREDITS },

@@ -18,6 +18,33 @@ listed under.
 
 ## [Unreleased]
 
+## [0.80.0] - 2026-11-25
+
+### Added
+
+- *Server-side:* `make_voice` and `quote_voice` take `tempo`, from 0.85 to 1.2. The voice reads the script at its own
+  pace and the take is then played that much faster or slower, at the same pitch. Without `tempo` a voice keeps the pace
+  it had.
+- *Server-side:* `quote_voice` returns `min_credits`: the least the take is charged, one credit for every 25 characters
+  of its script, however short it plays.
+
+### Changed
+
+- *Server-side:* one `make_voice` take holds up to 5,000 characters, up from 1,500, and costs 1 credit a second of the
+  delivered take, down from 2. A take started before the change is charged at the price it started with.
+- *Server-side:* audio tags in a script, such as `[curious]`, no longer come back as words of the take, so captions and
+  the word timings a cut reads skip them. Their seconds stay in the take as a pause.
+- *Server-side:* an account runs at most two `make_voice` takes at a time. A third is refused with 429 `voice_busy` and a
+  `Retry-After` header before anything is charged.
+- *Dashboard:* account controls moved into a menu in the header. Your email and the theme switch sit inside it with
+  Log out, so nothing personal shows on screen until you open it; the sidebar ends with Docs and Support.
+- *Dashboard:* the site footer links to the founder's YouTube channel and to Dimantika on LinkedIn.
+
+### Fixed
+
+- *Dashboard:* dashboard pages no longer preload the site's display font, so the browser console stops warning about a
+  preloaded resource that was never used.
+
 ## [0.79.0] - 2026-11-25
 
 ### Added

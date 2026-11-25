@@ -11,8 +11,9 @@ export type OwnAgentSkill = (typeof OWN_AGENT_SKILLS)[number];
 export const OWN_STILL_CREDITS = 1;
 export const OWN_FREE_STILLS = 120, OWN_FREE_STILLS_WINDOW_HOURS = 24;
 export const OWN_FILM_RENDER_CREDITS = 100, OWN_FILM_INCLUDED_SECONDS = 60, OWN_FILM_EXTRA_SECOND_CREDITS = 2;
-export const OWN_VOICE_CREDITS_PER_SECOND = 2;
-export const OWN_STILLS_MAX_PER_CALL = 24, OWN_FILM_MAX_SECONDS = 120, OWN_VOICE_MAX_SECONDS = 120;
+export const OWN_VOICE_CREDITS_PER_SECOND = 1;
+export const OWN_VOICE_FLOOR_CHARS_PER_SECOND = 25;
+export const OWN_STILLS_MAX_PER_CALL = 24, OWN_FILM_MAX_SECONDS = 120, OWN_VOICE_MAX_SECONDS = 455;
 export const OWN_STILLS_SINGLE_MAX = 8;
 export const OWN_HERO_POSE_CREDITS = 9, OWN_HERO_POSES = FACELESS_EXPLAINER_POSE_PICTURES;
 export const OWN_HERO_HEAD_CREDITS = 120;
@@ -30,6 +31,8 @@ export const OWN_HERO_FREE_POSES_WINDOW_HOURS = 24;
 export const CUT_PREVIEWS_PER_HOUR = 20;
 export const CUTS_IN_FLIGHT_PER_ACCOUNT = 4;
 export const CUT_BUSY_RETRY_SECONDS = 120;
+export const VOICES_IN_FLIGHT_PER_ACCOUNT = 2;
+export const VOICE_BUSY_RETRY_SECONDS = 60;
 export const OWN_TAKE_CHECK_CREDITS = 10;
 export const OWN_TAKE_CHECK_PICTURE_CREDITS = 20;
 export const OWN_TAKE_CHECK_PICTURE_LONG_CREDITS = 38, TAKE_PICTURE_SHORT_TIER_SECONDS = 4.1;
@@ -50,6 +53,7 @@ export const ownAgentTerms = z.strictObject({
   included_seconds: z.number().int().positive(),
   extra_second_credits: z.number().int().nonnegative(),
   voice_credits_per_second: z.number().int().nonnegative(),
+  voice_floor_chars_per_second: z.number().int().positive().optional(),
   pose_credits: z.number().int().nonnegative().optional(),
   head_credits: z.number().int().nonnegative().optional(),
   sprite_credits: z.number().int().nonnegative().optional(),
@@ -77,7 +81,7 @@ const CUT_TERMS = ["cut_credits", "cut_included_seconds", "cut_extra_second_cred
 export const ownAgentTermsNow = (options: { sprites?: boolean } = {}): OwnAgentTerms => ({ tariff: OWN_AGENT_TARIFF, still_credits: OWN_STILL_CREDITS,
   render_credits: OWN_FILM_RENDER_CREDITS,
   included_seconds: OWN_FILM_INCLUDED_SECONDS, extra_second_credits: OWN_FILM_EXTRA_SECOND_CREDITS, voice_credits_per_second: OWN_VOICE_CREDITS_PER_SECOND,
-  pose_credits: OWN_HERO_POSE_CREDITS, head_credits: OWN_HERO_HEAD_CREDITS, ...(options.sprites ? { sprite_credits: OWN_HERO_SPRITE_CREDITS } : {}),
+  voice_floor_chars_per_second: OWN_VOICE_FLOOR_CHARS_PER_SECOND, pose_credits: OWN_HERO_POSE_CREDITS, head_credits: OWN_HERO_HEAD_CREDITS, ...(options.sprites ? { sprite_credits: OWN_HERO_SPRITE_CREDITS } : {}),
   edit_credits: OWN_EDIT_CREDITS, music_credits: MUSIC_BED_CREDITS, film_music_credits: FILM_MUSIC_BED_CREDITS,
   take_check_credits: OWN_TAKE_CHECK_CREDITS,
   picture_check_credits: OWN_TAKE_CHECK_PICTURE_CREDITS, picture_check_long_credits: OWN_TAKE_CHECK_PICTURE_LONG_CREDITS, free_stills: OWN_FREE_STILLS, free_stills_window_hours: OWN_FREE_STILLS_WINDOW_HOURS, cut_credits: OWN_CUT_CREDITS, cut_included_seconds: OWN_CUT_INCLUDED_SECONDS,
@@ -98,8 +102,15 @@ export function ownFilmRenderCredits(s: number, terms: OwnAgentTerms = ownAgentT
   if (music && terms.film_music_credits === undefined) throw new Error("these terms price no film music");
   return film + (music ? terms.film_music_credits! : 0);
 }
-export const ownVoiceCredits = (s: number, terms: OwnAgentTerms = ownAgentTermsNow()): number =>
-  terms.voice_credits_per_second * seconds(s, OWN_VOICE_MAX_SECONDS, "a take");
+export function ownVoiceCredits(s: number, terms: OwnAgentTerms = ownAgentTermsNow(), chars?: number): number {
+  const bySeconds = terms.voice_credits_per_second * seconds(s, OWN_VOICE_MAX_SECONDS, "a take");
+  return chars === undefined ? bySeconds : Math.max(bySeconds, ownVoiceFloorCredits(chars, terms));
+}
+export function ownVoiceFloorCredits(chars: number, terms: OwnAgentTerms = ownAgentTermsNow()): number {
+  if (!Number.isSafeInteger(chars) || chars < 0) throw new Error(`${chars} characters is not a script length`);
+  const per = terms.voice_floor_chars_per_second;
+  return per === undefined ? 0 : terms.voice_credits_per_second * Math.ceil(chars / per);
+}
 export function ownStillsCredits(n: number, terms: OwnAgentTerms = ownAgentTermsNow(), free = 0): number {
   if (!Number.isSafeInteger(free) || free < 0 || free > (terms.free_stills ?? 0))
     throw new Error(`${free} free stills is outside these terms`);
@@ -128,7 +139,7 @@ export function ownEditCredits(s: number, terms: OwnAgentTerms = ownAgentTermsNo
 export type OwnAgentDelivery =
   | { skill: "film_stills"; frames: number; free?: number }
   | { skill: "film_cut_preview"; frames: number; free?: number }
-  | { skill: "film_voice"; seconds: number }
+  | { skill: "film_voice"; seconds: number; chars?: number }
   | { skill: "film_render"; seconds: number; music?: boolean }
   | { skill: "film_hero"; poses: number; sprites?: number; head?: boolean }
   | { skill: "film_edit"; seconds: number; music?: boolean }
@@ -159,7 +170,7 @@ export function ownTakeFramesCredits(sheets: number): number {
 
 export function ownAgentCharge(delivery: OwnAgentDelivery, terms: OwnAgentTerms, heldCredits: number): number {
   const charge = delivery.skill === "film_stills" || delivery.skill === "film_cut_preview" ? ownStillsCredits(delivery.frames, terms, delivery.free)
-    : delivery.skill === "film_voice" ? ownVoiceCredits(delivery.seconds, terms)
+    : delivery.skill === "film_voice" ? ownVoiceCredits(delivery.seconds, terms, delivery.chars)
     : delivery.skill === "film_hero" ? ownHeroCredits(delivery.poses, terms, delivery.sprites ?? 0, delivery.head === true)
     : delivery.skill === "film_edit" ? ownEditCredits(delivery.seconds, terms, delivery.music === true)
     : delivery.skill === "film_take_frames" ? ownTakeFramesCredits(delivery.sheets)

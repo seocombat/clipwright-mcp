@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ClipwrightApiError, type ClipwrightClient } from "@clipwright/sdk";
-import { adId, createAdInput, updateAdInput, agentRetryShape, checkFilmInput, createFilmDraftInput, filmCutInput, filmDraftId, filmEditInput, filmHeroInput, OWN_EDIT_MAX_SECONDS, TAKE_CHECK_PROMPT_MAX_CHARS, TAKE_FRAMES_PER_HOUR, filmGuideQuery, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL,
+import { adId, createAdInput, updateAdInput, agentRetryShape, checkFilmInput, createFilmDraftInput, filmCutInput, filmDraftId, filmEditInput, filmHeroInput, OWN_EDIT_MAX_SECONDS, TAKE_CHECK_PROMPT_MAX_CHARS, TAKE_FRAMES_PER_HOUR, filmGuideQuery, filmKitQuery, filmRenderInput, filmStillsInput, filmVoiceInput, OWN_FILM_MAX_SECONDS, OWN_FREE_STILLS, OWN_FREE_STILLS_WINDOW_HOURS, OWN_STILLS_MAX_PER_CALL, OWN_VOICE_CREDITS_PER_SECOND, OWN_VOICE_MAX_CHARS, OWN_VOICE_MAX_TEMPO, OWN_VOICE_MIN_TEMPO,
   OWN_STILLS_SINGLE_MAX, putFilmFilesInput, runId, takeCheckInput, takeFramesInput, type FilmRun, filmCutRunInput, OWN_CUT_INCLUDED_SECONDS,
   OWN_CUT_MAX_NEW_SOUNDS, OWN_CUT_MAX_SECONDS, OWN_CUT_MIN_SECONDS, type TakeCheckRequest, createCutInput, CUT_MAX_QUIET_SEC, CUT_PREVIEW_MAX_STILLS,
   cutId, filmCutPreviewInput, guideModesOf, HERO_RUNS_PER_HOUR, OWN_HERO_FREE_POSES_PER_DAY, OWN_HERO_FREE_POSES_WINDOW_HOURS, updateCutInput } from "@clipwright/core";
@@ -22,8 +22,12 @@ export const CHECK_FILM_DESCRIPTION = "Free and instant. Runs the checks stills 
   "delivered voice: captions on the voice, Movie.tsx's factory, anchors, names and stamps, product pictures, sounds and the storyboard. Answers " +
   "refusals as file:line, warnings, each anchor's second and word, and the voice's end. Pass changes (files, cues, sfx, captions, storyboard) to " +
   "check them before saving. Run it after every change and fix until ok is true; then take stills.";
-export const QUOTE_VOICE_DESCRIPTION = "Free. What make_voice would hold for this text: the most it can charge. Show it and wait for the go-ahead.";
-export const MAKE_VOICE_DESCRIPTION = "Paid per second delivered, after quote_voice. Speaks the script with a narrator and returns its words, each " +
+export const QUOTE_VOICE_DESCRIPTION = `Free. What make_voice would hold for this text of up to ${OWN_VOICE_MAX_CHARS} characters: the most it ` +
+  "can charge, and min_credits, the least, by the script's length. Show it and wait for the go-ahead.";
+export const MAKE_VOICE_DESCRIPTION = `Paid per second delivered, ${OWN_VOICE_CREDITS_PER_SECOND} credit${OWN_VOICE_CREDITS_PER_SECOND === 1 ? "" : "s"} ` +
+  `a second, after quote_voice. One take speaks up to ${OWN_VOICE_MAX_CHARS} characters, about six minutes; tempo ${OWN_VOICE_MIN_TEMPO} to ` +
+  `${OWN_VOICE_MAX_TEMPO} slows or speeds it, 1 as the voice reads. render_film and make_ugc take a ` +
+  `voice of up to ${OWN_FILM_MAX_SECONDS} s. Speaks the script with a narrator and returns its words, each ` +
   "with start and end seconds: write chunks, anchors and scenes on these timings; film_sec is how long the film on it runs. Waits up to 45 s; an " +
   "unfinished run names get_film_run to call.";
 export const MAKE_VOICE_CUT_DESCRIPTION = " For a faceless video, pass its cut_id (create_cut): the record takes the voice, and the delivered " +

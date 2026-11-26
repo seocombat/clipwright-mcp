@@ -100,7 +100,7 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
   make_faceless: "Start a faceless video from a script or brief: an opening clip and image scenes. You select 30–90 seconds; it " +
     "ends with its narration, at least 25 seconds and at most a quarter past the selection, " +
     "never beyond 90. Captions are on " +
-    "unless turned off. Poll get_run. attempt=2,3,… starts a new run.",
+    "unless turned off. Poll get_run. attempt=2,3,… starts a new run. quote_faceless can also name the other faceless ways.",
   quote_image: "Price one generate_image call without spending credits. A reference is {upload_id, rights_confirmed: true} " +
     "(you may use the people and works in it), {run_id} " +
     "of a succeeded generate_image run until reusable_until, or {asset_id} of a picture asset. A generation that fails is " +

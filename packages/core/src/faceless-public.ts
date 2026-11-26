@@ -24,6 +24,7 @@ import { pauseTrim } from "./reference-voice.js";
 import { pinnedMascot } from "./mascots.js";
 import { filmDirections } from "./film-directions.js";
 import { maxCreditsField } from "./max-credits.js";
+import { FACELESS_ROUTE_ESTIMATE_TEXT, facelessAlternative } from "./faceless-route-estimate.js";
 import { sceneBible, sceneDirectionMark, storedSceneProposal } from "./scene-bible.js";
 
 export const qualifiedImageUrl = uploadResponse.shape.url.max(MAX_URL_LENGTH).refine((value) => {
@@ -352,6 +353,8 @@ export const facelessQuoteResponse = facelessQuote.extend({
   skill: z.literal("make_faceless"),
   explainer_fit: z.strictObject({ fits: z.boolean(), reason: z.string(), rewrite: z.string().optional() }).optional(),
   explainer_tiers: z.strictObject({ tier: z.enum(EXPLAINER_TIERS), standard: z.number().int().positive(), pro: z.number().int().positive() }).optional(),
+  alternatives: z.array(facelessAlternative).optional().describe("The ways to make this video, this quote first as route pictures, each " +
+    `with the credits it starts from and the price of each add-on. Beside this quote, each is ${FACELESS_ROUTE_ESTIMATE_TEXT}.`),
   warnings: z.array(z.string()).default([]),
   contract_version: z.string().min(1),
 }).strict();

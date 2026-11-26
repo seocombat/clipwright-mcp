@@ -25,8 +25,7 @@ from `list_prices`, never from memory: they change.
 | What | Free quote | Paid call |
 |---|---|---|
 | Short UGC video with a presenter | `quote_ugc` | `make_ugc` |
-| Faceless video (narration over pictures) | `quote_faceless` | `make_faceless` |
-| A drawn explainer film, tier `standard` or `pro` | `quote_faceless` | `make_faceless` with `format: "explainer"` |
+| Faceless video (narration over still pictures) | `quote_faceless` | `make_faceless` |
 | One image | `quote_image` | `generate_image` |
 | One silent clip | `quote_video` | `generate_video` |
 | A custom presenter | `quote_actor` | `create_actor` |
@@ -40,6 +39,16 @@ from `list_prices`, never from memory: they change.
 Before choosing a model for an image or a clip, call `list_generation_models`:
 it names the formats, lengths and credits each model takes. `list_voices`,
 `list_actors`, `list_prices` and `get_account` are free too.
+
+## A faceless video
+
+A faceless story, list, how-to or cartoon, or a topic with no product, has
+three ways: still pictures made for the user (`make_faceless`), a cartoon you
+cut yourself, or an explainer film you write yourself. Call `quote_faceless`
+first and show the ways it names with their prices; the user picks one. A way's
+estimate is not a go-ahead: each part is quoted before it is made. For a
+cartoon or an explainer, follow the `get_film_guide` workflow of that format and
+keep the look the user picked.
 
 ## Three choices the user makes
 

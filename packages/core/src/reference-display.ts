@@ -59,7 +59,9 @@ export const NO_SCRIPT_LINE_HEAD = "**No script or product of your own?**";
 export const noScriptLine = ({ tools, credits_from }: NonNullable<ReferenceAnalysis["next_no_script"]>): string =>
   `${NO_SCRIPT_LINE_HEAD} Make a video on this reel's topic anyway; you write the script on its mechanic. Start with ` +
   `${tools.map(tool => NO_SCRIPT_MAKES[tool] ? `${tool} (${NO_SCRIPT_MAKES[tool]})` : tool).join(", ")}` +
-  `${credits_from === undefined ? "" : `; a video made for you costs at least ${credits_from} credits`}.`;
+  `${credits_from === undefined ? "" : `; a video made for you costs at least ${credits_from} credits`}.` +
+  `${!tools.includes("make_faceless") ? "" : tools.includes("get_film_guide") ? " With no product, show quote_faceless's ways and prices first."
+    : " With no product, quote_faceless first."}`;
 
 export function referenceAnalysisMarkdown(analysis: ReferenceAnalysis): string {
   const profile = analysis.reference_profile, data = analysis.data, source = analysis.source, lines: string[] = [];

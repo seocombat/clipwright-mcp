@@ -1,4 +1,4 @@
-import { EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, FACELESS_MIN_BASE_CREDITS, FAILED_STATE, SHOT_ENGINE_LABELS, SKILL_FILM_TARIFFS, videoResolutionLabel,
+import { EXPLAINER_FILM_INCLUDED_SECONDS, EXPLAINER_TIER_TARIFFS, FACELESS_MIN_BASE_CREDITS, FACELESS_ROUTE_ESTIMATE_TEXT, FACELESS_ROUTES, FAILED_STATE, SHOT_ENGINE_LABELS, SKILL_FILM_TARIFFS, videoResolutionLabel,
   type FacelessQuoteResponse, type PartsLine, type QuoteResponse } from "@clipwright/core";
 import type { WorkflowRunRead } from "@clipwright/core/workflows";
 
@@ -76,7 +76,31 @@ function designLines(design: QuoteResponse["design"]): string[] {
     (design.logo_asset_id ? ` · logo ${design.logo_asset_id}` : "")];
 }
 
-export function facelessQuoteMarkdown(quote: FacelessQuoteResponse): string {
+type RouteAddOn = NonNullable<FacelessQuoteResponse["alternatives"]>[number]["add_ons"][number];
+const RAISES: Readonly<Record<string, (add: RouteAddOn) => string>> = {
+  quote_image: add => `each extra picture +${credits(add.credits_each)}`,
+  quote_video: add => `each extra moving shot +${credits(add.credits_each)}`,
+  quote_cut: add => `a described sound bed +${credits(add.credits_each)}`,
+  quote_film_hero: add => `a new hero +${credits(add.credits_each)}`,
+};
+
+function routeLines(quote: FacelessQuoteResponse, styleReference: boolean | undefined): string[] {
+  const length = seconds(quote.outputFrames / FACELESS_FPS);
+  const ways = (quote.alternatives ?? []).map(way => {
+    const route = FACELESS_ROUTES.find(one => one.route === way.route)!;
+    const raises = way.add_ons.map(add => RAISES[add.quote_tool]?.(add) ?? `more ${add.part} +${credits(add.credits_each)} each`);
+    const start = `${credits(way.from)} credits for ${length}${raises.length ? `; ${raises.join(", ")}` : ""}`;
+    const price = way.route === "pictures" ? `${credits(way.from)} credits, this quote` : "from " + start;
+    const looks = way.looks?.length ? `; styles: ${way.looks.map(look => look.name).join(", ")}` : "";
+    return `- ${route.name} (${route.tool}): ${price}${looks}${way.available ? "" : `. Not available: ${way.reason ?? "not on this account"}`}`;
+  });
+  const menu = ways.length < 2 ? [] : ["", "Ways to make this video:", ...ways,
+    `The prices beside this quote are ${FACELESS_ROUTE_ESTIMATE_TEXT}.`];
+  const look = styleReference === false && quote.posePictures === undefined ? ["", "Look: taken from the first picture; pass style_reference to set one."] : [];
+  return [...menu, ...look];
+}
+
+export function facelessQuoteMarkdown(quote: FacelessQuoteResponse, asked: { styleReference?: boolean } = {}): string {
   const length = quote.outputFrames / FACELESS_FPS;
   const pictures = quote.images !== undefined && quote.imageCredits !== undefined ? quote.images * quote.imageCredits : null;
   const explainer = quote.posePictures !== undefined, tiers = quote.explainer_tiers;
@@ -100,6 +124,7 @@ export function facelessQuoteMarkdown(quote: FacelessQuoteResponse): string {
   ];
   return [
     `**Quote** · make_faceless · ${seconds(length)} selected · captions ${quote.captions ? "on" : "off"} · **at most ${credits(quote.totalCredits)} credits**`,
+    ...routeLines(quote, asked.styleReference),
     "", ...table(rows),
     "", "The most this video can cost: the charge counts the pictures actually made and the seconds delivered.",
     ...(tiers ? ["", `Explainer levels on this request: standard ${credits(tiers.standard)} credits · pro ${credits(tiers.pro)} credits ` +

@@ -18,6 +18,32 @@ listed under.
 
 ## [Unreleased]
 
+## [0.81.0] - 2026-11-26
+
+### Added
+
+- *Server-side:* `quote_faceless` can name the ways to make a faceless video next to the quote: this video as quoted
+  (still pictures), the cartoon and the explainer, which your agent makes part by part. The answer carries
+  `alternatives[]`, one entry per way, this quote first; the markdown shows the others from their lowest price. A way has
+  `from`, the sum of its `parts` at this length. Each part lists its count, its price per unit and the quote tool that
+  prices it. `add_ons` lists what can raise a way above its start, each as one unit at its own price: a picture, a moving
+  shot, a described sound bed or a new hero. The cartoon lists its drawing styles in `looks`, each with a sample picture.
+  A way your account can't use yet says why in `reason`. These are estimates; each part is quoted and approved before it
+  is made.
+- *Server-side:* the faceless line in the MCP server instructions and in the skill sends the agent to `quote_faceless`
+  first, also for a topic with no product, so it shows the ways and their prices and the user picks one.
+- *Dashboard:* the first-run screen puts connecting your agent first, with Trends second and your credits below the steps.
+  On a phone the first connect instruction now sits in the top half of the screen. The new-key panel opens with a free
+  first call: `curl` of `GET /v1/account` with the key.
+- *Dashboard:* the expired connection page, where confirming your email late can land you signed in, has an "Open your
+  dashboard" link.
+
+### Changed
+
+- *Dashboard:* the connect step ticks when your agent connects or calls the API, not when a key is issued: a live OAuth
+  grant ticks it, and so does any API call made while you hold a live key, the free balance call included. A key alone
+  shows a line telling you to add it to your agent.
+
 ## [0.80.0] - 2026-11-25
 
 ### Added

@@ -245,24 +245,29 @@ export const adMethodInstruction = (adGuide: boolean): string => "Ads: a make_ug
     "the product's name, the offer, the call to action), the hook, live shots of the actor (shots) and edit_sounds on cuts. "
     : "list_moves moves fit a number, the name, the offer, the call to action; a live shot (shots) the hook; edit_sounds the cuts. ") +
   "A quote_ugc with no device names suggestions[] and adds nothing.";
-export const FACELESS_DIY_INSTRUCTION = "A faceless story, list, kids, own-pictures or cartoon video: offer make_faceless, or your own " +
-  "cut from get_film_guide in that format: create_cut, check_cut, quote_cut, render_cut, each quoted first.";
+const facelessHead = (guides: boolean) =>
+  `- A faceless story, list, how-to, kids${guides ? ", own-pictures" : ""} or cartoon video, or a topic with no product: `;
+export const FACELESS_DIY_INSTRUCTION = "An estimate is no go-ahead; follow the pick's get_film_guide workflow, keeping its look.";
+const SOLD_EXPLAINER = "make_faceless, format explainer";
+const facelessQuoteStep = (ownAgent: boolean) => (ownAgent ? "show quote_faceless's ways" : "quote_faceless");
+function facelessRoute({ ownAgent, explainer, facelessDiy }: InstructionModes): string {
+  const first = `${facelessQuoteStep(ownAgent)} first`;
+  if (!ownAgent) return `${facelessHead(false)}${first}, then make_faceless${explainer ? `, or an explainer (${SOLD_EXPLAINER})` : ""}.`;
+  if (!facelessDiy) return `${facelessHead(false)}${first}: make_faceless, or an explainer ` +
+    `${explainer ? `(${SOLD_EXPLAINER}, or yours from get_film_guide)` : "you write from get_film_guide (format explainer)"}.`;
+  return `${facelessHead(true)}show quote_faceless's ways and prices first; the user picks still pictures (make_faceless), cartoon or ` +
+    `explainer${explainer ? ` (yours or ${SOLD_EXPLAINER})` : ""}. ${FACELESS_DIY_INSTRUCTION}`;
+}
 export interface InstructionModes { ownAgent: boolean; explainer: boolean; adGuide: boolean; facelessDiy: boolean }
 export const ROUTER_HEAD = "Pick the format first, then follow its workflow:";
 export const AD_ROUTE = "- An ad or a product video: by default a multi-shot ad from generated clips (generate_image, generate_video, " +
   "make_voice, render_edit); read get_ad_guide section workflow first. Not for a person talking to camera.";
 export const PRESENTER_ROUTE = "- An ad, a product video or a person talking to camera: make_ugc, with the five choices below.";
-const EXPLAINER_ROUTE = "- A how-to or N mistakes or N ways: ";
-export function formatRouter({ ownAgent, explainer, adGuide, facelessDiy }: InstructionModes): string {
-  const explainerLine = explainer ? `${EXPLAINER_ROUTE}an explainer (make_faceless, format explainer)` +
-      (ownAgent ? " or yours from get_film_guide." : ".")
-    : ownAgent ? `${EXPLAINER_ROUTE}an explainer you write from get_film_guide (format explainer).` : "";
+export function formatRouter(modes: InstructionModes): string {
   return [ROUTER_HEAD,
-    ...adGuide ? [AD_ROUTE, "- A person talking to camera (UGC, a testimonial, a talking head), when asked for one: make_ugc, with the five " +
+    ...modes.adGuide ? [AD_ROUTE, "- A person talking to camera (UGC, a testimonial, a talking head), when asked for one: make_ugc, with the five " +
       "choices of get_ad_guide section workflow."] : [PRESENTER_ROUTE],
-    facelessDiy ? `- ${FACELESS_DIY_INSTRUCTION}` : "- A faceless story, list, kids or cartoon video: make_faceless from a script or a few " +
-      "words of topic.",
-    ...explainerLine ? [explainerLine] : [],
+    facelessRoute(modes),
     "- One image or one clip: generate_image or generate_video directly.",
     "- Like a reel the user brings: analyze_reference (quote_analysis first), then its format.",
   ].join("\n");
@@ -282,7 +287,7 @@ const serverInstructions = (offer: string, modes: InstructionModes): string =>
   "file; it publishes nothing anywhere.\n\n" +
   "describe_tool answers a tool's or a field's full guidance, free: read it before its first use, such as quote_ugc templates.\n\n" +
   "Quote first. Call the matching quote tool before every paid tool: quote_ugc before make_ugc, quote_faceless before " +
-  "make_faceless, and so on for every paid tool. Show the user the credits and wait for the user's go-ahead before the paid call; a go-ahead for " +
+  "make_faceless. Show the user the credits and wait for the user's go-ahead before the paid call; a go-ahead for " +
   "this order with unchanged terms needs no second ask. A quote_ugc price is an estimate: the charge follows the " +
   "measured video and can land above or below it, so say so before the run. Take prices from the quote or list_prices, " +
   "never from memory.\n\n" +
@@ -300,7 +305,8 @@ const serverInstructions = (offer: string, modes: InstructionModes): string =>
     `${HOOK_STOP} ${MUSIC_STOP} ${STOPS_RULE}\n\n${LOOK_STEP}\n\n${adMethodInstruction(false)}\n\n`) +
   "If no tool fits, or an answer or a result disappoints, offer to tell Clipwright with " +
   "send_feedback (free; pass run_id). Send it once the user agrees.\n\n" +
-  "Start from what works. When the user asks for a video with only a product, a topic, a link or a plain script, don't go " +
+  `Start from what works. Only a topic, no product: ${facelessQuoteStep(modes.ownAgent)} first. When the user asks for a video with only a ` +
+  "product, a link or a plain script, don't go " +
   "straight to one talking-head make_ugc; lead this brief. 1. Ask the topic in a few words, then run find_trends on it over the " +
   "last 7 days (its default) and show 3 to 5 reels that took off, with views and x_median; when few are on topic or took off, " +
   "try 2 or 3 other wordings of the topic, then a longer window. The user picks one or brings their own reel. 2. Break the " +
@@ -309,7 +315,7 @@ const serverInstructions = (offer: string, modes: InstructionModes): string =>
   "(x to the author, the questions in the comments, who speaks in the reference), show the choice and its reason to the user, " +
   "then pick the presenter, setting and the script's voice to match and pass it as audience. Write the script on the " +
   "reference's mechanic (hook, structure, pacing), never its words: the user's own, or yours from a few words of topic when the user has " +
-  "none; with no product, offer a faceless or cartoon video on the topic instead. " +
+  `none; with no product, ${facelessQuoteStep(modes.ownAgent)} on the topic instead. ` +
   "3. Compile it with plan_reference_remake, passing the analysis_id (the analysis's next), not the profile, and show the script for approval. " +
   "A user who brings a reel and asks for a video like it starts at step 2. Turn the user's notes into a revised script " +
   "and compile it again with plan_id, base_version and review_notes; a note about a picture or graphic on a line goes in " +
@@ -353,7 +359,8 @@ export const MCP_SERVER_INSTRUCTIONS = mcpServerInstructions({ ownAgent: false }
 export const MAKE_FACELESS_DESCRIPTION =
   "Start a paid finished faceless video from a script or brief. You select 30–90 seconds; " +
   "the video ends with its narration, runs at least 25 seconds (an explainer, as long as its narration) and at most a quarter past the selection, never beyond 90. " +
-  "The video has an opening animated clip and image scenes. Captions are on by default and can be turned off.";
+  "The video has an opening animated clip and image scenes. Captions are on by default and can be turned off. " +
+  "Its quote can also name the other faceless ways, each with an estimate.";
 
 export const MAKE_FACELESS_AGENT_PROTOCOL =
   "It answers a run_id at once; poll get_run with its poll.arguments until 'succeeded' (video_url) or 'failed'. " +

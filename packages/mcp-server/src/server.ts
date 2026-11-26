@@ -1175,13 +1175,19 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       title: "Quote a faceless video",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "Estimate the credit cost of make_faceless without spending credits; show the user the price before make_faceless.",
+        "Estimate the credit cost of make_faceless without spending credits; show the user the price before make_faceless. " +
+        "It can also name the other faceless ways this server offers, each with an estimate, not a quote.",
       inputSchema: offeredFacelessInput,
     },
     async (args) =>
       withFailureReport(async () => {
-        const quote = await client.quoteFaceless(makeFacelessInput.parse(args));
-        return { content: [{ type: "text", text: JSON.stringify({ ...quote, display_markdown: facelessQuoteMarkdown(quote), display_hint: RUN_DISPLAY_HINT }) }] };
+        const input = makeFacelessInput.parse(args), answer = await client.quoteFaceless(input);
+        const served = (answer.alternatives ?? []).filter(way => way.route === "pictures" ||
+          (way.route === "cartoon" ? ownAgent && options.facelessDiy === true : ownAgent));
+        const { alternatives: _all, ...rest } = answer;
+        const quote = served.length > 1 ? { ...rest, alternatives: served } : rest;
+        const shown = facelessQuoteMarkdown(quote, { styleReference: input.style_reference !== undefined });
+        return { content: [{ type: "text", text: JSON.stringify({ ...quote, display_markdown: shown, display_hint: RUN_DISPLAY_HINT }) }] };
       }),
   );
 

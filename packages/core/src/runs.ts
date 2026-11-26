@@ -12,6 +12,11 @@ import { SHOT_OPERATION_MODES, shotId } from "./edit-operations.js";
 import { runGeneration } from "./generations-output.js";
 import { postText } from "./post-text.js";
 import { runVideo } from "./video-size.js";
+import type { ANALYZE_CREATOR_SKILL } from "./creator-profile.js";
+import type { OwnAgentSkill } from "./own-agent-price.js";
+import type { ANALYZE_REFERENCE_SKILL } from "./reference-analysis.js";
+import type { Skill } from "./skills.js";
+import type { FIND_TRENDS_SKILL } from "./trend-search.js";
 
 export const RUN_STATES = [
   "queued",
@@ -58,12 +63,63 @@ export const FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT =
 export const FILM_CUT_AI_DISCLOSURE_TEXT =
   "This video was generated with AI: the voice is synthetic, and so is every picture and clip its author did not supply.";
 
+export const FILM_RENDER_AI_DISCLOSURE_TEXT =
+  "This video was generated with AI: the voice is synthetic, and so are any music made for it and every picture and clip its author " +
+  "did not supply; any person shown in it may be synthetic too.";
+
+export const FILM_STILLS_AI_DISCLOSURE_TEXT =
+  "These images were generated with AI: every picture and clip in them that their author did not supply is synthetic, " +
+  "and any person shown in them may be synthetic too.";
+
+export const FILM_EDIT_AI_DISCLOSURE_TEXT =
+  "This video was generated with AI: any voice-over and any music made for it are synthetic, and so is every clip its author did not supply.";
+
+export const FILM_EDIT_OWN_VIDEOS_AI_DISCLOSURE_TEXT =
+  "This video was generated with AI: any voice-over and any music made for it are synthetic, and so is every clip its author did not " +
+  "supply; any person shown in it may be synthetic too.";
+
+export const GENERATED_VIDEO_AI_DISCLOSURE_TEXT =
+  "This video was generated with AI: any sound is synthetic, and so is every frame its author did not supply.";
+
+export const GENERATED_IMAGE_AI_DISCLOSURE_TEXT = "This image was generated with AI: the picture is synthetic.";
+
+export const SHOT_CANDIDATE_AI_DISCLOSURE_TEXT =
+  "This shot was generated with AI: any clip in it is synthetic, and so is every picture its author did not supply.";
+
+export const VOICE_AI_DISCLOSURE_TEXT = "This audio was generated with AI: the voice is synthetic.";
+export const HERO_AI_DISCLOSURE_TEXT = "These pictures were generated with AI: the hero's poses are synthetic.";
+export const ACTOR_AI_DISCLOSURE_TEXT = "These pictures were generated with AI: the actor is synthetic.";
+
+export const AI_DISCLOSURE_PLAIN_TEXT = "This video was generated with AI.";
+
+export type RunSkill = Skill | OwnAgentSkill | typeof ANALYZE_REFERENCE_SKILL | typeof ANALYZE_CREATOR_SKILL | typeof FIND_TRENDS_SKILL;
+
+export const RUN_AI_DISCLOSURE: Readonly<Record<RunSkill, string | ((input: unknown) => string) | null>> = Object.freeze({
+  make_ugc: AI_DISCLOSURE_TEXT,
+  revise_long_form: AI_DISCLOSURE_TEXT,
+  make_faceless: (input: unknown) => (input as { format?: unknown } | null)?.format === "explainer" ? FACELESS_EXPLAINER_AI_DISCLOSURE_TEXT
+    : facelessOwnImages(input) ? FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT : FACELESS_AI_DISCLOSURE_TEXT,
+  create_actor: ACTOR_AI_DISCLOSURE_TEXT,
+  edit_shot: SHOT_CANDIDATE_AI_DISCLOSURE_TEXT,
+  generate_image: GENERATED_IMAGE_AI_DISCLOSURE_TEXT,
+  generate_video: GENERATED_VIDEO_AI_DISCLOSURE_TEXT,
+  film_render: FILM_RENDER_AI_DISCLOSURE_TEXT,
+  film_stills: FILM_STILLS_AI_DISCLOSURE_TEXT,
+  film_cut: FILM_CUT_AI_DISCLOSURE_TEXT,
+  film_cut_preview: FILM_CUT_AI_DISCLOSURE_TEXT,
+  film_edit: (input: unknown) => editCutsOwnVideos(input) ? FILM_EDIT_OWN_VIDEOS_AI_DISCLOSURE_TEXT : FILM_EDIT_AI_DISCLOSURE_TEXT,
+  film_voice: VOICE_AI_DISCLOSURE_TEXT,
+  film_hero: HERO_AI_DISCLOSURE_TEXT,
+  film_take_frames: null,
+  film_take_check: null,
+  analyze_reference: null,
+  analyze_creator: null,
+  find_trends: null,
+});
+
 export function aiDisclosureText(skill: string, input: unknown): string {
-  if (skill === "film_cut" || skill === "film_cut_preview") return FILM_CUT_AI_DISCLOSURE_TEXT;
-  if (skill === "revise_long_form") return AI_DISCLOSURE_TEXT;
-  if (skill !== "make_faceless") return AI_DISCLOSURE_TEXT;
-  if ((input as { format?: unknown } | null)?.format === "explainer") return FACELESS_EXPLAINER_AI_DISCLOSURE_TEXT;
-  return facelessOwnImages(input) ? FACELESS_OWN_IMAGES_AI_DISCLOSURE_TEXT : FACELESS_AI_DISCLOSURE_TEXT;
+  const entry = Object.hasOwn(RUN_AI_DISCLOSURE, skill) ? RUN_AI_DISCLOSURE[skill as RunSkill] : null;
+  return typeof entry === "function" ? entry(input) : entry ?? AI_DISCLOSURE_PLAIN_TEXT;
 }
 
 export function facelessOwnImages(input: unknown): boolean {
@@ -71,6 +127,14 @@ export function facelessOwnImages(input: unknown): boolean {
     ? input as { scene_images?: unknown; resolved_revision?: { own_images?: unknown } } : {};
   return stored.resolved_revision !== undefined ? stored.resolved_revision?.own_images === true
     : Array.isArray(stored.scene_images) && stored.scene_images.length > 0;
+}
+
+export function editCutsOwnVideos(input: unknown): boolean {
+  const clips = typeof input === "object" && input !== null ? (input as { clips?: unknown }).clips : undefined;
+  return Array.isArray(clips) && clips.some(clip => {
+    const c = clip as { asset_id?: unknown; source?: { asset_id?: unknown } } | null;
+    return typeof c?.asset_id === "string" || typeof c?.source?.asset_id === "string";
+  });
 }
 
 export const AI_DISCLOSURE_EMBEDDED_METADATA_KEY = "ai-disclosure-embedded";

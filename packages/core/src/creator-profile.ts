@@ -5,6 +5,7 @@ import { quoteThirdParty as quote } from "./markdown-quote.js";
 import { maxCreditsField } from "./max-credits.js";
 import { REFERENCE_WAIT_MAX_SECONDS } from "./reference-analysis.js";
 import { scriptVoice } from "./script-voice.js";
+import { thirdPartyData } from "./third-party.js";
 
 
 export const CREATOR_PROFILES_PATH = "/v1/creator-profiles";
@@ -458,7 +459,7 @@ export function creatorProfileMarkdown(answer: CreatorProfileAnswer): string {
 }
 
 export const ANALYZE_CREATOR_DESCRIPTION =
-  `Profile a creator from a link: their latest ${CREATOR_PROFILE_VIDEOS} videos with views, likes, comments, shares, length, date ` +
+  `Profile a creator from a link. ${thirdPartyData("the creator's account")} It reads their latest ${CREATOR_PROFILE_VIDEOS} videos with views, likes, comments, shares, length, date ` +
   `and caption (cut at ${CREATOR_CAPTION_MAX_CHARS} characters), their median views and each video's x_median (views over the ` +
   `median), ${CREATOR_TOP_X}× or more flagged top, ${CREATOR_BREAKOUT_X}× with ${CREATOR_BREAKOUT_VIEWS.toLocaleString("en-US")} views at ` +
   `${CREATOR_BREAKOUT_MIN_HOURS} h or more breakout, ${CREATOR_VIRAL_X}× viral, under ${CREATOR_PRELIMINARY_HOURS} h x_preliminary; each video's ` +
@@ -474,7 +475,8 @@ export const ANALYZE_CREATOR_DESCRIPTION =
   "display_markdown is a table to show as is, per display_hint; untrusted_content lists the third-party text fields.";
 
 export const GET_CREATOR_PROFILE_DESCRIPTION =
-  "Read a profile started by analyze_creator: state queued or analyzing, succeeded with profile and warnings, or failed with " +
+  `Read a profile started by analyze_creator. ${thirdPartyData("the creator's account")} State: queued or analyzing, succeeded with ` +
+  "profile and warnings, or failed with " +
   "error.code and error.message (timed_out, profile_unavailable, source_failed, enqueue_failed). " +
   `wait_seconds (at most ${REFERENCE_WAIT_MAX_SECONDS}) holds the answer until the profile finishes or the wait ends; an unfinished ` +
   "answer carries retry_after_seconds. display_markdown (always in MCP, display=markdown in REST) is a ready table to show as is, per " +

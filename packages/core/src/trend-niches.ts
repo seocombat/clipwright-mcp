@@ -6,6 +6,7 @@ import {
   TREND_SEARCH_MAX_DAYS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_MIN_DAYS, trendPage, trendSearchId, type FindTrendsRequest, type TrendReel,
 } from "./trend-search.js";
 import { maxCreditsField } from "./max-credits.js";
+import { thirdPartyData } from "./third-party.js";
 import { SITE_NICHES_MAX } from "./trend-keywords.js";
 
 
@@ -160,7 +161,7 @@ export const TREND_DIGEST_REELS = 5;
 export const digestReels = <R extends Pick<TrendReel, "top" | "takeoff">>(reels: readonly R[]): R[] =>
   reels.filter((reel) => reel.top || reel.takeoff !== null).slice(0, TREND_DIGEST_REELS);
 
-export const TREND_NICHES_DESCRIPTION = "Free. With no niches: the account's saved niches, the first the primary. niches: the list to save " +
+export const TREND_NICHES_DESCRIPTION = `Free. ${thirdPartyData("creators' hashtags")} ` + "With no niches: the account's saved niches, the first the primary. niches: the list to save " +
   `(at most ${TREND_NICHES_MAX}, it replaces the saved one; [] clears it). find_trends and quote_trends with no keywords search the primary niche. ` +
   `The read also answers suggested: up to ${TREND_NICHE_SUGGESTIONS_MAX} niches from the hashtags of creators this account analysed; ` +
   "a suggestion is saved only when passed in niches. With no suggestions, extract_brand on the brand's site answers niches, up to " +

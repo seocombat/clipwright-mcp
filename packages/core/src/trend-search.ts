@@ -4,6 +4,7 @@ import { CAPTION_FUNNEL_MAX_CHARS, captionFunnelWord } from "./caption-funnel.js
 import { CREATOR_CAPTION_MAX_CHARS, CREATOR_PLATFORMS, CREATOR_TOP_X, creatorAuthorUrl, medianOf, xToMedian, type CreatorPlatform } from "./creator-profile.js";
 import { quoteThirdParty as quote } from "./markdown-quote.js";
 import { REFERENCE_WAIT_MAX_SECONDS } from "./reference-analysis.js";
+import { thirdPartyData } from "./third-party.js";
 import { trendKeywords, trendLanguageCode } from "./trend-keywords.js";
 
 
@@ -618,7 +619,7 @@ function nextPageLine(answer: Pick<TrendSearchAnswer, "next_page" | "parent_sear
 
 export const FIND_TRENDS_DESCRIPTION =
   `Reels that took off on a topic: up to ${TREND_SEARCH_REELS} per platform, one per creator, TikTok and Instagram in one ranking by ` +
-  "x_median (views over the creator's median). Charged only on success, a mix that reached one platform too; " +
+  `x_median (views over the creator's median). ${thirdPartyData("the reels")} Charged only on success, a mix that reached one platform too; ` +
   `${TREND_SEARCH_PER_HOUR} per hour. An unfinished answer's poll names get_trend_search, free. Each reel says why it is here, and a reel measured before carries its speed now; ` +
   "the same call with another sort reorders the same search for free within the hour. A weak result (under two reels that took off) " +
   "lists suggested_wordings: search again with one. With no keywords it searches the primary saved niche (trend_niches). " +
@@ -629,7 +630,7 @@ export const FIND_TRENDS_DESCRIPTION =
 
 export const GET_TREND_SEARCH_DESCRIPTION =
   "Read a search or a next page started by find_trends: state queued or searching, succeeded with result and warnings, or failed " +
-  "with error.code and error.message. " +
+  `with error.code and error.message. ${thirdPartyData("the reels")} ` +
   `wait_seconds (at most ${REFERENCE_WAIT_MAX_SECONDS}) holds the answer until the search finishes or the wait ends; an unfinished ` +
   "answer carries retry_after_seconds and poll. sort reorders the reels. display_markdown is a ready table; display_hint says " +
   "how to show it. untrusted_content lists the third-party text fields. credits_charged is the price once succeeded. Free.";

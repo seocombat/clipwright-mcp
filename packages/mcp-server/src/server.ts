@@ -91,6 +91,7 @@ import {
   trendSearchQuery,
   type TrendSort,
   TREND_NICHES_DESCRIPTION,
+  thirdPartyData,
   trendNichesInput,
   trendSort,
   analyzeCreatorRequest,
@@ -331,7 +332,8 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "Check the status of a video generation started by make_ugc or make_faceless, or of a generate_image or " +
-        "generate_video run. Pass the run_id, and wait_seconds to hold the answer until the run ends. While the run " +
+        `generate_video run. ${thirdPartyData("a reference reel")} ` +
+        "Pass the run_id, and wait_seconds to hold the answer until the run ends. While the run " +
         "is still working it returns status IN_PROGRESS with poll.arguments: call again with them until it reaches a " +
         "terminal state — SUCCEEDED (with video_url, or generation.url for generate_image and generate_video) or FAILED, " +
         "with display_markdown to show.",
@@ -1067,7 +1069,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   server.registerTool("extract_brand", {
     title: "Read a brand from a site",
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
-    description: "Free. A public site's colours, fonts, logo and corners as a proposed design, and its own name and description as a " +
+    description: `Free. ${thirdPartyData("the site or reel")} ` + "A public site's colours, fonts, logo and corners as a proposed design, and its own name and description as a " +
       "proposed script voice (voice.about), with a proposed brand_name and prompt_block; none is saved until passed to brand_kit. " +
       "niches: up to three trend niches from the site's own words, saved only when passed to trend_niches, from left out. " +
       "logo_url: import with create_asset for design.logo_asset_id. " +
@@ -1088,7 +1090,7 @@ export function createServer(client: ClipwrightClient, options: CreateServerOpti
   server.registerTool("brand_kit", {
     title: "Read or save the brand kit",
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-    description: "Free. With neither field: the saved design (used when a video names none), the saved script voice, our looks and faces. " +
+    description: `Free. ${thirdPartyData("a site")} ` + "With neither field: the saved design (used when a video names none), the saved script voice, our looks and faces. " +
       "design, voice: the one to save; the other stays as saved, and voice {} clears the voice. Read voice before you write " +
       "a script: when a call passes none, the server takes its banned phrases out, adds its sign-off and names both in warnings[]. " +
       "styles: the saved styles; style saves one by name (a film draft names it in brand_style). " +

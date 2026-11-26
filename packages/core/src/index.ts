@@ -1,4 +1,5 @@
 export * from "./skills.js";
+export * from "./third-party.js";
 export * from "./faceless-routes.js";
 export * from "./faceless-route-estimate.js";
 export * from "./service-offer.js";

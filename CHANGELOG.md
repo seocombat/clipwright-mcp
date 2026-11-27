@@ -18,6 +18,14 @@ listed under.
 
 ## [Unreleased]
 
+## [0.83.0] - 2026-11-27
+
+### Added
+
+- A new error code, `film_busy`. An account renders up to three `render_film` films at a time. A fourth start gets 429
+  `film_busy` and a `Retry-After` header, and nothing is charged. Repeating a started call with the same key still
+  returns its run.
+
 ## [0.82.0] - 2026-11-26
 
 ### Added

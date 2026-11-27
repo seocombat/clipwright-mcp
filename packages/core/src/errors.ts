@@ -409,6 +409,7 @@ const BARE_ERROR_CODES = [
   "explainer_busy",
   "feedback_limited",
   "film_asset_not_ready",
+  "film_busy",
   "film_draft_limited",
   "film_draft_not_found",
   "film_draft_stale",

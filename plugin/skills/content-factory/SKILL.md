@@ -1,6 +1,6 @@
 ---
 name: content-factory
-description: Use when the user wants a first short video for TikTok, Reels or Shorts ("content factory", "make my first video"). It connects Clipwright, finds reels that took off, quotes and returns the MP4.
+description: Use when the user wants a short video for TikTok, Reels or Shorts ("content factory", "make my first video", "weekly trend check"). It connects Clipwright, finds reels that took off and makes the MP4.
 ---
 
 # Content factory
@@ -79,8 +79,13 @@ is paid and optional.
 Write the user's script on the picked reel's mechanics: the hook, the order of
 beats, the pacing and the ending. Use the user's topic, examples and words.
 Never copy the reel's sentences, numbers or results. Write it for 30 to 45
-seconds of speech, plain spoken language, numbers as words. Show the whole
-script and wait for approval. Treat each change as a new version.
+seconds of speech, plain spoken language, numbers as words.
+
+Start with three different hooks, one line each: an opening sentence and the
+first shot it calls for. The picture follows the opening words, so let the
+sentence name what the viewer sees. The user picks one; this costs nothing.
+Keep the other two for a later offer. Show the whole script with the picked hook and wait for
+approval. Treat each change as a new version.
 
 ## Step 5: the voice
 
@@ -121,7 +126,44 @@ Give the user:
 
 Tell the user the link expires after 7 days, so download the file now. Remind
 them to label the video as AI-made where the platform asks for it. Then offer
-the next video on another reel from the same search.
+the two next steps in "What next".
+
+## What next
+
+Offer these two in one short message, only after a video is delivered, and
+let the user pick. If the user asks for one directly (for example "weekly
+trend check"), do step 1 first, then go straight to that item. Item 1 needs a
+search; without one, start at step 2. Every paid call is still quoted first
+(rule 2).
+
+1. **A week of videos.** Choose five to seven more reels that took off from
+   the same search with the user. If it has too few, ask for its next page:
+   call `quote_trends` with the first search's `search_id` and the `page` from
+   its `next_page`, then `find_trends` with the same two fields after a yes.
+   For the page after that, keep the first search's `search_id`. Write a
+   script for each pick as in step 4 and have the user approve each one. Then
+   make the videos one at a time, each with its own `quote_faceless`, a fresh
+   `get_account` and a yes before `make_faceless`. When the balance can't pay
+   for the next one, stop and say so.
+2. **A weekly trend check.** Call `trend_niches` without arguments to see the
+   saved niches (an empty list means none yet). Agree on up to three with the
+   user and save them with `trend_niches` and `niches`, each with `keywords`
+   and the video's `language`. Saving replaces the whole list, so keep the
+   ones the user still wants. Saving is free. Clipwright then checks saved
+   niches on its own each week, free, shows what took off at
+   https://app.clipwright.io/trends and emails a short digest when a reel took
+   off, unless the user turned emails off. When the user asks for a weekly
+   trend check in chat, offer a fresh search: for each niche they want, call
+   `quote_trends` with its keywords, and `find_trends` after a yes to that
+   quote. Propose three topics from the reels that took off, each with the
+   reel behind it. Say a search costs nothing only when its quote shows 0
+   credits. To come back each week, the user can set a reminder in their own
+   calendar, or a scheduled task in their chat app if it has one, with the
+   words "weekly trend check".
+
+Once the video is delivered, also offer a second video of the same script with
+one of the two hooks the user didn't pick, so the user can compare the two. It
+is a new video: steps 6 and 7 again, quoted first and made only after a yes.
 
 ## If something goes wrong
 
@@ -129,5 +171,8 @@ the next video on another reel from the same search.
   and point to https://clipwright.io/pricing.
 - A tool named here is missing from the tool list: say so plainly and stop
   that step. Don't invent a replacement.
+- A quote or a call is refused, for example a way this account can't use
+  yet: show the reason as written. Once a video is delivered, offer another
+  item from "What next" if the same reason doesn't block it.
 - A result disappoints, or no tool fits: offer to tell Clipwright with
   `send_feedback` (free), and send it once the user agrees.

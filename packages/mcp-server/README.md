@@ -278,7 +278,7 @@ rate. [Watch it](https://clipwright.io/mcp#examples).
 - `delete_creator_profile` — delete a finished creator profile at once; the run
   that made it and its charge stay. Free.
 - `quote_trends` — price of a trend search: 20 credits, or 0 when a search of
-  the same query from the last hour would answer. Free.
+  the same query from the last 24 hours would answer. Free.
 - `find_trends` — reels that took off on a topic: keywords on TikTok and
   Instagram in one ranking by default (`platform: mix`), or on one of them, up
   to 10 reels per platform posted within `posted_within_days` (7 by default; 1

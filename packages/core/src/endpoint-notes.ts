@@ -3,7 +3,7 @@ import { CANDIDATE_CHARGE_TEXT } from "./edit-candidate.js";
 import { REVISION_CHARGE_TEXT } from "./edit-revision.js";
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_PER_HOUR, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
 import {
-  TREND_FREE_PAGES_PER_DAY, TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_PER_HOUR,
+  TREND_FREE_PAGES_PER_DAY, TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_PER_HOUR, TREND_SEARCH_REPLAY_SECONDS,
   TREND_SEARCH_REELS,
 } from "./trend-search.js";
 import { FEEDBACK_PER_HOUR } from "./feedback.js";
@@ -117,15 +117,15 @@ export const ENDPOINT_NOTES: Readonly<Record<string, string>> = {
   "DELETE /v1/creator-profiles/{id}":
     "Deletes a finished creator profile at once; the run that made it and its charge stay. Refused with run_not_finished while it is being made. Free.",
   "POST /v1/trend-searches/quote":
-    `Prices a topic search: ${TREND_SEARCH_CREDITS} credits, or 0 when a search of the same query from the last hour would answer or one of the ` +
+    `Prices a topic search: ${TREND_SEARCH_CREDITS} credits, or 0 when a search of the same query from the last ${TREND_SEARCH_REPLAY_SECONDS / 3600} hours would answer or one of the ` +
     `account's ${TREND_FREE_SEARCHES_PER_MONTH} free searches this month applies; free_searches_left says how many remain. With search_id ` +
     `and page it prices a next page: 0, free for ${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, up to ` +
     `${TREND_FREE_PAGES_PER_DAY} pages a day per account; past them, or while free pages are at capacity, ${TREND_PAGE_PAID_CREDITS} ` +
     "credits, and warnings[] says why. Charges nothing.",
   "POST /v1/trend-searches":
     `Starts a search for reels on a topic, TikTok and Instagram ranked together unless platform names one: up to ${TREND_SEARCH_REELS} ` +
-    "reels per platform, one per creator, each with its views against its creator's median. Answers at once; the same query within an " +
-    `hour answers the same search for free. Holds ${TREND_SEARCH_CREDITS} credits, charged once it succeeds, a mix that reaches only one ` +
+    "reels per platform, one per creator, each with its views against its creator's median. Answers at once; the same query within " +
+    `${TREND_SEARCH_REPLAY_SECONDS / 3600} hours answers the same search for free. Holds ${TREND_SEARCH_CREDITS} credits, charged once it succeeds, a mix that reaches only one ` +
     "platform included (warnings[] names the other); no reel found, or any failure, costs nothing. " +
     `The first ${TREND_FREE_SEARCHES_PER_MONTH} searches each calendar month hold and charge nothing; a failed one does not count. ` +
     `${TREND_SEARCH_PER_HOUR} new searches per hour. With search_id and page alone it starts a next page of a finished search ` +

@@ -18,6 +18,24 @@ listed under.
 
 ## [Unreleased]
 
+## [0.84.0] - 2026-11-28
+
+### Added
+
+- *Server-side:* `analyze_reference` reads, and `quote_analysis` prices, a YouTube video link: a Short, a `watch?v=`
+  link, a `youtu.be` link or an embed, up to 179 seconds. The video is read at reduced resolution, so small on-screen
+  text and graphics may be missed; the quote and the start say so in `warnings[]`. For a full read, upload the MP4 with
+  `create_asset` and pass its `asset_id`. A YouTube analysis has no comment count, top comments or code words, and no
+  author median or recent median with their ratio (`x`), each named in `warnings[]`; it has frames but no `video` file.
+  Playlist, channel, live and `music.youtube.com` links are still refused. An account can have 10 YouTube links that
+  are being read now or whose video could not be downloaded or read in the last 24 hours. Past that, or when YouTube
+  reading is busy, the start gets 429 `reference_analysis_limited` with a `Retry-After` header, and nothing is charged.
+
+### Changed
+
+- *Server-side:* a repeat of the same `find_trends` search (platform, language, window and words) is free for 24 hours,
+  up from one hour, and answers the saved result. `quote_trends` prices such a repeat at 0 and names the saved search.
+
 ## [0.83.0] - 2026-11-27
 
 ### Added

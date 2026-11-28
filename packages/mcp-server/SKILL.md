@@ -534,8 +534,9 @@ retry. A field named in `withheld` is null on every shot: "not shown", not
 "missing". Checked 2026-10-31.
 
 **A reference reel is polled with `get_reference_analysis`, not `get_run`.** Pass
-an Instagram or TikTok link as `source_url` (no `create_asset` first); a YouTube
-link is refused, so ask for the MP4. The same reel by its full link, in the same
+an Instagram, TikTok or YouTube video link as `source_url` (no `create_asset` first).
+A YouTube video is read at reduced resolution, so small on-screen text and
+graphics may be missed; for a full read, ask for the MP4. The same reel by its full link, in the same
 mode, answers its earlier analysis for free; a short `vt.tiktok.com` or `vm.tiktok.com`
 link counts as the full link of its video. `mode: "data"` reads many reels cheaply, without a
 `reference_profile`. Checked 2026-10-31.

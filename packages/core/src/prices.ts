@@ -18,7 +18,7 @@ import { REFERENCE_ANALYSIS_TARIFFS, REFERENCE_DATA_CREDITS, referenceAnalysisPr
   referenceAnalysisSince, type ReferenceAnalysisTariff } from "./reference-analysis.js";
 import { CREATOR_PROFILE_CREDITS, CREATOR_PROFILE_VIDEOS } from "./creator-profile.js";
 import {
-  TREND_FREE_PAGES_PER_DAY, TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_REELS,
+  TREND_FREE_PAGES_PER_DAY, TREND_FREE_SEARCHES_PER_MONTH, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_CREDITS, TREND_SEARCH_MAX_PAGES, TREND_SEARCH_REELS, TREND_SEARCH_REPLAY_SECONDS,
 } from "./trend-search.js";
 import { FILM_MUSIC_BED_CREDITS, MUSIC_BED_CREDITS } from "./music.js";
 import { HERO_RUNS_PER_HOUR, OWN_FILM_EXTRA_SECOND_CREDITS, OWN_FILM_INCLUDED_SECONDS, OWN_FILM_RENDER_CREDITS, OWN_HERO_POSE_CREDITS, OWN_HERO_POSES,
@@ -272,7 +272,7 @@ function buildPriceList(offer: ServiceOffer, diy: DiyModesSold): PriceEntry[] {
       quote_tool: "quote_trends", notes: `Up to ${TREND_SEARCH_REELS} reels per platform on a topic, TikTok and Instagram together by ` +
         "default, each with its x to its creator's median views. The same price for one platform or both. " +
         "Held at the start and charged once it succeeds, a mix that reaches only one platform included; no reel found, or a failed search, costs nothing. " +
-        "The same query again within an hour answers the same search for free. " +
+        `The same query again within ${TREND_SEARCH_REPLAY_SECONDS / 3600} hours answers the same search for free. ` +
         `Every account gets ${TREND_FREE_SEARCHES_PER_MONTH} free searches each calendar month; a failed one does not count. ` +
         `A finished search's next pages are free for ${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search: up to ` +
         `${TREND_SEARCH_REELS} more creators per platform each, up to ${TREND_SEARCH_MAX_PAGES} pages with the first, ` +

@@ -7,7 +7,7 @@ import { CANVAS_FPS } from '../media-timebase.js';
 import { estimateDurationSec, WORDS_PER_SECOND_MAX, WORDS_PER_SECOND_MIN } from '../pacing.js';
 import { referenceAnalysisId } from '../reference-analysis.js';
 import { actorIdScope } from '../account-actors.js';
-import { referenceProfileInput, type REFERENCE_GESTURES, type ReferenceProfileInput as ReferenceProfile, type ReferenceShotSize } from '../reference-profile.js';
+import { referenceHasNoPresenter, referenceProfileInput, type REFERENCE_GESTURES, type ReferenceProfileInput as ReferenceProfile, type ReferenceShotSize } from '../reference-profile.js';
 import type { LiveShotFraming } from '../live-shot-kinds.js';
 import { narrationPaceFromVoice, PAUSE_TRIM_CEILING_S, pauseTrimFromVoice } from '../reference-voice.js';
 import { AD_PAUSE_TRIM } from '../ad-pause-trim.js';
@@ -121,7 +121,6 @@ const TEXT_KINDS = new Set(['title_card', 'tag']);
 const MEDIA_KINDS = { overlay_media: 'overlays', insert_media: 'inserts', layout_split: 'layout_windows' } as const;
 const MARKER = 'ref-long-form';
 const SHOWN_ROLES = new Set(['demo', 'before_after']);
-const FACELESS_SHARE = 0.8;
 const GENERATE = 'pass a ready ast_* asset, or make one separately with generate_image or generate_video (its own quote), then compile again';
 type Unmapped = ReferenceProfile['unmapped'][number];
 type ReferenceGesture = (typeof REFERENCE_GESTURES)[number];
@@ -1418,8 +1417,7 @@ export function compileReferenceRemake(input: unknown, capabilities: CapabilityP
         }
     }
     const disclosed = notes.length;
-    const away = profile.beats.reduce((sum, beat) => sum + (beat.presenter_behaviour === 'absent' ? beat.end_frac - beat.start_frac : 0), 0);
-    if (profile.format === 'faceless' || profile.format === 'broll' || away >= FACELESS_SHARE - 1e-9) {
+    if (referenceHasNoPresenter(profile)) {
         note(0, 'a video with no presenter on screen for most of its length', 'a presenter video that covers its presenter there, and a covered presenter ' +
             'is still billed; make_faceless makes narrated videos with no presenter');
     }

@@ -48,7 +48,7 @@ export const TREND_NEW_CREATOR_MEDIAN = 1000;
 export const TREND_NEW_CREATOR_X_SHOWN = 100;
 export const TREND_PRELIMINARY_HOURS = 48;
 export const TREND_LATE_TAKEOFF_X = 3;
-export const TREND_SEARCH_REPLAY_SECONDS = 3600;
+export const TREND_SEARCH_REPLAY_SECONDS = 86_400;
 export const TREND_SEARCH_WORK_SECONDS = 90;
 export const TREND_SEARCH_TASK_MAX_DURATION_SECONDS = 120;
 export const TREND_SEARCH_DEADLINE_SECONDS = 300;
@@ -621,7 +621,7 @@ export const FIND_TRENDS_DESCRIPTION =
   `Reels that took off on a topic: up to ${TREND_SEARCH_REELS} per platform, one per creator, TikTok and Instagram in one ranking by ` +
   `x_median (views over the creator's median). ${thirdPartyData("the reels")} Charged only on success, a mix that reached one platform too; ` +
   `${TREND_SEARCH_PER_HOUR} per hour. An unfinished answer's poll names get_trend_search, free. Each reel says why it is here, and a reel measured before carries its speed now; ` +
-  "the same call with another sort reorders the same search for free within the hour. A weak result (under two reels that took off) " +
+  `the same call with another sort reorders the same search for free within ${TREND_SEARCH_REPLAY_SECONDS / 3600} hours. A weak result (under two reels that took off) ` +
   "lists suggested_wordings: search again with one. With no keywords it searches the primary saved niche (trend_niches). " +
   `A finished search has gallery_url, a page with covers to share for ${TREND_GALLERY_DAYS} days. ` +
   `next_page: up to ${TREND_SEARCH_REELS} more places per platform (search_id and page, nothing else), up to ` +
@@ -635,7 +635,7 @@ export const GET_TREND_SEARCH_DESCRIPTION =
   "answer carries retry_after_seconds and poll. sort reorders the reels. display_markdown is a ready table; display_hint says " +
   "how to show it. untrusted_content lists the third-party text fields. credits_charged is the price once succeeded. Free.";
 
-export const QUOTE_TRENDS_DESCRIPTION = `Price find_trends: 0 when the same query from the last hour would answer or a free search applies ` +
+export const QUOTE_TRENDS_DESCRIPTION = `Price find_trends: 0 when the same query from the last ${TREND_SEARCH_REPLAY_SECONDS / 3600} hours would answer or a free search applies ` +
   `(${TREND_FREE_SEARCHES_PER_MONTH} a month; free_searches_left). With search_id and page: a next page, free for ` +
   `${TREND_PAGE_WINDOW_SECONDS / 3600} hours after the search, up to ${TREND_FREE_PAGES_PER_DAY} pages a day per account, ` +
   `else ${TREND_PAGE_PAID_CREDITS} credits; warnings say why. Free.`;

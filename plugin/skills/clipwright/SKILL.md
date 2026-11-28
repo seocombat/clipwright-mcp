@@ -77,8 +77,9 @@ the presenter's hands, save its picture as an image asset with `create_asset`
 ## A reference ad
 
 `analyze_reference` reads an ad the user liked into a profile of its beats,
-graphics, captions and pacing. Pass an Instagram or TikTok link as
-`source_url`; a YouTube link is refused, so save that MP4 as an asset with
+graphics, captions and pacing. Pass an Instagram, TikTok or YouTube video link
+as `source_url`. A YouTube video is read at reduced resolution, so small
+on-screen text and graphics may be missed; for a full read, save its MP4 as an asset with
 `create_asset` and `kind: "video"` and pass its `asset_id`. It costs credits,
 so quote it with `quote_analysis` first, and poll `get_reference_analysis`. `plan_reference_remake` then lays the
 accepted script on the reference beats as a workflow plan, free; its warnings

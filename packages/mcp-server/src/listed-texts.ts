@@ -1,6 +1,7 @@
 import {
   ANALYSIS_VIDEO_MAX_SECONDS, ASSET_LIST_MAX_LIMIT, ASSET_VIDEO_MAX_SECONDS, REFERENCE_ANALYSIS_MAX_SECONDS, ASSET_TOOL_PAGE, CANDIDATE_CHARGE_TEXT, CREATOR_PROFILE_CREDITS, MAX_OVERLAYS_AT_ONCE, MUSIC_BED_CREDITS, referenceAnalysisPriceRange, REFERENCE_DATA_CREDITS,
   REVISION_CHARGE_TEXT, SCENE_CREDITS, SCRIPT_LENGTH_DESCRIPTION, offeredTemplateKinds, thirdPartyData, TREND_FREE_PAGES_PER_DAY, TREND_GALLERY_DAYS, TREND_PAGE_PAID_CREDITS, TREND_PAGE_WINDOW_SECONDS,TREND_SEARCH_MAX_PAGES, TREND_SEARCH_PER_HOUR, TREND_SEARCH_REELS,
+  YOUTUBE_LINK_MAX_SECONDS,
 } from "@clipwright/core";
 
 
@@ -38,9 +39,10 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
     `captions, pacing, voice, top comments and the funnel code word. ${thirdPartyData("the reel")} Mode "data" answers only the data: ` +
     "words, scenes between cuts, " +
     "hook and a frame a second. Pass asset_id of an MP4 asset up to 100 MiB, or source_url of an Instagram " +
-    `reel or post or a TikTok video. Both modes read reels up to ${REFERENCE_ANALYSIS_MAX_SECONDS.full} s (an asset that is not analysis_only, ` +
-    `${ASSET_VIDEO_MAX_SECONDS} s); a longer one is refused at no charge. ` +
-    "A YouTube link is refused: upload its MP4 with create_asset. Full is priced by the reel's length; a link of unknown length holds the most and is " +
+    `reel or post, a TikTok video or a YouTube video. Both modes read reels up to ${REFERENCE_ANALYSIS_MAX_SECONDS.full} s (a YouTube video, ` +
+    `${YOUTUBE_LINK_MAX_SECONDS} s; an asset that is not analysis_only, ${ASSET_VIDEO_MAX_SECONDS} s); a longer one is refused at no charge. ` +
+    "A YouTube video is read at reduced resolution, so small on-screen text and graphics may be missed; for a full read, upload its MP4 with " +
+    "create_asset. Its comments and the author's median are not read. Full is priced by the reel's length; a link of unknown length holds the most and is " +
     "charged by the length. Charged once it succeeds; a failed analysis costs nothing. 10 new full and 60 new data analyses per hour. The same asset or full link in the same mode " +
     "answers the same analysis free unless it failed; one made before frames and " +
     "speakers existed is redone free once. Poll get_reference_analysis with wait_seconds: 50.",
@@ -130,7 +132,8 @@ export const LISTED_DESCRIPTIONS: Record<string, string> = {
   quote_analysis: "Price analyze_reference for an asset_id or source_url and a mode " +
     `(full ${referenceAnalysisPriceRange()}; data ${REFERENCE_DATA_CREDITS}; charged once it ` +
     "succeeds); for a link of unknown length the most, with credits_by_length listing each length's price; 0 when a start would answer an existing " +
-    "analysis or redo an old one free. repeat_note says what asking again costs. A YouTube or unknown link is refused. Free.",
+    "analysis or redo an old one free. repeat_note says what asking again costs. For a YouTube video link, warnings say it is read at " +
+    "reduced resolution. A YouTube page that is not one video, or an unknown link, is refused. Free.",
   quote_candidate: "Price one shot candidate without spending credits; usable_until is the last moment it can enter a revision. " +
     `${CANDIDATE_CHARGE_TEXT} ${CANDIDATES_CLOSED}`,
   send_feedback: "Tell Clipwright what is missing, confusing, wrong or far too slow instead of giving up; replies show in " +

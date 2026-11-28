@@ -6,6 +6,7 @@ import { maxCreditsField } from "./max-credits.js";
 import { REFERENCE_WAIT_MAX_SECONDS } from "./reference-analysis.js";
 import { scriptVoice } from "./script-voice.js";
 import { thirdPartyData } from "./third-party.js";
+import { YOUTUBE_HOSTS } from "./youtube-link.js";
 
 
 export const CREATOR_PROFILES_PATH = "/v1/creator-profiles";
@@ -72,7 +73,6 @@ export type CreatorUrl =
 
 const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com", "m.instagram.com"]);
 const TIKTOK_HOSTS = new Set(["tiktok.com", "www.tiktok.com", "m.tiktok.com"]);
-const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtu.be"]);
 const INSTAGRAM_RESERVED = new Set(["reel", "reels", "p", "tv", "stories", "explore", "accounts", "direct", "about", "developer", "legal"]);
 
 const byHandle = (url: URL, platform: CreatorPlatform, name: string): CreatorUrl => {

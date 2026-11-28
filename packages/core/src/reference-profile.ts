@@ -12,6 +12,12 @@ export { REFERENCE_DESCRIBED_KINDS, REFERENCE_GRAPHIC_KINDS, REFERENCE_SOURCE_KI
 
 export const REFERENCE_PROFILE_VERSION = "reference-profile-v1";
 export const REFERENCE_FORMATS = ["talking_head_graphics", "faceless", "broll", "other"] as const;
+export const REFERENCE_NO_PRESENTER_SHARE = 0.8;
+export function referenceHasNoPresenter(profile: { format: string;
+  beats: readonly { presenter_behaviour: string; start_frac: number; end_frac: number }[] }): boolean {
+  const away = profile.beats.reduce((sum, beat) => sum + (beat.presenter_behaviour === "absent" ? beat.end_frac - beat.start_frac : 0), 0);
+  return profile.format === "faceless" || away >= REFERENCE_NO_PRESENTER_SHARE - 1e-9;
+}
 export const REFERENCE_BEAT_ROLES = ["hook", "problem", "agitation", "solution", "demo", "proof", "before_after", "social_proof", "offer", "cta",
   "other"] as const;
 export const REFERENCE_POSITIONS = ["full_screen", "top", "center", "bottom", "top_left", "top_right", "bottom_left", "bottom_right", "split_top",

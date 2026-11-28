@@ -33,7 +33,7 @@ import { PUBLIC_API_BASE_URL, PUBLIC_APP_BASE_URL } from "./public-endpoints.js"
 import { healthResponse, publicSkillsResponse } from "./public-responses.js";
 import { analysisQuoteResponse, analyzeReferenceRequest, referenceAnalysis, referenceAnalysisId, referenceAnalysisQuery } from "./reference-analysis.js";
 import { analyzeCreatorRequest, creatorProfileAnswer, creatorProfileId, creatorProfileQuery, creatorProfileQuote } from "./creator-profile.js";
-import { trendSearchAnswer, trendSearchId, trendSearchQuery, trendSearchQuote } from "./trend-search.js";
+import { TREND_SEARCH_REPLAY_SECONDS, trendSearchAnswer, trendSearchId, trendSearchQuery, trendSearchQuote } from "./trend-search.js";
 import { findTrendsInput, trendNiches, trendNichesInput } from "./trend-niches.js";
 import { runId, runQuery } from "./runs.js";
 import { quoteResponse } from "./skills.js";
@@ -279,7 +279,7 @@ export const OPENAPI_ROUTES: Readonly<Record<string, OpenApiRoute>> = {
   "POST /v1/trend-searches/quote": { exposure: "public", operationId: "quoteTrends", tag: "Trend searches",
     body: named("FindTrendsRequest", findTrendsInput), responses: { 200: named("TrendSearchQuote", trendSearchQuote) } },
   "POST /v1/trend-searches": { exposure: "public", operationId: "findTrends", tag: "Trend searches",
-    billedWithoutKey: "a resend within an hour answers the same search, and only a succeeded one is charged",
+    billedWithoutKey: `a resend within ${TREND_SEARCH_REPLAY_SECONDS / 3600} hours answers the same search, and only a succeeded one is charged`,
     body: named("FindTrendsRequest", findTrendsInput),
     responses: { 202: named("TrendSearch", trendSearchAnswer), 200: named("TrendSearch", trendSearchAnswer) } },
   "GET /v1/trend-searches/{id}": { exposure: "public", operationId: "getTrendSearch", tag: "Trend searches", params: { id: trendSearchId },
